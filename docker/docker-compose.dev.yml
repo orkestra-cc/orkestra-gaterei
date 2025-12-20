@@ -75,12 +75,12 @@ services:
 
       # Go module settings
       GOSUMDB: "off"
+      GOMODCACHE: "/app/.go-mod-cache"
       GOCACHE: "/app/.go-build-cache"
       GOBIN: "/app/.go-bin"
       PATH: "/app/.go-bin:/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     volumes:
       - ../backend:/app
-      - /app/tmp
       - ./keys:/app/keys
     networks:
       - orkestra-network

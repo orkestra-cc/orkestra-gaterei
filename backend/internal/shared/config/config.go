@@ -64,6 +64,7 @@ type JWTConfig struct {
 	PublicKey          *rsa.PublicKey
 	AccessTokenExpiry  time.Duration
 	RefreshTokenExpiry time.Duration
+	KeysLoaded         bool // Indicates if JWT keys were successfully loaded
 }
 
 type CookieConfig struct {
@@ -152,9 +153,12 @@ func Load() (*Config, error) {
 		RefreshTokenExpiry: getEnvAsDuration("JWT_REFRESH_TOKEN_EXPIRY", "7d"),
 	}
 
-	// Load RSA keys
+	// Load RSA keys (non-fatal in development)
 	if err := loadJWTKeys(&jwtConfig); err != nil {
-		return nil, fmt.Errorf("failed to load JWT keys: %w", err)
+		printJWTWarning(err)
+		jwtConfig.KeysLoaded = false
+	} else {
+		jwtConfig.KeysLoaded = true
 	}
 
 	config.Auth = AuthConfig{
@@ -210,20 +214,44 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Auth.JWT.PrivateKey == nil {
-		return fmt.Errorf("JWT private key is required")
+	// JWT keys are validated separately with warnings, not errors
+	// OAuth is optional in development
+	if c.Auth.Google.ClientID == "" && c.IsProductionLike() {
+		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required in production")
 	}
-	if c.Auth.JWT.PublicKey == nil {
-		return fmt.Errorf("JWT public key is required")
-	}
-	if c.Auth.Google.ClientID == "" {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required")
-	}
-	if c.Auth.Google.ClientSecret == "" {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required")
+	if c.Auth.Google.ClientSecret == "" && c.IsProductionLike() {
+		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required in production")
 	}
 
 	return nil
+}
+
+// printJWTWarning prints a prominent warning when JWT keys are not loaded
+func printJWTWarning(err error) {
+	warning := `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║   ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗███╗   ██╗ ██████╗                  ║
+║   ██║    ██║██╔══██╗██╔══██╗████╗  ██║██║████╗  ██║██╔════╝                  ║
+║   ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║██║██╔██╗ ██║██║  ███╗                 ║
+║   ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██║██║╚██╗██║██║   ██║                 ║
+║   ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║██║ ╚████║╚██████╔╝                 ║
+║    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝                  ║
+║                                                                              ║
+║   JWT KEYS NOT LOADED - AUTHENTICATION WILL NOT WORK!                        ║
+║                                                                              ║
+║   Error: %s
+║                                                                              ║
+║   To fix this, generate JWT keys:                                            ║
+║     openssl genrsa -out docker/keys/jwt-private.pem 4096                     ║
+║     openssl rsa -in docker/keys/jwt-private.pem -pubout \                    ║
+║       -out docker/keys/jwt-public.pem                                        ║
+║                                                                              ║
+║   Server will continue running, but auth endpoints will fail.                ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+`
+	fmt.Printf(warning, err)
 }
 
 func getEnv(key, defaultValue string) string {

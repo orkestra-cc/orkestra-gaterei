@@ -16,9 +16,13 @@ var (
 	ErrTokenExpired      = errors.New("token has expired")
 	ErrInvalidTokenType  = errors.New("invalid token type")
 	ErrInvalidSigningKey = errors.New("invalid signing key")
+	ErrJWTKeysNotLoaded  = errors.New("JWT keys not loaded - authentication is disabled")
 )
 
 type JWTService interface {
+	// Check if JWT keys are loaded and service is functional
+	IsEnabled() bool
+
 	// Basic JWT interface compatibility
 	GenerateAccessToken(user *userModels.User) (string, error)
 	GenerateRefreshToken(user *userModels.User) (string, error)
@@ -61,11 +65,19 @@ func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) JWTServ
 	}
 }
 
+// IsEnabled returns true if JWT keys are loaded and the service can sign/verify tokens
+func (s *jwtService) IsEnabled() bool {
+	return s.privateKey != nil && s.publicKey != nil
+}
+
 func (s *jwtService) GenerateEnhancedAccessToken(
 	user *userModels.User,
 	deviceInfo *models.DeviceInfo,
 	securityCtx *models.SecurityContext,
 ) (string, error) {
+	if s.privateKey == nil {
+		return "", ErrJWTKeysNotLoaded
+	}
 	now := time.Now()
 	expiresAt := now.Add(s.accessExpiry)
 
@@ -117,6 +129,9 @@ func (s *jwtService) GenerateEnhancedRefreshToken(
 	deviceInfo *models.DeviceInfo,
 	securityCtx *models.SecurityContext,
 ) (string, error) {
+	if s.privateKey == nil {
+		return "", ErrJWTKeysNotLoaded
+	}
 	now := time.Now()
 	expiresAt := now.Add(s.refreshExpiry)
 
@@ -180,6 +195,9 @@ func (s *jwtService) ValidateRefreshTokenWithRisk(tokenString string) (*models.J
 }
 
 func (s *jwtService) validateTokenEnhanced(tokenString string, expectedType string) (*models.JWTClaims, error) {
+	if s.publicKey == nil {
+		return nil, ErrJWTKeysNotLoaded
+	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
