@@ -17,6 +17,38 @@ export const ROLE_HIERARCHY: UserRole[] = [
 ];
 
 /**
+ * Mapping from backend roles (Italian) to frontend roles (English)
+ * Supports both Italian and English role names for flexibility
+ */
+export const ROLE_MAPPING: Record<string, UserRole> = {
+  // Italian roles from backend → English frontend roles
+  'sviluppatore': 'developer',
+  'ceo': 'ceo',
+  'amministratore': 'administrator',
+  'manager': 'manager',
+  'operatore': 'operator',
+  'ospite': 'guest',
+  // English roles (fallback/direct match)
+  'developer': 'developer',
+  'administrator': 'administrator',
+  'operator': 'operator',
+  'guest': 'guest'
+};
+
+/**
+ * Normalize a role string to a valid UserRole
+ * Handles both Italian (backend) and English role names
+ *
+ * @param role - Role string from backend or other source
+ * @returns Normalized UserRole or null if not recognized
+ */
+export const normalizeRole = (role: string): UserRole | null => {
+  if (!role) return null;
+  const normalized = ROLE_MAPPING[role.toLowerCase()];
+  return normalized || null;
+};
+
+/**
  * Get the privilege level of a role (lower number = higher privilege)
  */
 export const getRoleLevel = (role: UserRole): number => {
@@ -142,7 +174,7 @@ export const isManagerOrAbove = (userRole: UserRole): boolean => {
 
 /**
  * Get user role from various possible sources (for flexibility)
- * Handles different auth data structures
+ * Handles different auth data structures and normalizes Italian backend roles
  *
  * @param authData - Authentication data object
  * @returns UserRole or null if not found
@@ -155,8 +187,15 @@ export const extractUserRole = (authData: any): UserRole | null => {
                authData?.user?.role ||
                authData?.data?.role;
 
-  if (role && ROLE_HIERARCHY.includes(role as UserRole)) {
-    return role as UserRole;
+  if (!role) {
+    return null;
+  }
+
+  // Normalize the role (supports both Italian backend roles and English roles)
+  const normalizedRole = normalizeRole(role);
+
+  if (normalizedRole) {
+    return normalizedRole;
   }
 
   // Log warning in development for debugging
@@ -164,7 +203,8 @@ export const extractUserRole = (authData: any): UserRole | null => {
     console.warn('🔐 Could not extract valid role from auth data:', {
       available_fields: Object.keys(authData),
       role_value: role,
-      expected_roles: ROLE_HIERARCHY
+      expected_roles: ROLE_HIERARCHY,
+      supported_mappings: Object.keys(ROLE_MAPPING)
     });
   }
 

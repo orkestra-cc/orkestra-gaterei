@@ -43,13 +43,24 @@ export const useRoleBasedNavigation = (
   const filteredNavigation = useMemo(() => {
     // If user is not authenticated, return empty navigation
     if (!isAuthenticated || !user) {
+      console.log('🔐 Navigation: Not authenticated or no user', { isAuthenticated, user });
       return [];
     }
 
     const userRole = extractUserRole(user);
 
+    // Debug log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 Navigation: User role extraction', {
+        originalRole: user?.role,
+        normalizedRole: userRole,
+        isAuthenticated
+      });
+    }
+
     // If no valid role found, return empty navigation
     if (!userRole) {
+      console.warn('🔐 Navigation: No valid role found, returning empty navigation');
       return [];
     }
 
@@ -147,6 +158,15 @@ export const useRoleBasedNavigation = (
 
         return true;
       }) as RouteGroup[];
+
+    // Debug log filtered results
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 Navigation: Filtered groups', {
+        totalGroups: routeGroups.length,
+        filteredGroupsCount: filteredGroups.length,
+        groupLabels: filteredGroups.map(g => g.label)
+      });
+    }
 
     return filteredGroups;
   }, [
