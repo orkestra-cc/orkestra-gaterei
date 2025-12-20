@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import coverSrc from 'assets/img/sidereco/sidereco-tachograph.jpg';
+import coverSrc from 'assets/img/orkestra/orkestra-tachograph.jpg';
 import Flex from 'components/common/Flex';
 
 import { Col, Row, Badge } from 'react-bootstrap';

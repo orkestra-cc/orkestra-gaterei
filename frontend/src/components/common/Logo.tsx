@@ -1,7 +1,7 @@
 
 import classNames from 'classnames';
 import { Link, LinkProps } from 'react-router';
-import logo from 'assets/img/sidereco/logo_sidereco.png';
+import logo from 'assets/img/orkestra/logo_orkestra.png';
 
 type LogoLocation = 'auth' | 'navbar-vertical' | 'navbar-top';
 
@@ -41,7 +41,7 @@ const Logo: React.FC<LogoProps> = ({
         )}
       >
         <img className="me-2" src={logo} alt="Logo" width={width} />
-        {/* <span className={classNames('font-sans-serif', textClass)}>SIDERECO</span> */}
+        {/* <span className={classNames('font-sans-serif', textClass)}>Orkestra</span> */}
       </div>
     </Link>
   );

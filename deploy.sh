@@ -110,8 +110,8 @@ set_env_config() {
             BRANCH="dev"
             COMPOSE_FILE="$DOCKER_DIR/docker-compose.staging.yml"
             DB_NAME="orkestra_staging"
-            FRONTEND_URL="https://stage.sidereco.com"
-            BACKEND_URL="https://stage.sidereco.com/api"
+            FRONTEND_URL="https://stage.orkestra.com"
+            BACKEND_URL="https://stage.orkestra.com/api"
             ;;
         production)
             ENV_COLOR=$RED
@@ -119,8 +119,8 @@ set_env_config() {
             BRANCH="main"
             COMPOSE_FILE="$DOCKER_DIR/docker-compose.prod.yml"
             DB_NAME="orkestra"
-            FRONTEND_URL="https://gestionale.sidereco.com"
-            BACKEND_URL="https://api.sidereco.com"
+            FRONTEND_URL="https://gestionale.orkestra.com"
+            BACKEND_URL="https://api.orkestra.com"
             ;;
     esac
 }
