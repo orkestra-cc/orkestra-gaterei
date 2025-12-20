@@ -117,9 +117,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create auth repository: %v", err)
 	}
-	fmt.Println("[INIT_DEBUG] Creating OAuth provider repository...")
 	oauthProviderRepo := repository.NewOAuthProviderRepository(db)
-	fmt.Println("[INIT_DEBUG] OAuth provider repository created successfully")
 
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	authSessionRepo := repository.NewAuthSessionRepository(db)

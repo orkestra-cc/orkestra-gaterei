@@ -14,7 +14,14 @@ type RedirectURIConfig struct {
 }
 
 // DefaultRedirectURIConfig returns a default configuration for redirect URI validation
+// DEPRECATED: Use NewRedirectURIConfig(allowLocalhost bool) instead for production safety
 func DefaultRedirectURIConfig() *RedirectURIConfig {
+	return NewRedirectURIConfig(true) // Default to allowing localhost for backwards compatibility
+}
+
+// NewRedirectURIConfig creates a redirect URI configuration with explicit localhost control
+// Set allowLocalhost to false in production/staging environments
+func NewRedirectURIConfig(allowLocalhost bool) *RedirectURIConfig {
 	return &RedirectURIConfig{
 		AllowedRedirectURIs: []string{
 			"http://localhost:3000/auth/oauth/google/callback",
@@ -32,7 +39,7 @@ func DefaultRedirectURIConfig() *RedirectURIConfig {
 			"com.orkestra",     // Mobile app scheme
 			"com.orkestra.app", // Alternative mobile app scheme
 		},
-		AllowLocalhost: true, // Allow localhost for development
+		AllowLocalhost: allowLocalhost,
 	}
 }
 

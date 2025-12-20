@@ -451,36 +451,28 @@ func (h *AuthHandler) HandleDiscordCallbackHTTP(w http.ResponseWriter, r *http.R
 
 // HandleAppleCallbackHTTP handles Apple OAuth callback with proper HTTP redirect
 func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[AUTH_DEBUG] ==> HandleAppleCallbackHTTP called\n")
-	fmt.Printf("[AUTH_DEBUG] Full callback URL: %s\n", r.URL.String())
-	fmt.Printf("[AUTH_DEBUG] Request method: %s\n", r.Method)
+	utils.AuthDebugFlow("HandleAppleCallbackHTTP")
 	ctx := r.Context()
 
 	// Parse form data (Apple uses POST with form data, not query parameters)
 	if err := r.ParseForm(); err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to parse form data: %v\n", err)
+		utils.AuthDebugError("parse_form", err)
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
-	}
-
-	// Debug: Print all form values received from Apple
-	fmt.Printf("[AUTH_DEBUG] All form values received from Apple:\n")
-	for key, values := range r.Form {
-		fmt.Printf("[AUTH_DEBUG]   %s: %v\n", key, values)
 	}
 
 	// Extract form parameters
 	state := r.FormValue("state")
 	code := r.FormValue("code")
 	idToken := r.FormValue("id_token")
-	fmt.Printf("[AUTH_DEBUG] Extracted state: '%s'\n", state)
-	fmt.Printf("[AUTH_DEBUG] Extracted code: %s (length: %d)\n", code[:min(len(code), 20)]+"...", len(code))
-	fmt.Printf("[AUTH_DEBUG] Extracted id_token present: %v\n", idToken != "")
 
-	// Apple sometimes doesn't return state in form_post mode due to configuration issues
-	// We'll validate the id_token presence as a fallback security measure
+	// Debug logging with sensitive data protection
+	utils.AuthDebugPresence("state", state)
+	utils.AuthDebugPresence("code", code)
+	utils.AuthDebugPresence("id_token", idToken)
+
 	if code == "" {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Missing code parameter\n")
+		utils.AuthDebugError("validation", fmt.Errorf("missing authorization code"))
 		http.Error(w, "Missing authorization code", http.StatusBadRequest)
 		return
 	}
@@ -488,83 +480,86 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	var stateInfo *services.OAuthStateInfo
 
 	if state == "" {
-		// SECURITY WARNING: State parameter is missing
-		// This should be fixed in Apple Developer Portal configuration
-		// For now, we require id_token as alternative validation
+		// SECURITY: In production, state parameter is REQUIRED to prevent CSRF attacks
+		if h.config.IsProductionLike() {
+			utils.AuthDebugError("security", fmt.Errorf("missing state parameter in production - possible CSRF attack"))
+			http.Error(w, "Missing state parameter - authentication rejected for security", http.StatusBadRequest)
+			return
+		}
+
+		// Development only: Allow fallback with warning (for testing Apple Sign In configuration issues)
 		if idToken == "" {
-			fmt.Printf("[AUTH_DEBUG] ERROR: Missing both state and id_token - possible CSRF attack\n")
+			utils.AuthDebugError("security", fmt.Errorf("missing both state and id_token"))
 			http.Error(w, "Missing security parameters", http.StatusBadRequest)
 			return
 		}
-		fmt.Printf("[AUTH_DEBUG] WARNING: State parameter missing but id_token present - proceeding with caution\n")
-		fmt.Printf("[AUTH_DEBUG] IMPORTANT: Fix Apple Service ID configuration to include state parameter\n")
 
-		// Use fallback authentication without state validation
-		// Create minimal state info for processing
+		// Log security warning for development
+		utils.AuthDebug("SECURITY WARNING: State parameter missing - this would fail in production!")
+		utils.AuthDebug("Fix Apple Service ID configuration to include state parameter")
+
+		// Create minimal state info for development testing only
 		stateInfo = &services.OAuthStateInfo{
-			State:    "apple-fallback-" + idToken[:20],
-			Provider: models.OAuthProviderApple,
+			State:       "apple-dev-fallback",
+			Provider:    models.OAuthProviderApple,
 			RedirectURI: h.config.Server.FrontendURL + "/auth/callback",
-			DeviceInfo: nil,
+			DeviceInfo:  nil,
 			SecurityContext: &models.SecurityContext{
 				IPAddress: utils.GetClientIP(r),
 				Timestamp: time.Now(),
 			},
 		}
-		fmt.Printf("[AUTH_DEBUG] Using fallback state info - will skip Redis validation\n")
 	} else {
 		// Normal flow: Validate state parameter
-		fmt.Printf("[AUTH_DEBUG] Validating OAuth state: %s\n", state)
 		var err error
 		stateInfo, err = h.oauthStateService.ValidateOAuthState(ctx, state)
 		if err != nil {
-			fmt.Printf("[AUTH_DEBUG] ERROR: Invalid OAuth state: %v\n", err)
+			utils.AuthDebugError("state_validation", err)
 			http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
 			return
 		}
-		fmt.Printf("[AUTH_DEBUG] OAuth state validated successfully - Provider: %s, RedirectURI: %s\n", stateInfo.Provider, stateInfo.RedirectURI)
+		utils.AuthDebug("OAuth state validated - Provider: %s", stateInfo.Provider)
 	}
 
 	// Create Apple OAuth provider
-	fmt.Printf("[AUTH_DEBUG] Creating Apple OAuth provider\n")
+	utils.AuthDebug("Creating Apple OAuth provider")
 	provider, err := h.oauthFactory.CreateProvider(models.OAuthProviderApple, nil)
 	if err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to create OAuth provider: %v\n", err)
+		utils.AuthDebugError("create_provider", err)
 		http.Error(w, "Failed to get OAuth provider", http.StatusInternalServerError)
 		return
 	}
 
 	// Exchange code for tokens
 	backendCallbackURL := h.config.Auth.Apple.RedirectURL
-	fmt.Printf("[AUTH_DEBUG] Exchanging code for tokens with callback URL: %s\n", backendCallbackURL)
+	utils.AuthDebug("Exchanging code for tokens")
 
 	tokenResp, err := provider.ExchangeCodeForToken(ctx, &services.CodeExchangeRequest{
 		Code:        code,
 		RedirectURI: backendCallbackURL,
 	})
 	if err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to exchange code for tokens: %v\n", err)
+		utils.AuthDebugError("exchange_code", err)
 		http.Error(w, "Failed to exchange code", http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("[AUTH_DEBUG] Successfully exchanged code for tokens - Token type: %s\n", tokenResp.TokenType)
+	utils.AuthDebug("Code exchanged successfully")
 
 	// Get user info from Apple ID token (Apple doesn't provide a user info endpoint)
-	fmt.Printf("[AUTH_DEBUG] Getting user info from Apple ID token\n")
+	utils.AuthDebug("Validating Apple ID token")
 	userInfo, err := provider.ValidateIDToken(ctx, &services.IDTokenValidationRequest{
 		IDToken:     tokenResp.IDToken,
 		AccessToken: tokenResp.AccessToken,
 		Audience:    provider.GetClientID(),
 	})
 	if err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to validate Apple ID token: %v\n", err)
+		utils.AuthDebugError("validate_id_token", err)
 		http.Error(w, "Failed to validate ID token", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("[AUTH_DEBUG] Successfully retrieved user info from ID token - Email: %s, Name: %s\n", userInfo.Email, userInfo.Name)
+	utils.AuthDebugPresence("user_email", userInfo.Email)
 
 	// Convert userInfo to map for enhanced auth service
-	fmt.Printf("[AUTH_DEBUG] Converting user info to map for database operations\n")
 	userInfoMap := map[string]interface{}{
 		"email":          userInfo.Email,
 		"name":           userInfo.Name,
@@ -572,7 +567,6 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 		"provider_id":    userInfo.ProviderID,
 		"email_verified": userInfo.EmailVerified,
 	}
-	fmt.Printf("[AUTH_DEBUG] User info map created - Email: %s, Provider ID: %s\n", userInfo.Email, userInfo.ProviderID)
 
 	// Prepare OAuth provider tokens for storage
 	oauthTokens := &models.OAuthProviderTokens{
@@ -583,14 +577,14 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 		Scopes:       tokenResp.Scope,
 		IDToken:      tokenResp.IDToken,
 	}
-	fmt.Printf("[AUTH_DEBUG] OAuth tokens prepared - Access token present: %v, Refresh token present: %v\n",
+	utils.AuthDebug("OAuth tokens prepared - has access: %v, has refresh: %v",
 		tokenResp.AccessToken != "", tokenResp.RefreshToken != "")
 
 	// Use enhanced auth service for proper user creation and token management
-	fmt.Printf("[AUTH_DEBUG] Calling HandleOAuthCallbackWithLinking to find/create user and generate tokens\n")
+	utils.AuthDebug("Processing OAuth callback with linking")
 	tokenResponse, err := h.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderApple, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to process OAuth callback: %v\n", err)
+		utils.AuthDebugError("oauth_callback", err)
 		http.Error(w, "Failed to process OAuth callback", http.StatusInternalServerError)
 		return
 	}

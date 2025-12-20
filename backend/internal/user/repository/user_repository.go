@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/orkestra/backend/internal/shared/utils"
 	"github.com/orkestra/backend/internal/user/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -441,7 +442,9 @@ func (r *mongoUserRepository) buildFilter(filters *models.UserFilters) bson.M {
 	}
 
 	if filters.Search != "" {
-		searchRegex := primitive.Regex{Pattern: filters.Search, Options: "i"}
+		// Escape regex metacharacters to prevent ReDoS attacks
+		escapedSearch := utils.EscapeRegex(filters.Search)
+		searchRegex := primitive.Regex{Pattern: escapedSearch, Options: "i"}
 		filter["$or"] = []bson.M{
 			{"fullName": searchRegex},
 			{"email": searchRegex},

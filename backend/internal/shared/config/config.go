@@ -49,12 +49,13 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWT     JWTConfig
-	Cookie  CookieConfig
-	Google  GoogleOAuthConfig
-	Apple   AppleOAuthConfig
-	Discord DiscordOAuthConfig
-	GitHub  GitHubOAuthConfig
+	JWT                     JWTConfig
+	Cookie                  CookieConfig
+	Google                  GoogleOAuthConfig
+	Apple                   AppleOAuthConfig
+	Discord                 DiscordOAuthConfig
+	GitHub                  GitHubOAuthConfig
+	AllowLocalhostRedirects bool // Allow localhost OAuth redirects (should be false in production)
 }
 
 type JWTConfig struct {
@@ -199,6 +200,7 @@ func Load() (*Config, error) {
 			ClientSecret: getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
 			RedirectURL:  getEnv("OAUTH_GITHUB_REDIRECT_URL", "http://localhost:3000/auth/oauth/github/callback"),
 		},
+		AllowLocalhostRedirects: getEnvAsBool("ALLOW_LOCALHOST_REDIRECTS", true), // Default true for development
 	}
 
 	config.Rate = RateLimitConfig{
@@ -214,13 +216,30 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	// JWT keys are validated separately with warnings, not errors
-	// OAuth is optional in development
-	if c.Auth.Google.ClientID == "" && c.IsProductionLike() {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required in production")
-	}
-	if c.Auth.Google.ClientSecret == "" && c.IsProductionLike() {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required in production")
+	// Production/Staging security validations
+	if c.IsProductionLike() {
+		// JWT keys are REQUIRED in production
+		if !c.Auth.JWT.KeysLoaded {
+			return fmt.Errorf("JWT keys are required in production - set JWT_PRIVATE_KEY_PATH and JWT_PUBLIC_KEY_PATH")
+		}
+
+		// Cookie security is REQUIRED in production
+		if !c.Auth.Cookie.Secure {
+			return fmt.Errorf("COOKIE_SECURE must be true in production/staging environments")
+		}
+
+		// Localhost redirects must be disabled in production
+		if c.Auth.AllowLocalhostRedirects {
+			return fmt.Errorf("ALLOW_LOCALHOST_REDIRECTS must be false in production/staging environments")
+		}
+
+		// OAuth is required in production
+		if c.Auth.Google.ClientID == "" {
+			return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required in production")
+		}
+		if c.Auth.Google.ClientSecret == "" {
+			return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required in production")
+		}
 	}
 
 	return nil
