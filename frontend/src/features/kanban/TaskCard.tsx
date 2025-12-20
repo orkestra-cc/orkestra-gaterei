@@ -1,9 +1,9 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Card, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useSortable } from '@dnd-kit/sortable';
 import Background from 'components/common/Background';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import SubtleBadge from 'components/common/SubtleBadge';
+import SubtleBadge, { BadgeColor } from 'components/common/SubtleBadge';
 import Avatar, { AvatarGroup } from 'components/common/Avatar';
 import { useKanbanContext } from 'providers/KanbanProvider';
 import { useAppContext } from 'providers/AppProvider';
@@ -14,13 +14,14 @@ import createMarkup from 'helpers/createMarkup';
 interface KanbanLabel {
   text: string;
   type: string;
-  id: string;
+  id?: string;
 }
 
 interface KanbanMember {
-  id: string;
+  id?: string;
   name: string;
-  url: string;
+  url?: string;
+  img?: string;
   email?: string;
 }
 
@@ -28,14 +29,14 @@ interface KanbanAttachment {
   id: string;
   type: 'image' | 'document' | 'video';
   url: string;
-  name: string;
+  name?: string;
   className?: string;
 }
 
 interface KanbanChecklist {
   completed: number;
   totalCount: number;
-  items: KanbanChecklistItem[];
+  items?: KanbanChecklistItem[];
 }
 
 interface KanbanChecklistItem {
@@ -45,8 +46,8 @@ interface KanbanChecklistItem {
 }
 
 interface KanbanTask {
-  id: string;
-  title: string;
+  id: string | number;
+  title?: string;
   description?: string;
   labels?: KanbanLabel[];
   members?: KanbanMember[];
@@ -54,21 +55,14 @@ interface KanbanTask {
   checklist?: KanbanChecklist;
   dueDate?: string;
   priority?: 'low' | 'medium' | 'high';
-  status: 'todo' | 'in-progress' | 'review' | 'done';
-}
-
-interface KanbanColumn {
-  id: string;
-  title: string;
-  tasks: KanbanTask[];
-  limit?: number;
+  [key: string]: unknown;
 }
 
 interface TaskDropMenuProps {
-  id: string;
+  id: string | number;
 }
 
-const TaskDropMenu: React.FC<TaskDropMenuProps> = ({ id }) => {
+const TaskDropMenu = ({ id }: TaskDropMenuProps) => {
   const removeTaskCard = useKanbanContext().removeTaskCard;
 
   const {
@@ -76,7 +70,7 @@ const TaskDropMenu: React.FC<TaskDropMenuProps> = ({ id }) => {
   } = useAppContext();
 
   const handleRemoveTaskCard = () => {
-    removeTaskCard(id);
+    removeTaskCard(id.toString());
   };
 
   return (
@@ -113,17 +107,17 @@ interface TaskCardProps {
   rotate?: boolean;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, cursor, rotate }) => {
+const TaskCard = ({ task, columnId, cursor, rotate }: TaskCardProps) => {
   const openKanbanModal = useKanbanContext().openKanbanModal;
-  const currentUser = useKanbanContext().currentUser || {};
+  const currentUser = useKanbanContext().currentUser || { name: '' };
   const setCardHeight = useKanbanContext().setCardHeight;
   const cardHeight = useKanbanContext().cardHeight || 0;
-  const cardRef = useRef(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const image =
     task.attachments && task.attachments.find(item => item.type === 'image');
 
   const handleModalOpen = () => {
-    openKanbanModal(image);
+    openKanbanModal(image?.url || '');
   };
 
   const { active, setNodeRef, listeners, isDragging, transform, transition } =
@@ -136,7 +130,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, cursor, rotate }) =
       }
     });
 
-  const isDraggingTaskItem = active && active.data.current.type === 'task';
+  const isDraggingTaskItem = active && active.data.current?.type === 'task';
 
   const handleMouseDownCapture = () => {
     if (cardRef.current === null) return;
@@ -186,7 +180,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, cursor, rotate }) =
                 {task.labels.map(label => (
                   <SubtleBadge
                     key={label.text}
-                    bg={label.type}
+                    bg={label.type as BadgeColor}
                     className="py-1 me-1 mb-1"
                   >
                     {label.text}
@@ -196,7 +190,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, cursor, rotate }) =
             )}
             <p
               className="mb-0 fw-medium font-sans-serif stretched-link"
-              dangerouslySetInnerHTML={createMarkup(task.title)}
+              dangerouslySetInnerHTML={createMarkup(task.title || '')}
             />
             {(task.members || task.attachments || task.checklist) && (
               <div className="kanban-item-footer cursor-default">
@@ -271,7 +265,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, cursor, rotate }) =
                           <div>
                             <Avatar
                               size="l"
-                              src={member.url}
+                              src={member.url || member.img}
                               className="ms-n1"
                             />
                           </div>

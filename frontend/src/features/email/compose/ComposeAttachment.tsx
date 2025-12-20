@@ -39,10 +39,10 @@ const getName = (name: string): string => {
 };
 
 interface ComposeAttachmentProps {
-  id: number;
+  id: string | number;
   name: string;
   size: number;
-  handleDetachAttachment: (id: number) => void;
+  handleDetachAttachment: (id: string | number) => void;
   type: string;
 }
 

@@ -22,7 +22,7 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = getThemeColor => ({
+const getOptions = (getThemeColor: (color: string) => string) => ({
   color: [getThemeColor('primary'), getThemeColor('gray-200')],
   legend: {
     data: ['Satisfied', 'Dissatisfied'],

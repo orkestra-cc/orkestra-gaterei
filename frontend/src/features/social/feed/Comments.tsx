@@ -4,10 +4,23 @@ import { Link } from 'react-router';
 import createMarkup from 'helpers/createMarkup';
 import paths from 'routes/paths';
 
-const Comments = ({ comments, loadComment }) => {
+interface Comment {
+  id: string;
+  avatarSrc: string;
+  name: string;
+  content: string;
+  postTime: string;
+}
+
+interface CommentsProps {
+  comments: Comment[];
+  loadComment?: string;
+}
+
+const Comments = ({ comments, loadComment }: CommentsProps) => {
   return (
     <>
-      {comments.map(({ id, avatarSrc, name, content, postTime }) => (
+      {comments.map(({ id, avatarSrc, name, content, postTime }: Comment) => (
         <div key={id}>
           <Flex className="mt-3">
             <Link to={paths.userProfile}>

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card } from 'react-bootstrap';
 import PageHeader from 'components/common/PageHeader';
 import FalconComponentCard from 'components/common/FalconComponentCard';
-import Treeview from 'components/common/Treeview';
+import Treeview, { TreeviewItem } from 'components/common/Treeview';
 import FalconEditor from 'components/common/FalconEditor';
 
-const treeviewItems = [
+const treeviewItems: TreeviewItem[] = [
   {
     name: 'public',
     id: '1',

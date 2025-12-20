@@ -23,7 +23,7 @@ const Profile: React.FC = () => {
           <ProfileIntro />
           <Associations
             associations={associations.slice(0, 4)}
-            colBreakpoints={{ sm: 6 }}
+            colBreakpoints={{ sm: 6, md: 4 }}
           />
           <ActivityLog className="mt-3" activities={activities.slice(5, 9)} />
           <Photos />

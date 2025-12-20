@@ -97,7 +97,7 @@ const ContactsFilteringForm = () => {
         </Form>
       </Card.Body>
       <Card.Footer className="border-top border-200 py-x1">
-        <Button varient="primary" className="w-100">
+        <Button variant="primary" className="w-100">
           Update
         </Button>
       </Card.Footer>

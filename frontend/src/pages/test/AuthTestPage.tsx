@@ -13,6 +13,11 @@ interface AuthResponse {
   characters?: any[];
   _source?: string;
   error?: string;
+  tokenStatus?: string;
+  accessToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+  [key: string]: any;
 }
 
 const AuthTestPage: React.FC = () => {

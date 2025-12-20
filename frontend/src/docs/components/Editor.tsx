@@ -137,7 +137,7 @@ const TinymceValidation = () => {
   } = useForm({
     resolver: yupResolver(schema)
   });
-  const onSubmit = data => {
+  const onSubmit = (data: { description: string }) => {
     console.log(data);
   };
   return (
@@ -145,10 +145,9 @@ const TinymceValidation = () => {
       <Controller
         name="description"
         control={control}
-        render={({ field, ref }) => (
+        render={({ field }) => (
           <TinymceEditor
             {...field}
-            ref={ref}
             handleChange={field.onChange}
             isInvalid={!!errors.description}
           />

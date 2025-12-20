@@ -1,7 +1,7 @@
 import FalconComponentCard from 'components/common/FalconComponentCard';
 import PageHeader from 'components/common/PageHeader';
 import createMarkup from 'helpers/createMarkup';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const Plugins = () => {
   const [plugins] = useState([
@@ -176,7 +176,6 @@ const Plugins = () => {
           key={plugin.title}
           title={plugin.title}
           description={plugin.description}
-          themeLink={plugin.themeLink}
           docLink={plugin.docLink}
         />
       ))}
@@ -184,7 +183,13 @@ const Plugins = () => {
   );
 };
 
-const PluginCard = ({ title, description, docLink }) => (
+interface PluginCardProps {
+  title: string;
+  description: string;
+  docLink: string;
+}
+
+const PluginCard = ({ title, description, docLink }: PluginCardProps) => (
   <FalconComponentCard>
     <FalconComponentCard.Header title={title} light={false} noPreview />
     <FalconComponentCard.Body>

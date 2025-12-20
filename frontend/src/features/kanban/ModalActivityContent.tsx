@@ -6,10 +6,20 @@ import Avatar from 'components/common/Avatar';
 import paths from 'routes/paths';
 import classNames from 'classnames';
 
+interface Activity {
+  id: string;
+  user: {
+    name: string;
+    avatar: string;
+  };
+  activity: string;
+  time: string;
+}
+
 const ModalActivityContent = () => {
   return (
     <>
-      {activities.map((activity, index) => (
+      {(activities as Activity[]).map((activity: Activity, index: number) => (
         <Flex
           key={activity.id}
           className={classNames({

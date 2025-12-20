@@ -22,7 +22,7 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor, isDark) => ({
+const getOptions = (getThemeColor: (color: string) => string, isDark: boolean) => ({
   color: [getThemeColor('primary'), isDark ? '#236EA1' : '#7DD7FE'],
   legend: {
     data: ['Agent Support', 'Group Support'],

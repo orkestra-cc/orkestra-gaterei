@@ -314,21 +314,42 @@ execute_deploy() {
 
         CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-        # Production requires clean working tree
-        if [ "$ENV" = "production" ]; then
-            if ! git diff-index --quiet HEAD --; then
-                echo -e "${RED}  ✗ Uncommitted changes detected${NC}"
-                echo -e "${RED}    Commit or stash changes before deploying to production${NC}"
+        # Check for uncommitted changes
+        if ! git diff-index --quiet HEAD --; then
+            echo -e "${YELLOW}  ⚠ Uncommitted changes detected${NC}"
+            echo ""
+
+            if [ "$ENV" = "production" ]; then
+                echo -e "${RED}    Production requires a clean working tree.${NC}"
+                echo -e "${RED}    Commit or stash changes before deploying to production.${NC}"
                 exit 1
+            else
+                # Staging: ask user what to do
+                echo -e "${CYAN}  What would you like to do?${NC}"
+                echo -e "${CYAN}    1) Stash changes and continue${NC}"
+                echo -e "${CYAN}    2) Stop deployment${NC}"
+                echo ""
+                while true; do
+                    read -p "$(echo -e ${YELLOW}  Select option [1-2]: ${NC})" STASH_CHOICE
+                    case $STASH_CHOICE in
+                        1)
+                            echo -e "${YELLOW}  ⟳ Stashing changes...${NC}"
+                            git stash push -m "Auto-stash before $ENV deployment $TIMESTAMP"
+                            echo -e "${GREEN}  ✓ Changes stashed (use 'git stash pop' to restore)${NC}"
+                            break
+                            ;;
+                        2)
+                            echo -e "${YELLOW}  Deployment cancelled.${NC}"
+                            exit 0
+                            ;;
+                        *)
+                            echo -e "${RED}  Invalid selection. Please choose 1 or 2.${NC}"
+                            ;;
+                    esac
+                done
             fi
-            echo -e "${GREEN}  ✓ No uncommitted changes${NC}"
         else
-            # Staging auto-stashes
-            if ! git diff-index --quiet HEAD --; then
-                echo -e "${YELLOW}  ⚠ Uncommitted changes detected, stashing...${NC}"
-                git stash push -m "Auto-stash before $ENV deployment $TIMESTAMP"
-                echo -e "${GREEN}  ✓ Changes stashed${NC}"
-            fi
+            echo -e "${GREEN}  ✓ No uncommitted changes${NC}"
         fi
 
         # Switch branch if needed

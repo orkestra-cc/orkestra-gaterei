@@ -40,7 +40,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({ show, handleClose }
           </Form.Label>
           <Form.Control as="textarea" rows={4} id="question" />
         </Form.Group>
-        <Button varient="primary" size="sm" className="px-4">
+        <Button variant="primary" size="sm" className="px-4">
           <FontAwesomeIcon icon="paper-plane" className="me-2" />
           Send
         </Button>

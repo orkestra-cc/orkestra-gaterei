@@ -1,4 +1,11 @@
-const FeedUrl = ({ imgUrl, urlAddress, title, description }) => (
+interface FeedUrlProps {
+  imgUrl?: string;
+  urlAddress: string;
+  title: string;
+  description?: string;
+}
+
+const FeedUrl = ({ imgUrl, urlAddress, title, description }: FeedUrlProps) => (
   <a className="text-decoration-none" href="#!">
     {!!imgUrl && <img className="img-fluid rounded" src={imgUrl} alt="" />}
     <small className="text-uppercase text-700">{urlAddress}</small>

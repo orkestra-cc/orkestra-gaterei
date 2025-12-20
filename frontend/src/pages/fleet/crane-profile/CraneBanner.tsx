@@ -7,7 +7,6 @@ import ProfileBanner from './CraneProfileBanner';
 import { CraneResponse } from 'store/api/craneApi';
 import {
   FaTruck,
-  FaCalendarCheck,
   FaExclamationTriangle
 } from 'react-icons/fa';
 import { GiCrane } from 'react-icons/gi';

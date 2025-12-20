@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Col, Nav, Offcanvas, Row, Tab } from 'react-bootstrap';
 import ContactDetailsHeader from './ContactDetailsHeader';
 import SimpleBar from 'simplebar-react';

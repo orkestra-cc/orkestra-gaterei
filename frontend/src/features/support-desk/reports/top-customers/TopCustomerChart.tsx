@@ -20,7 +20,7 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor, data) => ({
+const getOptions = (getThemeColor: (color: string) => string, data: any) => ({
   color: getThemeColor('gray-100'),
   tooltip: {
     trigger: 'item',
@@ -30,7 +30,7 @@ const getOptions = (getThemeColor, data) => ({
     textStyle: { color: getThemeColor('gray-1100') },
     borderWidth: 1,
     transitionDuration: 0,
-    position(pos, params, dom, rect, size) {
+    position(pos: any, params: any, dom: any, rect: any, size: any) {
       return getPosition(pos, params, dom, rect, size);
     },
     axisPointer: {
@@ -108,7 +108,11 @@ const getOptions = (getThemeColor, data) => ({
   grid: { right: '12px', left: '46px', bottom: '12%', top: '3%' }
 });
 
-const TopCustomerChart = ({ data }) => {
+interface TopCustomerChartProps {
+  data: any;
+}
+
+const TopCustomerChart = ({ data }: TopCustomerChartProps) => {
   const { getThemeColor } = useAppContext();
   return (
     <ReactEchart

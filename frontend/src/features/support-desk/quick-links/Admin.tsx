@@ -1,7 +1,11 @@
 import { account, team } from 'data/support-desk/quickLinksData';
 import { Card, Col, Row } from 'react-bootstrap';
 
-const AdminItem = ({ item }) => {
+interface AdminItemProps {
+  item: any;
+}
+
+const AdminItem = ({ item }: AdminItemProps) => {
   return (
     <Col md={6} xxl={4}>
       <div className="hover-bg-100 py-x1 text-center rounded-3 position-relative">
@@ -29,7 +33,7 @@ export const Team = () => {
       </Card.Header>
       <Card.Body>
         <Row className="gx-3">
-          {team.map((item, index) => (
+          {team.map((item: any, index: number) => (
             <AdminItem key={index} item={item} />
           ))}
         </Row>
@@ -46,7 +50,7 @@ export const Account = () => {
       </Card.Header>
       <Card.Body>
         <Row className="gx-3">
-          {account.map((item, index) => (
+          {account.map((item: any, index: number) => (
             <AdminItem key={index} item={item} />
           ))}
         </Row>

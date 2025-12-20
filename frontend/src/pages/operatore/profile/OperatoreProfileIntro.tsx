@@ -28,15 +28,6 @@ const OperatoreProfileIntro: React.FC<OperatoreProfileIntroProps> = ({ user }) =
     });
   };
 
-  // Role labels
-  const roleLabels: Record<string, string> = {
-    developer: 'Sviluppatore',
-    ceo: 'CEO',
-    administrator: 'Amministratore',
-    manager: 'Manager',
-    operator: 'Operatore',
-    guest: 'Ospite'
-  };
 
   const [collapsed, setCollapsed] = useState(false);
 

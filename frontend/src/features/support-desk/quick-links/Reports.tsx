@@ -2,7 +2,11 @@ import { reports } from 'data/support-desk/quickLinksData';
 import { Card, Col, Row } from 'react-bootstrap';
 import Flex from 'components/common/Flex';
 
-const ReportsItem = ({ report }) => {
+interface ReportsItemProps {
+  report: any;
+}
+
+const ReportsItem = ({ report }: ReportsItemProps) => {
   return (
     <Col lg={6} xxl={4}>
       <Flex
@@ -32,19 +36,19 @@ const Reports = () => {
       <Card.Body>
         <h5 className="fs-9 mb-2">Analysis of the Helpdesk</h5>
         <Row className="g-3">
-          {reports.analysis.map((report, index) => (
+          {reports.analysis.map((report: any, index: number) => (
             <ReportsItem key={index} report={report} />
           ))}
         </Row>
         <h5 className="fs-9 mb-2 mt-5">Customer Satisfaction</h5>
         <Row className="g-3">
-          {reports.customerSatisfaction.map((report, index) => (
+          {reports.customerSatisfaction.map((report: any, index: number) => (
             <ReportsItem key={index} report={report} />
           ))}
         </Row>
         <h5 className="fs-9 mb-2 mt-5">Productivity</h5>
         <Row className="g-3">
-          {reports.productivity.map((report, index) => (
+          {reports.productivity.map((report: any, index: number) => (
             <ReportsItem key={index} report={report} />
           ))}
         </Row>

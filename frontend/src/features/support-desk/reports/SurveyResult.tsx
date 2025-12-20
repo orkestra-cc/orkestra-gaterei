@@ -22,7 +22,7 @@ const columns = [
         className: 'white-space-nowrap pe-4 w-lg-25 py-3'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { name, avatar } = original;
       return (
         <Flex alignItems="center" className="gap-2 position-relative py-2">
@@ -49,7 +49,7 @@ const columns = [
         className: 'white-space-nowrap pe-5 pe-xxl-8'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { satisfied } = original;
       return (
         <Flex alignItems="center">
@@ -97,7 +97,7 @@ const columns = [
         className: 'white-space-nowrap'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { dissatisfied } = original;
       return (
         <Flex alignItems="center">

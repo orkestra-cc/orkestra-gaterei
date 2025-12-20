@@ -67,7 +67,7 @@ const baseQueryWithRetry: BaseQueryFn<
   }
 
   // Skip toast for other 4xx client errors (except 401 which is handled above)
-  if (result.error && result.error.status >= 400 && result.error.status < 500) {
+  if (result.error && Number(result.error.status) >= 400 && Number(result.error.status) < 500) {
     // Don't show toasts for client errors (400-499) - these should be handled by the UI
     // This includes 400 Bad Request, 403 Forbidden, 404 Not Found, etc.
     // Note: 401 is already handled above with specific logic

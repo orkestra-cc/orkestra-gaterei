@@ -1,7 +1,12 @@
 
 import { Card } from 'react-bootstrap';
+import React from 'react';
 
-const Rights = ({ props, ref }) => {
+interface RightsProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Rights: React.FC<RightsProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="rights" ref={ref}>
       <Card.Header className="bg-body-tertiary">

@@ -9,17 +9,29 @@ import Avatar from 'components/common/Avatar';
 import Comments from './Comments';
 import { useFeedContext } from 'providers/FeedProvider';
 
+interface FeedCardFooterProps {
+  id: string | number;
+  countLCS?: { like: number; comment?: number; share?: number };
+  reactions?: {
+    like?: boolean;
+    comment?: boolean;
+    share?: boolean;
+  };
+  comments?: any[];
+  otherComments?: string;
+}
+
 const FeedCardFooter = ({
   id,
   countLCS = { like: 0 },
   reactions,
   comments = [],
   otherComments
-}) => {
+}: FeedCardFooterProps) => {
   const { feeds, feedDispatch } = useFeedContext();
   const [comment, setComment] = useState('');
 
-  const submitComment = e => {
+  const submitComment = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const newComment = {
       id: uuid(),
@@ -30,9 +42,11 @@ const FeedCardFooter = ({
     };
 
     const feed = feeds.find(feed => feed.id === id);
+    if (!feed) return;
+
     feed.details.reactions.comment = true;
     feed.details.comments = [newComment, ...comments];
-    feedDispatch({ type: 'UPDATE', payload: { id, feed } });
+    feedDispatch({ type: 'UPDATE', payload: { id: typeof id === 'string' ? parseInt(id, 10) : id, feed } });
     setComment('');
   };
 

@@ -21,7 +21,7 @@ const Notifications = () => {
         </Row>
       </Card.Header>
       <Card.Body className="p-0">
-        {notifications.map(notification => (
+        {(notifications as any[]).map((notification: any) => (
           <Notification {...notification} key={notification.id} />
         ))}
       </Card.Body>

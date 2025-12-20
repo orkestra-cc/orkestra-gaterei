@@ -75,7 +75,7 @@ const Changelog = () => (
       </Card.Body>
     </Card>
 
-    {changeLogs.map((logs, index) => (
+    {changeLogs.map((logs: any, index: number) => (
       <Logs {...logs} index={index} key={index} />
     ))}
   </>

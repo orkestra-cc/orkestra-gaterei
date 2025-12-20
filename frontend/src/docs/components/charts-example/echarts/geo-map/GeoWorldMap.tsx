@@ -30,7 +30,7 @@ echarts.use([
   VisualMapComponent
 ]);
 
-echarts.registerMap('world', { geoJSON: world });
+echarts.registerMap('world', world as any);
 
 const chartCode = `function ChartOptions() {
   const { getThemeColor } = useAppContext();

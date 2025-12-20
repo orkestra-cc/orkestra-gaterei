@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { CraneResponse, useUpdateCraneMutation, useDeleteCraneMutation } from 'store/api/craneApi';
 import { useNavigate } from 'react-router';
 import paths from 'routes/paths';
-import { FaPowerOff, FaTrashAlt, FaCalendarCheck, FaPrint, FaDownload, FaQrcode, FaClipboardCheck } from 'react-icons/fa';
+import { FaPowerOff, FaTrashAlt, FaDownload, FaQrcode, FaClipboardCheck } from 'react-icons/fa';
 
 interface CraneActionsProps {
   crane: CraneResponse;

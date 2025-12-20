@@ -60,7 +60,7 @@ const mockVerificationData = [
   }
 ];
 
-const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ craneId, className = '' }) => {
+const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className = '' }) => {
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();

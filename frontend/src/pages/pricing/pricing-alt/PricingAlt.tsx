@@ -28,7 +28,7 @@ const PricingAlt: React.FC = () => {
                     />
                   </Col>
                 ) : (
-                  pricing.map(item => (
+                  (pricing as any[]).map((item: any) => (
                     <PricingAltCard key={item.id} pricing={item} />
                   ))
                 )}

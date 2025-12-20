@@ -28,15 +28,6 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
     });
   };
 
-  // Role labels
-  const roleLabels: Record<string, string> = {
-    developer: 'Sviluppatore',
-    ceo: 'CEO',
-    administrator: 'Amministratore',
-    manager: 'Manager',
-    operator: 'Operatore',
-    guest: 'Ospite'
-  };
   const [collapsed, setCollapsed] = useState(false);
   return (
     <Card className="mb-3">

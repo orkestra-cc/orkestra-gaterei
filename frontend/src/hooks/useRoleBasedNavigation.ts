@@ -6,7 +6,6 @@ import { useMemo } from 'react';
 import { useAuth } from './redux/useAuth';
 import { NavItem, RouteGroup } from '../routes/siteMaps';
 import {
-  hasRoleAccess,
   hasAnyRole,
   extractUserRole,
   UserRole

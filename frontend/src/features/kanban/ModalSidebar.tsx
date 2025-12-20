@@ -1,20 +1,27 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Nav } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { Link } from 'react-router';
 
+interface MenuItem {
+  icon: IconProp;
+  title: string;
+  link: string;
+}
+
 const ModalSidebar = () => {
-  const [addToCardMenu] = useState([
-    { icon: 'user', title: 'Members', link: '#!' },
-    { icon: 'tag', title: 'Label', link: '#!' },
-    { icon: 'paperclip', title: 'Attachments', link: '#!' },
-    { icon: 'check', title: 'Checklists', link: '#!' }
+  const [addToCardMenu] = useState<MenuItem[]>([
+    { icon: 'user' as IconProp, title: 'Members', link: '#!' },
+    { icon: 'tag' as IconProp, title: 'Label', link: '#!' },
+    { icon: 'paperclip' as IconProp, title: 'Attachments', link: '#!' },
+    { icon: 'check' as IconProp, title: 'Checklists', link: '#!' }
   ]);
 
-  const [actionMenu] = useState([
-    { icon: ['far', 'copy'], title: 'Copy', link: '#!' },
-    { icon: 'arrow-right', title: 'Move', link: '#!' },
-    { icon: 'trash-alt', title: 'Remove', link: '#!' }
+  const [actionMenu] = useState<MenuItem[]>([
+    { icon: ['far', 'copy'] as IconProp, title: 'Copy', link: '#!' },
+    { icon: 'arrow-right' as IconProp, title: 'Move', link: '#!' },
+    { icon: 'trash-alt' as IconProp, title: 'Remove', link: '#!' }
   ]);
   return (
     <>

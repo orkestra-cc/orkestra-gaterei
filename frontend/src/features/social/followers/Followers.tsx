@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Col, Form, Row } from 'react-bootstrap';
 import people from 'data/people';
 import Follower from './Follower';
@@ -44,7 +44,7 @@ const Followers = () => {
       </Card.Header>
       <Card.Body className="bg-body-tertiary px-1 pb-1 pt-0 fs-10">
         <Row className="gx-0 gy-1 text-center">
-          {followers.map(follower => (
+          {followers.map((follower: any) => (
             <Col key={follower.id} xs={6} md={4} lg={3} xxl={2}>
               <Follower follower={follower} />
             </Col>

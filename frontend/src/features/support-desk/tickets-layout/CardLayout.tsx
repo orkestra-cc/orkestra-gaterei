@@ -15,7 +15,7 @@ const CardLayout = () => {
 
   return (
     <div className="d-flex flex-column gap-3">
-      {getRowModel().rows.map((row, index) => {
+      {getRowModel().rows.map((row: any, index: number) => {
         const { name, date, status, subject, avatar, agent, priority } =
           row.original;
         const {

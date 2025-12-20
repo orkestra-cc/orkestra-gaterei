@@ -6,13 +6,16 @@ import { IconProp, Transform } from '@fortawesome/fontawesome-svg-core';
 
 type IconAlign = 'left' | 'right' | 'middle';
 
-interface IconButtonProps extends ButtonProps {
+interface IconButtonProps extends Omit<ButtonProps, 'as'> {
   icon: IconProp;
   iconAlign?: IconAlign;
   iconClassName?: string;
   transform?: string | Transform;
   children?: React.ReactNode;
   ref?: React.Ref<HTMLButtonElement>;
+  as?: React.ElementType;
+  to?: string;
+  [key: string]: any;
 }
 
 const IconButton: React.FC<IconButtonProps> = ({
@@ -22,9 +25,10 @@ const IconButton: React.FC<IconButtonProps> = ({
   transform,
   children,
   ref,
+  as,
   ...rest
 }) => (
-  <Button {...rest} ref={ref}>
+  <Button {...rest} as={as as any} ref={ref}>
     {iconAlign === 'right' && children}
     <FontAwesomeIcon
       icon={icon}

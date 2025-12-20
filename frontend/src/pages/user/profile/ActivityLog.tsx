@@ -6,7 +6,12 @@ import Flex from 'components/common/Flex';
 import { Link } from 'react-router';
 import paths from 'routes/paths';
 
-const ActivityLog = ({ activities, ...rest }) => {
+interface ActivityLogProps {
+  activities: any[];
+  [key: string]: any;
+}
+
+const ActivityLog = ({ activities, ...rest }: ActivityLogProps) => {
   return (
     <Card {...rest}>
       <Card.Header className="bg-body-tertiary">
@@ -18,7 +23,7 @@ const ActivityLog = ({ activities, ...rest }) => {
         </Flex>
       </Card.Header>
       <Card.Body className="p-0">
-        {activities.map((activity, index) => (
+        {activities.map((activity: any, index: number) => (
           <Notification
             {...activity}
             key={activity.id}

@@ -8,7 +8,23 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Modal, CloseButton } from 'react-bootstrap';
 import FalconLightBoxGallery from 'components/common/FalconLightBoxGallery';
 
-const AttachmentItem = ({ setImgIndex, attachment, isLast, index }) => {
+interface Attachment {
+  id: string;
+  image?: string;
+  type?: string;
+  title: string;
+  date: string;
+  src?: string;
+}
+
+interface AttachmentItemProps {
+  setImgIndex: (index: number) => void;
+  attachment: Attachment;
+  isLast: boolean;
+  index: number;
+}
+
+const AttachmentItem = ({ setImgIndex, attachment, isLast, index }: AttachmentItemProps) => {
   const [nestedModal, setNestedModal] = useState(false);
 
   return (
@@ -22,7 +38,7 @@ const AttachmentItem = ({ setImgIndex, attachment, isLast, index }) => {
                   className="cursor-pointer"
                   onClick={() => setImgIndex(index)}
                 >
-                  <Background image={attachment.image} rounded />
+                  <Background image={attachment.image || ''} />
                 </div>
               ) : (
                 <>
@@ -109,14 +125,14 @@ const AttachmentItem = ({ setImgIndex, attachment, isLast, index }) => {
 };
 
 const ModalAttachmentContent = () => {
-  const images = attachments.map(item => item.image);
+  const images = (attachments as Attachment[]).map(item => item.image || '');
 
   return (
     <>
       <FalconLightBoxGallery images={images}>
-        {setImgIndex => (
+        {(setImgIndex: (index: number) => void) => (
           <>
-            {attachments.map((attachment, index) => (
+            {(attachments as Attachment[]).map((attachment: Attachment, index: number) => (
               <AttachmentItem
                 setImgIndex={setImgIndex}
                 key={attachment.id}

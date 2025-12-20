@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Dropdown,
   Form,
@@ -14,14 +14,13 @@ import { useAppContext } from 'providers/AppProvider';
 
 const InviteToBoard = () => {
   const [tooltipText, setTooltipText] = useState('Copy link to invite');
-  const copyTextRef = useRef(null);
-  const copyBtnRef = useRef(null);
+  const copyTextRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const {
     config: { isRTL }
   } = useAppContext();
 
   const handleCopyText = () => {
-    copyToClipBoard(copyTextRef);
+    copyToClipBoard(copyTextRef as any);
     setTooltipText('Copied to Clipboard!');
   };
 
@@ -69,7 +68,6 @@ const InviteToBoard = () => {
                         onMouseLeave={() =>
                           setTooltipText('Copy link to invite')
                         }
-                        ref={copyBtnRef}
                         onClick={handleCopyText}
                         variant="link"
                         size="sm"
@@ -85,7 +83,7 @@ const InviteToBoard = () => {
               </Flex>
               <Form.Control
                 type="text"
-                ref={copyTextRef}
+                ref={copyTextRef as any}
                 readOnly
                 defaultValue="https://prium.github.io/falcon/kanban/QhNCShh8TdxKx0kYN1oWzzKJDjOYUXhm9IJ035laUVdWMYsUN5"
                 className="bg-white dark__bg-dark border-0 fs-11 px-1 rounded-top-0"

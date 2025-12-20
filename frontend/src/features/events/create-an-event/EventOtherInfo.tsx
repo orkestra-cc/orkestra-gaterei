@@ -1,9 +1,14 @@
 import Flex from 'components/common/Flex';
 import MultiSelect from 'components/common/MultiSelect';
 import { Button, Card, Form } from 'react-bootstrap';
-import { Controller } from 'react-hook-form';
+import { Controller, Control, UseFormRegister, FieldValues } from 'react-hook-form';
 
-const EventOtherInfo = ({ register, control }) => {
+interface EventOtherInfoProps {
+  register: UseFormRegister<FieldValues>;
+  control: Control<FieldValues>;
+}
+
+const EventOtherInfo = ({ register, control }: EventOtherInfoProps) => {
   const organizerOptions = [
     { value: '1', label: ' Massachusetts Institute of Technology' },
     { value: '2', label: 'University of Chicago' },
@@ -33,10 +38,9 @@ const EventOtherInfo = ({ register, control }) => {
           </Flex>
           <Controller
             name="organizer"
-            render={({ ref, field }) => (
+            render={({ field }) => (
               <MultiSelect
                 {...field}
-                ref={ref}
                 closeMenuOnSelect={false}
                 isMulti
                 options={organizerOptions}
@@ -55,9 +59,8 @@ const EventOtherInfo = ({ register, control }) => {
           </Flex>
           <Controller
             name="sponsors"
-            render={({ ref, field }) => (
+            render={({ field }) => (
               <MultiSelect
-                ref={ref}
                 {...field}
                 closeMenuOnSelect={false}
                 isMulti
@@ -107,10 +110,9 @@ const EventOtherInfo = ({ register, control }) => {
           </Flex>
           <Controller
             name="tags"
-            render={({ field, ref }) => (
+            render={({ field }) => (
               <MultiSelect
                 {...field}
-                ref={ref}
                 closeMenuOnSelect={false}
                 isMulti
                 options={tagOptions}

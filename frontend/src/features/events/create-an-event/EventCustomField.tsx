@@ -2,19 +2,32 @@ import { Card, Row, Col, Form } from 'react-bootstrap';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import IconButton from 'components/common/IconButton';
+import { UseFormRegister, UseFormSetValue, FieldValues } from 'react-hook-form';
 
 import { v4 as uuid } from 'uuid';
 import EventCustomFieldItem from './EventCustomFieldItem';
 
-const EventCustomField = ({ register, setValue }) => {
+interface CustomFieldType {
+  name: string;
+  type: string;
+  options?: string[];
+  id: string;
+}
+
+interface EventCustomFieldProps {
+  register: UseFormRegister<FieldValues>;
+  setValue: UseFormSetValue<FieldValues>;
+}
+
+const EventCustomField = ({ register, setValue }: EventCustomFieldProps) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [options, setOptions] = useState('');
   const [hasOptions, setHasOptions] = useState(false);
   const [disabled, setDisabled] = useState(true);
-  const [customFields, setCustomFields] = useState([]);
+  const [customFields, setCustomFields] = useState<CustomFieldType[]>([]);
 
-  const handleRemove = id => {
+  const handleRemove = (id: string | number) => {
     const items = customFields.filter(fields => fields.id !== id);
     setCustomFields(items);
   };

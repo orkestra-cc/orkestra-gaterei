@@ -35,7 +35,7 @@ const EventUpload = ({ setValue }: EventUploadProps) => {
     }
   });
 
-  const handleRemove = (path: string) => {
+  const handleRemove = (path: string | undefined) => {
     setFiles(files.filter(file => file.path !== path));
   };
 

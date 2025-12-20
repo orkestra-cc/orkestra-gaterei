@@ -9,7 +9,7 @@ const FeedContent = () => {
   return (
     <>
       <CreatePost className="mb-3" />
-      {feeds.map((feed, index) => (
+      {feeds.map((feed: any, index: number) => (
         <FeedCard
           key={feed.id}
           feed={feed}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Avatar, { AvatarGroup } from 'components/common/Avatar';
+import Avatar, { AvatarGroup, AvatarSize } from 'components/common/Avatar';
 import { Dropdown, Form, Nav, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import classNames from 'classnames';
 import Flex from 'components/common/Flex';
@@ -7,13 +7,28 @@ import { Link } from 'react-router';
 import { useAppContext } from 'providers/AppProvider';
 import paths from 'routes/paths';
 
+interface User {
+  id: string;
+  name: string;
+  img: string;
+  role: string;
+}
+
+interface GroupMemberProps {
+  avatarSize?: AvatarSize;
+  users: User[];
+  showMember?: number;
+  addMember?: boolean;
+  className?: string;
+}
+
 const GroupMember = ({
   avatarSize = 'l',
   users,
   showMember = 4,
   addMember,
   className
-}) => {
+}: GroupMemberProps) => {
   const {
     config: { isRTL }
   } = useAppContext();

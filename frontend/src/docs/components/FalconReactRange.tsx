@@ -2,6 +2,20 @@
 import { Range, getTrackBackground } from 'react-range';
 import { useAppContext } from 'providers/AppProvider';
 
+interface FalconReactRangeProps {
+  step?: number;
+  min?: number;
+  max?: number;
+  variant?: string;
+  trackHeight?: string;
+  tipFormatter?: (value: number) => string;
+  draggableTrack?: boolean;
+  alwaysShowTooltip?: boolean;
+  marks?: boolean;
+  values: number[];
+  onChange: (values: number[]) => void;
+}
+
 const FalconReactRange = ({
   step = 0.1,
   min = 0,
@@ -14,13 +28,13 @@ const FalconReactRange = ({
   marks = false,
   values,
   onChange
-}) => {
+}: FalconReactRangeProps) => {
   const {
     config: { isDark, isRTL },
     getThemeColor
   } = useAppContext();
 
-  const Track = ({ props: properties, children }) => (
+  const Track = ({ props: properties, children }: { props: any; children: React.ReactNode }) => (
     <div
       key={properties.key}
       onMouseDown={properties.onMouseDown}
@@ -57,7 +71,7 @@ const FalconReactRange = ({
     </div>
   );
 
-  const Thumb = ({ props: properties, isDragged, index }) => (
+  const Thumb = ({ props: properties, isDragged, index }: { props: any; isDragged: boolean; index: number }) => (
     <div
       {...properties}
       key={properties.key}
@@ -72,13 +86,13 @@ const FalconReactRange = ({
         }`}
       >
         {tipFormatter
-          ? () => tipFormatter(values[index])
+          ? tipFormatter(values[index])
           : values[index].toFixed(1)}
       </div>
     </div>
   );
 
-  const Mark = ({ props: properties, index }) => {
+  const Mark = ({ props: properties, index }: { props: any; index: number }) => {
     return (
       <div
         {...properties}
@@ -104,7 +118,7 @@ const FalconReactRange = ({
   return (
     <Range
       draggableTrack={draggableTrack}
-      key={isDark}
+      key={isDark ? 'dark' : 'light'}
       values={values}
       step={step}
       min={min}
@@ -112,7 +126,7 @@ const FalconReactRange = ({
       onChange={onChange}
       renderTrack={Track}
       renderThumb={Thumb}
-      renderMark={marks && Mark}
+      renderMark={marks ? Mark : undefined}
       rtl={isRTL}
     />
   );

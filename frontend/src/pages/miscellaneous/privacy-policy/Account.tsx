@@ -1,7 +1,12 @@
 
 import { Card } from 'react-bootstrap';
+import React from 'react';
 
-const Account = ({ props, ref }) => {
+interface AccountProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Account: React.FC<AccountProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="account" ref={ref}>
       <Card.Header className="bg-body-tertiary">

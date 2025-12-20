@@ -121,7 +121,11 @@ const chartCode = `function ChartOptions() {
   }
 `;
 
-const BasicBarChart = ({ title }) => {
+interface BasicBarChartProps {
+  title: string;
+}
+
+const BasicBarChart = ({ title }: BasicBarChartProps) => {
   return (
     <FalconComponentCard className="h-100">
       <FalconComponentCard.Header title={title} light={false} />

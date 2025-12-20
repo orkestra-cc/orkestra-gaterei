@@ -9,7 +9,13 @@ import IconButton from 'components/common/IconButton';
 import classNames from 'classnames';
 import { Link } from 'react-router';
 
-const InfoItem = ({ title, content, className }) => {
+interface InfoItemProps {
+  title: string;
+  content: string;
+  className?: string;
+}
+
+const InfoItem = ({ title, content, className }: InfoItemProps) => {
   return (
     <div className={classNames('mb-4', className)}>
       <h6
@@ -84,13 +90,14 @@ const ContactProfile = () => {
         </Card>
         <Row className="border rounded-3 p-x1 mt-3 bg-white dark__bg-1000 mx-0 g-0">
           <Col md={6} xl={12} className="pe-md-4 pe-xl-0">
-            <InfoItem title="Email" content="mattrogers@gmail.com" />
-            <InfoItem title="Phone Number" content="+6(855) 747 677" />
+            <InfoItem title="Email" content="mattrogers@gmail.com" className="" />
+            <InfoItem title="Phone Number" content="+6(855) 747 677" className="" />
             <InfoItem
               title="Location"
               content="936 N. Fairground Rd.Farnham, QC J2N 5E9"
+              className=""
             />
-            <InfoItem title="Language" content="English" />
+            <InfoItem title="Language" content="English" className="" />
             <InfoItem
               title="Account Verified by Twitter"
               content="No"
@@ -98,10 +105,10 @@ const ContactProfile = () => {
             />
           </Col>
           <Col md={6} xl={12} className="ps-md-4 ps-xl-0">
-            <InfoItem title="Subscription" content="Active" />
-            <InfoItem title="OS" content="macOS Monterey" />
-            <InfoItem title="Browser" content="Google Chrome 98.0.2563" />
-            <InfoItem title="IP" content="52.119.132.297" />
+            <InfoItem title="Subscription" content="Active" className="" />
+            <InfoItem title="OS" content="macOS Monterey" className="" />
+            <InfoItem title="Browser" content="Google Chrome 98.0.2563" className="" />
+            <InfoItem title="IP" content="52.119.132.297" className="" />
             <h6>Tag</h6>
             <Link
               to="#!"

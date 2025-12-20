@@ -23,9 +23,9 @@ import DropdownFilter from 'components/common/DropdownFilter';
 // Type definitions for Calendar features
 interface CalendarEvent {
   id: string;
-  title: string;
-  start: string | Date;
-  end?: string | Date;
+  title?: string;
+  start?: string | Date | null;
+  end?: string | Date | null;
   allDay?: boolean;
   description?: string;
   url?: string;
@@ -36,11 +36,6 @@ interface CalendarEvent {
   textColor?: string;
   recurring?: boolean;
   schedules?: CalendarEvent[];
-}
-
-interface CalendarViewType {
-  name: string;
-  view: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay' | 'listWeek' | 'listYear';
 }
 
 const Calendar: React.FC = () => {
@@ -54,20 +49,20 @@ const Calendar: React.FC = () => {
   const [isOpenScheduleModal, setIsOpenScheduleModal] = useState<boolean>(false);
   const [isOpenEventModal, setIsOpenEventModal] = useState<boolean>(false);
   const [modalEventContent, setModalEventContent] = useState<any>({});
-  const [scheduleStartDate, setScheduleStartDate] = useState<Date | undefined>();
-  const [scheduleEndDate, setScheduleEndDate] = useState<Date | undefined>();
+  const [scheduleStartDate, setScheduleStartDate] = useState<Date | null | undefined>();
+  const [scheduleEndDate, setScheduleEndDate] = useState<Date | null | undefined>();
 
-  const eventList = events.reduce(
-    (acc, event) =>
+  const eventList = (events as CalendarEvent[]).reduce(
+    (acc: CalendarEvent[], event: CalendarEvent) =>
       event.schedules
         ? acc.concat(event.schedules.concat(event))
         : acc.concat(event),
-    []
+    [] as CalendarEvent[]
   );
 
   const eventTimeFormat = {
-    hour: 'numeric',
-    minute: '2-digit',
+    hour: 'numeric' as const,
+    minute: '2-digit' as const,
     omitZeroMinute: true,
     meridiem: true
   };
@@ -117,7 +112,9 @@ const Calendar: React.FC = () => {
   };
 
   useEffect(() => {
-    setCalendarApi(calendarRef.current.getApi());
+    if (calendarRef.current) {
+      setCalendarApi(calendarRef.current.getApi());
+    }
   }, []);
 
   return (
@@ -237,7 +234,7 @@ const Calendar: React.FC = () => {
             }}
             eventTimeFormat={eventTimeFormat}
             eventClick={handleEventClick}
-            events={initialEvents}
+            events={initialEvents as any}
           />
         </Card.Body>
       </Card>
@@ -245,8 +242,8 @@ const Calendar: React.FC = () => {
       <AddScheduleModal
         isOpenScheduleModal={isOpenScheduleModal}
         setIsOpenScheduleModal={setIsOpenScheduleModal}
-        initialEvents={initialEvents}
-        setInitialEvents={setInitialEvents}
+        initialEvents={initialEvents as any}
+        setInitialEvents={setInitialEvents as any}
         scheduleStartDate={scheduleStartDate}
         scheduleEndDate={scheduleEndDate}
         setScheduleStartDate={setScheduleStartDate}

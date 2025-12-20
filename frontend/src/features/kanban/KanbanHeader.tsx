@@ -23,6 +23,7 @@ const KanbanHeader = () => {
           avatarSize="l"
           users={members}
           showMember={4}
+          addMember={false}
           className="d-none d-sm-block"
         />
         <div className="vertical-line vertical-line-400 position-relative h-100 mx-3"></div>

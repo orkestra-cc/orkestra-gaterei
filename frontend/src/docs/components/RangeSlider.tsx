@@ -4,7 +4,6 @@ import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import FalconComponentCard from 'components/common/FalconComponentCard';
 import FalconReactRange from './FalconReactRange';
-import FalconEditor from 'components/common/FalconEditor';
 
 const defaultExampleCode = `
   function DefaultExample() {

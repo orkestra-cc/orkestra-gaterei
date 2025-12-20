@@ -6,6 +6,17 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import Flex from 'components/common/Flex';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
+interface LogsProps {
+  version: string;
+  warning?: { title: string; text: string; link?: string };
+  title: string;
+  badgeTitle?: string;
+  publish: string;
+  logs?: Record<string, any>;
+  children?: React.ReactNode;
+  index: number;
+}
+
 const Logs = ({
   version,
   warning,
@@ -15,7 +26,7 @@ const Logs = ({
   logs = {},
   children,
   index: currentIndex
-}) => (
+}: LogsProps) => (
   <Card className="mb-3">
     <Card.Header>
       <h5>
@@ -67,11 +78,11 @@ const Logs = ({
               </strong>
             </h5>
             <ul className="ps-3">
-              {Object.entries(logs[value]).map((entry, i) => (
+              {Object.entries(logs[value] as Record<string, string[]>).map((entry, i) => (
                 <li key={i}>
                   <h6>{entry[0]}</h6>
                   <ul>
-                    {entry[1].map((mv, mi) => (
+                    {(entry[1] as string[]).map((mv: string, mi: number) => (
                       <li
                         dangerouslySetInnerHTML={{ __html: mv }}
                         key={entry[0] + i + mi}
@@ -86,7 +97,7 @@ const Logs = ({
           <div key={index}>
             <h5 className="fs-9">{value}</h5>
             <ul className="ps-3">
-              {logs[value].map((v, i) => (
+              {(logs[value] as string[]).map((v: string, i: number) => (
                 <li key={i} dangerouslySetInnerHTML={createMarkup(v)} />
               ))}
             </ul>

@@ -25,7 +25,7 @@ const Timeline = () => {
         />
         <Card.Body className="px-sm-4 px-md-8 px-lg-6 px-xxl-8">
           <div className="timeline-vertical">
-            {VerticalTimelineData.map((item, index) => {
+            {VerticalTimelineData.map((item: { year: string; date: string; title: string; description: string; icon: any }, index: number) => {
               const { year, date, title, description, icon } = item;
               return (
                 <div
@@ -76,7 +76,7 @@ const Timeline = () => {
 
         <Card.Body className="px-xxl-8 px-md-8 px-lg-6">
           <div className="timeline-zigzag">
-            {ZigzagTimelineData.map((item, index) => {
+            {ZigzagTimelineData.map((item: { title: string; description: string; year: string; img: { img: string; width: number; height: number } }, index: number) => {
               const { title, description, year } = item;
               const { img, width, height } = item.img;
               return (

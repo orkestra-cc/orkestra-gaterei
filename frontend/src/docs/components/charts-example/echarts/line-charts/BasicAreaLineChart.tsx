@@ -25,7 +25,7 @@ echarts.use([
   CanvasRenderer
 ]);
 
-const tooltipFormatter = params => {
+const tooltipFormatter = (params: any) => {
   return `
 <div>
     <h6 class="fs-10 text-700 mb-0">

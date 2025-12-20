@@ -5,9 +5,10 @@ import serviceList from 'data/feature/serviceList';
 import Section from 'components/common/Section';
 import CardService from './CardService';
 import SectionHeader from './SectionHeader';
+import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
 interface Service {
-  icon: string;
+  icon: IconProp;
   color: string;
   title: string;
   description: string;

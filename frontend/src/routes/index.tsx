@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import App from 'App';
 import paths, { rootPaths } from './paths';
 import { Navigate, createBrowserRouter, RouteObject } from 'react-router';

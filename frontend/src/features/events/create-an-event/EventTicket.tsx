@@ -1,6 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import IconButton from 'components/common/IconButton';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Button,
   Card,
@@ -11,6 +11,15 @@ import {
 } from 'react-bootstrap';
 import SimpleBar from 'simplebar-react';
 
+interface TicketRowProps {
+  name: string;
+  price: number;
+  checked?: boolean;
+  id: number;
+  handleChange: (id: number, name: string, value: string | number | boolean) => void;
+  handleRemove: (id: number) => void;
+}
+
 const TicketRow = ({
   name,
   price,
@@ -18,7 +27,7 @@ const TicketRow = ({
   id,
   handleChange,
   handleRemove
-}) => {
+}: TicketRowProps) => {
   return (
     <tr>
       <td>
@@ -61,15 +70,21 @@ const TicketRow = ({
   );
 };
 
+interface Ticket {
+  name: string;
+  price: number;
+  checked?: boolean;
+}
+
 const EventTicket = () => {
-  const [tickets, setTickets] = useState([
+  const [tickets, setTickets] = useState<Ticket[]>([
     { name: 'Front desks', price: 0.0, checked: true },
     { name: 'Green gallery', price: 5.0 },
     { name: 'VIP', price: 20.0 }
   ]);
 
   // Change Ticket
-  const changeTicket = (id, name, value) => {
+  const changeTicket = (id: number, name: string, value: string | number | boolean) => {
     const updatedTickets =
       name === 'checked'
         ? tickets.map(ticket => ({ ...ticket, checked: false }))
@@ -84,7 +99,7 @@ const EventTicket = () => {
   };
 
   // Remove Ticket
-  const removeTicket = id =>
+  const removeTicket = (id: number) =>
     setTickets([...tickets.slice(0, id), ...tickets.slice(id + 1)]);
 
   const handleAddTicket = () => {

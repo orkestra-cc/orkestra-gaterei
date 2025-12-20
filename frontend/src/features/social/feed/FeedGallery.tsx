@@ -1,7 +1,11 @@
 import { Col, Image, Row } from 'react-bootstrap';
 import FalconLightBoxGallery from 'components/common/FalconLightBoxGallery';
 
-const FeedGallery = ({ images }) => {
+interface FeedGalleryProps {
+  images: string[];
+}
+
+const FeedGallery = ({ images }: FeedGalleryProps) => {
   return (
     <FalconLightBoxGallery images={images}>
       {setImgIndex => (

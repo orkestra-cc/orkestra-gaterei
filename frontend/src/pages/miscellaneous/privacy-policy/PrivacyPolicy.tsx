@@ -12,17 +12,17 @@ import useScrollSpy from 'react-use-scrollspy';
 
 const PrivacyPolicy: React.FC = () => {
   const sectionRefs = [
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null),
-    useRef(null)
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null),
+    useRef<HTMLElement>(null)
   ];
 
   const activeSection = useScrollSpy({
-    sectionElementRefs: sectionRefs,
+    sectionElementRefs: sectionRefs as any,
     offsetPx: -150
   });
 
@@ -35,13 +35,13 @@ const PrivacyPolicy: React.FC = () => {
       />
       <Row className="g-0">
         <Col lg={8} className="pe-lg-2 order-1 order-lg-0">
-          <Account ref={sectionRefs[0]} />
-          <Subscription ref={sectionRefs[1]} />
-          <Termination ref={sectionRefs[2]} />
-          <Rules ref={sectionRefs[3]} />
-          <Liability ref={sectionRefs[4]} />
-          <Rights ref={sectionRefs[5]} />
-          <Instructions ref={sectionRefs[6]} />
+          <Account ref={sectionRefs[0] as any} />
+          <Subscription ref={sectionRefs[1] as any} />
+          <Termination ref={sectionRefs[2] as any} />
+          <Rules ref={sectionRefs[3] as any} />
+          <Liability ref={sectionRefs[4] as any} />
+          <Rights ref={sectionRefs[5] as any} />
+          <Instructions ref={sectionRefs[6] as any} />
         </Col>
         <Col lg={4} className="ps-lg-2 mb-3">
           <div className="sticky-sidebar">

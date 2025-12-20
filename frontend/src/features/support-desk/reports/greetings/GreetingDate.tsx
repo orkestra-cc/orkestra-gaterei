@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { Form } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-const GreetingsDateInput = ({ value, onClick }, ref) => (
+interface GreetingsDateInputProps {
+  value?: string;
+  onClick?: () => void;
+}
+
+const GreetingsDateInput = forwardRef<HTMLInputElement, GreetingsDateInputProps>(({ value, onClick }, ref) => (
   <div className="position-relative">
     <Form.Control
       size="sm"
@@ -20,13 +25,13 @@ const GreetingsDateInput = ({ value, onClick }, ref) => (
       className="text-primary position-absolute top-50 translate-middle-y ms-2"
     />
   </div>
-);
+));
 
 const GreetingsDate = () => {
   const date = new Date();
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(date.setDate(date.getDate() + 7));
-  const onChange = dates => {
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(new Date(date.setDate(date.getDate() + 7)));
+  const onChange = (dates: [Date | null, Date | null]) => {
     const [start, end] = dates;
     setStartDate(start);
     setEndDate(end);

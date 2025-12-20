@@ -5,13 +5,19 @@ import { Link } from 'react-router';
 import { Form } from 'react-bootstrap';
 import paths from 'routes/paths';
 
-const PrioritySelect = ({ title, color, data }) => {
+interface PrioritySelectProps {
+  title: string;
+  color: string;
+  data: string;
+}
+
+const PrioritySelect = ({ title, color, data }: PrioritySelectProps) => {
   return (
     <div
       style={{ width: '7.5rem' }}
       className="d-flex align-items-center gap-2 ms-md-4 ms-xl-0 ms-xxl-4"
     >
-      <div style={{ '--falcon-circle-progress-bar': data }}>
+      <div style={{ '--falcon-circle-progress-bar': data } as React.CSSProperties}>
         <svg
           className="circle-progress-svg"
           width="26"
@@ -44,7 +50,12 @@ const PrioritySelect = ({ title, color, data }) => {
   );
 };
 
-const AgentSelect = ({ agent, className }) => {
+interface AgentSelectProps {
+  agent: string;
+  className?: string;
+}
+
+const AgentSelect = ({ agent, className }: AgentSelectProps) => {
   return (
     <Form.Select
       style={{ width: '9.375rem' }}
@@ -63,7 +74,7 @@ const AgentSelect = ({ agent, className }) => {
 const Tickets = () => {
   return (
     <Flex direction="column" className="gap-3">
-      {tickets.map((ticket, index) => {
+      {tickets.map((ticket: any, index: number) => {
         const { subject, status, priority, agent, date } = ticket;
         return (
           <div
@@ -86,7 +97,7 @@ const Tickets = () => {
                 color={priority.color}
                 data={priority.data}
               />
-              <AgentSelect agent={agent} />
+              <AgentSelect agent={agent} className="" />
             </Flex>
           </div>
         );

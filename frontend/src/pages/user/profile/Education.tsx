@@ -9,7 +9,7 @@ const Education: React.FC = () => {
     <Card className="mb-3">
       <FalconCardHeader title="Education" light />
       <Card.Body className="fs-10">
-        {educationData.map((item, index) => (
+        {(educationData as any[]).map((item: any, index: number) => (
           <EducationItem
             key={item.id}
             details={item}

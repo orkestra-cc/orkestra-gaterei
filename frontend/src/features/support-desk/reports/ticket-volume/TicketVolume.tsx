@@ -7,7 +7,15 @@ import TicketVolumeChart from './TicketVolumeChart';
 import { ticketVolume } from 'data/support-desk/reportsData';
 import FalconLink from 'components/common/FalconLink';
 
-const FormCheck = ({ title, id, inputClass, checkBoxClass, handleLegend }) => {
+interface FormCheckProps {
+  title: string;
+  id: string;
+  inputClass?: string;
+  checkBoxClass?: string;
+  handleLegend: (event: React.ChangeEvent<HTMLInputElement>, name: string) => void;
+}
+
+const FormCheck = ({ title, id, inputClass, checkBoxClass, handleLegend }: FormCheckProps) => {
   return (
     <Form.Check
       className={classNames(checkBoxClass, 'd-flex align-items-center mb-0')}
@@ -32,7 +40,15 @@ const FormCheck = ({ title, id, inputClass, checkBoxClass, handleLegend }) => {
   );
 };
 
-const TicketsCategory = ({ title, number, percentage, icon, badgeColor }) => {
+interface TicketsCategoryProps {
+  title: string;
+  number: string;
+  percentage: string;
+  icon: any;
+  badgeColor: string;
+}
+
+const TicketsCategory = ({ title, number, percentage, icon, badgeColor }: TicketsCategoryProps) => {
   return (
     <div>
       <h6 className="fs-9 d-flex align-items-center text-700 mb-1">
@@ -48,9 +64,9 @@ const TicketsCategory = ({ title, number, percentage, icon, badgeColor }) => {
 };
 
 const TicketVolume = () => {
-  const chartRef = useRef(null);
-  const handleLegend = (event, name) => {
-    chartRef.current.getEchartsInstance().dispatchAction({
+  const chartRef = useRef<any>(null);
+  const handleLegend = (_event: React.ChangeEvent<HTMLInputElement>, name: string) => {
+    chartRef.current?.getEchartsInstance().dispatchAction({
       type: 'legendToggleSelect',
       name: name
     });
@@ -80,6 +96,7 @@ const TicketVolume = () => {
                 <FormCheck
                   title="On Hold Tickets"
                   id="onHoldTickets"
+                  inputClass=""
                   checkBoxClass="me-md-3"
                   handleLegend={handleLegend}
                 />

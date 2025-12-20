@@ -1,7 +1,13 @@
 
 import Flex from 'components/common/Flex';
 
-const Association = ({ image, title, description }) => (
+interface AssociationProps {
+  image: string;
+  title: string;
+  description: string;
+}
+
+const Association: React.FC<AssociationProps> = ({ image, title, description }) => (
   <Flex alignItems="center" className="position-relative mb-2">
     <img className="me-2 rounded-3" src={image} width={50} alt="" />
     <div>

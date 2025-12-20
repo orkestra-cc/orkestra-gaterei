@@ -111,12 +111,13 @@ const getOption = (getThemeColor: ThemeColorGetter, data: (string | number)[][])
 
 interface TopProductsProps {
   data: (string | number)[][];
+  className?: string;
 }
 
-const TopProducts = ({ data }: TopProductsProps) => {
+const TopProducts = ({ data, className }: TopProductsProps) => {
   const { getThemeColor } = useAppContext();
   return (
-    <Card className="h-100">
+    <Card className={className || 'h-100'}>
       <FalconCardHeader
         title="Top Products"
         titleTag="h6"

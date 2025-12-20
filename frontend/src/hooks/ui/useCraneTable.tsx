@@ -141,7 +141,7 @@ const useCraneTable = (options?: any) => {
         }
       },
       cell: ({ row: { original } }: { row: { original: CraneResponse } }) => {
-        const { nome, matricola, tipo } = original;
+        const { nome, matricola } = original;
         return (
           <Flex alignItems="center" className="position-relative py-1">
             <div className="avatar-2xl rounded-circle bg-soft-warning d-flex align-items-center justify-content-center me-2">

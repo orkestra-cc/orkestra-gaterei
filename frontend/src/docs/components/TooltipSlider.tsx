@@ -4,20 +4,30 @@ import Slider from 'rc-slider';
 import raf from 'rc-util/lib/raf';
 import Tooltip from 'rc-tooltip';
 
-const HandleTooltip = props => {
+interface HandleTooltipProps {
+  value: number;
+  children: React.ReactElement;
+  visible: boolean;
+  tipFormatter?: (val: number) => string;
+  [key: string]: any;
+}
+
+const HandleTooltip = (props: HandleTooltipProps) => {
   const {
     value,
     children,
     visible,
-    tipFormatter = val => `${val} %`,
+    tipFormatter = (val: number) => `${val} %`,
     ...restProps
   } = props;
 
-  const tooltipRef = React.useRef();
-  const rafRef = React.useRef(null);
+  const tooltipRef = React.useRef<any>(null);
+  const rafRef = React.useRef<number | null>(null);
 
   function cancelKeepAlign() {
-    raf.cancel(rafRef.current);
+    if (rafRef.current !== null) {
+      raf.cancel(rafRef.current);
+    }
   }
 
   function keepAlign() {
@@ -38,7 +48,6 @@ const HandleTooltip = props => {
 
   return (
     <Tooltip
-      style={{ position: 'fixed' }}
       placement="top"
       overlay={tipFormatter(value)}
       overlayInnerStyle={{ minHeight: 'auto' }}
@@ -51,7 +60,7 @@ const HandleTooltip = props => {
   );
 };
 
-export const handleRender = (node, props) => {
+export const handleRender = (node: React.ReactElement, props: any) => {
   return (
     <HandleTooltip value={props.value} visible={props.dragging}>
       {node}
@@ -59,8 +68,14 @@ export const handleRender = (node, props) => {
   );
 };
 
-const TooltipSlider = ({ tipFormatter, tipProps, ...props }) => {
-  const tipHandleRender = (node, handleProps) => {
+interface TooltipSliderProps {
+  tipFormatter?: (val: number) => string;
+  tipProps?: any;
+  [key: string]: any;
+}
+
+const TooltipSlider = ({ tipFormatter, tipProps, ...props }: TooltipSliderProps) => {
+  const tipHandleRender = (node: React.ReactElement, handleProps: any) => {
     return (
       <HandleTooltip
         value={handleProps.value}

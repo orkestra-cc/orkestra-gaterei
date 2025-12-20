@@ -42,17 +42,22 @@ interface DropdownFilterProps {
   handleFilter: (filter: string) => void;
   currentFilter: string;
   icon: IconProp;
+  className?: string;
+  right?: boolean;
 }
 
 const DropdownFilter = ({
   filters,
   handleFilter,
   currentFilter,
-  icon
+  icon,
+  className,
+  right
 }: DropdownFilterProps) => {
   return (
     <Dropdown
-      className="font-sans-serif me-2"
+      className={classNames('font-sans-serif me-2', className)}
+      align={right ? 'end' : undefined}
       style={{ '--falcon-dropdown-content': 'none' } as any}
     >
       <Dropdown.Toggle

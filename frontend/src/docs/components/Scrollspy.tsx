@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Col, Nav, Row, Button } from 'react-bootstrap';
 import useScrollSpy from 'react-use-scrollspy';
 import PageHeader from 'components/common/PageHeader';
@@ -153,10 +153,10 @@ export default Scrollspy;
 
 function ScrollspyExample() {
   const [sections] = useState(['Home', 'Profile', 'Messages', 'Settings']);
-  const sectionRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+  const sectionRefs = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
 
   const activeSection = useScrollSpy({
-    sectionElementRefs: sectionRefs,
+    sectionElementRefs: sectionRefs as any,
     offsetPx: -150
   });
 

@@ -150,7 +150,7 @@ const useTachographTable = (options?: any) => {
       }: {
         row: { original: TachographResponse };
       }) => {
-        const { nome, targa } = original;
+        const { nome } = original;
         return (
           <Flex alignItems="center" className="position-relative py-1">
             <div className="avatar-2xl rounded-circle bg-soft-info d-flex align-items-center justify-content-center me-2">

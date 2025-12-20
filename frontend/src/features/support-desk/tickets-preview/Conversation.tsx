@@ -17,7 +17,15 @@ import { useState } from 'react';
 import Compose from 'features/email/compose/Compose';
 import paths from 'routes/paths';
 
-const File = ({ icon, title, action, actionIcon, className }) => {
+interface FileProps {
+  icon: any;
+  title: string;
+  action: string;
+  actionIcon: any;
+  className?: string;
+}
+
+const File = ({ icon, title, action, actionIcon, className }: FileProps) => {
   return (
     <div
       className={classNames(
@@ -39,7 +47,12 @@ const File = ({ icon, title, action, actionIcon, className }) => {
   );
 };
 
-const Mail = ({ message, index }) => {
+interface MailProps {
+  message: any;
+  index: number;
+}
+
+const Mail = ({ message, index }: MailProps) => {
   return (
     <div>
       {/* mail header */}
@@ -95,7 +108,6 @@ const Mail = ({ message, index }) => {
                 icon={['far', 'image']}
                 action="Download"
                 actionIcon="arrow-down"
-                className="mb-2"
               />
               <File
                 title="broken_tv_solve.zip (342kb)"
@@ -155,7 +167,7 @@ const Conversation = () => {
         </h5>
       </Card.Header>
       <Card.Body>
-        {messages.map((message, index) => (
+        {messages.map((message: any, index: number) => (
           <Mail key={index} message={message} index={index} />
         ))}
       </Card.Body>

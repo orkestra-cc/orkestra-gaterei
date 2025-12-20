@@ -100,14 +100,14 @@ const useAdvanceTable = <T,>({
     data,
     columns: selection
       ? [
-          selectionColumn(selectionColumnWidth, selectionHeaderClassname),
+          selectionColumn<T>(selectionColumnWidth, selectionHeaderClassname),
           ...columns
         ]
       : columns,
     enableSorting: sortable,
     enableColumnFilters: true,
     enableGlobalFilter: true,
-    globalFilterFn: globalFilterFn,
+    globalFilterFn: globalFilterFn as any,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

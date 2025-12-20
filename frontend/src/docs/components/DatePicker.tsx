@@ -4,7 +4,7 @@ import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import FalconComponentCard from 'components/common/FalconComponentCard';
 import DatePicker, { registerLocale } from 'react-datepicker';
-import es from 'date-fns/locale/es';
+import { es } from 'date-fns/locale/es';
 import FalconEditor from 'components/common/FalconEditor';
 
 registerLocale('es', es);

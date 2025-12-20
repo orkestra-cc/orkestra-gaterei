@@ -2,7 +2,15 @@ import { Link } from 'react-router';
 import { Image } from 'react-bootstrap';
 import paths from 'routes/paths';
 
-const Follower = ({ follower }) => {
+interface FollowerProps {
+  follower: {
+    avatarSrc: string;
+    name: string;
+    institution: string;
+  };
+}
+
+const Follower = ({ follower }: FollowerProps) => {
   const { avatarSrc, name, institution } = follower;
   return (
     <div className="bg-white dark__bg-1100 p-3 h-100">

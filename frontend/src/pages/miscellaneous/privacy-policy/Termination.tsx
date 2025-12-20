@@ -1,7 +1,12 @@
 
 import { Card } from 'react-bootstrap';
+import React from 'react';
 
-const Termination = ({ props, ref }) => {
+interface TerminationProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Termination: React.FC<TerminationProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="termination" ref={ref}>
       <Card.Header className="bg-body-tertiary">

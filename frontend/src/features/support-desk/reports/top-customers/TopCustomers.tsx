@@ -9,9 +9,15 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import TopCustomerChart from './TopCustomerChart';
 import FalconLink from 'components/common/FalconLink';
 
-const NavItem = ({ item, index }) => {
+interface NavItemProps {
+  item: string;
+  index: number;
+}
+
+const NavItem = ({ item, index }: NavItemProps) => {
+  const className = index !== 6 ? 'border-bottom' : '';
   return (
-    <Nav.Item as="li" className={index !== 6 && 'border-bottom'}>
+    <Nav.Item as="li" className={className}>
       <Nav.Link className="p-x1 mb-0" eventKey={item.toLowerCase()}>
         {item}
       </Nav.Link>
@@ -19,7 +25,13 @@ const NavItem = ({ item, index }) => {
   );
 };
 
-const TabItem = ({ percentage, count, data }) => {
+interface TabItemProps {
+  percentage: string;
+  count: string;
+  data: any;
+}
+
+const TabItem = ({ percentage, count, data }: TabItemProps) => {
   return (
     <>
       <Flex alignItems="center" className="gap-2 mb-4">

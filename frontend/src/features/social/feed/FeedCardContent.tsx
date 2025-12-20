@@ -7,6 +7,15 @@ import FeedUrl from './FeedUrl';
 import FeedGallery from 'features/social/feed/FeedGallery';
 import FalconLightBox from 'components/common/FalconLightBox';
 
+interface FeedCardContentProps {
+  status?: string;
+  imgSrc?: string;
+  gallery?: string[];
+  feedEvent?: any;
+  url?: any;
+  video?: { src: string };
+}
+
 const FeedCardContent = ({
   status,
   imgSrc,
@@ -14,7 +23,7 @@ const FeedCardContent = ({
   feedEvent,
   url,
   video
-}) => {
+}: FeedCardContentProps) => {
   return (
     <Card.Body className={classNames({ 'p-0': !!feedEvent })}>
       {!!status && <p dangerouslySetInnerHTML={createMarkup(status)} />}

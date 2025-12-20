@@ -4,7 +4,15 @@ import Calendar from 'components/common/Calendar';
 import Flex from 'components/common/Flex';
 import paths from 'routes/paths';
 
-const FeedEvent = ({ title, calender, author, regFee, eventImg }) => (
+interface FeedEventProps {
+  title: string;
+  calender: any;
+  author: string;
+  regFee: string;
+  eventImg?: string;
+}
+
+const FeedEvent = ({ title, calender, author, regFee, eventImg }: FeedEventProps) => (
   <Card className="p-0 shadow-none">
     {!!eventImg && <img className="card-img-top" src={eventImg} alt="" />}
     <Card.Body className="overflow-hidden">

@@ -1,6 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import FalconComponentCard from 'components/common/FalconComponentCard';
-import FalconEditor from 'components/common/FalconEditor';
 import PageHeader from 'components/common/PageHeader';
 import GoogleMap from 'components/map/GoogleMap';
 

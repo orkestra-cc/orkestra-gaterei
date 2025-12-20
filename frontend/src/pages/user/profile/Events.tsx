@@ -6,12 +6,18 @@ import FalconCardFooterLink from 'components/common/FalconCardFooterLink';
 import Event from 'features/events/event-list/Event';
 import paths from 'routes/paths';
 
-const Events = ({ cardTitle, events, ...rest }) => {
+interface EventsProps {
+  cardTitle: string;
+  events: any[];
+  [key: string]: any;
+}
+
+const Events = ({ cardTitle, events, ...rest }: EventsProps) => {
   return (
     <Card {...rest}>
       <FalconCardHeader title={cardTitle} light />
       <Card.Body className="fs-10 border-bottom">
-        {events.map((event, index) => (
+        {events.map((event: any, index: number) => (
           <Event
             key={event.id}
             details={event}

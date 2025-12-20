@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Form, Button } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import CustomDateInput from 'components/common/CustomDateInput';
 import classNames from 'classnames';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { UseFormRegister, UseFormSetValue, FieldValues } from 'react-hook-form';
+
+// Pre-create a properly typed forwardRef component for DatePicker customInput
+const DateInputWrapper = forwardRef<HTMLInputElement, any>((props, ref) => (
+  <CustomDateInput {...props} ref={ref} />
+));
 
 interface CustomButtonProps {
   handleRemove: (id: string | number) => void;
@@ -47,8 +52,8 @@ const EventCustomFieldItem = ({
   id,
   handleRemove
 }: EventCustomFieldItemProps) => {
-  const [date, setDate] = useState(null);
-  const [time, setTime] = useState(null);
+  const [date, setDate] = useState<Date | null>(null);
+  const [time, setTime] = useState<Date | null>(null);
 
   {
     switch (type) {
@@ -63,7 +68,6 @@ const EventCustomFieldItem = ({
             <CustomButton handleRemove={handleRemove} id={id} />
             <Form.Control
               type="number"
-              name={`customField${index}`}
               placeholder={`Enter ${name} ...`}
               {...register(`customField${index}`)}
             />
@@ -80,7 +84,6 @@ const EventCustomFieldItem = ({
             <Form.Label>{name}</Form.Label>
             <Form.Control
               type="password"
-              name={`customField${index}`}
               placeholder={`Enter ${name} ...`}
               {...register(`customField${index}`)}
             />
@@ -98,7 +101,6 @@ const EventCustomFieldItem = ({
             <Form.Label>{name}</Form.Label>
             <Form.Control
               type="email"
-              name={`customField${index}`}
               placeholder={`Enter ${name} ...`}
               {...register(`customField${index}`)}
             />
@@ -115,7 +117,7 @@ const EventCustomFieldItem = ({
             <CustomButton handleRemove={handleRemove} id={id} />
             <Form.Label>{name}</Form.Label>
 
-            {options.map((option, key) => (
+            {options?.map((option, key) => (
               <Form.Check id={`customCheckbox${key}`} key={key}>
                 <Form.Check.Input
                   value={option}
@@ -137,7 +139,7 @@ const EventCustomFieldItem = ({
             <CustomButton handleRemove={handleRemove} id={id} />
             <Form.Label>{name}</Form.Label>
 
-            {options.map((option, key) => (
+            {options?.map((option, key) => (
               <Form.Check id={`customCheckbox${key}`} key={key}>
                 <Form.Check.Input
                   value={option}
@@ -163,7 +165,7 @@ const EventCustomFieldItem = ({
               aria-label="Default select example"
               {...register(`CustomField${index}`)}
             >
-              {options.map((option, key) => (
+              {options?.map((option, key) => (
                 <option key={key} value={option}>
                   {option}
                 </option>
@@ -226,14 +228,7 @@ const EventCustomFieldItem = ({
                 setTime(newDate);
                 setValue(`customField${index}`, newDate);
               }}
-              customInput={
-                <CustomDateInput
-                  formControlProps={{
-                    placeholder: 'H:i',
-                    ...register(`customField${index}`)
-                  }}
-                />
-              }
+              customInput={<DateInputWrapper formControlProps={{ placeholder: 'H:i', ...register(`customField${index}`) }} />}
             />
           </Form.Group>
         );
@@ -253,14 +248,7 @@ const EventCustomFieldItem = ({
                 setDate(newDate);
                 setValue(`customField${index}`, newDate);
               }}
-              customInput={
-                <CustomDateInput
-                  formControlProps={{
-                    placeholder: 'd/m/y',
-                    ...register(`customField${index}`)
-                  }}
-                />
-              }
+              customInput={<DateInputWrapper formControlProps={{ placeholder: 'd/m/y', ...register(`customField${index}`) }} />}
             />
           </Form.Group>
         );
@@ -276,7 +264,6 @@ const EventCustomFieldItem = ({
             <Form.Label>{name}</Form.Label>
             <Form.Control
               type="text"
-              name={`name${index}`}
               placeholder={`Enter ${name} ...`}
               {...register('customField' + index)}
             />

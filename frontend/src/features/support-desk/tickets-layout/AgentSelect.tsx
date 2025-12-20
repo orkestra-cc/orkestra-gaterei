@@ -1,6 +1,11 @@
 import { Form } from 'react-bootstrap';
 
-export const AgentSelect = ({ agent, className = '' }) => {
+interface AgentSelectProps {
+  agent: string;
+  className?: string;
+}
+
+export const AgentSelect = ({ agent, className = '' }: AgentSelectProps) => {
   return (
     <Form.Select
       style={{ width: '9.375rem' }}

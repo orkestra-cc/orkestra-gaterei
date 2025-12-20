@@ -80,7 +80,7 @@ const Background = () => {
                   <div>
                     <code
                       className={
-                        color < 500
+                        parseInt(color, 10) < 500
                           ? `text-${isDark ? 'white' : 'black'}`
                           : `text-${isDark ? 'black' : 'white'}`
                       }

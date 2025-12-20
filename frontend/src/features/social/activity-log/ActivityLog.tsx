@@ -11,7 +11,7 @@ const ActivityLog = () => {
         <h5 className="mb-1 mb-md-0">Activity log</h5>
       </Card.Header>
       <Card.Body className="p-0">
-        {activities.map((activity, index) => (
+        {activities.map((activity: any, index: number) => (
           <Notification
             {...activity}
             key={activity.id}

@@ -3,7 +3,13 @@ import { notes } from 'data/support-desk/contactDetailsData';
 import { Col, Dropdown, Form, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-const AgentSelect = ({ agent, className, style }) => {
+interface AgentSelectProps {
+  agent: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+const AgentSelect = ({ agent, className, style }: AgentSelectProps) => {
   return (
     <Form.Select
       style={style}
@@ -21,7 +27,7 @@ const AgentSelect = ({ agent, className, style }) => {
 const Notes = () => {
   return (
     <Flex direction="column" className="gap-3">
-      {notes.map((note, index) => {
+      {notes.map((note: any, index: number) => {
         const { title, description, date, time, agent } = note;
         return (
           <div
@@ -47,7 +53,7 @@ const Notes = () => {
                 xxl="auto"
                 className="d-flex flex-between-center"
               >
-                <AgentSelect agent={agent} className="me-2 w-auto" />
+                <AgentSelect agent={agent} className="me-2 w-auto" style={{}} />
                 <Dropdown
                   align="end"
                   className="btn-reveal-trigger d-inline-block"

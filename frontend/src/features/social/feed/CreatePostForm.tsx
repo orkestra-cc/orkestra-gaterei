@@ -9,16 +9,17 @@ import Flex from 'components/common/Flex';
 import { useFeedContext } from 'providers/FeedProvider';
 import { Button, Col, Dropdown, Form, Row } from 'react-bootstrap';
 import { v4 as uuid } from 'uuid';
+import { IconName } from '@fortawesome/fontawesome-svg-core';
 
 const CreatePostForm = () => {
   const { feedDispatch } = useFeedContext();
   const [privacy, setPrivacy] = useState('public');
   const [status, setStatus] = useState('');
 
-  const handleSubmit = e => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const feed = {
+    const feed: any = {
       id: uuid(),
       user: {
         name: 'Rebecca Marry',
@@ -82,7 +83,7 @@ const CreatePostForm = () => {
                   users: privacy === 'friends',
                   lock: privacy === 'private',
                   'globe-americas': privacy === 'public'
-                })}
+                }) as IconName}
               />
             </Dropdown.Toggle>
             <Dropdown.Menu className="py-2" align="end">
@@ -106,7 +107,12 @@ const CreatePostForm = () => {
   );
 };
 
-const PostButton = ({ image, title }) => (
+interface PostButtonProps {
+  image: string;
+  title: string;
+}
+
+const PostButton = ({ image, title }: PostButtonProps) => (
   <Button
     variant="tertiary"
     size="sm"

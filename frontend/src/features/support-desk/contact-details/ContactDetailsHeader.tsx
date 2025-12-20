@@ -4,7 +4,11 @@ import IconButton from 'components/common/IconButton';
 import { Card, Dropdown } from 'react-bootstrap';
 import { useNavigate } from 'react-router';
 
-const ContactDetailsHeader = ({ handleShow }) => {
+interface ContactDetailsHeaderProps {
+  handleShow: () => void;
+}
+
+const ContactDetailsHeader = ({ handleShow }: ContactDetailsHeaderProps) => {
   const navigate = useNavigate();
   return (
     <Card className="mb-3">

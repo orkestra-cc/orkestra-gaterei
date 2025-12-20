@@ -5,7 +5,14 @@ import { todoList } from 'data/dashboard/support-desk';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import classNames from 'classnames';
 
-const ToDoItems = ({ item, index, length, handleChange }) => {
+interface ToDoItemsProps {
+  item: any;
+  index: number;
+  length: number;
+  handleChange: (id: number, completed: boolean) => void;
+}
+
+const ToDoItems = ({ item, index, length, handleChange }: ToDoItemsProps) => {
   return (
     <div
       className={classNames(
@@ -47,8 +54,8 @@ const ToDoItems = ({ item, index, length, handleChange }) => {
 
 const ToDoList = () => {
   const [todoItems, setTodoItems] = useState(todoList);
-  const handleChange = (id, completed) => {
-    const updatedTodos = todoItems.map(item =>
+  const handleChange = (id: number, completed: boolean) => {
+    const updatedTodos = todoItems.map((item: any) =>
       item.id === id ? { ...item, completed } : item
     );
     setTodoItems(updatedTodos);
@@ -67,7 +74,7 @@ const ToDoList = () => {
         </IconButton>
       </Card.Header>
       <Card.Body className="contact-details-todo-list scrollbar">
-        {todoItems.map((item, index) => (
+        {todoItems.map((item: any, index: number) => (
           <ToDoItems
             item={item}
             index={index}

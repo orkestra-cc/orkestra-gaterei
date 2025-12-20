@@ -66,15 +66,42 @@ interface FeedCardProps {
 
 const FeedCard: React.FC<FeedCardProps> = ({ feed, ...rest }) => {
   const { id, user, content, details } = feed;
+
+  // Map SocialFeed structure to component props
+  const userProps = user ? {
+    status: user.isOnline ? 'status-online' : 'status-offline',
+    avatarSrc: user.avatarSrc,
+    time: details.timestamp,
+    name: user.name,
+    share: feed.type === 'share' ? 'post' : undefined,
+    location: user.lastActivity || '',
+    privacy: 'public'
+  } : undefined;
+
+  const contentProps = content ? {
+    status: content.text,
+    imgSrc: content.images?.[0],
+    gallery: content.images,
+    feedEvent: undefined,
+    url: content.link,
+    video: content.video ? { src: content.video } : undefined
+  } : undefined;
+
+  const detailsProps = details ? {
+    id,
+    countLCS: { like: details.likes, comment: details.comments, share: details.shares },
+    reactions: { like: details.likedByCurrentUser || false, comment: false, share: false },
+    comments: [],
+    otherComments: ''
+  } : undefined;
+
   return (
     <Card {...rest}>
-      {!!user && <FeedCardHeader {...user} />}
-      {!!content && <FeedCardContent {...content} />}
-      {!!details && <FeedCardFooter id={id} {...details} />}
+      {!!userProps && <FeedCardHeader {...userProps} />}
+      {!!contentProps && <FeedCardContent {...contentProps} />}
+      {!!detailsProps && <FeedCardFooter {...detailsProps} />}
     </Card>
   );
 };
-
-FeedCard.Header = FeedCardHeader;
 
 export default FeedCard;

@@ -9,13 +9,24 @@ import commentInActive from 'assets/img/illustrations/comment-inactive.png';
 import likeActive from 'assets/img/illustrations/like-active.png';
 import { useFeedContext } from 'providers/FeedProvider';
 
-const FeedActionButtons = ({ id, reactions }) => {
+interface FeedActionButtonsProps {
+  id: string | number;
+  reactions?: {
+    like?: boolean;
+    comment?: boolean;
+    share?: boolean;
+  };
+}
+
+const FeedActionButtons = ({ id, reactions }: FeedActionButtonsProps) => {
   const [liked, setLiked] = useState(reactions?.like);
   const { feeds, feedDispatch } = useFeedContext();
 
   const toggleLiked = () => {
     setLiked(!liked);
     const feed = feeds.find(item => item.id === id);
+    if (!feed) return;
+
     feed.details.reactions.like = !liked;
     feed.details.countLCS.like = !liked
       ? feed.details.countLCS.like + 1
@@ -23,7 +34,7 @@ const FeedActionButtons = ({ id, reactions }) => {
 
     feedDispatch({
       type: 'UPDATE',
-      payload: { id, feed }
+      payload: { id: typeof id === 'string' ? parseInt(id, 10) : id, feed }
     });
   };
   return (

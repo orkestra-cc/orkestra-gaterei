@@ -5,7 +5,7 @@ import { store, persistor } from './index';
 
 interface ReduxProviderProps {
   children: React.ReactNode;
-  loading?: React.ComponentType<any> | React.ReactElement | null;
+  loading?: React.ReactNode;
 }
 
 const ReduxProvider: React.FC<ReduxProviderProps> = ({

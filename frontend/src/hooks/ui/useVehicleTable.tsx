@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router';
 import paths from 'routes/paths';
 import useAdvanceTable from './useAdvanceTable';
-import Avatar from 'components/common/Avatar';
 import Flex from 'components/common/Flex';
 import SubtleBadge from 'components/common/SubtleBadge';
 import { Badge, Dropdown, Modal, Button } from 'react-bootstrap';

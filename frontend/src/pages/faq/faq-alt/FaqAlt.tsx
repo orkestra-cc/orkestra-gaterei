@@ -3,7 +3,17 @@ import { Button, Card, Col, Row } from 'react-bootstrap';
 import { faqs as faqsData } from 'data/faqs';
 import AskQuestionModal from './AskQuestionModal';
 
-const FaqAltItem = ({ faq }) => {
+interface FAQ {
+  id: number;
+  title: string;
+  description: string;
+}
+
+interface FaqAltItemProps {
+  faq: FAQ;
+}
+
+const FaqAltItem: React.FC<FaqAltItemProps> = ({ faq }) => {
   return (
     <>
       <h5 className="fs-9">{faq.title}</h5>
@@ -27,12 +37,12 @@ const FaqAlt: React.FC = () => {
       <Card.Body className="bg-body-tertiary pb-0">
         <Row>
           <Col lg={6}>
-            {faqs.slice(0, Math.floor(faqs.length / 2)).map(faq => (
+            {faqs.slice(0, Math.floor(faqs.length / 2)).map((faq: FAQ) => (
               <FaqAltItem key={faq.id} faq={faq} />
             ))}
           </Col>
           <Col lg={6}>
-            {faqs.slice(Math.floor(faqs.length / 2)).map(faq => (
+            {faqs.slice(Math.floor(faqs.length / 2)).map((faq: FAQ) => (
               <FaqAltItem key={faq.id} faq={faq} />
             ))}
           </Col>

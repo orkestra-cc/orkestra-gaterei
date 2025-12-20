@@ -33,7 +33,7 @@ const EventList: React.FC = () => {
       </Card.Header>
       <Card.Body className="fs-10">
         <Row>
-          {events.map((event, index) => (
+          {(events as any[]).map((event: any, index: number) => (
             <Col key={event.id} md={6} className="h-100">
               <Event details={event} isLast={index === events.length - 1} />
             </Col>

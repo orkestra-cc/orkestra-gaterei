@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { Card, Col, Offcanvas, Row } from 'react-bootstrap';
 import paths from 'routes/paths';
@@ -24,7 +24,7 @@ const columns = [
         className: 'white-space-nowrap pe-5 ps-2 py-2'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { name, avatar } = original;
       return (
         <Flex alignItems="center" className="position-relative py-1">
@@ -49,7 +49,7 @@ const columns = [
       headerProps: { className: 'pe-5 white-space-nowrap text-900' },
       cellProps: { className: 'font-sans-serif white-space-nowrap' }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { phone } = original;
       return (
         <a className="text-700" href={`tel:${phone.replace(/\s+/g, '')}`}>
@@ -67,7 +67,7 @@ const columns = [
         className: 'white-space-nowrap pe-5'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { report } = original;
       return <Link to="#!">{report}</Link>;
     }
@@ -81,7 +81,7 @@ const columns = [
         className: 'font-sans-serif fs-9 text-end'
       }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { subscription } = original;
       return subscription ? (
         <SubtleBadge bg={subscription.type}>{subscription.content}</SubtleBadge>
@@ -97,7 +97,7 @@ const columns = [
       headerProps: { className: 'text-end text-900' },
       cellProps: { className: 'ps-4 text-end' }
     },
-    cell: ({ row: { original } }) => {
+    cell: ({ row: { original } }: any) => {
       const { social } = original;
       return social ? (
         <a href="#!">{social}</a>

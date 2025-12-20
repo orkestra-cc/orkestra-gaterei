@@ -20,7 +20,6 @@ interface ListData {
 
 const KanbanContainer = () => {
   const kanbanItems = useKanbanContext().kanbanItems || [];
-  const kanbanModal = useKanbanContext().kanbanModal || { show: false };
   const addKanbanColumn = useKanbanContext().addKanbanColumn;
   const updateSingleColumn = useKanbanContext().updateSingleColumn;
   const updateDualColumn = useKanbanContext().updateDualColumn;
@@ -36,7 +35,7 @@ const KanbanContainer = () => {
     const listId = Math.max(...kanbanItems.map(item => parseInt(item.id))) + 1;
     const newList = {
       id: listId.toString(),
-      name: listData.title,
+      name: listData.title || '',
       items: []
     };
     const isEmpty = !Object.keys(listData).length;
@@ -105,8 +104,8 @@ const KanbanContainer = () => {
       const newIndex = overIndex >= 0 ? overIndex + 1 : overItems.length;
 
       updateDualColumn(
-        activeColumn,
-        overColumn,
+        activeColumn.id.toString(),
+        overColumn.id.toString(),
         activeItems.filter(item => item.id !== activeId),
         [
           ...overItems.slice(0, newIndex),
@@ -135,7 +134,7 @@ const KanbanContainer = () => {
 
       const reorderedItems = arrayMove(column.items, oldIndex, newIndex);
 
-      updateSingleColumn(column, reorderedItems);
+      updateSingleColumn(column.id.toString(), reorderedItems);
     } else {
       const sourceColumn = kanbanItems.find((col: KanbanItem) => col.id === activeColumnId);
       const destColumn = kanbanItems.find((col: KanbanItem) => col.id === overColumnId);
@@ -150,8 +149,8 @@ const KanbanContainer = () => {
       const updatedDestItems = [...destColumn.items, activeTask];
 
       updateDualColumn(
-        sourceColumn,
-        destColumn,
+        sourceColumn.id.toString(),
+        destColumn.id.toString(),
         updatedSourceItems,
         updatedDestItems
       );
@@ -195,11 +194,11 @@ const KanbanContainer = () => {
             </IconButton>
           )}
         </div>
-        <KanbanModal show={kanbanModal.show} />
+        <KanbanModal />
       </div>
       <DragOverlay>
         {activeTask && (
-          <TaskCard task={activeTask} cursor={true} rotate={true} />
+          <TaskCard task={activeTask} columnId="" cursor={true} rotate={true} />
         )}
       </DragOverlay>
     </DndContext>

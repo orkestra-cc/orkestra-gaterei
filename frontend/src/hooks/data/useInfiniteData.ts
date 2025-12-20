@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { QueryDefinition, BaseQueryFn } from '@reduxjs/toolkit/query';
 
 // Types for infinite/paginated data with RTK Query
 export interface PaginatedApiResponse<T> {
@@ -35,7 +34,7 @@ export interface InfiniteDataState<T> {
  * ```
  */
 interface UseInfiniteDataOptions<TData, TQueryArg> {
-  useQuery: (arg: TQueryArg & { cursor?: string; limit?: number }) => {
+  useQuery: (arg: TQueryArg & { cursor?: string; limit?: number }, options?: { skip?: boolean }) => {
     data?: PaginatedApiResponse<TData>;
     isLoading: boolean;
     isFetching: boolean;
@@ -137,13 +136,13 @@ export function useInfiniteData<TData = unknown, TQueryArg = any>({
  * ```
  */
 export function useInfiniteScroll<TData, TQueryArg>(
-  useQuery: (arg: TQueryArg) => any,
+  useQuery: (arg: TQueryArg, options?: { skip?: boolean }) => any,
   queryArgs: TQueryArg,
   options: { enabled?: boolean } = {}
 ) {
   const { data, isLoading, isFetching, error } = useQuery(queryArgs, {
-    skip: !options.enabled
-  });
+    skip: options.enabled === false
+  }) as { data?: { items: TData[]; hasMore: boolean; totalCount: number }; isLoading: boolean; isFetching: boolean; error: any };
 
   // For RTK Query endpoints that handle infinite data internally
   // The query itself manages the cursor/pagination state

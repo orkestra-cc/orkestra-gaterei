@@ -60,7 +60,7 @@ const PricingDefaultCard: React.FC<PricingDefaultCardProps> = ({
             <small className="fs-10 text-700">/ year</small>
           </h2>
           <Button
-            as={Link}
+            as={Link as any}
             variant={isFeatured ? 'primary' : 'outline-primary'}
             to={url}
           >
@@ -76,7 +76,7 @@ const PricingDefaultCard: React.FC<PricingDefaultCardProps> = ({
                 <FontAwesomeIcon icon="check" className="me-2 text-success" />{' '}
                 {feature.title}{' '}
                 {feature.tag && (
-                  <SubtleBadge pill bg={feature.tag.type}>
+                  <SubtleBadge pill bg={feature.tag.type as any}>
                     {feature.tag.label}
                   </SubtleBadge>
                 )}

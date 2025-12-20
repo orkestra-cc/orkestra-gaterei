@@ -11,12 +11,19 @@ import {
   useSortable,
   verticalListSortingStrategy
 } from '@dnd-kit/sortable';
+import { UniqueIdentifier } from '@dnd-kit/core';
+import type { KanbanItem } from 'reducers/kanbanReducer';
 
-const KanbanColumn = ({ kanbanColumnItem, overId }) => {
-  const { kanbanDispatch, cardHeight } = useKanbanContext();
+interface KanbanColumnProps {
+  kanbanColumnItem: KanbanItem;
+  overId: UniqueIdentifier | null;
+}
+
+const KanbanColumn = ({ kanbanColumnItem, overId }: KanbanColumnProps) => {
+  const { addTaskCard, cardHeight } = useKanbanContext();
   const { id, name, items } = kanbanColumnItem;
   const [showForm, setShowForm] = useState(false);
-  const formViewRef = useRef(null);
+  const formViewRef = useRef<HTMLDivElement>(null);
 
   const { setNodeRef, listeners, attributes, isDragging } = useSortable({
     id: kanbanColumnItem.id,
@@ -30,29 +37,28 @@ const KanbanColumn = ({ kanbanColumnItem, overId }) => {
     }
   });
 
-  const handleSubmit = cardData => {
+  const handleSubmit = (cardData: { title?: string }) => {
     const randomNumber = parseInt(uuid().replace(/-/g, '').slice(0, 12), 16);
     const newCard = {
-      id: randomNumber,
-      title: cardData.title
+      id: randomNumber.toString(),
+      title: cardData.title || ''
     };
     const isEmpty = !Object.keys(cardData).length;
 
     if (!isEmpty) {
-      kanbanDispatch({
-        type: 'ADD_TASK_CARD',
-        payload: { targetListId: id, newCard }
-      });
+      addTaskCard(id.toString(), newCard);
       setShowForm(false);
     }
   };
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      formViewRef.current.scrollIntoView({ behavior: 'smooth' });
+      if (formViewRef.current) {
+        formViewRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }, 500);
 
-    return clearTimeout(timeout);
+    return () => clearTimeout(timeout);
   }, [showForm]);
 
   return (
@@ -68,16 +74,15 @@ const KanbanColumn = ({ kanbanColumnItem, overId }) => {
           onClick={e => e.stopPropagation()}
         >
           <SortableContext
-            id={id}
+            id={id.toString()}
             items={items.map(item => item.id)}
             strategy={verticalListSortingStrategy}
           >
-            {items.map((task, index) => (
+            {items.map(task => (
               <TaskCard
                 key={task.id}
-                index={index}
                 task={task}
-                columnId={kanbanColumnItem.id}
+                columnId={kanbanColumnItem.id.toString()}
               />
             ))}
           </SortableContext>

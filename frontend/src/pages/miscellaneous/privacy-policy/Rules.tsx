@@ -1,8 +1,13 @@
 
 import { Card } from 'react-bootstrap';
 import { Link } from 'react-router';
+import React from 'react';
 
-const Rules = ({ props, ref }) => {
+interface RulesProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Rules: React.FC<RulesProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="rules" ref={ref}>
       <Card.Header className="bg-body-tertiary">

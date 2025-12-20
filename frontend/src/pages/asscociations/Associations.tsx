@@ -3,7 +3,20 @@ import Association from 'pages/asscociations/Association';
 import { Card, Col, Row } from 'react-bootstrap';
 import associationsData from 'data/associations';
 
-const Associations = ({
+interface AssociationType {
+  image: string;
+  title: string;
+  description: string;
+  to?: string;
+}
+
+interface AssociationsProps {
+  associations?: AssociationType[];
+  colBreakpoints?: { sm: number; md: number };
+  [key: string]: any;
+}
+
+const Associations: React.FC<AssociationsProps> = ({
   associations = associationsData,
   colBreakpoints = { sm: 6, md: 4 },
   ...rest
@@ -15,13 +28,12 @@ const Associations = ({
       </Card.Header>
       <Card.Body className="fs-10">
         <Row className="g-3">
-          {associations.map(association => (
+          {associations.map((association: AssociationType) => (
             <Col key={association.title} {...colBreakpoints}>
               <Association
                 image={association.image}
                 title={association.title}
                 description={association.description}
-                to={association.to}
               />
             </Col>
           ))}

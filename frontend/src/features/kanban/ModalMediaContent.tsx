@@ -1,16 +1,28 @@
 import Flex from 'components/common/Flex';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import classNames from 'classnames';
+import { ReactNode } from 'react';
+
+interface ModalMediaContentProps {
+  children: ReactNode;
+  icon: IconProp;
+  transform?: string;
+  title: string;
+  headingClass?: string;
+  headingContent?: ReactNode;
+  isHr?: boolean;
+}
 
 const ModalMediaContent = ({
   children,
   icon,
-  transform,
+  transform = '',
   title,
   headingClass,
   headingContent,
   isHr = true
-}) => {
+}: ModalMediaContentProps) => {
   return (
     <Flex>
       <span className="fa-stack ms-n1 me-3">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Collapse } from 'react-bootstrap';
 import { useLocation } from 'react-router';
 import classNames from 'classnames';
@@ -147,12 +147,12 @@ const MigrationSidebar = () => {
   );
 };
 
-const MigrationCollapse = ({ item }) => {
+const MigrationCollapse = ({ item }: { item: any }) => {
   const [open, setOpen] = useState(item.expanded ?? true);
 
-  const hasVisibleChild = item => {
+  const hasVisibleChild = (item: any): boolean => {
     if (!item.children) return false;
-    return item.children.some(child => {
+    return item.children.some((child: any) => {
       if (child.children && child.children.length > 0) {
         return hasVisibleChild(child);
       }
@@ -170,7 +170,7 @@ const MigrationCollapse = ({ item }) => {
             collapsed: open
           })}
           href="#!"
-          onClick={() => setOpen(prev => !prev)}
+          onClick={() => setOpen((prev: boolean) => !prev)}
         >
           <p className="treeview-text">{item.name}</p>
         </a>
@@ -184,7 +184,7 @@ const MigrationCollapse = ({ item }) => {
             'treeview-border-transparent': !showBorder
           })}
         >
-          {item?.children?.map(subItem =>
+          {item?.children?.map((subItem: any) =>
             subItem.children && subItem.children.length > 0 ? (
               <MigrationCollapse key={subItem.id} item={subItem} />
             ) : (
@@ -197,7 +197,7 @@ const MigrationCollapse = ({ item }) => {
   );
 };
 
-const MigrationNavItem = ({ item }) => {
+const MigrationNavItem = ({ item }: { item: any }) => {
   const { hash } = useLocation();
   return (
     <li className="treeview-list-item mb-2">

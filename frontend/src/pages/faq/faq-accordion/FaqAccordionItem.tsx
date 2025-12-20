@@ -26,7 +26,7 @@ const FaqAccordionItem: React.FC<FaqAccordionItemProps> = ({ faq, isFirst, isLas
         'rounded-0': !isLast && !isFirst
       })}
     >
-      <Accordion.Item eventKey={faq.id} className="border-0">
+      <Accordion.Item eventKey={faq.id.toString()} className="border-0">
         <Card.Header className="p-0" id={`faqAccordionHeading${faq.id}`}>
           <Accordion.Button className="btn btn-link text-decoration-none d-block w-100 py-2 px-3 border-0 rounded-0 text-start shadow-none">
             <div className="d-flex">

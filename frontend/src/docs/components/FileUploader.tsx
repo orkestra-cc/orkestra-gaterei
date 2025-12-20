@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button, Dropdown, Form } from 'react-bootstrap';
 import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -12,6 +12,11 @@ import { useForm } from 'react-hook-form';
 import classNames from 'classnames';
 import CardDropdown from 'components/common/CardDropdown';
 import cloudUpload from 'assets/img/icons/cloud-upload.svg';
+
+interface FileWithPreview extends File {
+  preview: string;
+  path?: string;
+}
 
 const exampleCode = `import { useDropzone } from 'react-dropzone';
 import Flex from 'components/common/Flex';
@@ -355,7 +360,7 @@ const FileUploadValidation = () => {
   } = useForm({
     resolver: yupResolver(schema)
   });
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState<FileWithPreview[]>([]);
 
   const { getRootProps, getInputProps } = useDropzone({
     accept: {
@@ -371,19 +376,19 @@ const FileUploadValidation = () => {
         ...acceptedFiles.map(file =>
           Object.assign(file, {
             preview: URL.createObjectURL(file)
-          })
+          }) as FileWithPreview
         )
       ]);
     }
   });
 
-  const handleRemove = path => {
+  const handleRemove = (path: string) => {
     const filteredFiles = files.filter(file => file.path !== path);
     setFiles(filteredFiles);
-    setValue('uploadedFiles', filteredFiles.length ? filteredFiles : null);
+    setValue('uploadedFiles', filteredFiles.length ? filteredFiles : []);
   };
 
-  const onSubmit = data => {
+  const onSubmit = (data: { uploadedFiles?: File[] }) => {
     console.log(data);
   };
 
@@ -436,7 +441,7 @@ const FileUploadValidation = () => {
               <div className="py-2">
                 <Dropdown.Item
                   className="text-danger"
-                  onClick={() => handleRemove(file.path)}
+                  onClick={() => handleRemove(file.path || '')}
                 >
                   Remove
                 </Dropdown.Item>

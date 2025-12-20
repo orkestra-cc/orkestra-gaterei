@@ -236,6 +236,12 @@ export interface AppPaths {
   plugin: string;
   faq: string;
   designFile: string;
+  // Developer-only routes
+  systemDebug: string;
+  apiExplorer: string;
+  databaseAdmin: string;
+  logViewer: string;
+  featureFlags: string;
 }
 
 const paths: AppPaths = {
@@ -285,10 +291,12 @@ const paths: AppPaths = {
   invitePeople: `/${rootPaths.miscRoot}/invite-people`,
   privacyPolicy: `/${rootPaths.miscRoot}/privacy-policy`,
   authTest: `/${rootPaths.miscRoot}/auth-test`,
+  authStateTest: `/${rootPaths.miscRoot}/auth-state-test`,
   roleNavigationTester: '/test/role-navigation',
   userManagement: `/${rootPaths.adminRoot}/users`,
   adminUserProfile: `/${rootPaths.adminRoot}/user/profile/:userId`,
   deadlineReports: `/${rootPaths.adminRoot}/reports/deadlines`,
+  operatoreProfile: `/${rootPaths.adminRoot}/operatore/profile/:operatoreId`,
   fleetVehicles: '/fleet/vehicles',
   fleetVehicleProfile: '/fleet/vehicle/:vehicleId',
   fleetCranes: '/fleet/cranes',

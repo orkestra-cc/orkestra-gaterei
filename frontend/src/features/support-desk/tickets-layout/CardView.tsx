@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Col, Offcanvas, Row } from 'react-bootstrap';
 import AllTicketsHeader from './AllTicketsHeader';
 import TicketFilteringForm from './TicketFilteringForm';

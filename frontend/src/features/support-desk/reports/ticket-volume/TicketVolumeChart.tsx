@@ -22,7 +22,7 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOption = (getThemeColor, isDark) => ({
+const getOption = (getThemeColor: (color: string) => string, isDark: boolean) => ({
   color: [
     getThemeColor('primary'),
     isDark ? '#235FAD' : '#6AA2EC',
@@ -85,7 +85,7 @@ const getOption = (getThemeColor, isDark) => ({
     textStyle: { color: getThemeColor('gray-1100') },
     borderWidth: 1,
     transitionDuration: 0,
-    position(pos, params, dom, rect, size) {
+    position(pos: any, params: any, dom: any, rect: any, size: any) {
       return getPosition(pos, params, dom, rect, size);
     },
     formatter: tooltipFormatter
@@ -149,7 +149,12 @@ const getOption = (getThemeColor, isDark) => ({
   }
 });
 
-const TicketVolumeChart = ({ _, ref }) => {
+interface TicketVolumeChartProps {
+  data?: any;
+  ref?: any;
+}
+
+const TicketVolumeChart = ({ data: _data, ref }: TicketVolumeChartProps) => {
   const { config, getThemeColor } = useAppContext();
   const { isDark } = config;
   return (

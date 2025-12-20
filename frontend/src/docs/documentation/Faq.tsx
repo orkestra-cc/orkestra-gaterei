@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import PageHeader from 'components/common/PageHeader';
 import { Accordion, Card } from 'react-bootstrap';
 import { faqDoc } from 'data/faqs';
@@ -19,7 +19,7 @@ const Faq = () => {
             id="accordionFaq"
             className="border rounded overflow-hidden"
           >
-            {faqs.map((faq, index) => (
+            {faqs.map((faq: any, index: number) => (
               <FaqAccordionItem
                 key={faq.id}
                 faq={faq}

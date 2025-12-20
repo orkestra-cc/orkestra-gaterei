@@ -1,4 +1,4 @@
-
+import React from 'react';
 import FalconComponentCard from 'components/common/FalconComponentCard';
 
 import { BarChart } from 'echarts/charts';

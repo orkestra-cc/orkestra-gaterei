@@ -2,14 +2,17 @@ import { Dropdown } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useKanbanContext } from 'providers/KanbanProvider';
 
-const KanbanColumnHeader = ({ id, title, itemCount }) => {
-  const { kanbanDispatch } = useKanbanContext();
+interface KanbanColumnHeaderProps {
+  id: string | number;
+  title?: string;
+  itemCount: number;
+}
+
+const KanbanColumnHeader = ({ id, title, itemCount }: KanbanColumnHeaderProps) => {
+  const { removeKanbanColumn } = useKanbanContext();
 
   const handleRemoveColumn = () => {
-    kanbanDispatch({
-      type: 'REMOVE_KANBAN_COLUMN',
-      payload: { id }
-    });
+    removeKanbanColumn(id.toString());
   };
 
   return (

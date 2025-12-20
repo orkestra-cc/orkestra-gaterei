@@ -1,10 +1,15 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-
+import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { Col, Row } from 'react-bootstrap';
 import Flex from 'components/common/Flex';
 import WizardForm from 'components/wizard/Wizard';
 
-const FormTitle = ({ icon, title }) => {
+interface FormTitleProps {
+  icon: IconProp;
+  title: string;
+}
+
+const FormTitle = ({ icon, title }: FormTitleProps) => {
   return (
     <Flex className="mb-4">
       <span className="fa-stack me-2 ms-n1">

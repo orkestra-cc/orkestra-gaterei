@@ -1,11 +1,16 @@
+interface PriorityProps {
+  title: string;
+  color: string;
+  data: string;
+}
 
-const Priority = ({ title, color, data }) => {
+const Priority = ({ title, color, data }: PriorityProps) => {
   return (
     <div
       style={{ width: '7.5rem' }}
       className="d-flex align-items-center gap-2 ms-md-4 ms-xl-0"
     >
-      <div style={{ '--falcon-circle-progress-bar': data }}>
+      <div style={{ '--falcon-circle-progress-bar': data } as React.CSSProperties}>
         <svg
           className="circle-progress-svg"
           width="26"

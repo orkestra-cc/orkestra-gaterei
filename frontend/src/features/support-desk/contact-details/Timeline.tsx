@@ -11,7 +11,7 @@ import paths from 'routes/paths';
 const Timeline = () => {
   return (
     <div className="timeline-vertical py-0">
-      {timeline.map((item, index) => {
+      {timeline.map((item: any, index: number) => {
         const {
           subject,
           description,

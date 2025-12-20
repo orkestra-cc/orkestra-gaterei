@@ -30,7 +30,7 @@ const Hero: React.FC = () => {
           className="pb-7 pb-xl-9 text-center text-xl-start"
         >
           <Button
-            as={Link}
+            as={Link as any}
             variant="outline-danger"
             className="mb-4 fs-10 border-2 rounded-pill"
             to="#!"
@@ -61,7 +61,7 @@ const Hero: React.FC = () => {
             for your digital products, while leaving the UI design on us!
           </p>
           <Button
-            as={Link}
+            as={Link as any}
             variant="outline-light"
             size="lg"
             className="border-2 rounded-pill mt-4 fs-9 py-2"

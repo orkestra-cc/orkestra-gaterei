@@ -6,6 +6,17 @@ import classNames from 'classnames';
 import { Link } from 'react-router';
 import FeedDropdown from './FeedDropdown';
 import paths from 'routes/paths';
+import { IconName } from '@fortawesome/fontawesome-svg-core';
+
+interface FeedCardHeaderProps {
+  status?: string;
+  avatarSrc: string;
+  time: string;
+  name: string;
+  share?: string;
+  location: string;
+  privacy: string;
+}
 
 const FeedCardHeader = ({
   status,
@@ -15,7 +26,7 @@ const FeedCardHeader = ({
   share,
   location,
   privacy
-}) => {
+}: FeedCardHeaderProps) => {
   return (
     <Card.Header className="bg-body-tertiary">
       <Row className="justify-content-between">
@@ -43,7 +54,7 @@ const FeedCardHeader = ({
                     users: privacy === 'friends',
                     lock: privacy === 'private',
                     'globe-americas': privacy === 'public'
-                  })}
+                  }) as IconName}
                 />
               </p>
             </div>

@@ -1,11 +1,35 @@
 import CustomDateInput from 'components/common/CustomDateInput';
 import { timezones } from 'data/events/timezones';
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Button, Card, Col, Form, Row } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
+import { UseFormRegister, UseFormSetValue, FieldValues } from 'react-hook-form';
 
-const EventDetails = ({ register, setValue }) => {
-  const [formData, setFormData] = useState({
+// Pre-create a properly typed forwardRef component for DatePicker customInput
+const DateInputWrapper = forwardRef<HTMLInputElement, any>((props, ref) => (
+  <CustomDateInput {...props} ref={ref} />
+));
+
+interface EventDetailsProps {
+  register: UseFormRegister<FieldValues>;
+  setValue: UseFormSetValue<FieldValues>;
+}
+
+interface FormDataState {
+  startDate: Date | null;
+  endDate: Date | null;
+  regDate: Date | null;
+  startTime: Date | null;
+  endTime: Date | null;
+}
+
+interface TimezoneItem {
+  offset: string;
+  name: string;
+}
+
+const EventDetails = ({ register, setValue }: EventDetailsProps) => {
+  const [formData, setFormData] = useState<FormDataState>({
     startDate: null,
     endDate: null,
     regDate: null,
@@ -13,7 +37,7 @@ const EventDetails = ({ register, setValue }) => {
     endTime: null
   });
 
-  const handleChange = (name, value) => {
+  const handleChange = (name: string, value: Date | null) => {
     setFormData({
       ...formData,
       [name]: value
@@ -30,7 +54,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Label>Event Title</Form.Label>
               <Form.Control
                 type="text"
-                name="eventTitle"
                 placeholder="Event Title"
                 {...register('eventTitle')}
               />
@@ -45,14 +68,7 @@ const EventDetails = ({ register, setValue }) => {
                   handleChange('startDate', newDate);
                   setValue('startDate', newDate);
                 }}
-                customInput={
-                  <CustomDateInput
-                    formControlProps={{
-                      placeholder: 'dd/mm/yyyy',
-                      ...register('startDate')
-                    }}
-                  />
-                }
+                customInput={<DateInputWrapper formControlProps={{ placeholder: 'dd/mm/yyyy', ...register('startDate') }} />}
               />
             </Form.Group>
           </Col>
@@ -70,15 +86,7 @@ const EventDetails = ({ register, setValue }) => {
                   handleChange('startTime', newDate);
                   setValue('startTime', newDate);
                 }}
-                customInput={
-                  <CustomDateInput
-                    formControlProps={{
-                      placeholder: 'H:i',
-                      name: 'startTime',
-                      ...register('startTime')
-                    }}
-                  />
-                }
+                customInput={<DateInputWrapper formControlProps={{ placeholder: 'H:i', ...register('startTime') }} />}
               />
             </Form.Group>
           </Col>
@@ -92,15 +100,7 @@ const EventDetails = ({ register, setValue }) => {
                   handleChange('endDate', newDate);
                   setValue('endDate', newDate);
                 }}
-                customInput={
-                  <CustomDateInput
-                    formControlProps={{
-                      placeholder: 'dd/mm/yyyy',
-                      name: 'endDate',
-                      ...register('endDate')
-                    }}
-                  />
-                }
+                customInput={<DateInputWrapper formControlProps={{ placeholder: 'dd/mm/yyyy', ...register('endDate') }} />}
               />
             </Form.Group>
           </Col>
@@ -119,15 +119,7 @@ const EventDetails = ({ register, setValue }) => {
                   handleChange('endTime', newDate);
                   setValue('endTime', newDate);
                 }}
-                customInput={
-                  <CustomDateInput
-                    formControlProps={{
-                      placeholder: 'H:i',
-                      name: 'endTime',
-                      ...register('endTime')
-                    }}
-                  />
-                }
+                customInput={<DateInputWrapper formControlProps={{ placeholder: 'H:i', ...register('endTime') }} />}
               />
             </Form.Group>
           </Col>
@@ -140,15 +132,7 @@ const EventDetails = ({ register, setValue }) => {
                   handleChange('regDate', newDate);
                   setValue('regDate', newDate);
                 }}
-                customInput={
-                  <CustomDateInput
-                    formControlProps={{
-                      placeholder: 'dd/mm/yyyy',
-                      name: 'regDate',
-                      ...register('regDate')
-                    }}
-                  />
-                }
+                customInput={<DateInputWrapper formControlProps={{ placeholder: 'dd/mm/yyyy', ...register('regDate') }} />}
               />
             </Form.Group>
           </Col>
@@ -157,10 +141,9 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Label>Timezone</Form.Label>
               <Form.Select
                 aria-label="Default select example"
-                name="timeZone"
                 {...register('timeZone')}
               >
-                {timezones.map(item => (
+                {timezones.map((item: TimezoneItem) => (
                   <option
                     value={`${item.offset}/${item.name}`}
                     key={`${item.offset}/${item.name}`}
@@ -181,7 +164,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 type="text"
                 placeholder="Venue"
-                name="venue"
                 {...register('venue')}
               />
               <Button size="sm" variant="link" className="p-0">
@@ -195,7 +177,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 type="text"
                 placeholder="Address"
-                name="address"
                 {...register('address')}
               />
             </Form.Group>
@@ -206,7 +187,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 type="text"
                 placeholder="City"
-                name="city"
                 {...register('city')}
               />
             </Form.Group>
@@ -217,7 +197,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 type="text"
                 placeholder="State"
-                name="state"
                 {...register('state')}
               />
             </Form.Group>
@@ -228,7 +207,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 type="text"
                 placeholder="Country"
-                name="country"
                 {...register('country')}
               />
             </Form.Group>
@@ -239,7 +217,6 @@ const EventDetails = ({ register, setValue }) => {
               <Form.Control
                 as="textarea"
                 rows={6}
-                name="description"
                 {...register('description')}
               />
             </Form.Group>

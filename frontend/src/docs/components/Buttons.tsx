@@ -8,7 +8,6 @@ import { reactBootstrapDocsUrl } from 'helpers/utils';
 import ButtonGroup from './ButtonGroup';
 import FalconCloseButton from 'components/common/FalconCloseButton';
 import Flex from 'components/common/Flex';
-import FalconEditor from 'components/common/FalconEditor';
 
 const faconBtnsCode = `
 <>

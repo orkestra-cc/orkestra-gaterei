@@ -23,7 +23,7 @@ const AddToFeed = () => {
         </Link>
       </Card.Header>
       <Card.Body>
-        {people.map((person, index) => (
+        {people.map((person: any, index: number) => (
           <SingleItem
             {...person}
             key={person.id}
@@ -35,7 +35,14 @@ const AddToFeed = () => {
   );
 };
 
-const SingleItem = ({ avatarSrc, name, mutual, divider }) => (
+interface SingleItemProps {
+  avatarSrc: string;
+  name: string;
+  mutual?: number;
+  divider: boolean;
+}
+
+const SingleItem = ({ avatarSrc, name, mutual, divider }: SingleItemProps) => (
   <Flex>
     <Link to={paths.userProfile}>
       <Avatar size="3xl" src={avatarSrc} />

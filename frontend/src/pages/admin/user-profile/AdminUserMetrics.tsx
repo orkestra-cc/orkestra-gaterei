@@ -126,7 +126,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
               >
                 <Flex alignItems="center">
                   <FontAwesomeIcon
-                    icon={metric.icon}
+                    icon={metric.icon as any}
                     className={`text-${metric.variant} me-2`}
                   />
                   <small className="text-700">{metric.label}</small>

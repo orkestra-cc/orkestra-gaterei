@@ -17,7 +17,7 @@ const Starter: React.FC = () => {
             <p className="lead">Create Something Beautiful.</p>
             <Button
               variant="falcon-primary"
-              as={Link}
+              as={Link as any}
               to={paths.gettingStarted}
             >
               Getting started

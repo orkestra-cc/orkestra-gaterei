@@ -71,7 +71,7 @@ export const authApi = baseApi.injectEndpoints({
     // Check authentication status - returns backend user data directly
     getCurrentUser: builder.query<BackendUser | null, void>({
       providesTags: ['Auth', 'User'],
-      queryFn: async (arg, api, extraOptions, baseQuery) => {
+      queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
         const result = await baseQuery('api/v1/auth/me');
 
         // Handle 401/403 as expected unauthenticated state, not an error
@@ -151,7 +151,7 @@ export const authApi = baseApi.injectEndpoints({
     // Get session after OAuth callback - retrieves access token using refresh token from cookie
     getSession: builder.query<SessionResponse | null, void>({
       providesTags: ['Auth'],
-      queryFn: async (arg, api, extraOptions, baseQuery) => {
+      queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
         const result = await baseQuery('api/v1/auth/session');
 
         // Handle 401/403 as expected unauthenticated state, not an error

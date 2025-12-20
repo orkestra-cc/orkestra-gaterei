@@ -6,6 +6,11 @@ import { Dropdown, Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAppContext } from 'providers/AppProvider';
 
+interface Label {
+  text: string;
+  type: string;
+}
+
 const ModalLabelContent = () => {
   const {
     config: { isRTL }
@@ -13,8 +18,8 @@ const ModalLabelContent = () => {
 
   return (
     <Flex>
-      {labels.slice(0, 3).map(label => (
-        <SubtleBadge bg={label.type} className="me-1 py-2" key={label.text}>
+      {(labels as Label[]).slice(0, 3).map((label: Label) => (
+        <SubtleBadge bg={label.type as any} className="me-1 py-2" key={label.text}>
           {label.text}
         </SubtleBadge>
       ))}
@@ -31,7 +36,7 @@ const ModalLabelContent = () => {
           <h6 className="dropdown-header py-0 px-3 mb-0">Select Label</h6>
           <Dropdown.Divider />
           <div className="px-3">
-            {labels.map(label => (
+            {(labels as Label[]).map((label: Label) => (
               <Dropdown.Item
                 as="button"
                 className={`badge-subtle-${label.type} rounded-1 mb-2`}

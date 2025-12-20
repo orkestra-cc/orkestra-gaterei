@@ -41,7 +41,7 @@ export const arrayReducer = (state: ArrayItem[], action: ArrayAction): ArrayItem
       }
       return state.filter(item => item.id !== id);
     case 'EDIT':
-      if (id !== 0 && !id) {
+      if ((id !== 0 && !id) || !payload) {
         return state;
       }
       if (isUpdatedStart) {

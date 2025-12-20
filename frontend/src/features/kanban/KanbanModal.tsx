@@ -32,7 +32,7 @@ const KanbanModal = () => {
       {kanbanModal.modalContent?.image && (
         <div className="position-relative overflow-hidden py-8">
           <Background
-            image={kanbanModal.modalContent.image.url || kanbanModal.modalContent.image}
+            image={kanbanModal.modalContent.image}
             className="rounded-top-lg"
           />
         </div>
@@ -56,20 +56,21 @@ const KanbanModal = () => {
         <div className="p-4">
           <Row>
             <Col lg={9}>
-              <ModalMediaContent title="Reviewers" icon="user">
+              <ModalMediaContent title="Reviewers" icon="user" transform="" headingClass="" headingContent={null}>
                 <GroupMember
                   users={members}
                   addMember
                   showMember={6}
                   avatarSize="xl"
+                  className=""
                 />
               </ModalMediaContent>
 
-              <ModalMediaContent title="Labels" icon="tag">
+              <ModalMediaContent title="Labels" icon="tag" transform="" headingClass="" headingContent={null}>
                 <ModalLabelContent />
               </ModalMediaContent>
 
-              <ModalMediaContent title="Description" icon="align-left">
+              <ModalMediaContent title="Description" icon="align-left" transform="" headingClass="" headingContent={null}>
                 <p className="text-word-break fs-10">
                   The illustration must match to the contrast of the theme. The
                   illustraion must described the concept of the design. To know
@@ -83,6 +84,7 @@ const KanbanModal = () => {
               <ModalMediaContent
                 title="Attachments"
                 icon="paperclip"
+                transform=""
                 headingClass="d-flex justify-content-between"
                 headingContent={
                   <Dropdown>
@@ -108,7 +110,9 @@ const KanbanModal = () => {
               <ModalMediaContent
                 title="Comments"
                 icon={['far', 'comment']}
+                transform=""
                 headingClass="mb-3"
+                headingContent={null}
               >
                 <ModalCommentContent />
               </ModalMediaContent>
@@ -116,7 +120,9 @@ const KanbanModal = () => {
               <ModalMediaContent
                 title="Activity"
                 icon="list-ul"
+                transform=""
                 headingClass="mb-3"
+                headingContent={null}
                 isHr={false}
               >
                 <ModalActivityContent />

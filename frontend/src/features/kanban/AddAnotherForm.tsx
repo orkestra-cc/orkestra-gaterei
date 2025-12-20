@@ -2,17 +2,24 @@ import classNames from 'classnames';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Col, Form, Row } from 'react-bootstrap';
 
+interface AddAnotherFormProps {
+  onSubmit: (formData: { title?: string }) => void;
+  type: 'list' | 'card';
+  showForm: boolean;
+  setShowForm: (show: boolean) => void;
+}
+
 const AddAnotherForm = ({
   onSubmit: handleSubmit,
   type,
   showForm,
   setShowForm
-}) => {
-  const [formData, setFormData] = useState({});
-  const inputRef = useRef(null);
+}: AddAnotherFormProps) => {
+  const [formData, setFormData] = useState<{ title?: string }>({});
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (showForm) {
+    if (showForm && inputRef.current) {
       inputRef.current.focus();
     }
   }, [showForm]);

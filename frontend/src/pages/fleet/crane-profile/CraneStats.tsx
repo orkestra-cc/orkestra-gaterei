@@ -2,7 +2,7 @@
 import { Card, Row, Col, ProgressBar } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { CraneResponse } from 'store/api/craneApi';
-import { FaCalendarAlt, FaCheckCircle, FaExclamationTriangle, FaHistory, FaTruck, FaChartLine, FaClipboardCheck } from 'react-icons/fa';
+import { FaCheckCircle, FaHistory, FaTruck, FaChartLine, FaClipboardCheck } from 'react-icons/fa';
 import { GiCrane } from 'react-icons/gi';
 
 interface CraneStatsProps {

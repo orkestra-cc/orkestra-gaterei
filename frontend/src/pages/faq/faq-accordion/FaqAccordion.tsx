@@ -4,6 +4,12 @@ import { Accordion, Card } from 'react-bootstrap';
 import FaqAccordionItem from './FaqAccordionItem';
 import { faqAccordions as faqsData } from 'data/faqs';
 
+interface FAQ {
+  id: number;
+  title: string;
+  description: string;
+}
+
 const FaqAccordion: React.FC = () => {
   const [faqs] = useState(faqsData);
   return (
@@ -19,7 +25,7 @@ const FaqAccordion: React.FC = () => {
             id="accordionFaq"
             className="border rounded overflow-hidden"
           >
-            {faqs.map((faq, index) => (
+            {faqs.map((faq: FAQ, index: number) => (
               <FaqAccordionItem
                 key={faq.id}
                 faq={faq}

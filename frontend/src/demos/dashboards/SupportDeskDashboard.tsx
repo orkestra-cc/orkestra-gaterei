@@ -3,8 +3,7 @@ import { Col, Row } from 'react-bootstrap';
 import {
   statusData,
   unresolvedTickets,
-  numbersOfTickets,
-  tickets
+  numbersOfTickets
 } from 'data/dashboard/support-desk';
 import Greetings from 'components/dashboards/support-desk/Greetings';
 import TicketStatus from 'components/dashboards/support-desk/TicketStatus';
@@ -43,7 +42,7 @@ const SupportDesk: React.FC = () => {
           <ToDoList />
         </Col>
         <Col xxl={9}>
-          <UnsolvedTickets data={tickets} />
+          <UnsolvedTickets />
         </Col>
       </Row>
     </>

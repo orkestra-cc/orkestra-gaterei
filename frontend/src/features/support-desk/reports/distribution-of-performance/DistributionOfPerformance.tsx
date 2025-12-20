@@ -36,7 +36,7 @@ const DistributionOfPerformance = () => {
             </Form.Select>
           </Col>
           <Col xs="auto">
-            <Button variant="falcon-default" size="sm" as={Link} to="#!">
+            <Button variant="falcon-default" size="sm" as={Link as any} to="#!">
               View All
             </Button>
           </Col>

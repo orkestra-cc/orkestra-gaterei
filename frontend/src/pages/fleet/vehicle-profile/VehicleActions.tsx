@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { VehicleResponse, useUpdateVehicleMutation, useDeleteVehicleMutation } from 'store/api/vehicleApi';
 import { useNavigate } from 'react-router';
 import paths from 'routes/paths';
-import { FaPowerOff, FaTrashAlt, FaCalendarCheck, FaPrint, FaDownload, FaQrcode } from 'react-icons/fa';
+import { FaPowerOff, FaTrashAlt, FaCalendarCheck, FaDownload, FaQrcode } from 'react-icons/fa';
 
 interface VehicleActionsProps {
   vehicle: VehicleResponse;

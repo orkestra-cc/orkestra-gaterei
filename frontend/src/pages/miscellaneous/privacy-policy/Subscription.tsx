@@ -1,7 +1,12 @@
 
 import { Card } from 'react-bootstrap';
+import React from 'react';
 
-const Subscription = ({ props, ref }) => {
+interface SubscriptionProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Subscription: React.FC<SubscriptionProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="subscriptions" ref={ref}>
       <Card.Header className="bg-body-tertiary">

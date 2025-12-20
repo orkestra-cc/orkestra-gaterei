@@ -4,7 +4,7 @@ import defaultAvatar from 'assets/img/team/2.jpg';
 import Flex from 'components/common/Flex';
 import VerifiedBadge from 'components/common/VerifiedBadge';
 
-import { Button, Col, Row, Badge } from 'react-bootstrap';
+import { Col, Row, Badge } from 'react-bootstrap';
 import ProfileBanner from './AdminProfileBanner';
 import { User } from 'store/api/userApi';
 

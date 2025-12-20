@@ -9,7 +9,6 @@ import {
   Alert
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import Flex from 'components/common/Flex';
 import { User, useUpdateUserMutation } from 'store/api/userApi';
 import { toast } from 'react-toastify';
 

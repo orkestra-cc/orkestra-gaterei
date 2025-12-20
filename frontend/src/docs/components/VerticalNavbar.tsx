@@ -500,7 +500,7 @@ const SpinnersExample = () => {
 
 export default SpinnersExample;
 
-const VariableValue = ({ title, description, code }) => {
+const VariableValue = ({ title, description, code }: { title: string; description: string; code: string }) => {
   return (
     <div className="mb-4">
       <h6 className="fs-9">{title}</h6>

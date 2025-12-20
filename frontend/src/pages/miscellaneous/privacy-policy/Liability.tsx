@@ -1,8 +1,13 @@
 
 import { Card } from 'react-bootstrap';
 import { Link } from 'react-router';
+import React from 'react';
 
-const Liability = ({ props, ref }) => {
+interface LiabilityProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Liability: React.FC<LiabilityProps> = ({ ref }) => {
   return (
     <Card className="mb-3" id="liability" ref={ref}>
       <Card.Header className="bg-body-tertiary">

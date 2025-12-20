@@ -3,7 +3,34 @@ import Flex from 'components/common/Flex';
 import { Link } from 'react-router';
 import paths from 'routes/paths';
 
-const Event = ({ details, isLast }) => {
+interface BadgeType {
+  title?: string;
+  type?: string;
+}
+
+interface CalendarType {
+  month: string;
+  day: string;
+}
+
+interface EventDetailsType {
+  calendar: CalendarType;
+  title: string;
+  organizer: string;
+  badge?: BadgeType;
+  time: string;
+  place: string;
+  location?: string;
+  duration?: string;
+  interested?: string;
+}
+
+interface EventProps {
+  details: EventDetailsType;
+  isLast: boolean;
+}
+
+const Event = ({ details, isLast }: EventProps) => {
   const {
     calendar,
     title,

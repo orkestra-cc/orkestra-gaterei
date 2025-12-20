@@ -7,7 +7,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableSearchBox';
 
-const AllTicketsHeader = ({ layout, handleShow }) => {
+interface AllTicketsHeaderProps {
+  layout: string;
+  handleShow: () => void;
+}
+
+const AllTicketsHeader = ({ layout, handleShow }: AllTicketsHeaderProps) => {
   const { getSelectedRowModel } = useAdvanceTableContext();
 
   return (

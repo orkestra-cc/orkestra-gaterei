@@ -24,7 +24,7 @@ echarts.use([
   LegendComponent
 ]);
 
-function tooltipFormatter(params) {
+function tooltipFormatter(params: any) {
   const indicators = [
     ['Marketing', 'Sales', 'Dev', 'Support', 'Tech', 'Admin'],
     ['Language', 'Math', 'English', 'Physics', 'Chemistry', 'Biology']

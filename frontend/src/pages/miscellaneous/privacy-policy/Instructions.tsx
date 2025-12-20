@@ -1,7 +1,12 @@
 
 import { Card, Col, Row } from 'react-bootstrap';
+import React from 'react';
 
-const Instructions = ({ props, ref }) => {
+interface InstructionsProps {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+const Instructions: React.FC<InstructionsProps> = ({ ref }) => {
   return (
     <Card className="mb-3 mb-lg-0" id="instructions" ref={ref}>
       <Card.Header className="bg-body-tertiary">

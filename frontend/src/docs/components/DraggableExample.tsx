@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -226,7 +226,14 @@ const draggableCode = `DraggableComponent = () => {
   );
 };`;
 
-const SortableItem = ({ item, columnId, id, children }) => {
+interface SortableItemProps {
+  item: { id: number; text: string };
+  columnId: number;
+  id: number;
+  children: React.ReactNode;
+}
+
+const SortableItem = ({ item, columnId, id, children }: SortableItemProps) => {
   const {
     setNodeRef,
     attributes,

@@ -11,6 +11,8 @@ interface TreeviewItem {
   iconClass?: string;
   children?: TreeviewItem[];
   expanded?: boolean;
+  dot?: string;
+  badge?: number;
 }
 
 interface TreeviewListItemProps {
@@ -208,6 +210,7 @@ interface TreeviewProps {
   expanded?: string[];
   selectedItems?: string[];
   setSelectedItems?: React.Dispatch<React.SetStateAction<string[]>>;
+  defaultSelected?: string[];
 }
 
 const Treeview = ({

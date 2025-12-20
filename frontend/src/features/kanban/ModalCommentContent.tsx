@@ -7,6 +7,16 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Link } from 'react-router';
 import paths from 'routes/paths';
 
+interface Comment {
+  id: string;
+  user: {
+    name: string;
+    avatar: string;
+  };
+  text: string;
+  time: string;
+}
+
 const ModalCommentContent = () => {
   return (
     <>
@@ -64,7 +74,7 @@ const ModalCommentContent = () => {
         </div>
       </Flex>
 
-      {comments.map(comment => (
+      {(comments as Comment[]).map((comment: Comment) => (
         <Flex key={comment.id} className="mb-3">
           <Link to={paths.userProfile}>
             <Avatar src={comment.user.avatar} size="l" />

@@ -184,7 +184,7 @@ const ReactSelectValidation = () => {
     { value: 'professional', label: 'Professional' }
   ];
 
-  const onSubmit = data => {
+  const onSubmit = (data: { tags: unknown[] }) => {
     console.log(data);
   };
 
@@ -193,9 +193,8 @@ const ReactSelectValidation = () => {
       <Form.Group>
         <Controller
           name="tags"
-          render={({ field, ref }) => (
+          render={({ field }) => (
             <MultiSelect
-              ref={ref}
               closeMenuOnSelect={false}
               isMulti
               options={tagOptions}

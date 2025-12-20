@@ -47,7 +47,7 @@ const UserTableHeader = () => {
     };
 
     // Transform data for CSV export
-    const csvData = filteredRows.map((row) => {
+    const csvData = filteredRows.map((row: any) => {
       const user = row.original as User;
       return {
         'Nome Completo': user.fullName,

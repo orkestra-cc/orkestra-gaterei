@@ -4,7 +4,12 @@ import { Card, Col, Form, Nav, ProgressBar, Row, Tab } from 'react-bootstrap';
 import SimpleBar from 'simplebar-react';
 import FalconLink from 'components/common/FalconLink';
 
-const InDepthItem = ({ item, status }) => {
+interface InDepthItemProps {
+  item: any;
+  status: string;
+}
+
+const InDepthItem = ({ item, status }: InDepthItemProps) => {
   return (
     <Row className="mt-2">
       <Col xs={3} sm={2} md={3} lg={2}>
@@ -35,7 +40,7 @@ const InDepthItem = ({ item, status }) => {
                 ? item.progressbarWidth[2]
                 : item.progressbarWidth[3]
             }%`
-          }}
+          } as React.CSSProperties}
         />
         <p className="mb-0 fs-10 ps-3 fw-semibold text-600">
           {status === 'created'
@@ -51,7 +56,11 @@ const InDepthItem = ({ item, status }) => {
   );
 };
 
-const TabItem = ({ status }) => {
+interface TabItemProps {
+  status: string;
+}
+
+const TabItem = ({ status }: TabItemProps) => {
   return (
     <>
       <Row className="mx-0 border-bottom border-dashed">
@@ -60,13 +69,13 @@ const TabItem = ({ status }) => {
           className="p-x1 border-md-end border-bottom border-md-bottom-0 border-dashed"
         >
           <h6 className="fs-10 mb-3">Tickets {status} Split by Source</h6>
-          {inDepthItems.slice(0, 4).map((item, index) => (
+          {inDepthItems.slice(0, 4).map((item: any, index: number) => (
             <InDepthItem item={item} key={index} status={status} />
           ))}
         </Col>
         <Col md={6} className="p-x1">
           <h6 className="fs-10 mb-3">Tickets {status} Split by Priority</h6>
-          {inDepthItems.slice(4, 8).map((item, index) => (
+          {inDepthItems.slice(4, 8).map((item: any, index: number) => (
             <InDepthItem item={item} key={index} status={status} />
           ))}
         </Col>
@@ -77,13 +86,13 @@ const TabItem = ({ status }) => {
           className="p-x1 border-md-end border-bottom border-md-bottom-0 border-dashed"
         >
           <h6 className="fs-10 mb-3">Tickets {status} Split by Status</h6>
-          {inDepthItems.slice(8, 9).map((item, index) => (
+          {inDepthItems.slice(8, 9).map((item: any, index: number) => (
             <InDepthItem item={item} key={index} status={status} />
           ))}
         </Col>
         <Col md={6} className="p-x1">
           <h6 className="fs-10 mb-3">Tickets {status} Split by Category</h6>
-          {inDepthItems.slice(9, 10).map((item, index) => (
+          {inDepthItems.slice(9, 10).map((item: any, index: number) => (
             <InDepthItem item={item} key={index} status={status} />
           ))}
         </Col>

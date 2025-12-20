@@ -4,7 +4,11 @@ import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableS
 import IconButton from 'components/common/IconButton';
 import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 
-const ContactsHeader = ({ handleShow }) => {
+interface ContactsHeaderProps {
+  handleShow: () => void;
+}
+
+const ContactsHeader = ({ handleShow }: ContactsHeaderProps) => {
   const { getSelectedRowModel } = useAdvanceTableContext();
 
   return (

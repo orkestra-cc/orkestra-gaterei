@@ -17,8 +17,8 @@ const NavbarStandard: React.FC = () => {
   const [navbarCollapsed, setNavbarCollapsed] = useState(true);
 
   useEffect(() => {
-    window.addEventListener('scroll', handleNavbarTransparency, { passive: true });
-    return () => window.removeEventListener('scroll', handleNavbarTransparency, { passive: true });
+    window.addEventListener('scroll', handleNavbarTransparency, { passive: true } as AddEventListenerOptions);
+    return () => window.removeEventListener('scroll', handleNavbarTransparency, { passive: true } as EventListenerOptions);
   }, []);
 
   return (
@@ -32,7 +32,7 @@ const NavbarStandard: React.FC = () => {
       })}
     >
       <Container>
-        <Navbar.Brand className="text-white" as={Link} to="/">
+        <Navbar.Brand className="text-white" as={Link as any} to="/">
           Falcon
         </Navbar.Brand>
         <Flex alignItems="center" className="gap-2">

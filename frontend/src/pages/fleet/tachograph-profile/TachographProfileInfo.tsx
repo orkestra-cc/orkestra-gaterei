@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Card, Form, Button, Row, Col, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { TachographResponse, useUpdateTachographMutation } from 'store/api/tachographApi';
-import SubtleBadge from 'components/common/SubtleBadge';
 
 interface TachographProfileInfoProps {
   tachograph: TachographResponse;

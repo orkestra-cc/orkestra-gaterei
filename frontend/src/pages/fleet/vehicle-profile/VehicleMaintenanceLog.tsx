@@ -57,7 +57,7 @@ const mockMaintenanceData = [
   }
 ];
 
-const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ vehicleId, className = '' }) => {
+const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ className = '' }) => {
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();

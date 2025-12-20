@@ -2,9 +2,23 @@ import { useState } from 'react';
 import { Card } from 'react-bootstrap';
 import IconButton from 'components/common/IconButton';
 import EventScheduleItem from './EventScheduleItem';
+import { UseFormRegister, UseFormSetValue, FieldValues } from 'react-hook-form';
 
-const EventSchedule = ({ register, setValue }) => {
-  const [items, setItems] = useState([
+interface ScheduleItem {
+  title: string;
+  startDate: Date | null;
+  startTime: Date | null;
+  endDate: Date | null;
+  endTime: Date | null;
+}
+
+interface EventScheduleProps {
+  register: UseFormRegister<FieldValues>;
+  setValue: UseFormSetValue<FieldValues>;
+}
+
+const EventSchedule = ({ register, setValue }: EventScheduleProps) => {
+  const [items, setItems] = useState<ScheduleItem[]>([
     {
       title: '',
       startDate: null,
@@ -25,10 +39,10 @@ const EventSchedule = ({ register, setValue }) => {
       }
     ]);
   };
-  const handleRemoveItem = index => {
-    setItems(items.filter((item, ind) => index !== ind));
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_item, ind) => index !== ind));
   };
-  const handleChange = (id, name, value) => {
+  const handleChange = (id: number, name: string, value: string | Date | null) => {
     const newItems = [...items];
     const updatedItem = { ...newItems[id], [name]: value };
     setItems([
