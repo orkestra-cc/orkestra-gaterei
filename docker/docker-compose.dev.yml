@@ -1,0 +1,116 @@
+# ORKESTRA Development Environment Docker Compose
+# Local development with hot reload, relaxed security
+
+services:
+  backend:
+    image: dhi.io/golang:1
+    container_name: orkestra-backend-dev
+    user: "1000:1000"
+    userns_mode: "host"
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      ENV: development
+      PORT: ${BACKEND_PORT:-3000}
+
+      # MongoDB
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@${MONGO_HOST}:27017/${MONGO_DATABASE:-orkestra}?authSource=admin
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@${REDIS_HOST}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+
+      # JWT & Auth (RS256 asymmetric keys)
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/app/keys/jwt-public.pem}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
+
+      # OAuth Token Encryption
+      OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Cookie Configuration
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME:-orkestra_cookie}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      COOKIE_HTTP_ONLY: ${COOKIE_HTTP_ONLY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
+
+      # OAuth (dev credentials)
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
+      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
+      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
+      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
+
+      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
+      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
+      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
+      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
+      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
+
+      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
+      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
+      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
+
+      # URLs
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:3000}
+
+      # Security (relaxed for dev)
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-1m}
+
+      # Development specific
+      DEBUG: "true"
+      LOG_LEVEL: debug
+      PRETTY_LOGS: "true"
+
+      # Hot reload
+      AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
+      AIR_BIN: ./tmp/main
+
+      # Go module settings
+      GOSUMDB: "off"
+      GOCACHE: "/app/.go-build-cache"
+      GOBIN: "/app/.go-bin"
+      PATH: "/app/.go-bin:/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    volumes:
+      - ../backend:/app
+      - /app/tmp
+      - ./keys:/app/keys
+    networks:
+      - orkestra-network
+    command: ["sh", "-c", "go mod download && go install github.com/air-verse/air@latest && air"]
+
+  frontend:
+    image: dhi.io/node:24-dev
+    container_name: orkestra-frontend-dev
+    user: "1000:1000"
+    userns_mode: "host"
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:5173"
+    environment:
+      NODE_ENV: development
+      VITE_ENV: development
+      VITE_DEBUG: "true"
+      VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000}
+      NODE_OPTIONS: "--max-old-space-size=4096"
+    volumes:
+      - ../frontend:/app
+      - ../frontend/.vite-cache:/app/.vite
+    networks:
+      - orkestra-network
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+
+networks:
+  orkestra-network:
+    external: true

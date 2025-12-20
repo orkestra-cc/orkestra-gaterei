@@ -1,0 +1,125 @@
+# ORKESTRA Staging Environment Docker Compose
+# Production-like behavior with staging credentials and URLs
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: orkestra-backend-staging
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      ENV: staging
+      PORT: ${BACKEND_PORT:-3000}
+
+      # MongoDB
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:${MONGO_PORT:-27017}/${MONGO_DATABASE}?authSource=admin
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+
+      # JWT & Auth (RS256 asymmetric keys)
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/app/keys/jwt-public.pem}
+      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
+      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
+
+      # OAuth Token Encryption
+      OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Cookie Configuration (production-like)
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME:-orkestra_cookie}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      COOKIE_HTTP_ONLY: ${COOKIE_HTTP_ONLY:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
+      COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
+
+      # OAuth (staging credentials)
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
+      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
+      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
+      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
+
+      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
+      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
+      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
+      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
+      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
+
+      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
+      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
+      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
+
+      # URLs
+      FRONTEND_URL: ${FRONTEND_URL:-https://staging.orkestra.cc}
+      BACKEND_URL: ${BACKEND_URL:-https://staging-api.orkestra.cc}
+
+      # Security (production-like)
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-10}
+
+      # Staging specific
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PRETTY_LOGS: "false"
+
+      # Observability
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend-staging}
+    volumes:
+      - ./keys:/app/keys:ro
+      - backend_logs_staging:/app/logs
+      - backend_uploads_staging:/app/uploads
+    networks:
+      - orkestra-network
+    # Note: mongodb and redis are in docker-compose.infra.yml
+    # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://staging-api.orkestra.cc}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-https://staging-api.orkestra.cc}
+        VITE_WS_URL: ${VITE_WS_URL:-wss://staging-api.orkestra.cc/ws}
+        VITE_ENV: staging
+        VITE_DEBUG: "false"
+    container_name: orkestra-frontend-staging
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - orkestra-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  backend_logs_staging:
+    driver: local
+  backend_uploads_staging:
+    driver: local
+
+networks:
+  orkestra-network:
+    external: true

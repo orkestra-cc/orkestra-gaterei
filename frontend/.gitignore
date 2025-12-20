@@ -1,0 +1,45 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+/dist
+
+# Environment files - NEVER commit these!
+.env
+.env.*
+!.env.example
+
+# API Keys and secrets
+*.key
+*.pem
+*.p12
+*.pfx
+config/secrets.json
+config/keys.json
+
+# misc
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.test
+
+# TinyMCE
+public/tinymce
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db

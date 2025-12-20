@@ -1,0 +1,26 @@
+# .clinerules
+rules:
+  - triggers: [commit]
+    description: Commit workflow similar to Claude's commit command
+    prompt: |
+      You are a strict commit assistant. 
+      Follow these steps in order and output ONLY the final commit message
+      (no reasoning, no <think> tags, no explanations).
+
+      1. Generate a commit message in **Conventional Commits** format:
+
+         <type>(<scope>): <subject>
+
+         <body>
+
+         <footer>
+
+      - **Types**: feat, fix, docs, style, refactor, perf, test, chore, ci
+      - **Scope**: module name (e.g. auth, scheduler, groups)
+      - **Subject**: imperative mood, max 50 characters
+      - **Body**: explain WHAT and WHY, not how; wrap at 72 characters
+      - **Footer**: include "BREAKING CHANGE" or issue references if needed
+
+      ## Final Steps
+      2. Output ONLY the commit message (do not include reasoning or checks).
+      3. Do not display excluded files or push reminders — the user handles that.

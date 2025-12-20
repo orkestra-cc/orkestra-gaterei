@@ -1,0 +1,32 @@
+@import '../../../node_modules/bootstrap/scss/_functions';
+@import 'theme/functions';
+
+@import '../../../node_modules/bootstrap/scss/mixins';
+@import 'theme/mixins';
+
+@import 'user-variables';
+@import 'theme/colors';
+@import 'theme/variables';
+@import '../../../node_modules/bootstrap/scss/variables';
+@import '../../../node_modules/bootstrap/scss/variables-dark';
+
+// EVE Online button styling
+.btn-eve-online {
+  background-color: $eve-online;
+  border-color: $eve-online;
+  color: $white;
+  
+  &:hover,
+  &:focus,
+  &:active {
+    background-color: darken($eve-online, 10%);
+    border-color: darken($eve-online, 10%);
+    color: $white;
+  }
+  
+  &:disabled {
+    background-color: $eve-online;
+    border-color: $eve-online;
+    opacity: 0.65;
+  }
+}

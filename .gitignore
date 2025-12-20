@@ -1,0 +1,100 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Environment and configuration files
+.env
+.env.*
+config.json
+config.yaml
+config.yml
+*.env
+environment.json
+
+# Secrets and keys
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
+*.keystore
+jwt-secret
+private-key*
+public-key*
+
+# Database and cache files
+*.db
+*.sqlite
+*.sqlite3
+redis.conf
+mongodb.conf
+backup_*
+
+# Docker secrets and configs
+docker-compose.override.yml
+.docker/
+docker/secrets/
+
+# Editor/IDE (uncommented for security)
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and runtime data
+logs/
+*.log
+pid
+*.pid
+*.seed
+*.pid.lock
+
+# temp
+temp/
+tmp/
+
+# Build artifacts
+bin/
+dist/
+build/
+
+# Backup files
+*.backup
+*.bak
+backups/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# CLAUDE
+CLAUDE-*.md
+mongo-mcp.json
