@@ -56,17 +56,17 @@ const DeadlineReports = () => {
           {isLoading && (
             <div className="text-center py-5">
               <Spinner animation="border" role="status">
-                <span className="visually-hidden">Caricamento...</span>
+                <span className="visually-hidden">Loading...</span>
               </Spinner>
             </div>
           )}
           {isError && (
             <Alert variant="danger" className="m-3">
-              <Alert.Heading>Errore nel caricamento dei dati</Alert.Heading>
+              <Alert.Heading>Error loading data</Alert.Heading>
               <p>
                 {error && 'status' in error
-                  ? `Errore ${error.status}: ${JSON.stringify(error.data)}`
-                  : 'Si è verificato un errore imprevisto'}
+                  ? `Error ${error.status}: ${JSON.stringify(error.data)}`
+                  : 'An unexpected error occurred'}
               </p>
             </Alert>
           )}
@@ -74,7 +74,7 @@ const DeadlineReports = () => {
             <>
               {(data.deadlines?.length ?? 0) === 0 ? (
                 <div className="text-center py-5">
-                  <p className="text-muted">Nessuna scadenza trovata</p>
+                  <p className="text-muted">No deadlines found</p>
                 </div>
               ) : (
                 <AdvanceTable
@@ -93,7 +93,7 @@ const DeadlineReports = () => {
           {data && (data.totalPages ?? 0) > 1 && (
             <div className="d-flex justify-content-between align-items-center">
               <div className="fs-10 text-muted">
-                Pagina {data.page} di {data.totalPages} ({data.total} totali)
+                Page {data.page} of {data.totalPages} ({data.total} total)
               </div>
               <div className="d-flex gap-2">
                 <button
@@ -101,14 +101,14 @@ const DeadlineReports = () => {
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1}
                 >
-                  Precedente
+                  Previous
                 </button>
                 <button
                   className="btn btn-sm btn-falcon-default"
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page >= (data.totalPages ?? 1)}
                 >
-                  Successivo
+                  Next
                 </button>
               </div>
             </div>

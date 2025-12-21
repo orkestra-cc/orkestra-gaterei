@@ -10,22 +10,22 @@ import AddTachographModal from './AddTachographModal';
 
 const TachographTableHeader = () => {
   const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
-  const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
-  const [selectedRevision, setSelectedRevision] = useState<string>('Tutti');
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
+  const [selectedRevision, setSelectedRevision] = useState<string>('All');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const statusFilters = [
-    'Tutti',
-    'Attivi',
-    'Inattivi'
+    'All',
+    'Active',
+    'Inactive'
   ];
 
   const revisionFilters = [
-    { label: 'Tutti', value: 'Tutti' },
-    { label: 'Prossimi 7 giorni', value: '7' },
-    { label: 'Prossimi 30 giorni', value: '30' },
-    { label: 'Prossimi 60 giorni', value: '60' },
-    { label: 'Scaduti', value: 'expired' }
+    { label: 'All', value: 'All' },
+    { label: 'Next 7 days', value: '7' },
+    { label: 'Next 30 days', value: '30' },
+    { label: 'Next 60 days', value: '60' },
+    { label: 'Expired', value: 'expired' }
   ];
 
   const handleStatusFilter = (status: string) => {
@@ -41,13 +41,13 @@ const TachographTableHeader = () => {
   const applyFilters = (status: string, revision: string) => {
     const filters = [];
 
-    if (status !== 'Tutti') {
-      filters.push({ id: 'isActive', value: status === 'Attivi' });
+    if (status !== 'All') {
+      filters.push({ id: 'isActive', value: status === 'Active' });
     }
 
     // Note: Revision filtering would need to be handled differently
     // as it's a server-side filter. This is just for UI display
-    if (revision !== 'Tutti') {
+    if (revision !== 'All') {
       // You might need to implement custom filtering logic here
       // or handle it through the API query parameters
     }
@@ -63,36 +63,36 @@ const TachographTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const tachograph = row.original as TachographResponse;
       return {
-        'Nome': tachograph.nome,
-        'Targa': tachograph.targa,
-        'Posizione': tachograph.luogo || '',
-        'Stato': tachograph.isActive ? 'Attivo' : 'Inattivo',
-        'Scadenza Revisione': formatDateForCSV(tachograph.scadenzaRevisione),
-        'Revisione Programmata': formatDateForCSV(tachograph.revisioneProgrammata),
-        'Note': tachograph.note || '',
-        'Creato Il': formatDateForCSV(tachograph.createdAt),
-        'Aggiornato Il': formatDateForCSV(tachograph.updatedAt)
+        'Name': tachograph.nome,
+        'License Plate': tachograph.targa,
+        'Location': tachograph.luogo || '',
+        'Status': tachograph.isActive ? 'Active' : 'Inactive',
+        'Inspection Expiry': formatDateForCSV(tachograph.scadenzaRevisione),
+        'Scheduled Inspection': formatDateForCSV(tachograph.revisioneProgrammata),
+        'Notes': tachograph.note || '',
+        'Created At': formatDateForCSV(tachograph.createdAt),
+        'Updated At': formatDateForCSV(tachograph.updatedAt)
       };
     });
 
     // Define headers
     const headers = [
-      'Nome',
-      'Targa',
-      'Posizione',
-      'Stato',
-      'Scadenza Revisione',
-      'Revisione Programmata',
-      'Note',
-      'Creato Il',
-      'Aggiornato Il'
+      'Name',
+      'License Plate',
+      'Location',
+      'Status',
+      'Inspection Expiry',
+      'Scheduled Inspection',
+      'Notes',
+      'Created At',
+      'Updated At'
     ];
 
     // Generate CSV
     const csv = arrayToCSV(csvData, headers);
 
     // Download file
-    const filename = generateTimestampedFilename('tachografi');
+    const filename = generateTimestampedFilename('tachographs');
     downloadCSV(csv, filename);
   };
 
@@ -101,12 +101,12 @@ const TachographTableHeader = () => {
       <div className="d-lg-flex justify-content-between">
       <Row className="flex-between-center gy-2 px-x1">
         <Col xs="auto" className="pe-0">
-          <h6 className="mb-0">Gestione Tachografi</h6>
+          <h6 className="mb-0">Tachograph Management</h6>
         </Col>
         <Col xs="auto">
           <AdvanceTableSearchBox
             className="input-search-width"
-            placeholder="Cerca per nome/targa"
+            placeholder="Search by name/plate"
           />
         </Col>
       </Row>
@@ -119,7 +119,7 @@ const TachographTableHeader = () => {
             className="text-600"
           >
             <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
-            <span className="d-none d-sm-inline-block">Stato: {selectedStatus}</span>
+            <span className="d-none d-sm-inline-block">Status: {selectedStatus}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
             {statusFilters.map((status) => (
@@ -147,7 +147,7 @@ const TachographTableHeader = () => {
             className="text-600"
           >
             <FontAwesomeIcon icon="calendar-check" transform="shrink-4" className="me-2" />
-            <span className="d-none d-sm-inline-block">Revisione: {revisionFilters.find(f => f.value === selectedRevision)?.label || 'Tutti'}</span>
+            <span className="d-none d-sm-inline-block">Inspection: {revisionFilters.find(f => f.value === selectedRevision)?.label || 'All'}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
             {revisionFilters.map((filter) => (
@@ -174,13 +174,13 @@ const TachographTableHeader = () => {
         ></div>
         {getSelectedRowModel().rows.length > 0 ? (
           <div className="d-flex">
-            <Form.Select size="sm" aria-label="Azioni di gruppo">
-              <option>Azioni di gruppo</option>
-              <option value="activate">Attiva</option>
-              <option value="deactivate">Disattiva</option>
-              <option value="delete">Elimina</option>
-              <option value="schedule-revision">Programma Revisione</option>
-              <option value="export-selected">Esporta Selezionati</option>
+            <Form.Select size="sm" aria-label="Bulk actions">
+              <option>Bulk actions</option>
+              <option value="activate">Activate</option>
+              <option value="deactivate">Deactivate</option>
+              <option value="delete">Delete</option>
+              <option value="schedule-revision">Schedule Inspection</option>
+              <option value="export-selected">Export Selected</option>
             </Form.Select>
             <Button
               type="button"
@@ -188,7 +188,7 @@ const TachographTableHeader = () => {
               size="sm"
               className="ms-2"
             >
-              Applica
+              Apply
             </Button>
           </div>
         ) : (
@@ -202,7 +202,7 @@ const TachographTableHeader = () => {
               onClick={() => setShowAddModal(true)}
             >
               <span className="d-none d-sm-inline-block d-xl-none d-xxl-inline-block ms-1">
-                Nuovo Tachigrafo
+                New Tachograph
               </span>
             </IconButton>
             <IconButton
@@ -215,7 +215,7 @@ const TachographTableHeader = () => {
               onClick={handleExportCSV}
             >
               <span className="d-none d-sm-inline-block d-xl-none d-xxl-inline-block ms-1">
-                Esporta
+                Export
               </span>
             </IconButton>
             <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
@@ -226,16 +226,16 @@ const TachographTableHeader = () => {
               <Dropdown.Menu className="border py-0">
                 <div className="py-2">
                   <Dropdown.Item as="button" type="button">
-                    Visualizza tutto
+                    View All
                   </Dropdown.Item>
-                  <Dropdown.Item onClick={handleExportCSV}>Esporta</Dropdown.Item>
-                  <Dropdown.Item>Importa</Dropdown.Item>
+                  <Dropdown.Item onClick={handleExportCSV}>Export</Dropdown.Item>
+                  <Dropdown.Item>Import</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item>Revisioni in Scadenza</Dropdown.Item>
-                  <Dropdown.Item>Revisioni Scadute</Dropdown.Item>
-                  <Dropdown.Item>Report Conformità</Dropdown.Item>
+                  <Dropdown.Item>Expiring Inspections</Dropdown.Item>
+                  <Dropdown.Item>Expired Inspections</Dropdown.Item>
+                  <Dropdown.Item>Compliance Report</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Cancella tutto</Dropdown.Item>
+                  <Dropdown.Item className="text-danger">Delete All</Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>

@@ -38,7 +38,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
   // Helper function to format date with time
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('it-IT', {
+    return new Date(dateString).toLocaleString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -49,8 +49,8 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
   // Helper function to format date only
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Non specificata';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -59,11 +59,11 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
   // Type labels
   const tipoLabels: Record<string, string> = {
-    motrice: 'Motrice',
-    rimorchio: 'Rimorchio',
-    'semi-rimorchio': 'Semi-rimorchio',
-    trattore: 'Trattore',
-    semovente: 'Semovente'
+    motrice: 'Truck',
+    rimorchio: 'Trailer',
+    'semi-rimorchio': 'Semi-trailer',
+    trattore: 'Tractor',
+    semovente: 'Self-propelled'
   };
 
   const handleEdit = () => {
@@ -153,11 +153,11 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
   return (
     <Card className="mb-3">
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
-        <h5 className="mb-0">Informazioni Veicolo</h5>
+        <h5 className="mb-0">Vehicle Information</h5>
         <div>
           {!isEditing ? (
             <Button variant="falcon-default" size="sm" onClick={handleEdit}>
-              <FaEdit className="me-1" /> Modifica
+              <FaEdit className="me-1" /> Edit
             </Button>
           ) : (
             <>
@@ -168,7 +168,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                 onClick={handleSave}
                 disabled={isLoading}
               >
-                <FaSave className="me-1" /> Salva
+                <FaSave className="me-1" /> Save
               </Button>
               <Button
                 variant="secondary"
@@ -176,7 +176,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                 onClick={handleCancel}
                 disabled={isLoading}
               >
-                <FaTimes className="me-1" /> Annulla
+                <FaTimes className="me-1" /> Cancel
               </Button>
             </>
           )}
@@ -186,7 +186,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
       <Card.Body className="text-1000">
         <Row className="mb-3">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Nome Veicolo</small>
+            <small className="text-700 d-block mb-1">Vehicle Name</small>
             {isEditing ? (
               <Form.Control
                 type="text"
@@ -207,7 +207,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Targa</small>
+            <small className="text-700 d-block mb-1">License Plate</small>
             {isEditing ? (
               <Form.Control
                 type="text"
@@ -227,7 +227,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
         <Row className="mb-3">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Tipo Veicolo</small>
+            <small className="text-700 d-block mb-1">Vehicle Type</small>
             {isEditing ? (
               <Form.Select
                 name="tipo"
@@ -235,11 +235,11 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                 onChange={handleChange}
                 size="sm"
               >
-                <option value="motrice">Motrice</option>
-                <option value="rimorchio">Rimorchio</option>
-                <option value="semi-rimorchio">Semi-rimorchio</option>
-                <option value="trattore">Trattore</option>
-                <option value="semovente">Semovente</option>
+                <option value="motrice">Truck</option>
+                <option value="rimorchio">Trailer</option>
+                <option value="semi-rimorchio">Semi-trailer</option>
+                <option value="trattore">Tractor</option>
+                <option value="semovente">Self-propelled</option>
               </Form.Select>
             ) : (
               <Badge bg="soft-primary">
@@ -248,13 +248,13 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Stato</small>
+            <small className="text-700 d-block mb-1">Status</small>
             <div>
               <Badge bg={vehicle.isActive ? 'soft-success' : 'soft-secondary'}>
                 <span
                   className={`text-${vehicle.isActive ? 'success' : 'secondary'}`}
                 >
-                  {vehicle.isActive ? 'Attivo' : 'Inattivo'}
+                  {vehicle.isActive ? 'Active' : 'Inactive'}
                 </span>
               </Badge>
             </div>
@@ -263,7 +263,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
         <Row className="mb-3">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Posizione Attuale</small>
+            <small className="text-700 d-block mb-1">Current Location</small>
             {isEditing ? (
               <Form.Control
                 type="text"
@@ -271,7 +271,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                 value={formData.luogo}
                 onChange={handleChange}
                 size="sm"
-                placeholder="Es. Deposito Calcinaia"
+                placeholder="E.g. Calcinaia Depot"
               />
             ) : (
               <div className="fw-semi-bold">
@@ -279,12 +279,12 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                   icon="map-marker-alt"
                   className="me-2 text-muted"
                 />
-                {vehicle.luogo || 'Non specificata'}
+                {vehicle.luogo || 'Not specified'}
               </div>
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Creato il</small>
+            <small className="text-700 d-block mb-1">Created On</small>
             <div>
               <FontAwesomeIcon
                 icon="calendar-plus"
@@ -297,10 +297,10 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
         <hr className="my-3" />
 
-        <h6 className="mb-3">Informazioni Revisione</h6>
+        <h6 className="mb-3">Inspection Information</h6>
         <Row className="mb-3">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza Revisione</small>
+            <small className="text-700 d-block mb-1">Inspection Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -321,7 +321,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
           </Col>
           <Col md={6}>
             <small className="text-700 d-block mb-1">
-              Revisione Programmata
+              Scheduled Inspection
             </small>
             {isEditing ? (
               <Form.Control
@@ -345,10 +345,10 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
         <hr className="my-3" />
 
-        <h6 className="mb-3">Informazioni Assicurazione e Bollo</h6>
+        <h6 className="mb-3">Insurance and Tax Information</h6>
         <Row className="mb-3">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza Assicurazione</small>
+            <small className="text-700 d-block mb-1">Insurance Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -368,7 +368,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza Bollo</small>
+            <small className="text-700 d-block mb-1">Road Tax Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -397,7 +397,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
           aria-expanded={!collapsed}
           className="p-0"
         >
-          {collapsed ? 'Mostra' : 'Nascondi'} dettagli aggiuntivi
+          {collapsed ? 'Show' : 'Hide'} additional details
           <FontAwesomeIcon
             icon="chevron-down"
             transform={collapsed ? 'rotate-180' : ''}
@@ -411,7 +411,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
 
             <Row className="mb-3">
               <Col xs={12}>
-                <small className="text-700 d-block mb-1">Note</small>
+                <small className="text-700 d-block mb-1">Notes</small>
                 {isEditing ? (
                   <Form.Control
                     as="textarea"
@@ -419,13 +419,13 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                     name="note"
                     value={formData.note}
                     onChange={handleChange}
-                    placeholder="Inserisci eventuali note sul veicolo..."
+                    placeholder="Enter any notes about the vehicle..."
                   />
                 ) : (
                   <div className="fw-semi-bold">
                     {vehicle.note || (
                       <span className="text-muted">
-                        Nessuna nota disponibile
+                        No notes available
                       </span>
                     )}
                   </div>
@@ -436,7 +436,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
             <Row>
               <Col md={6}>
                 <small className="text-700 d-block mb-1">
-                  Ultimo Aggiornamento
+                  Last Updated
                 </small>
                 <div className="text-muted">
                   <FontAwesomeIcon icon="clock" className="me-2" />
@@ -444,7 +444,7 @@ const VehicleProfileInfo: React.FC<VehicleProfileInfoProps> = ({ vehicle }) => {
                 </div>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">ID Veicolo</small>
+                <small className="text-700 d-block mb-1">Vehicle ID</small>
                 <div className="text-muted font-monospace small">
                   {vehicle.id}
                 </div>

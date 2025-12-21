@@ -6,23 +6,23 @@ import dayjs from 'dayjs';
 
 // Map deadline types to readable labels
 const deadlineTypeLabels: Record<DeadlineType, string> = {
-  revision: 'Revisione',
-  scheduled_revision: 'Revisione Programmata',
-  insurance: 'Assicurazione',
-  car_tax: 'Bollo Auto',
-  license: 'Patente',
-  driver_card: 'Carta Conducente',
+  revision: 'Inspection',
+  scheduled_revision: 'Scheduled Inspection',
+  insurance: 'Insurance',
+  car_tax: 'Vehicle Tax',
+  license: 'License',
+  driver_card: 'Driver Card',
   cqc: 'CQC',
   adr: 'ADR',
-  tachograph: 'Tachigrafo',
-  medical_check: 'Visita Medica',
+  tachograph: 'Tachograph',
+  medical_check: 'Medical Check',
 };
 
 // Map entity types to readable labels
 const entityTypeLabels: Record<EntityType, string> = {
-  vehicle: 'Veicolo',
-  user: 'Utente',
-  medical: 'Visita Medica',
+  vehicle: 'Vehicle',
+  user: 'User',
+  medical: 'Medical Check',
 };
 
 // Map status to badge colors
@@ -34,15 +34,15 @@ const statusColors: Record<DeadlineStatus, string> = {
 
 // Map status to readable labels
 const statusLabels: Record<DeadlineStatus, string> = {
-  expired: 'Scaduto',
-  warning: 'In Scadenza',
+  expired: 'Expired',
+  warning: 'Expiring Soon',
   ok: 'OK',
 };
 
 const columns = [
   {
     accessorKey: 'entityType',
-    header: 'Tipo',
+    header: 'Type',
     meta: {
       headerProps: { className: 'text-900', style: { width: '120px' } },
       cellProps: {
@@ -59,7 +59,7 @@ const columns = [
   },
   {
     accessorKey: 'entityName',
-    header: 'Nome',
+    header: 'Name',
     meta: {
       headerProps: {
         style: { minWidth: '14.625rem' },
@@ -82,7 +82,7 @@ const columns = [
   },
   {
     accessorKey: 'deadlineType',
-    header: 'Scadenza',
+    header: 'Deadline',
     meta: {
       headerProps: { className: 'text-900', style: { width: '180px' } },
       cellProps: {
@@ -99,7 +99,7 @@ const columns = [
   },
   {
     accessorKey: 'expiryDate',
-    header: 'Data Scadenza',
+    header: 'Expiry Date',
     meta: {
       headerProps: { className: 'text-900', style: { width: '140px' } },
       cellProps: {
@@ -116,7 +116,7 @@ const columns = [
   },
   {
     accessorKey: 'daysUntilExpiry',
-    header: 'Giorni Rimanenti',
+    header: 'Days Remaining',
     meta: {
       headerProps: { className: 'text-900 text-center', style: { width: '140px' } },
       cellProps: {
@@ -130,16 +130,16 @@ const columns = [
 
       if (days < 0) {
         className = 'text-danger fw-bold';
-        text = `${Math.abs(days)} giorni fa`;
+        text = `${Math.abs(days)} days ago`;
       } else if (days === 0) {
         className = 'text-danger fw-bold';
-        text = 'Oggi';
+        text = 'Today';
       } else if (days <= 30) {
         className = 'text-warning fw-semibold';
-        text = `${days} giorni`;
+        text = `${days} days`;
       } else {
         className = 'text-success';
-        text = `${days} giorni`;
+        text = `${days} days`;
       }
 
       return <span className={className}>{text}</span>;
@@ -147,7 +147,7 @@ const columns = [
   },
   {
     accessorKey: 'status',
-    header: 'Stato',
+    header: 'Status',
     meta: {
       headerProps: { className: 'text-900', style: { width: '120px' } },
       cellProps: {

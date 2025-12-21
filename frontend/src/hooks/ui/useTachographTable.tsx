@@ -37,33 +37,33 @@ const TachographActivationModal: React.FC<TachographActivationModalProps> = ({
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>
-          {isActivating ? 'Attiva Tachigrafo' : 'Disattiva Tachigrafo'}
+          {isActivating ? 'Activate Tachograph' : 'Deactivate Tachograph'}
         </Modal.Title>
         <FalconCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
-          Sei sicuro di voler {isActivating ? 'attivare' : 'disattivare'} il
-          tachigrafo <strong>{tachograph.nome}</strong> (Targa:{' '}
+          Are you sure you want to {isActivating ? 'activate' : 'deactivate'} the
+          tachograph <strong>{tachograph.nome}</strong> (License Plate:{' '}
           {tachograph.targa})?
         </p>
         {!isActivating && (
           <p className="text-warning mb-0">
-            Il tachigrafo non sarà più disponibile fino a quando non verrà
-            riattivato.
+            The tachograph will no longer be available until it is
+            reactivated.
           </p>
         )}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide} disabled={isLoading}>
-          Annulla
+          Cancel
         </Button>
         <Button
           variant={isActivating ? 'success' : 'warning'}
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? 'Attendere...' : isActivating ? 'Attiva' : 'Disattiva'}
+          {isLoading ? 'Please wait...' : isActivating ? 'Activate' : 'Deactivate'}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -138,7 +138,7 @@ const useTachographTable = (options?: any) => {
   const columns = [
     {
       accessorKey: 'nome',
-      header: 'Tachigrafo',
+      header: 'Tachograph',
       meta: {
         headerProps: { className: 'ps-2 text-900', style: { height: '46px' } },
         cellProps: {
@@ -177,7 +177,7 @@ const useTachographTable = (options?: any) => {
     },
     {
       accessorKey: 'luogo',
-      header: 'Posizione',
+      header: 'Location',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -195,7 +195,7 @@ const useTachographTable = (options?: any) => {
     },
     {
       accessorKey: 'targa',
-      header: 'Mezzo Associato',
+      header: 'Associated Vehicle',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -232,7 +232,7 @@ const useTachographTable = (options?: any) => {
     },
     {
       accessorKey: 'isActive',
-      header: 'Stato',
+      header: 'Status',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -247,14 +247,14 @@ const useTachographTable = (options?: any) => {
         const { isActive } = original;
         return (
           <SubtleBadge bg={isActive ? 'success' : 'secondary'} className="me-2">
-            {isActive ? 'Attivo' : 'Inattivo'}
+            {isActive ? 'Active' : 'Inactive'}
           </SubtleBadge>
         );
       }
     },
     {
       accessorKey: 'scadenzaRevisione',
-      header: 'Scadenza Revisione',
+      header: 'Inspection Expiry',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -271,7 +271,7 @@ const useTachographTable = (options?: any) => {
           return <span className="text-muted">-</span>;
         }
         const date = new Date(scadenzaRevisione);
-        const formattedDate = date.toLocaleDateString('it-IT', {
+        const formattedDate = date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -295,14 +295,14 @@ const useTachographTable = (options?: any) => {
                 <FontAwesomeIcon icon="exclamation-triangle" className="ms-1" />
               )}
             </div>
-            {isExpired && <small className="text-danger">Scaduto</small>}
+            {isExpired && <small className="text-danger">Expired</small>}
           </div>
         );
       }
     },
     {
       accessorKey: 'revisioneProgrammata',
-      header: 'Revisione Programmata',
+      header: 'Scheduled Inspection',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -319,7 +319,7 @@ const useTachographTable = (options?: any) => {
           return <span className="text-muted">-</span>;
         }
         const date = new Date(revisioneProgrammata);
-        return date.toLocaleDateString('it-IT', {
+        return date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -328,7 +328,7 @@ const useTachographTable = (options?: any) => {
     },
     {
       accessorKey: 'actions',
-      header: 'Azioni',
+      header: 'Actions',
       meta: {
         headerProps: { className: 'text-end text-900' }
       },
@@ -358,20 +358,20 @@ const useTachographTable = (options?: any) => {
                     ) || '#'
                   }
                 >
-                  Visualizza Dettagli
+                  View Details
                 </Dropdown.Item>
-                <Dropdown.Item>Modifica Tachigrafo</Dropdown.Item>
+                <Dropdown.Item>Edit Tachograph</Dropdown.Item>
                 <Dropdown.Divider />
-                <Dropdown.Item>Programma Revisione</Dropdown.Item>
+                <Dropdown.Item>Schedule Inspection</Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item
                   className="text-warning"
                   onClick={() => handleToggleActivation(original)}
                 >
-                  {original.isActive ? 'Disattiva' : 'Attiva'}
+                  {original.isActive ? 'Deactivate' : 'Activate'}
                 </Dropdown.Item>
                 <Dropdown.Item className="text-danger">
-                  Elimina Tachigrafo
+                  Delete Tachograph
                 </Dropdown.Item>
               </div>
             </Dropdown.Menu>

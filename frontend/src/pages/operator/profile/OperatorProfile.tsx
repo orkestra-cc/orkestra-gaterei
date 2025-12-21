@@ -2,12 +2,12 @@
 import { useGetUserByIdQuery } from 'store/api/userApi';
 import { useSelector } from 'react-redux';
 import { selectUser } from 'store/slices/authSlice';
-import OperatoreBanner from './OperatoreBanner';
-import OperatoreProfileIntro from './OperatoreProfileIntro';
+import OperatorBanner from './OperatorBanner';
+import OperatorProfileIntro from './OperatorProfileIntro';
 import { Col, Row, Alert, Spinner } from 'react-bootstrap';
-import OperatoreActivityLog from './OperatoreActivityLog';
+import OperatorActivityLog from './OperatorActivityLog';
 
-const OperatoreProfile: React.FC = () => {
+const OperatorProfile: React.FC = () => {
   const currentUser = useSelector(selectUser);
   const userId = currentUser?.id;
 
@@ -23,7 +23,7 @@ const OperatoreProfile: React.FC = () => {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
         <Spinner animation="border" role="status">
-          <span className="visually-hidden">Caricamento...</span>
+          <span className="visually-hidden">Loading...</span>
         </Spinner>
       </div>
     );
@@ -32,7 +32,7 @@ const OperatoreProfile: React.FC = () => {
   if (error) {
     return (
       <Alert variant="danger">
-        Errore nel caricamento dei dati utente. Riprova più tardi.
+        Error loading user data. Please try again later.
       </Alert>
     );
   }
@@ -40,22 +40,22 @@ const OperatoreProfile: React.FC = () => {
   if (!user) {
     return (
       <Alert variant="warning">
-        Utente non trovato.
+        User not found.
       </Alert>
     );
   }
 
   return (
     <>
-      <OperatoreBanner user={user} />
+      <OperatorBanner user={user} />
       <Row className="g-3 mb-3">
         <Col lg={12}>
-          <OperatoreProfileIntro user={user} />
-          <OperatoreActivityLog className="mt-3" userId={userId!} />
+          <OperatorProfileIntro user={user} />
+          <OperatorActivityLog className="mt-3" userId={userId!} />
         </Col>
       </Row>
     </>
   );
 };
 
-export default OperatoreProfile;
+export default OperatorProfile;

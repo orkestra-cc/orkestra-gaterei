@@ -14,8 +14,8 @@ interface TachographBannerProps {
 const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
   // Helper function to format date
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/D';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -59,13 +59,13 @@ const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
                 bg={tachograph.isActive ? 'success' : 'secondary'}
                 className="ms-2"
               >
-                {tachograph.isActive ? 'Attivo' : 'Inattivo'}
+                {tachograph.isActive ? 'Active' : 'Inactive'}
               </Badge>
             </Flex>
 
             <div className="fs-10 fw-medium text-500 mb-2">
               <FontAwesomeIcon icon="id-card" className="me-2" />
-              Targa:{' '}
+              License Plate:{' '}
               <span className="text-900 fw-bold">{tachograph.targa}</span>
             </div>
 
@@ -74,7 +74,7 @@ const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
                 <>
                   <FaMapMarkerAlt className="me-1 text-muted" />
                   <span className="text-muted">
-                    Posizione: {tachograph.luogo}
+                    Location: {tachograph.luogo}
                   </span>
                 </>
               )}
@@ -85,7 +85,7 @@ const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
               <div className="mb-3">
                 <h6 className="text-uppercase text-600 mb-0">
                   <FontAwesomeIcon icon="calendar-alt" className="me-2" />
-                  Scadenza Tachigrafo
+                  Tachograph Expiry
                 </h6>
                 <div className="fs-5 fw-medium text-1000">
                   {formatDate(tachograph.scadenzaRevisione)}
@@ -103,10 +103,10 @@ const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
                     className="mt-1"
                   >
                     {daysUntilRevision < 0
-                      ? `Scaduta da ${Math.abs(daysUntilRevision)} giorni`
+                      ? `Expired ${Math.abs(daysUntilRevision)} days ago`
                       : daysUntilRevision === 0
-                        ? 'Scade oggi'
-                        : `${daysUntilRevision} giorni rimanenti`}
+                        ? 'Expires today'
+                        : `${daysUntilRevision} days remaining`}
                   </Badge>
                 )}
               </div>
@@ -115,7 +115,7 @@ const TachographBanner: React.FC<TachographBannerProps> = ({ tachograph }) => {
                 <div>
                   <h6 className="text-uppercase text-600 mb-0">
                     <FaCalendarCheck className="me-2" />
-                    Revisione Programmata
+                    Scheduled Inspection
                   </h6>
                   <div className="fs-5 fw-medium text-1000">
                     {formatDate(tachograph.revisioneProgrammata)}

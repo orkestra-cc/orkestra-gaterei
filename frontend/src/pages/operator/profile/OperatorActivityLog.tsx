@@ -5,12 +5,12 @@ import Flex from 'components/common/Flex';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useGetUserActivitiesQuery } from 'store/api/userApi';
 
-interface OperatoreActivityLogProps {
+interface OperatorActivityLogProps {
   userId: string;
   className?: string;
 }
 
-const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...rest }) => {
+const OperatorActivityLog: React.FC<OperatorActivityLogProps> = ({ userId, ...rest }) => {
   const [filter, setFilter] = useState('all');
 
   const {
@@ -30,10 +30,10 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
 
-    if (diffInHours < 1) return 'Meno di un\'ora fa';
-    if (diffInHours < 24) return `${diffInHours} ore fa`;
-    if (diffInHours < 48) return '1 giorno fa';
-    return `${Math.floor(diffInHours / 24)} giorni fa`;
+    if (diffInHours < 1) return 'Less than an hour ago';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    if (diffInHours < 48) return '1 day ago';
+    return `${Math.floor(diffInHours / 24)} days ago`;
   };
 
   const activities = activitiesResponse?.activities || [];
@@ -63,13 +63,13 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
     <Card {...rest}>
       <Card.Header className="bg-body-tertiary">
         <Flex justifyContent="between" alignItems="center">
-          <h5 className="mb-0">Registro Attività</h5>
+          <h5 className="mb-0">Activity Log</h5>
           <ButtonGroup size="sm">
             <Button
               variant={filter === 'all' ? 'primary' : 'outline-primary'}
               onClick={() => setFilter('all')}
             >
-              Tutte
+              All
             </Button>
             <Button
               variant={filter === 'login' ? 'primary' : 'outline-primary'}
@@ -81,13 +81,13 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
               variant={filter === 'security' ? 'primary' : 'outline-primary'}
               onClick={() => setFilter('security')}
             >
-              Sicurezza
+              Security
             </Button>
             <Button
               variant={filter === 'task' ? 'primary' : 'outline-primary'}
               onClick={() => setFilter('task')}
             >
-              Compiti
+              Tasks
             </Button>
           </ButtonGroup>
         </Flex>
@@ -96,17 +96,17 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
         {isLoading ? (
           <div className="p-3 text-center">
             <Spinner animation="border" size="sm" />
-            <span className="ms-2">Caricamento attività...</span>
+            <span className="ms-2">Loading activities...</span>
           </div>
         ) : error ? (
           <div className="p-3">
             <Alert variant="danger" className="mb-0">
-              Errore nel caricamento delle attività
+              Error loading activities
             </Alert>
           </div>
         ) : activities.length === 0 ? (
           <div className="p-3 text-center text-muted">
-            Nessuna attività trovata
+            No activities found
           </div>
         ) : (
           activities.map((activity, index) => (
@@ -156,7 +156,7 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
       </Card.Body>
       <Card.Footer className="bg-body-tertiary text-center">
         <Button variant="link" size="sm">
-          Visualizza Cronologia Completa
+          View Complete History
           <FontAwesomeIcon icon="external-link-alt" className="ms-1" />
         </Button>
       </Card.Footer>
@@ -164,4 +164,4 @@ const OperatoreActivityLog: React.FC<OperatoreActivityLogProps> = ({ userId, ...
   );
 };
 
-export default OperatoreActivityLog;
+export default OperatorActivityLog;

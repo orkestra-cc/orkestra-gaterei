@@ -42,28 +42,28 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
     const errors: Record<string, string> = {};
 
     if (!formData.nome.trim()) {
-      errors.nome = 'Il nome della gru è obbligatorio';
+      errors.nome = 'Crane name is required';
     }
 
     if (!formData.tipo.trim()) {
-      errors.tipo = 'Il tipo di gru è obbligatorio';
+      errors.tipo = 'Crane type is required';
     }
 
     if (!formData.matricola.trim()) {
-      errors.matricola = 'La matricola è obbligatoria';
+      errors.matricola = 'Serial number is required';
     }
 
     // Validate date if provided
     if (formData.scadenzaVerifica) {
       const date = new Date(formData.scadenzaVerifica);
       if (isNaN(date.getTime())) {
-        errors.scadenzaVerifica = 'Data non valida';
+        errors.scadenzaVerifica = 'Invalid date';
       }
     }
 
     // Validate mezzo targa format if provided
     if (formData.verificareSuMezzo && !/^[A-Z0-9]+$/i.test(formData.verificareSuMezzo.replace(/\s/g, ''))) {
-      errors.verificareSuMezzo = 'La targa del mezzo deve contenere solo lettere e numeri';
+      errors.verificareSuMezzo = 'Vehicle plate must contain only letters and numbers';
     }
 
     setValidationErrors(errors);
@@ -129,14 +129,14 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
   };
 
   const craneTypes = [
-    'Autogrù',
-    'Gru a torre',
-    'Gru mobile',
-    'Gru fissa',
-    'Gru semovente',
-    'Gru su camion',
-    'Gru cingolata',
-    'Altro'
+    'Mobile Crane',
+    'Tower Crane',
+    'Crawler Crane',
+    'Fixed Crane',
+    'Self-propelled Crane',
+    'Truck Mounted Crane',
+    'All-terrain Crane',
+    'Other'
   ];
 
   return (
@@ -145,7 +145,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
         <Modal.Header>
           <Modal.Title>
             <FontAwesomeIcon icon="plus" className="me-2" />
-            Aggiungi Nuova Gru
+            Add New Crane
           </Modal.Title>
           <FalconCloseButton onClick={handleClose} />
         </Modal.Header>
@@ -153,7 +153,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
           {error && (
             <Alert variant="danger" className="mb-3">
               <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-              Si è verificato un errore durante la creazione della gru. Riprova.
+              An error occurred while creating the crane. Please try again.
             </Alert>
           )}
 
@@ -161,7 +161,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>
-                  Nome Gru <span className="text-danger">*</span>
+                  Crane Name <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="text"
@@ -169,7 +169,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
                   value={formData.nome}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.nome}
-                  placeholder="Es. Gru Mobile 01"
+                  placeholder="e.g. Mobile Crane 01"
                   required
                 />
                 <Form.Control.Feedback type="invalid">
@@ -190,7 +190,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
                   isInvalid={!!validationErrors.tipo}
                   required
                 >
-                  <option value="">Seleziona tipo...</option>
+                  <option value="">Select type...</option>
                   {craneTypes.map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
@@ -204,7 +204,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>
-                  Matricola <span className="text-danger">*</span>
+                  Serial Number <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="text"
@@ -212,7 +212,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
                   value={formData.matricola}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.matricola}
-                  placeholder="Inserisci matricola"
+                  placeholder="Enter serial number"
                   required
                 />
                 <Form.Control.Feedback type="invalid">
@@ -223,27 +223,27 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Targa Mezzo Associato</Form.Label>
+                <Form.Label>Associated Vehicle Plate</Form.Label>
                 <Form.Control
                   type="text"
                   name="verificareSuMezzo"
                   value={formData.verificareSuMezzo}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.verificareSuMezzo}
-                  placeholder="Es. AA123BB"
+                  placeholder="e.g. AA123BB"
                 />
                 <Form.Control.Feedback type="invalid">
                   {validationErrors.verificareSuMezzo}
                 </Form.Control.Feedback>
                 <Form.Text className="text-muted">
-                  Inserire la targa del mezzo su cui è montata la gru
+                  Enter the license plate of the vehicle the crane is mounted on
                 </Form.Text>
               </Form.Group>
             </Col>
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Scadenza Verifica</Form.Label>
+                <Form.Label>Verification Expiry</Form.Label>
                 <Form.Control
                   type="date"
                   name="scadenzaVerifica"
@@ -255,7 +255,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
                   {validationErrors.scadenzaVerifica}
                 </Form.Control.Feedback>
                 <Form.Text className="text-muted">
-                  Data di scadenza della verifica periodica
+                  Periodic verification expiry date
                 </Form.Text>
               </Form.Group>
             </Col>
@@ -269,7 +269,7 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
                   name="note"
                   value={formData.note}
                   onChange={handleChange}
-                  placeholder="Inserisci eventuali note sulla gru..."
+                  placeholder="Enter any notes about the crane..."
                 />
               </Form.Group>
             </Col>
@@ -277,18 +277,18 @@ const AddCraneModal: React.FC<AddCraneModalProps> = ({ show, onHide }) => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
-            Annulla
+            Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
             {isLoading ? (
               <>
                 <FontAwesomeIcon icon="spinner" spin className="me-2" />
-                Creazione...
+                Creating...
               </>
             ) : (
               <>
                 <FontAwesomeIcon icon="plus" className="me-2" />
-                Crea Gru
+                Create Crane
               </>
             )}
           </Button>

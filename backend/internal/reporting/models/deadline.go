@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// EntityType rappresenta il tipo di entità con scadenza
+// EntityType represents the type of entity with a deadline
 type EntityType string
 
 const (
@@ -13,7 +13,7 @@ const (
 	EntityTypeMedical EntityType = "medical"
 )
 
-// DeadlineType rappresenta il tipo di scadenza
+// DeadlineType represents the type of deadline
 type DeadlineType string
 
 const (
@@ -32,16 +32,16 @@ const (
 	DeadlineTypeMedicalCheck DeadlineType = "medical_check"
 )
 
-// DeadlineStatus rappresenta lo stato della scadenza
+// DeadlineStatus represents the deadline status
 type DeadlineStatus string
 
 const (
 	DeadlineStatusExpired DeadlineStatus = "expired"
-	DeadlineStatusWarning DeadlineStatus = "warning" // < 30 giorni
+	DeadlineStatusWarning DeadlineStatus = "warning" // < 30 days
 	DeadlineStatusOk      DeadlineStatus = "ok"
 )
 
-// DeadlineItem rappresenta un singolo elemento con scadenza
+// DeadlineItem represents a single deadline item
 type DeadlineItem struct {
 	ID              string         `json:"id"`
 	EntityType      EntityType     `json:"entityType"`
@@ -57,7 +57,7 @@ type DeadlineItem struct {
 	Where  string `json:"where,omitempty"`
 }
 
-// DeadlineFilters rappresenta i filtri per la ricerca scadenze
+// DeadlineFilters represents filters for deadline search
 type DeadlineFilters struct {
 	EntityType EntityType     `json:"entityType,omitempty" query:"entityType"`
 	Status     DeadlineStatus `json:"status,omitempty" query:"status"`
@@ -66,13 +66,13 @@ type DeadlineFilters struct {
 	Search     string         `json:"search,omitempty" query:"search"`
 }
 
-// PaginationParams rappresenta i parametri di paginazione
+// PaginationParams represents pagination parameters
 type PaginationParams struct {
 	Page     int `json:"page" query:"page" default:"1" minimum:"1"`
 	PageSize int `json:"pageSize" query:"pageSize" default:"20" minimum:"1" maximum:"100"`
 }
 
-// DeadlineReportResponse rappresenta la risposta paginata per il report scadenze
+// DeadlineReportResponse represents the paginated response for deadline reports
 type DeadlineReportResponse struct {
 	Deadlines  []DeadlineItem `json:"deadlines"`
 	Total      int64          `json:"total"`
@@ -81,7 +81,7 @@ type DeadlineReportResponse struct {
 	TotalPages int            `json:"totalPages"`
 }
 
-// CalculateDeadlineStatus calcola lo stato della scadenza basato sui giorni rimanenti
+// CalculateDeadlineStatus calculates the deadline status based on remaining days
 func CalculateDeadlineStatus(expiryDate time.Time) DeadlineStatus {
 	now := time.Now()
 	if expiryDate.Before(now) {
@@ -96,7 +96,7 @@ func CalculateDeadlineStatus(expiryDate time.Time) DeadlineStatus {
 	return DeadlineStatusOk
 }
 
-// CalculateDaysUntilExpiry calcola i giorni mancanti alla scadenza
+// CalculateDaysUntilExpiry calculates the days remaining until expiry
 func CalculateDaysUntilExpiry(expiryDate time.Time) int {
 	now := time.Now()
 	duration := expiryDate.Sub(now)

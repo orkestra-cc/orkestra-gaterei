@@ -71,7 +71,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
     <>
       <Card className="mb-3">
         <Card.Header className="bg-body-tertiary">
-          <h5 className="mb-0">Azioni Rapide</h5>
+          <h5 className="mb-0">Quick Actions</h5>
         </Card.Header>
         <Card.Body>
           <div className="d-grid gap-2">
@@ -81,7 +81,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
               onClick={() => setShowActivationModal(true)}
             >
               <FaPowerOff className="me-2" />
-              {vehicle.isActive ? 'Disattiva Veicolo' : 'Attiva Veicolo'}
+              {vehicle.isActive ? 'Deactivate Vehicle' : 'Activate Vehicle'}
             </Button>
 
             <Button
@@ -90,7 +90,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
               onClick={() => setShowScheduleModal(true)}
             >
               <FaCalendarCheck className="me-2" />
-              Programma Revisione
+              Schedule Inspection
             </Button>
 
             <Button
@@ -99,7 +99,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
               onClick={handleExportPDF}
             >
               <FaDownload className="me-2" />
-              Esporta Report PDF
+              Export PDF Report
             </Button>
 
             <Button
@@ -108,7 +108,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
               onClick={handlePrintQRCode}
             >
               <FaQrcode className="me-2" />
-              Stampa QR Code
+              Print QR Code
             </Button>
 
             <hr />
@@ -119,7 +119,7 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
               onClick={() => setShowDeleteModal(true)}
             >
               <FaTrashAlt className="me-2" />
-              Elimina Veicolo
+              Delete Vehicle
             </Button>
           </div>
         </Card.Body>
@@ -129,31 +129,31 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
       <Modal show={showActivationModal} onHide={() => setShowActivationModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
-            {vehicle.isActive ? 'Disattiva Veicolo' : 'Attiva Veicolo'}
+            {vehicle.isActive ? 'Deactivate Vehicle' : 'Activate Vehicle'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>
-            Sei sicuro di voler {vehicle.isActive ? 'disattivare' : 'attivare'} il veicolo{' '}
-            <strong>{vehicle.nome}</strong> (Targa: {vehicle.targa})?
+            Are you sure you want to {vehicle.isActive ? 'deactivate' : 'activate'} the vehicle{' '}
+            <strong>{vehicle.nome}</strong> (License Plate: {vehicle.targa})?
           </p>
           {vehicle.isActive && (
             <Alert variant="warning">
               <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-              Il veicolo non sarà più disponibile per l'assegnazione ai conducenti.
+              The vehicle will no longer be available for driver assignment.
             </Alert>
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowActivationModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant={vehicle.isActive ? 'warning' : 'success'}
             onClick={handleToggleActivation}
             disabled={isUpdating}
           >
-            {isUpdating ? 'Attendere...' : vehicle.isActive ? 'Disattiva' : 'Attiva'}
+            {isUpdating ? 'Please wait...' : vehicle.isActive ? 'Deactivate' : 'Activate'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -161,32 +161,32 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
       {/* Delete Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Elimina Veicolo</Modal.Title>
+          <Modal.Title>Delete Vehicle</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Alert variant="danger">
             <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-            <strong>Attenzione!</strong> Questa azione è irreversibile.
+            <strong>Warning!</strong> This action cannot be undone.
           </Alert>
           <p>
-            Sei sicuro di voler eliminare definitivamente il veicolo{' '}
-            <strong>{vehicle.nome}</strong> (Targa: {vehicle.targa})?
+            Are you sure you want to permanently delete the vehicle{' '}
+            <strong>{vehicle.nome}</strong> (License Plate: {vehicle.targa})?
           </p>
           <p className="text-muted small">
-            Tutti i dati associati a questo veicolo, incluso lo storico manutenzione,
-            verranno eliminati permanentemente.
+            All data associated with this vehicle, including maintenance history,
+            will be permanently deleted.
           </p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="danger"
             onClick={handleDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? 'Eliminazione...' : 'Elimina Definitivamente'}
+            {isDeleting ? 'Deleting...' : 'Delete Permanently'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -194,15 +194,15 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
       {/* Schedule Revision Modal */}
       <Modal show={showScheduleModal} onHide={() => setShowScheduleModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Programma Revisione</Modal.Title>
+          <Modal.Title>Schedule Inspection</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>
-            Seleziona la data per la prossima revisione del veicolo{' '}
+            Select the date for the next inspection of the vehicle{' '}
             <strong>{vehicle.nome}</strong>:
           </p>
           <Form.Group className="mb-3">
-            <Form.Label>Data Revisione Programmata</Form.Label>
+            <Form.Label>Scheduled Inspection Date</Form.Label>
             <Form.Control
               type="date"
               value={scheduleDate}
@@ -213,20 +213,20 @@ const VehicleActions: React.FC<VehicleActionsProps> = ({ vehicle }) => {
           {vehicle.scadenzaRevisione && (
             <Alert variant="info">
               <FontAwesomeIcon icon="info-circle" className="me-2" />
-              Scadenza attuale: {new Date(vehicle.scadenzaRevisione).toLocaleDateString('it-IT')}
+              Current expiry: {new Date(vehicle.scadenzaRevisione).toLocaleDateString('en-GB')}
             </Alert>
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="primary"
             onClick={handleScheduleRevision}
             disabled={!scheduleDate || isUpdating}
           >
-            {isUpdating ? 'Salvando...' : 'Programma'}
+            {isUpdating ? 'Saving...' : 'Schedule'}
           </Button>
         </Modal.Footer>
       </Modal>

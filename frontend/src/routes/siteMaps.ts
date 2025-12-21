@@ -28,26 +28,26 @@ export interface RouteGroup {
 }
 
 export const dashboardRoutes: RouteGroup = {
-  label: 'Cruscotto',
+  label: 'Dashboard',
   labelDisable: true,
-  roles: ['developer'], // Tutti gli utenti autenticati possono accedere al cruscotto
+  roles: ['developer'], // All authenticated users can access the dashboard
   children: [
     {
-      name: 'Cruscotto',
+      name: 'Dashboard',
       active: true,
       icon: 'chart-pie',
       children: [
         {
-          name: 'Predefinito',
+          name: 'Default',
           to: rootPaths.root,
           exact: true,
           active: true
         },
         {
-          name: 'Analisi',
+          name: 'Analytics',
           to: paths.analytics,
           active: true,
-          roles: ['developer'] // Analisi avanzate per gli amministratori
+          roles: ['developer'] // Advanced analytics for administrators
         },
         {
           name: 'CRM',
@@ -55,10 +55,10 @@ export const dashboardRoutes: RouteGroup = {
           active: true
         },
         {
-          name: 'Gestione',
+          name: 'Management',
           to: paths.projectManagement,
           active: true,
-          roles: ['developer'] // Gestione progetti per manager e superiori
+          roles: ['developer'] // Project management for managers and above
         },
         {
           name: 'SaaS',
@@ -66,7 +66,7 @@ export const dashboardRoutes: RouteGroup = {
           active: true
         },
         {
-          name: 'Supporto tecnico',
+          name: 'Support Desk',
           to: paths.supportDesk,
           active: true
         }
@@ -75,11 +75,11 @@ export const dashboardRoutes: RouteGroup = {
   ]
 };
 export const appRoutes: RouteGroup = {
-  label: 'Applicazioni',
-  roles: ['developer'], // Funzionalità di base per tutti gli utenti autorizzati
+  label: 'Applications',
+  roles: ['developer'], // Basic functionality for all authorized users
   children: [
     {
-      name: 'Calendario',
+      name: 'Calendar',
       icon: 'calendar-alt',
       to: paths.calendar,
       active: true
@@ -96,39 +96,39 @@ export const appRoutes: RouteGroup = {
       active: true,
       children: [
         {
-          name: 'Posta in arrivo',
+          name: 'Inbox',
           to: paths.emailInbox,
           active: true
         },
         {
-          name: 'Dettaglio email',
+          name: 'Email Detail',
           to: paths.emailDetail,
           active: true
         },
         {
-          name: 'Componi',
+          name: 'Compose',
           to: paths.emailCompose,
           active: true
         }
       ]
     },
     {
-      name: 'Eventi',
+      name: 'Events',
       icon: 'calendar-day',
       active: true,
       children: [
         {
-          name: 'Crea evento',
+          name: 'Create Event',
           to: paths.createEvent,
           active: true
         },
         {
-          name: 'Dettaglio evento',
+          name: 'Event Detail',
           to: paths.eventDetail,
           active: true
         },
         {
-          name: 'Lista eventi',
+          name: 'Event List',
           to: paths.eventList,
           active: true
         }
@@ -151,12 +151,12 @@ export const appRoutes: RouteGroup = {
           active: true
         },
         {
-          name: 'Registro attività',
+          name: 'Activity Log',
           to: paths.activityLog,
           active: true
         },
         {
-          name: 'Notifiche',
+          name: 'Notifications',
           to: paths.notifications,
           active: true
         },
@@ -168,42 +168,42 @@ export const appRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Supporto tecnico',
+      name: 'Support Desk',
       icon: 'ticket-alt',
       active: true,
       children: [
         {
-          name: 'Vista tabella',
+          name: 'Table View',
           to: paths.ticketsTable,
           active: true
         },
         {
-          name: 'Vista scheda',
+          name: 'Card View',
           to: paths.ticketsCard,
           active: true
         },
         {
-          name: 'Contatti',
+          name: 'Contacts',
           to: paths.contacts,
           active: true
         },
         {
-          name: 'Dettagli contatto',
+          name: 'Contact Details',
           to: paths.contactDetails,
           active: true
         },
         {
-          name: 'Anteprima ticket',
+          name: 'Ticket Preview',
           to: paths.ticketsPreview,
           active: true
         },
         {
-          name: 'Collegamenti rapidi',
+          name: 'Quick Links',
           to: paths.quickLinks,
           active: true
         },
         {
-          name: 'Report',
+          name: 'Reports',
           to: paths.reports,
           active: true
         }
@@ -213,11 +213,11 @@ export const appRoutes: RouteGroup = {
 };
 
 export const pagesRoutes: RouteGroup = {
-  label: 'Pagine',
-  roles: ['developer'], // Gestione pagine per manager e superiori
+  label: 'Pages',
+  roles: ['developer'], // Page management for managers and above
   children: [
     {
-      name: 'Avvio',
+      name: 'Starter',
       icon: 'flag',
       to: paths.starter,
       active: true
@@ -229,31 +229,31 @@ export const pagesRoutes: RouteGroup = {
       active: true
     },
     {
-      name: 'Autenticazione',
+      name: 'Authentication',
       icon: 'lock',
       active: true,
       children: [
         {
-          name: 'Accesso',
+          name: 'Login',
           to: paths.login,
           active: true
         }
       ]
     },
     {
-      name: 'Utente',
+      name: 'User',
       icon: 'user',
       active: true,
-      roles: ['developer'], // Tutti gli utenti possono accedere al proprio profilo
+      roles: ['developer'], // All users can access their own profile
       children: [
         {
-          name: 'Profilo',
+          name: 'Profile',
           to: paths.userProfile,
           active: true,
           roles: ['operator']
         },
         {
-          name: 'Impostazioni',
+          name: 'Settings',
           to: paths.userSettings,
           active: true,
           roles: ['operator']
@@ -261,17 +261,17 @@ export const pagesRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Prezzi',
+      name: 'Pricing',
       icon: 'tags',
       active: true,
       children: [
         {
-          name: 'Prezzi predefiniti',
+          name: 'Default Pricing',
           to: paths.pricingDefault,
           active: true
         },
         {
-          name: 'Prezzi alternativi',
+          name: 'Alternative Pricing',
           to: paths.pricingAlt,
           active: true
         }
@@ -283,24 +283,24 @@ export const pagesRoutes: RouteGroup = {
       active: true,
       children: [
         {
-          name: 'FAQ di base',
+          name: 'Basic FAQ',
           to: paths.faqBasic,
           active: true
         },
         {
-          name: 'FAQ alternative',
+          name: 'Alternative FAQ',
           to: paths.faqAlt,
           active: true
         },
         {
-          name: 'FAQ a fisarmonica',
+          name: 'Accordion FAQ',
           to: paths.faqAccordion,
           active: true
         }
       ]
     },
     {
-      name: 'Errori',
+      name: 'Errors',
       active: true,
       icon: 'exclamation-triangle',
       children: [
@@ -317,22 +317,22 @@ export const pagesRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Varie',
+      name: 'Miscellaneous',
       icon: 'thumbtack',
       active: true,
       children: [
         {
-          name: 'Associazioni',
+          name: 'Associations',
           to: paths.associations,
           active: true
         },
         {
-          name: 'Invita persone',
+          name: 'Invite People',
           to: paths.invitePeople,
           active: true
         },
         {
-          name: 'Privacy policy',
+          name: 'Privacy Policy',
           to: paths.privacyPolicy,
           active: true
         }
@@ -344,29 +344,29 @@ export const pagesRoutes: RouteGroup = {
       active: true,
       badge: {
         type: 'success',
-        text: 'Nuovo'
+        text: 'New'
       },
       children: [
         {
-          name: 'Navbar verticale',
+          name: 'Vertical Navbar',
           to: paths.verticalNavLayout,
           active: true,
           newtab: true
         },
         {
-          name: 'Nav superiore',
+          name: 'Top Nav',
           to: paths.topNavLayout,
           active: true,
           newtab: true
         },
         {
-          name: 'Doppio superiore',
+          name: 'Double Top',
           to: paths.doubleTopNavLayout,
           active: true,
           newtab: true
         },
         {
-          name: 'Nav combinato',
+          name: 'Combo Nav',
           to: paths.comboNavLayout,
           active: true,
           newtab: true
@@ -377,8 +377,8 @@ export const pagesRoutes: RouteGroup = {
 };
 
 export const modulesRoutes: RouteGroup = {
-  label: 'Moduli',
-  roles: ['developer'], // Amministratore e superiori per i moduli di sviluppo
+  label: 'Modules',
+  roles: ['developer'], // Administrator and above for development modules
   children: [
     {
       name: 'Forms',
@@ -1055,17 +1055,17 @@ export const modulesRoutes: RouteGroup = {
 
 export const testRoutes: RouteGroup = {
   label: 'TEST',
-  roles: ['developer'], // Solo il CEO può vedere le route di test
+  roles: ['developer'], // Only CEO can see test routes
   children: [
     {
-      name: 'Test autenticazione',
+      name: 'Authentication Test',
       icon: 'shield-alt',
       to: paths.authTest,
       active: true,
       roles: ['developer']
     },
     {
-      name: 'Tester navigazione ruoli',
+      name: 'Role Navigation Tester',
       icon: 'users',
       to: paths.roleNavigationTester,
       active: true,
@@ -1075,32 +1075,32 @@ export const testRoutes: RouteGroup = {
 };
 
 export const documentationRoutes: RouteGroup = {
-  label: 'Documentazione',
+  label: 'Documentation',
   roles: ['developer'],
   children: [
     {
-      name: 'Guida introduttiva',
+      name: 'Getting Started',
       icon: 'rocket',
       to: paths.gettingStarted,
       active: true
     },
     {
-      name: 'Personalizzazione',
+      name: 'Customization',
       active: true,
       icon: 'wrench',
       children: [
         {
-          name: 'Configurazione',
+          name: 'Configuration',
           to: paths.configuration,
           active: true
         },
         {
-          name: 'Stili',
+          name: 'Styling',
           to: paths.styling,
           active: true
         },
         {
-          name: 'Modalità scura',
+          name: 'Dark Mode',
           to: paths.darkMode,
           active: true
         },
@@ -1118,70 +1118,70 @@ export const documentationRoutes: RouteGroup = {
       active: true
     },
     {
-      name: 'File di design',
+      name: 'Design File',
       icon: 'palette',
       to: paths.designFile,
       active: true
     },
     {
-      name: 'Registro modifiche',
+      name: 'Changelog',
       icon: 'code-branch',
       to: paths.changelog,
       active: true
     },
     {
-      name: 'Migrazione',
+      name: 'Migration',
       icon: 'sign-out-alt',
       to: paths.migration,
       active: true,
       badge: {
         type: 'success',
-        text: 'Nuovo'
+        text: 'New'
       }
     }
   ]
 };
 
 export const developmentRoutes: RouteGroup = {
-  label: 'Sviluppo',
-  roles: ['developer'], // Solo il CEO può accedere alle route di sviluppo
+  label: 'Development',
+  roles: ['developer'], // Only CEO can access development routes
   children: [
     {
-      name: 'Strumenti sviluppatore',
+      name: 'Developer Tools',
       active: true,
       icon: 'code',
       roles: ['developer'],
       children: [
         {
-          name: 'Debug di sistema',
+          name: 'System Debug',
           to: paths.systemDebug,
           active: true,
           icon: 'bug',
           roles: ['developer']
         },
         {
-          name: 'Esploratore API',
+          name: 'API Explorer',
           to: paths.apiExplorer,
           active: true,
           icon: 'cog',
           roles: ['developer']
         },
         {
-          name: 'Admin database',
+          name: 'Database Admin',
           to: paths.databaseAdmin,
           active: true,
           icon: 'cog',
           roles: ['developer']
         },
         {
-          name: 'Visualizzatore log',
+          name: 'Log Viewer',
           to: paths.logViewer,
           active: true,
           icon: 'file-alt',
           roles: ['developer']
         },
         {
-          name: 'Flag funzionalità',
+          name: 'Feature Flags',
           to: paths.featureFlags,
           active: true,
           icon: 'flag',
@@ -1190,57 +1190,57 @@ export const developmentRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Cruscotto',
+      name: 'Dashboard',
       active: true,
       icon: 'chart-pie',
-      roles: ['developer'], // Cruscotto accessibile a tutti
+      roles: ['developer'], // Dashboard accessible to all
       children: dashboardRoutes.children[0].children
     },
     {
       name: 'App',
       active: true,
       icon: 'rocket',
-      roles: ['developer'], // Funzionalità app accessibili a tutti
+      roles: ['developer'], // App functionality accessible to all
       children: appRoutes.children
     },
     {
-      name: 'Pagine',
+      name: 'Pages',
       active: true,
       icon: 'file-alt',
-      roles: ['developer'], // Gestione pagine per manager+
+      roles: ['developer'], // Page management for managers+
       children: pagesRoutes.children
     },
     {
-      name: 'Moduli',
+      name: 'Modules',
       active: true,
       icon: 'puzzle-piece',
-      roles: ['developer'], // Moduli per amministratori+
+      roles: ['developer'], // Modules for administrators+
       children: modulesRoutes.children
     },
     {
       name: 'Test',
       active: true,
       icon: 'shield-alt',
-      roles: ['developer'], // Route di test solo per sviluppatori
+      roles: ['developer'], // Test routes for developers only
       children: testRoutes.children
     },
     {
-      name: 'Documentazione',
+      name: 'Documentation',
       active: true,
       icon: 'book',
-      roles: ['developer'], // Documentazione per amministratori+
+      roles: ['developer'], // Documentation for administrators+
       children: documentationRoutes.children
     }
   ]
 };
 
-// Route Orkestra di Produzione - organizzate per livello di accesso del ruolo utente
+// Orkestra Production Routes - organized by user role access level
 export const operatorRoutes: RouteGroup = {
-  label: 'Operatori',
-  roles: ['operator'], // Tutti gli utenti autenticati ed autorizzati
+  label: 'Operators',
+  roles: ['operator'], // All authenticated and authorized users
   children: [
     {
-      name: 'Cruscotto',
+      name: 'Dashboard',
       active: true,
       icon: 'chart-pie',
       to: '/user/dashboard',
@@ -1248,14 +1248,14 @@ export const operatorRoutes: RouteGroup = {
       roles: ['operator']
     },
     {
-      name: 'Profilo',
+      name: 'Profile',
       icon: 'user',
       to: '/user/profile',
       active: true,
       roles: ['operator']
     },
     {
-      name: 'Calendario',
+      name: 'Calendar',
       icon: 'calendar-alt',
       to: '/user/calendar',
       active: true,
@@ -1265,29 +1265,29 @@ export const operatorRoutes: RouteGroup = {
 };
 
 export const managerRoutes: RouteGroup = {
-  label: 'Gestione',
-  roles: ['manager'], // Manager e superiori
+  label: 'Management',
+  roles: ['manager'], // Manager and above
   children: [
     {
-      name: 'Gestione attività',
+      name: 'Task Management',
       active: true,
       icon: 'project-diagram',
       roles: ['manager'],
       children: [
         {
-          name: 'Tutte le attività',
+          name: 'All Tasks',
           to: '/tasks',
           active: true,
           roles: ['manager']
         },
         {
-          name: 'Crea attività',
+          name: 'Create Task',
           to: '/tasks/create',
           active: true,
           roles: ['manager']
         },
         {
-          name: 'Panoramica team',
+          name: 'Team Overview',
           to: '/teams',
           active: true,
           roles: ['manager']
@@ -1295,19 +1295,19 @@ export const managerRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Report',
+      name: 'Reports',
       active: true,
       icon: 'chart-bar',
       roles: ['manager'],
       children: [
         {
-          name: 'Performance del team',
+          name: 'Team Performance',
           to: '/reports/team',
           active: true,
           roles: ['manager']
         },
         {
-          name: 'Report operativi',
+          name: 'Operational Reports',
           to: '/reports/operations',
           active: true,
           roles: ['manager']
@@ -1318,29 +1318,29 @@ export const managerRoutes: RouteGroup = {
 };
 
 export const adminRoutes: RouteGroup = {
-  label: 'Amministrazione',
-  roles: ['administrator'], // Amministratore e superiori
+  label: 'Administration',
+  roles: ['administrator'], // Administrator and above
   children: [
     {
-      name: 'Gestione flotta',
+      name: 'Fleet Management',
       active: true,
       icon: 'truck',
       roles: ['administrator'],
       children: [
         {
-          name: 'Mezzi',
+          name: 'Vehicles',
           to: '/fleet/vehicles',
           active: true,
           roles: ['administrator']
         },
         {
-          name: 'Gru',
+          name: 'Cranes',
           to: '/fleet/cranes',
           active: true,
           roles: ['administrator']
         },
         {
-          name: 'Tachigrafi',
+          name: 'Tachographs',
           to: '/fleet/tachographs',
           active: true,
           roles: ['administrator']
@@ -1348,7 +1348,7 @@ export const adminRoutes: RouteGroup = {
       ]
     },
     {
-      name: 'Scadenze',
+      name: 'Deadlines',
       to: paths.deadlineReports,
       active: true,
       icon: 'calendar-check',
@@ -1385,18 +1385,18 @@ export const adminRoutes: RouteGroup = {
 };
 
 export const superAdminRoutes: RouteGroup = {
-  label: 'Amministrazione Sistema',
+  label: 'System Administration',
   roles: ['administrator'],
   children: [
     {
-      name: 'Gestione utenti',
+      name: 'User Management',
       active: true,
       icon: 'users',
       to: '/admin/users',
       roles: ['administrator']
     },
     {
-      name: 'Impostazioni',
+      name: 'Settings',
       active: true,
       icon: 'cog',
       to: '/admin/settings',

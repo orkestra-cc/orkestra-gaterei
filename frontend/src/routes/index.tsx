@@ -86,7 +86,7 @@ const Changelog = lazy(() => import('docs/documentation/change-log/ChangeLog'));
 const Analytics = lazy(() => import('demos/dashboards/AnalyticsDashboard'));
 const Crm = lazy(() => import('demos/dashboards/CrmDashboard'));
 const Saas = lazy(() => import('demos/dashboards/SaasDashboard'));
-const Profile = lazy(() => import('pages/operatore/profile/OperatoreProfile'));
+const Profile = lazy(() => import('pages/operator/profile/OperatorProfile'));
 const Associations = lazy(() => import('pages/asscociations/Associations'));
 const Followers = lazy(() => import('features/social/followers/Followers'));
 const Notifications = lazy(
@@ -185,8 +185,8 @@ const AdminUserProfile = lazy(
 const DeadlineReports = lazy(
   () => import('pages/admin/Reports/DeadlineReports')
 );
-const OperatoreProfile = lazy(
-  () => import('pages/operatore/profile/OperatoreProfile')
+const OperatorProfile = lazy(
+  () => import('pages/operator/profile/OperatorProfile')
 );
 const VehicleManagement = lazy(
   () => import('demos/dashboards/VehicleManagementDashboard')
@@ -569,8 +569,8 @@ const routes: RouteObject[] = [
               {
                 path: 'profile',
                 element: (
-                  <Suspense key="operatore-profile" fallback={<FalconLoader />}>
-                    <OperatoreProfile />
+                  <Suspense key="operator-profile" fallback={<FalconLoader />}>
+                    <OperatorProfile />
                   </Suspense>
                 )
               }

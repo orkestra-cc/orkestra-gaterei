@@ -59,7 +59,7 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="gears" className="me-2 text-primary" />
-            Azioni Rapide
+            Quick Actions
           </h5>
         </Card.Header>
         <Card.Body>
@@ -72,24 +72,24 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
                 icon={tachograph.isActive ? 'ban' : 'check-circle'}
                 className="me-2"
               />
-              {tachograph.isActive ? 'Disattiva' : 'Attiva'} Tachigrafo
+              {tachograph.isActive ? 'Deactivate' : 'Activate'} Tachograph
             </Button>
 
             {(isRevisionExpiring(tachograph.scadenzaRevisione) || isRevisionExpired(tachograph.scadenzaRevisione)) && (
               <Button variant="info">
                 <FontAwesomeIcon icon="calendar-alt" className="me-2" />
-                Programma Revisione
+                Schedule Inspection
               </Button>
             )}
 
             <Button variant="primary">
               <FontAwesomeIcon icon="print" className="me-2" />
-              Stampa Scheda
+              Print Card
             </Button>
 
             <Button variant="secondary">
               <FontAwesomeIcon icon="file-export" className="me-2" />
-              Esporta Dati
+              Export Data
             </Button>
 
             <hr className="my-2" />
@@ -100,7 +100,7 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
               onClick={() => setShowDeleteModal(true)}
             >
               <FontAwesomeIcon icon="trash" className="me-2" />
-              Elimina Tachigrafo
+              Delete Tachograph
             </Button>
           </div>
         </Card.Body>
@@ -110,18 +110,18 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
       <Modal show={showActivationModal} onHide={() => setShowActivationModal(false)} centered>
         <Modal.Header>
           <Modal.Title>
-            {tachograph.isActive ? 'Disattiva' : 'Attiva'} Tachigrafo
+            {tachograph.isActive ? 'Deactivate' : 'Activate'} Tachograph
           </Modal.Title>
           <FalconCloseButton onClick={() => setShowActivationModal(false)} />
         </Modal.Header>
         <Modal.Body>
           <p>
-            Sei sicuro di voler {tachograph.isActive ? 'disattivare' : 'attivare'} il tachigrafo{' '}
-            <strong>{tachograph.nome}</strong> (Targa: {tachograph.targa})?
+            Are you sure you want to {tachograph.isActive ? 'deactivate' : 'activate'} the tachograph{' '}
+            <strong>{tachograph.nome}</strong> (License Plate: {tachograph.targa})?
           </p>
           {tachograph.isActive && (
             <p className="text-warning mb-0">
-              Il tachigrafo non sarà più disponibile fino a quando non verrà riattivato.
+              The tachograph will not be available until it is reactivated.
             </p>
           )}
         </Modal.Body>
@@ -131,14 +131,14 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
             onClick={() => setShowActivationModal(false)}
             disabled={isUpdating}
           >
-            Annulla
+            Cancel
           </Button>
           <Button
             variant={tachograph.isActive ? 'warning' : 'success'}
             onClick={handleToggleActivation}
             disabled={isUpdating}
           >
-            {isUpdating ? 'Attendere...' : tachograph.isActive ? 'Disattiva' : 'Attiva'}
+            {isUpdating ? 'Please wait...' : tachograph.isActive ? 'Deactivate' : 'Activate'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -146,17 +146,17 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
       {/* Delete Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
         <Modal.Header>
-          <Modal.Title>Elimina Tachigrafo</Modal.Title>
+          <Modal.Title>Delete Tachograph</Modal.Title>
           <FalconCloseButton onClick={() => setShowDeleteModal(false)} />
         </Modal.Header>
         <Modal.Body>
           <p>
-            Sei sicuro di voler eliminare definitivamente il tachigrafo{' '}
-            <strong>{tachograph.nome}</strong> (Targa: {tachograph.targa})?
+            Are you sure you want to permanently delete the tachograph{' '}
+            <strong>{tachograph.nome}</strong> (License Plate: {tachograph.targa})?
           </p>
           <p className="text-danger fw-bold mb-0">
             <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-            Questa azione non può essere annullata!
+            This action cannot be undone!
           </p>
         </Modal.Body>
         <Modal.Footer>
@@ -165,7 +165,7 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
             onClick={() => setShowDeleteModal(false)}
             disabled={isDeleting}
           >
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="danger"
@@ -175,12 +175,12 @@ const TachographActions: React.FC<TachographActionsProps> = ({ tachograph }) => 
             {isDeleting ? (
               <>
                 <FontAwesomeIcon icon="spinner" spin className="me-2" />
-                Eliminazione...
+                Deleting...
               </>
             ) : (
               <>
                 <FontAwesomeIcon icon="trash" className="me-2" />
-                Elimina Definitivamente
+                Delete Permanently
               </>
             )}
           </Button>

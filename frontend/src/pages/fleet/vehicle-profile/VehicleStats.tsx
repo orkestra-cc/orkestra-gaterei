@@ -26,11 +26,11 @@ const mockStats = {
 
 const VehicleStats: React.FC<VehicleStatsProps> = ({ vehicle }) => {
   const formatNumber = (num: number) => {
-    return num.toLocaleString('it-IT');
+    return num.toLocaleString('en-GB');
   };
 
   const formatCurrency = (num: number) => {
-    return num.toLocaleString('it-IT', {
+    return num.toLocaleString('en-GB', {
       style: 'currency',
       currency: 'EUR'
     });

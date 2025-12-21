@@ -44,32 +44,32 @@ const UserActivationModal: React.FC<UserActivationModalProps> = ({
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>
-          {isActivating ? 'Attiva Utente' : 'Disattiva Utente'}
+          {isActivating ? 'Activate User' : 'Deactivate User'}
         </Modal.Title>
         <FalconCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
-          Sei sicuro di voler {isActivating ? 'attivare' : 'disattivare'}{' '}
-          l'utente <strong>{user.fullName}</strong>?
+          Are you sure you want to {isActivating ? 'activate' : 'deactivate'}{' '}
+          the user <strong>{user.fullName}</strong>?
         </p>
         {!isActivating && (
           <p className="text-warning mb-0">
-            L'utente non potrà più accedere al sistema fino a quando non verrà
-            riattivato.
+            The user will no longer be able to access the system until they are
+            reactivated.
           </p>
         )}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide} disabled={isLoading}>
-          Annulla
+          Cancel
         </Button>
         <Button
           variant={isActivating ? 'success' : 'warning'}
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? 'Attendere...' : isActivating ? 'Attiva' : 'Disattiva'}
+          {isLoading ? 'Please wait...' : isActivating ? 'Activate' : 'Deactivate'}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -131,7 +131,7 @@ const useUserTable = (options?: any) => {
   const columns = [
     {
       accessorKey: 'fullName',
-      header: 'Utente',
+      header: 'User',
       meta: {
         headerProps: { className: 'ps-2 text-900', style: { height: '46px' } },
         cellProps: {
@@ -164,7 +164,7 @@ const useUserTable = (options?: any) => {
     },
     {
       accessorKey: 'role',
-      header: 'Ruolo',
+      header: 'Role',
       meta: {
         headerProps: {
           className: 'text-900'
@@ -192,11 +192,11 @@ const useUserTable = (options?: any) => {
         };
         const roleLabels: Record<RoleType, string> = {
           ceo: 'CEO',
-          developer: 'Sviluppatore',
-          administrator: 'Amministratore',
+          developer: 'Developer',
+          administrator: 'Administrator',
           manager: 'Manager',
-          operator: 'Operatore',
-          guest: 'Ospite'
+          operator: 'Operator',
+          guest: 'Guest'
         };
         return (
           <Badge bg={roleColors[role] || 'secondary'}>
@@ -207,7 +207,7 @@ const useUserTable = (options?: any) => {
     },
     {
       accessorKey: 'providers',
-      header: 'Accesso con',
+      header: 'Login With',
       meta: {
         headerProps: {
           className: 'text-900'
@@ -243,7 +243,7 @@ const useUserTable = (options?: any) => {
     },
     {
       accessorKey: 'isActive',
-      header: 'Stato',
+      header: 'Status',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -254,14 +254,14 @@ const useUserTable = (options?: any) => {
         const { isActive } = original;
         return (
           <SubtleBadge bg={isActive ? 'success' : 'secondary'} className="me-2">
-            {isActive ? 'Attivo' : 'Inattivo'}
+            {isActive ? 'Active' : 'Inactive'}
           </SubtleBadge>
         );
       }
     },
     {
       accessorKey: 'lastLogin',
-      header: 'Ultimo accesso',
+      header: 'Last Login',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -272,21 +272,21 @@ const useUserTable = (options?: any) => {
         const { lastLogin } = original;
 
         if (!lastLogin) {
-          return <div className="text-muted">Mai effettuato</div>;
+          return <div className="text-muted">Never</div>;
         }
 
         const date = new Date(lastLogin);
 
         if (isNaN(date.getTime())) {
-          return <div className="text-muted">Mai effettuato</div>;
+          return <div className="text-muted">Never</div>;
         }
 
-        const formattedDate = date.toLocaleDateString('it-IT', {
+        const formattedDate = date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
         });
-        const formattedTime = date.toLocaleTimeString('it-IT', {
+        const formattedTime = date.toLocaleTimeString('en-GB', {
           hour: '2-digit',
           minute: '2-digit'
         });
@@ -300,7 +300,7 @@ const useUserTable = (options?: any) => {
     },
     {
       accessorKey: 'createdAt',
-      header: 'Creato il',
+      header: 'Created On',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -310,7 +310,7 @@ const useUserTable = (options?: any) => {
       cell: ({ row: { original } }: { row: { original: User } }) => {
         const { createdAt } = original;
         const date = new Date(createdAt);
-        return date.toLocaleDateString('it-IT', {
+        return date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -319,7 +319,7 @@ const useUserTable = (options?: any) => {
     },
     {
       accessorKey: 'actions',
-      header: 'Azioni',
+      header: 'Actions',
       meta: {
         headerProps: { className: 'text-end text-900' }
       },
@@ -340,18 +340,18 @@ const useUserTable = (options?: any) => {
                   as={Link}
                   to={paths.adminUserProfile.replace(':userId', original.id)}
                 >
-                  Visualizza Dettagli
+                  View Details
                 </Dropdown.Item>
-                {/* <Dropdown.Item>Modifica Utente</Dropdown.Item> */}
+                {/* <Dropdown.Item>Edit User</Dropdown.Item> */}
                 <Dropdown.Divider />
                 <Dropdown.Item
                   className="text-warning"
                   onClick={() => handleToggleActivation(original)}
                 >
-                  {original.isActive ? 'Disattiva' : 'Attiva'}
+                  {original.isActive ? 'Deactivate' : 'Activate'}
                 </Dropdown.Item>
                 <Dropdown.Item className="text-danger">
-                  Elimina Utente
+                  Delete User
                 </Dropdown.Item>
               </div>
             </Dropdown.Menu>

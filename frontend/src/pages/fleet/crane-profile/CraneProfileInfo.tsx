@@ -26,7 +26,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
 
   // Helper function to format date with time
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('it-IT', {
+    return new Date(dateString).toLocaleString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -37,8 +37,8 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
 
   // Helper function to format date only
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Non specificata';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -112,7 +112,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
   return (
     <Card className="mb-3">
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
-        <h5 className="mb-0">Informazioni Gru</h5>
+        <h5 className="mb-0">Crane Information</h5>
         <div>
           {!isEditing ? (
             <>
@@ -122,7 +122,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 className="me-2"
                 onClick={handleEdit}
               >
-                <FaEdit className="me-1" /> Modifica
+                <FaEdit className="me-1" /> Edit
               </Button>
               <Button
                 variant="link"
@@ -141,7 +141,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 onClick={handleSave}
                 disabled={isLoading}
               >
-                <FaSave className="me-1" /> Salva
+                <FaSave className="me-1" /> Save
               </Button>
               <Button
                 variant="secondary"
@@ -149,7 +149,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 onClick={handleCancel}
                 disabled={isLoading}
               >
-                <FaTimes className="me-1" /> Annulla
+                <FaTimes className="me-1" /> Cancel
               </Button>
             </>
           )}
@@ -164,7 +164,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
               <Row className="g-3">
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Nome Gru</h6>
+                    <h6 className="fw-semibold text-600">Crane Name</h6>
                     <p className="mb-1">
                       <GiCrane className="me-2 text-warning" />
                       {crane.nome}
@@ -173,7 +173,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Tipo</h6>
+                    <h6 className="fw-semibold text-600">Type</h6>
                     <Badge bg="warning" className="text-dark">
                       {crane.tipo}
                     </Badge>
@@ -181,7 +181,7 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Matricola</h6>
+                    <h6 className="fw-semibold text-600">Serial Number</h6>
                     <p className="mb-1">
                       <FontAwesomeIcon icon="id-card" className="me-2" />
                       {crane.matricola}
@@ -190,20 +190,20 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Mezzo Associato</h6>
+                    <h6 className="fw-semibold text-600">Associated Vehicle</h6>
                     {crane.verificareSuMezzo ? (
                       <Badge bg="info" className="fs-10">
                         <FontAwesomeIcon icon="truck" className="me-1" />
                         {crane.verificareSuMezzo}
                       </Badge>
                     ) : (
-                      <span className="text-muted">Non associata</span>
+                      <span className="text-muted">Not associated</span>
                     )}
                   </div>
                 </Col>
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Scadenza Verifica</h6>
+                    <h6 className="fw-semibold text-600">Verification Expiry</h6>
                     <p className="mb-1">
                       <FontAwesomeIcon icon="calendar-alt" className="me-2" />
                       {formatDate(crane.scadenzaVerifica)}
@@ -212,17 +212,17 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col md={6}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Stato</h6>
+                    <h6 className="fw-semibold text-600">Status</h6>
                     <Badge bg={crane.isActive ? 'success' : 'secondary'}>
-                      {crane.isActive ? 'Attiva' : 'Inattiva'}
+                      {crane.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
                 </Col>
                 <Col xs={12}>
                   <div className="mb-3">
-                    <h6 className="fw-semibold text-600">Note</h6>
+                    <h6 className="fw-semibold text-600">Notes</h6>
                     <p className="mb-1">
-                      {crane.note || <span className="text-muted">Nessuna nota</span>}
+                      {crane.note || <span className="text-muted">No notes</span>}
                     </p>
                   </div>
                 </Col>
@@ -232,13 +232,13 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                     <Col sm={6}>
                       <small className="text-muted">
                         <FontAwesomeIcon icon="clock" className="me-1" />
-                        Creato il: {formatDateTime(crane.createdAt)}
+                        Created On: {formatDateTime(crane.createdAt)}
                       </small>
                     </Col>
                     <Col sm={6} className="text-sm-end">
                       <small className="text-muted">
                         <FontAwesomeIcon icon="edit" className="me-1" />
-                        Aggiornato il: {formatDateTime(crane.updatedAt)}
+                        Updated On: {formatDateTime(crane.updatedAt)}
                       </small>
                     </Col>
                   </Row>
@@ -251,20 +251,20 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
               <Row className="g-3">
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Nome Gru</Form.Label>
+                    <Form.Label>Crane Name</Form.Label>
                     <Form.Control
                       type="text"
                       name="nome"
                       value={formData.nome}
                       onChange={handleChange}
-                      placeholder="Nome della gru"
+                      placeholder="Crane name"
                       required
                     />
                   </Form.Group>
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Tipo</Form.Label>
+                    <Form.Label>Type</Form.Label>
                     <Form.Select
                       name="tipo"
                       value={formData.tipo}
@@ -279,32 +279,32 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Matricola</Form.Label>
+                    <Form.Label>Serial Number</Form.Label>
                     <Form.Control
                       type="text"
                       name="matricola"
                       value={formData.matricola}
                       onChange={handleChange}
-                      placeholder="Matricola della gru"
+                      placeholder="Crane serial number"
                       required
                     />
                   </Form.Group>
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Mezzo Associato (Targa)</Form.Label>
+                    <Form.Label>Associated Vehicle (License Plate)</Form.Label>
                     <Form.Control
                       type="text"
                       name="verificareSuMezzo"
                       value={formData.verificareSuMezzo}
                       onChange={handleChange}
-                      placeholder="Es. AA123BB"
+                      placeholder="E.g. AA123BB"
                     />
                   </Form.Group>
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Scadenza Verifica</Form.Label>
+                    <Form.Label>Verification Expiry</Form.Label>
                     <Form.Control
                       type="date"
                       name="scadenzaVerifica"
@@ -315,14 +315,14 @@ const CraneProfileInfo: React.FC<CraneProfileInfoProps> = ({ crane }) => {
                 </Col>
                 <Col xs={12}>
                   <Form.Group>
-                    <Form.Label>Note</Form.Label>
+                    <Form.Label>Notes</Form.Label>
                     <Form.Control
                       as="textarea"
                       rows={3}
                       name="note"
                       value={formData.note}
                       onChange={handleChange}
-                      placeholder="Eventuali note sulla gru..."
+                      placeholder="Any notes about the crane..."
                     />
                   </Form.Group>
                 </Col>

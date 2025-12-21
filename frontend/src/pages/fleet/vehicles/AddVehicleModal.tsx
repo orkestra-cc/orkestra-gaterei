@@ -51,45 +51,45 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
     const errors: Record<string, string> = {};
 
     if (!formData.nome.trim()) {
-      errors.nome = 'Il nome del mezzo è obbligatorio';
+      errors.nome = 'Vehicle name is required';
     }
 
     if (!formData.targa.trim()) {
-      errors.targa = 'La targa è obbligatoria';
+      errors.targa = 'License plate is required';
     } else if (!/^[A-Z0-9]+$/i.test(formData.targa.replace(/\s/g, ''))) {
-      errors.targa = 'La targa deve contenere solo lettere e numeri';
+      errors.targa = 'License plate must contain only letters and numbers';
     }
 
     if (!formData.tipo) {
-      errors.tipo = 'Il tipo di mezzo è obbligatorio';
+      errors.tipo = 'Vehicle type is required';
     }
 
     // Validate dates if provided
     if (formData.scadenzaRevisione) {
       const date = new Date(formData.scadenzaRevisione);
       if (isNaN(date.getTime())) {
-        errors.scadenzaRevisione = 'Data non valida';
+        errors.scadenzaRevisione = 'Invalid date';
       }
     }
 
     if (formData.revisioneProgrammata) {
       const date = new Date(formData.revisioneProgrammata);
       if (isNaN(date.getTime())) {
-        errors.revisioneProgrammata = 'Data non valida';
+        errors.revisioneProgrammata = 'Invalid date';
       }
     }
 
     if (formData.insuranceExpiry) {
       const date = new Date(formData.insuranceExpiry);
       if (isNaN(date.getTime())) {
-        errors.insuranceExpiry = 'Data non valida';
+        errors.insuranceExpiry = 'Invalid date';
       }
     }
 
     if (formData.carTaxExpiry) {
       const date = new Date(formData.carTaxExpiry);
       if (isNaN(date.getTime())) {
-        errors.carTaxExpiry = 'Data non valida';
+        errors.carTaxExpiry = 'Invalid date';
       }
     }
 
@@ -184,7 +184,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
         <Modal.Header>
           <Modal.Title>
             <FontAwesomeIcon icon="plus" className="me-2" />
-            Aggiungi Nuovo Mezzo
+            Add New Vehicle
           </Modal.Title>
           <FalconCloseButton onClick={handleClose} />
         </Modal.Header>
@@ -192,7 +192,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
           {error && (
             <Alert variant="danger" className="mb-3">
               <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-              Si è verificato un errore durante la creazione del mezzo. Riprova.
+              An error occurred while creating the vehicle. Please try again.
             </Alert>
           )}
 
@@ -200,7 +200,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>
-                  Nome Mezzo <span className="text-danger">*</span>
+                  Vehicle Name <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="text"
@@ -208,7 +208,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
                   value={formData.nome}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.nome}
-                  placeholder="Es. Iveco Daily 001"
+                  placeholder="e.g. Iveco Daily 001"
                   required
                 />
                 <Form.Control.Feedback type="invalid">
@@ -220,7 +220,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>
-                  Targa <span className="text-danger">*</span>
+                  License Plate <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="text"
@@ -228,7 +228,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
                   value={formData.targa}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.targa}
-                  placeholder="Es. AA123BB"
+                  placeholder="e.g. AA123BB"
                   required
                 />
                 <Form.Control.Feedback type="invalid">
@@ -249,11 +249,11 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
                   isInvalid={!!validationErrors.tipo}
                   required
                 >
-                  <option value="motrice">Motrice</option>
-                  <option value="rimorchio">Rimorchio</option>
-                  <option value="semi-rimorchio">Semi-rimorchio</option>
-                  <option value="trattore">Trattore</option>
-                  <option value="semovente">Semovente</option>
+                  <option value="motrice">Truck</option>
+                  <option value="rimorchio">Trailer</option>
+                  <option value="semi-rimorchio">Semi-trailer</option>
+                  <option value="trattore">Tractor</option>
+                  <option value="semovente">Self-propelled</option>
                 </Form.Select>
                 <Form.Control.Feedback type="invalid">
                   {validationErrors.tipo}
@@ -263,20 +263,20 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Posizione Attuale</Form.Label>
+                <Form.Label>Current Location</Form.Label>
                 <Form.Control
                   type="text"
                   name="luogo"
                   value={formData.luogo}
                   onChange={handleChange}
-                  placeholder="Es. Deposito Calcinaia"
+                  placeholder="e.g. Main Depot"
                 />
               </Form.Group>
             </Col>
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Scadenza Revisione</Form.Label>
+                <Form.Label>Inspection Expiry</Form.Label>
                 <Form.Control
                   type="date"
                   name="scadenzaRevisione"
@@ -292,7 +292,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Revisione Programmata</Form.Label>
+                <Form.Label>Scheduled Inspection</Form.Label>
                 <Form.Control
                   type="date"
                   name="revisioneProgrammata"
@@ -308,7 +308,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Scadenza Assicurazione</Form.Label>
+                <Form.Label>Insurance Expiry</Form.Label>
                 <Form.Control
                   type="date"
                   name="insuranceExpiry"
@@ -324,7 +324,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Scadenza Bollo</Form.Label>
+                <Form.Label>Vehicle Tax Expiry</Form.Label>
                 <Form.Control
                   type="date"
                   name="carTaxExpiry"
@@ -347,7 +347,7 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
                   name="note"
                   value={formData.note}
                   onChange={handleChange}
-                  placeholder="Inserisci eventuali note sul mezzo..."
+                  placeholder="Enter any notes about the vehicle..."
                 />
               </Form.Group>
             </Col>
@@ -359,18 +359,18 @@ const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ show, onHide }) => {
             onClick={handleClose}
             disabled={isLoading}
           >
-            Annulla
+            Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
             {isLoading ? (
               <>
                 <FontAwesomeIcon icon="spinner" spin className="me-2" />
-                Creazione...
+                Creating...
               </>
             ) : (
               <>
                 <FontAwesomeIcon icon="plus" className="me-2" />
-                Crea Mezzo
+                Create Vehicle
               </>
             )}
           </Button>

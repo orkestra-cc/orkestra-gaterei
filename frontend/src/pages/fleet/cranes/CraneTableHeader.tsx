@@ -10,30 +10,30 @@ import AddCraneModal from './AddCraneModal';
 
 const CraneTableHeader = () => {
   const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
-  const [selectedType, setSelectedType] = useState<string>('Tutti');
-  const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
-  const [selectedVerification, setSelectedVerification] = useState<string>('Tutti');
+  const [selectedType, setSelectedType] = useState<string>('All');
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
+  const [selectedVerification, setSelectedVerification] = useState<string>('All');
   const [showAddModal, setShowAddModal] = useState(false);
 
   const typeFilters = [
-    'Tutti',
-    'Autogrù',
-    'Gru a torre',
-    'Gru mobile',
-    'Gru fissa'
+    'All',
+    'Mobile Crane',
+    'Tower Crane',
+    'Crawler Crane',
+    'Fixed Crane'
   ];
 
   const statusFilters = [
-    'Tutti',
-    'Attive',
-    'Inattive'
+    'All',
+    'Active',
+    'Inactive'
   ];
 
   const verificationFilters = [
-    'Tutti',
-    'In regola',
-    'In scadenza',
-    'Scadute'
+    'All',
+    'Valid',
+    'Expiring Soon',
+    'Expired'
   ];
 
   const handleTypeFilter = (type: string) => {
@@ -54,22 +54,22 @@ const CraneTableHeader = () => {
   const applyFilters = (type: string, status: string, verification: string) => {
     const filters = [];
 
-    if (type !== 'Tutti') {
+    if (type !== 'All') {
       filters.push({ id: 'tipo', value: type });
     }
 
-    if (status !== 'Tutti') {
-      filters.push({ id: 'isActive', value: status === 'Attive' });
+    if (status !== 'All') {
+      filters.push({ id: 'isActive', value: status === 'Active' });
     }
 
-    if (verification !== 'Tutti') {
+    if (verification !== 'All') {
       // This would require custom filtering logic
-      if (verification === 'In scadenza') {
+      if (verification === 'Expiring Soon') {
         // Filter cranes with verification expiring in 30 days
         filters.push({ id: 'verificationStatus', value: 'expiring' });
-      } else if (verification === 'Scadute') {
+      } else if (verification === 'Expired') {
         filters.push({ id: 'verificationStatus', value: 'expired' });
-      } else if (verification === 'In regola') {
+      } else if (verification === 'Valid') {
         filters.push({ id: 'verificationStatus', value: 'valid' });
       }
     }
@@ -85,36 +85,36 @@ const CraneTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const crane = row.original as CraneResponse;
       return {
-        'Nome': crane.nome,
-        'Tipo': crane.tipo,
-        'Matricola': crane.matricola,
-        'Mezzo Associato': crane.verificareSuMezzo || '',
-        'Stato': crane.isActive ? 'Attiva' : 'Inattiva',
-        'Scadenza Verifica': formatDateForCSV(crane.scadenzaVerifica),
-        'Note': crane.note || '',
-        'Creato Il': formatDateForCSV(crane.createdAt),
-        'Aggiornato Il': formatDateForCSV(crane.updatedAt)
+        'Name': crane.nome,
+        'Type': crane.tipo,
+        'Serial Number': crane.matricola,
+        'Associated Vehicle': crane.verificareSuMezzo || '',
+        'Status': crane.isActive ? 'Active' : 'Inactive',
+        'Verification Expiry': formatDateForCSV(crane.scadenzaVerifica),
+        'Notes': crane.note || '',
+        'Created At': formatDateForCSV(crane.createdAt),
+        'Updated At': formatDateForCSV(crane.updatedAt)
       };
     });
 
     // Define headers
     const headers = [
-      'Nome',
-      'Tipo',
-      'Matricola',
-      'Mezzo Associato',
-      'Stato',
-      'Scadenza Verifica',
-      'Note',
-      'Creato Il',
-      'Aggiornato Il'
+      'Name',
+      'Type',
+      'Serial Number',
+      'Associated Vehicle',
+      'Status',
+      'Verification Expiry',
+      'Notes',
+      'Created At',
+      'Updated At'
     ];
 
     // Generate CSV
     const csv = arrayToCSV(csvData, headers);
 
     // Download file
-    const filename = generateTimestampedFilename('gru');
+    const filename = generateTimestampedFilename('cranes');
     downloadCSV(csv, filename);
   };
 
@@ -123,12 +123,12 @@ const CraneTableHeader = () => {
       <div className="d-lg-flex justify-content-between">
       <Row className="flex-between-center gy-2 px-x1">
         <Col xs="auto" className="pe-0">
-          <h6 className="mb-0">Gestione Gru</h6>
+          <h6 className="mb-0">Crane Management</h6>
         </Col>
         <Col xs="auto">
           <AdvanceTableSearchBox
             className="input-search-width"
-            placeholder="Cerca per nome/matricola/tipo"
+            placeholder="Search by name/serial/type"
           />
         </Col>
       </Row>
@@ -141,7 +141,7 @@ const CraneTableHeader = () => {
             className="text-600"
           >
             <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
-            <span className="d-none d-sm-inline-block">Tipo: {selectedType}</span>
+            <span className="d-none d-sm-inline-block">Type: {selectedType}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
             {typeFilters.map((type) => (
@@ -169,7 +169,7 @@ const CraneTableHeader = () => {
             className="text-600"
           >
             <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
-            <span className="d-none d-sm-inline-block">Stato: {selectedStatus}</span>
+            <span className="d-none d-sm-inline-block">Status: {selectedStatus}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
             {statusFilters.map((status) => (
@@ -197,7 +197,7 @@ const CraneTableHeader = () => {
             className="text-600"
           >
             <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
-            <span className="d-none d-sm-inline-block">Verifica: {selectedVerification}</span>
+            <span className="d-none d-sm-inline-block">Verification: {selectedVerification}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
             {verificationFilters.map((verification) => (
@@ -224,12 +224,12 @@ const CraneTableHeader = () => {
         ></div>
         {getSelectedRowModel().rows.length > 0 ? (
           <div className="d-flex">
-            <Form.Select size="sm" aria-label="Azioni di gruppo">
-              <option>Azioni di gruppo</option>
-              <option value="activate">Attiva</option>
-              <option value="deactivate">Disattiva</option>
-              <option value="delete">Elimina</option>
-              <option value="schedule-verification">Programma Verifica</option>
+            <Form.Select size="sm" aria-label="Bulk actions">
+              <option>Bulk actions</option>
+              <option value="activate">Activate</option>
+              <option value="deactivate">Deactivate</option>
+              <option value="delete">Delete</option>
+              <option value="schedule-verification">Schedule Verification</option>
             </Form.Select>
             <Button
               type="button"
@@ -237,7 +237,7 @@ const CraneTableHeader = () => {
               size="sm"
               className="ms-2"
             >
-              Applica
+              Apply
             </Button>
           </div>
         ) : (
@@ -251,7 +251,7 @@ const CraneTableHeader = () => {
               onClick={() => setShowAddModal(true)}
             >
               <span className="d-none d-sm-inline-block d-xl-none d-xxl-inline-block ms-1">
-                Nuova Gru
+                New Crane
               </span>
             </IconButton>
             <IconButton
@@ -264,7 +264,7 @@ const CraneTableHeader = () => {
               onClick={handleExportCSV}
             >
               <span className="d-none d-sm-inline-block d-xl-none d-xxl-inline-block ms-1">
-                Esporta
+                Export
               </span>
             </IconButton>
             <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
@@ -275,16 +275,16 @@ const CraneTableHeader = () => {
               <Dropdown.Menu className="border py-0">
                 <div className="py-2">
                   <Dropdown.Item as="button" type="button">
-                    Visualizza tutto
+                    View All
                   </Dropdown.Item>
-                  <Dropdown.Item onClick={handleExportCSV}>Esporta</Dropdown.Item>
-                  <Dropdown.Item>Importa</Dropdown.Item>
+                  <Dropdown.Item onClick={handleExportCSV}>Export</Dropdown.Item>
+                  <Dropdown.Item>Import</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item>Verifiche in Scadenza</Dropdown.Item>
-                  <Dropdown.Item>Report Utilizzo</Dropdown.Item>
-                  <Dropdown.Item>Gru per Mezzo</Dropdown.Item>
+                  <Dropdown.Item>Expiring Verifications</Dropdown.Item>
+                  <Dropdown.Item>Usage Report</Dropdown.Item>
+                  <Dropdown.Item>Cranes by Vehicle</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Cancella tutto</Dropdown.Item>
+                  <Dropdown.Item className="text-danger">Delete All</Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>

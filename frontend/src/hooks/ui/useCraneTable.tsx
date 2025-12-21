@@ -28,31 +28,31 @@ const CraneActivationModal: React.FC<CraneActivationModalProps> = ({ show, onHid
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>
-          {isActivating ? 'Attiva Gru' : 'Disattiva Gru'}
+          {isActivating ? 'Activate Crane' : 'Deactivate Crane'}
         </Modal.Title>
         <FalconCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
-          Sei sicuro di voler {isActivating ? 'attivare' : 'disattivare'} la gru{' '}
-          <strong>{crane.nome}</strong> (Matricola: {crane.matricola})?
+          Are you sure you want to {isActivating ? 'activate' : 'deactivate'} the crane{' '}
+          <strong>{crane.nome}</strong> (Serial: {crane.matricola})?
         </p>
         {!isActivating && (
           <p className="text-warning mb-0">
-            La gru non sarà più disponibile per l'assegnazione fino a quando non verrà riattivata.
+            The crane will no longer be available for assignment until it is reactivated.
           </p>
         )}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide} disabled={isLoading}>
-          Annulla
+          Cancel
         </Button>
         <Button
           variant={isActivating ? 'success' : 'warning'}
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? 'Attendere...' : isActivating ? 'Attiva' : 'Disattiva'}
+          {isLoading ? 'Please wait...' : isActivating ? 'Activate' : 'Deactivate'}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -133,7 +133,7 @@ const useCraneTable = (options?: any) => {
     },
     {
       accessorKey: 'nome',
-      header: 'Gru',
+      header: 'Crane',
       meta: {
         headerProps: { className: 'ps-2 text-900', style: { height: '46px' } },
         cellProps: {
@@ -156,7 +156,7 @@ const useCraneTable = (options?: any) => {
                   {nome}
                 </Link>
               </h6>
-              <small className="text-muted">Matricola: {matricola}</small>
+              <small className="text-muted">Serial: {matricola}</small>
             </div>
           </Flex>
         );
@@ -164,7 +164,7 @@ const useCraneTable = (options?: any) => {
     },
     {
       accessorKey: 'tipo',
-      header: 'Tipo',
+      header: 'Type',
       meta: {
         headerProps: {
           className: 'text-900'
@@ -184,7 +184,7 @@ const useCraneTable = (options?: any) => {
     },
     {
       accessorKey: 'verificareSuMezzo',
-      header: 'Mezzo Associato',
+      header: 'Associated Vehicle',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -211,7 +211,7 @@ const useCraneTable = (options?: any) => {
     },
     {
       accessorKey: 'isActive',
-      header: 'Stato',
+      header: 'Status',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -222,14 +222,14 @@ const useCraneTable = (options?: any) => {
         const { isActive } = original;
         return (
           <SubtleBadge bg={isActive ? 'success' : 'secondary'} className="me-2">
-            {isActive ? 'Attiva' : 'Inattiva'}
+            {isActive ? 'Active' : 'Inactive'}
           </SubtleBadge>
         );
       }
     },
     {
       accessorKey: 'scadenzaVerifica',
-      header: 'Scadenza Verifica',
+      header: 'Verification Expiry',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -242,7 +242,7 @@ const useCraneTable = (options?: any) => {
           return <span className="text-muted">-</span>;
         }
         const date = new Date(scadenzaVerifica);
-        const formattedDate = date.toLocaleDateString('it-IT', {
+        const formattedDate = date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -258,15 +258,15 @@ const useCraneTable = (options?: any) => {
                 <FontAwesomeIcon icon="exclamation-triangle" className="ms-1" />
               )}
             </div>
-            {isExpired && <small className="text-danger">Scaduta</small>}
-            {!isExpired && isExpiring && <small className="text-warning">In scadenza</small>}
+            {isExpired && <small className="text-danger">Expired</small>}
+            {!isExpired && isExpiring && <small className="text-warning">Expiring soon</small>}
           </div>
         );
       }
     },
     {
       accessorKey: 'actions',
-      header: 'Azioni',
+      header: 'Actions',
       meta: {
         headerProps: { className: 'text-end text-900' }
       },
@@ -287,18 +287,18 @@ const useCraneTable = (options?: any) => {
                   as={Link}
                   to={paths.fleetCraneProfile?.replace(':craneId', original.id) || '#'}
                 >
-                  Visualizza Dettagli
+                  View Details
                 </Dropdown.Item>
-                <Dropdown.Item>Modifica Gru</Dropdown.Item>
+                <Dropdown.Item>Edit Crane</Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item
                   className="text-warning"
                   onClick={() => handleToggleActivation(original)}
                 >
-                  {original.isActive ? 'Disattiva' : 'Attiva'}
+                  {original.isActive ? 'Deactivate' : 'Activate'}
                 </Dropdown.Item>
                 <Dropdown.Item className="text-danger">
-                  Elimina Gru
+                  Delete Crane
                 </Dropdown.Item>
               </div>
             </Dropdown.Menu>

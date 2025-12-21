@@ -38,32 +38,32 @@ const VehicleActivationModal: React.FC<VehicleActivationModalProps> = ({
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>
-          {isActivating ? 'Attiva Mezzo' : 'Disattiva Mezzo'}
+          {isActivating ? 'Activate Vehicle' : 'Deactivate Vehicle'}
         </Modal.Title>
         <FalconCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
-          Sei sicuro di voler {isActivating ? 'attivare' : 'disattivare'} il
-          mezzo <strong>{vehicle.nome}</strong> (Targa: {vehicle.targa})?
+          Are you sure you want to {isActivating ? 'activate' : 'deactivate'} the
+          vehicle <strong>{vehicle.nome}</strong> (License Plate: {vehicle.targa})?
         </p>
         {!isActivating && (
           <p className="text-warning mb-0">
-            Il mezzo non sarà più disponibile per l'assegnazione fino a quando
-            non verrà riattivato.
+            The vehicle will no longer be available for assignment until it is
+            reactivated.
           </p>
         )}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide} disabled={isLoading}>
-          Annulla
+          Cancel
         </Button>
         <Button
           variant={isActivating ? 'success' : 'warning'}
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? 'Attendere...' : isActivating ? 'Attiva' : 'Disattiva'}
+          {isLoading ? 'Please wait...' : isActivating ? 'Activate' : 'Deactivate'}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -147,7 +147,7 @@ const useVehicleTable = (options?: any) => {
     },
     {
       accessorKey: 'nome',
-      header: 'Mezzo',
+      header: 'Vehicle',
       meta: {
         headerProps: { className: 'ps-2 text-900', style: { height: '46px' } },
         cellProps: {
@@ -179,7 +179,7 @@ const useVehicleTable = (options?: any) => {
                   {nome}
                 </Link>
               </h6>
-              <small className="text-muted">Targa: {targa}</small>
+              <small className="text-muted">License Plate: {targa}</small>
             </div>
           </Flex>
         );
@@ -187,7 +187,7 @@ const useVehicleTable = (options?: any) => {
     },
     {
       accessorKey: 'tipo',
-      header: 'Tipo',
+      header: 'Type',
       meta: {
         headerProps: {
           className: 'text-900'
@@ -206,11 +206,11 @@ const useVehicleTable = (options?: any) => {
           semovente: 'danger'
         };
         const tipoLabels: Record<string, string> = {
-          motrice: 'Motrice',
-          rimorchio: 'Rimorchio',
-          'semi-rimorchio': 'Semi-rimorchio',
-          trattore: 'Trattore',
-          semovente: 'Semovente'
+          motrice: 'Truck',
+          rimorchio: 'Trailer',
+          'semi-rimorchio': 'Semi-trailer',
+          trattore: 'Tractor',
+          semovente: 'Self-propelled'
         };
         return (
           <Badge
@@ -223,7 +223,7 @@ const useVehicleTable = (options?: any) => {
     },
     {
       accessorKey: 'luogo',
-      header: 'Posizione',
+      header: 'Location',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -237,7 +237,7 @@ const useVehicleTable = (options?: any) => {
     },
     {
       accessorKey: 'isActive',
-      header: 'Stato',
+      header: 'Status',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -248,14 +248,14 @@ const useVehicleTable = (options?: any) => {
         const { isActive } = original;
         return (
           <SubtleBadge bg={isActive ? 'success' : 'secondary'} className="me-2">
-            {isActive ? 'Attivo' : 'Inattivo'}
+            {isActive ? 'Active' : 'Inactive'}
           </SubtleBadge>
         );
       }
     },
     {
       accessorKey: 'scadenzaRevisione',
-      header: 'Scadenza Revisione',
+      header: 'Inspection Expiry',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -268,7 +268,7 @@ const useVehicleTable = (options?: any) => {
           return <span className="text-muted">-</span>;
         }
         const date = new Date(scadenzaRevisione);
-        const formattedDate = date.toLocaleDateString('it-IT', {
+        const formattedDate = date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -292,14 +292,14 @@ const useVehicleTable = (options?: any) => {
                 <FontAwesomeIcon icon="exclamation-triangle" className="ms-1" />
               )}
             </div>
-            {isExpired && <small className="text-danger">Scaduta</small>}
+            {isExpired && <small className="text-danger">Expired</small>}
           </div>
         );
       }
     },
     {
       accessorKey: 'revisioneProgrammata',
-      header: 'Revisione Programmata',
+      header: 'Scheduled Inspection',
       meta: {
         headerProps: { className: 'text-900' },
         cellProps: {
@@ -312,7 +312,7 @@ const useVehicleTable = (options?: any) => {
           return <span className="text-muted">-</span>;
         }
         const date = new Date(revisioneProgrammata);
-        return date.toLocaleDateString('it-IT', {
+        return date.toLocaleDateString('en-GB', {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
@@ -321,7 +321,7 @@ const useVehicleTable = (options?: any) => {
     },
     {
       accessorKey: 'actions',
-      header: 'Azioni',
+      header: 'Actions',
       meta: {
         headerProps: { className: 'text-end text-900' }
       },
@@ -347,18 +347,18 @@ const useVehicleTable = (options?: any) => {
                     ) || '#'
                   }
                 >
-                  Visualizza Dettagli
+                  View Details
                 </Dropdown.Item>
-                <Dropdown.Item>Modifica Mezzo</Dropdown.Item>
+                <Dropdown.Item>Edit Vehicle</Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item
                   className="text-warning"
                   onClick={() => handleToggleActivation(original)}
                 >
-                  {original.isActive ? 'Disattiva' : 'Attiva'}
+                  {original.isActive ? 'Deactivate' : 'Activate'}
                 </Dropdown.Item>
                 <Dropdown.Item className="text-danger">
-                  Elimina Mezzo
+                  Delete Vehicle
                 </Dropdown.Item>
               </div>
             </Dropdown.Menu>

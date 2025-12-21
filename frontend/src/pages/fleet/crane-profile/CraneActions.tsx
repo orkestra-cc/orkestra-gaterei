@@ -71,7 +71,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
     <>
       <Card className="mb-3">
         <Card.Header className="bg-body-tertiary">
-          <h5 className="mb-0">Azioni Rapide</h5>
+          <h5 className="mb-0">Quick Actions</h5>
         </Card.Header>
         <Card.Body>
           <div className="d-grid gap-2">
@@ -81,7 +81,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
               onClick={() => setShowActivationModal(true)}
             >
               <FaPowerOff className="me-2" />
-              {crane.isActive ? 'Disattiva Gru' : 'Attiva Gru'}
+              {crane.isActive ? 'Deactivate Crane' : 'Activate Crane'}
             </Button>
 
             <Button
@@ -90,7 +90,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
               onClick={() => setShowScheduleModal(true)}
             >
               <FaClipboardCheck className="me-2" />
-              Programma Verifica
+              Schedule Verification
             </Button>
 
             <Button
@@ -99,7 +99,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
               onClick={handleExportPDF}
             >
               <FaDownload className="me-2" />
-              Esporta Report PDF
+              Export PDF Report
             </Button>
 
             <Button
@@ -108,7 +108,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
               onClick={handlePrintQRCode}
             >
               <FaQrcode className="me-2" />
-              Stampa QR Code
+              Print QR Code
             </Button>
 
             <hr className="my-2" />
@@ -119,7 +119,7 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
               onClick={() => setShowDeleteModal(true)}
             >
               <FaTrashAlt className="me-2" />
-              Elimina Gru
+              Delete Crane
             </Button>
           </div>
         </Card.Body>
@@ -129,35 +129,35 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
       <Modal show={showActivationModal} onHide={() => setShowActivationModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
-            {crane.isActive ? 'Disattiva Gru' : 'Attiva Gru'}
+            {crane.isActive ? 'Deactivate Crane' : 'Activate Crane'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>
-            Sei sicuro di voler {crane.isActive ? 'disattivare' : 'attivare'} la gru{' '}
-            <strong>{crane.nome}</strong> (Matricola: {crane.matricola})?
+            Are you sure you want to {crane.isActive ? 'deactivate' : 'activate'} the crane{' '}
+            <strong>{crane.nome}</strong> (Serial Number: {crane.matricola})?
           </p>
           {!crane.isActive && (
             <Alert variant="info">
-              Attivando la gru, sarà disponibile per l'utilizzo e le verifiche.
+              Activating the crane will make it available for use and verification.
             </Alert>
           )}
           {crane.isActive && (
             <Alert variant="warning">
-              Disattivando la gru, non sarà più disponibile per l'utilizzo.
+              Deactivating the crane will make it unavailable for use.
             </Alert>
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowActivationModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant={crane.isActive ? 'warning' : 'success'}
             onClick={handleToggleActivation}
             disabled={isUpdating}
           >
-            {isUpdating ? 'Attendere...' : crane.isActive ? 'Disattiva' : 'Attiva'}
+            {isUpdating ? 'Please wait...' : crane.isActive ? 'Deactivate' : 'Activate'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -165,29 +165,29 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
       {/* Delete Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Elimina Gru</Modal.Title>
+          <Modal.Title>Delete Crane</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Alert variant="danger">
             <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-            Attenzione! Questa azione è irreversibile.
+            Warning! This action is irreversible.
           </Alert>
           <p>
-            Sei sicuro di voler eliminare definitivamente la gru{' '}
-            <strong>{crane.nome}</strong> (Matricola: {crane.matricola})?
+            Are you sure you want to permanently delete the crane{' '}
+            <strong>{crane.nome}</strong> (Serial Number: {crane.matricola})?
           </p>
-          <p>Tutti i dati associati saranno persi.</p>
+          <p>All associated data will be lost.</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="danger"
             onClick={handleDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? 'Eliminazione...' : 'Elimina Gru'}
+            {isDeleting ? 'Deleting...' : 'Delete Crane'}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -195,15 +195,15 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
       {/* Schedule Verification Modal */}
       <Modal show={showScheduleModal} onHide={() => setShowScheduleModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Programma Verifica</Modal.Title>
+          <Modal.Title>Schedule Verification</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <p>
-            Programma la prossima verifica per la gru{' '}
+            Schedule the next verification for crane{' '}
             <strong>{crane.nome}</strong>.
           </p>
           <Form.Group>
-            <Form.Label>Data Verifica</Form.Label>
+            <Form.Label>Verification Date</Form.Label>
             <Form.Control
               type="date"
               value={scheduleDate}
@@ -214,14 +214,14 @@ const CraneActions: React.FC<CraneActionsProps> = ({ crane }) => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowScheduleModal(false)}>
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="primary"
             onClick={handleScheduleVerification}
             disabled={!scheduleDate || isUpdating}
           >
-            {isUpdating ? 'Salvando...' : 'Programma'}
+            {isUpdating ? 'Saving...' : 'Schedule'}
           </Button>
         </Modal.Footer>
       </Modal>

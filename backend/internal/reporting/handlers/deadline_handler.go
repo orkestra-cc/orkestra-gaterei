@@ -8,19 +8,19 @@ import (
 	"github.com/orkestra/backend/internal/reporting/services"
 )
 
-// DeadlineHandler gestisce le richieste HTTP per i report delle scadenze
+// DeadlineHandler handles HTTP requests for deadline reports
 type DeadlineHandler struct {
 	deadlineService services.DeadlineService
 }
 
-// NewDeadlineHandler crea un nuovo deadline handler
+// NewDeadlineHandler creates a new deadline handler
 func NewDeadlineHandler(deadlineService services.DeadlineService) *DeadlineHandler {
 	return &DeadlineHandler{
 		deadlineService: deadlineService,
 	}
 }
 
-// GetDeadlinesRequest rappresenta la richiesta per ottenere le scadenze
+// GetDeadlinesRequest represents the request to get deadlines
 type GetDeadlinesRequest struct {
 	// Query parameters for filtering
 	EntityType string `query:"entityType" enum:"vehicle,user,medical" doc:"Filter by entity type"`
@@ -32,14 +32,14 @@ type GetDeadlinesRequest struct {
 	PageSize int `query:"pageSize" default:"20" minimum:"1" maximum:"100" doc:"Items per page"`
 }
 
-// GetDeadlinesResponse rappresenta la risposta per le scadenze
+// GetDeadlinesResponse represents the response for deadlines
 type GetDeadlinesResponse struct {
 	Body models.DeadlineReportResponse `json:"report" doc:"Deadline report data"`
 }
 
 // GetDeadlines handles GET /api/v1/reports/deadlines
 func (h *DeadlineHandler) GetDeadlines(ctx context.Context, req *GetDeadlinesRequest) (*GetDeadlinesResponse, error) {
-	// Costruisci i filtri
+	// Build the filters
 	filters := models.DeadlineFilters{
 		Search: req.Search,
 	}
@@ -52,13 +52,13 @@ func (h *DeadlineHandler) GetDeadlines(ctx context.Context, req *GetDeadlinesReq
 		filters.Status = models.DeadlineStatus(req.Status)
 	}
 
-	// Costruisci i parametri di paginazione
+	// Build the pagination parameters
 	pagination := models.PaginationParams{
 		Page:     req.Page,
 		PageSize: req.PageSize,
 	}
 
-	// Recupera le scadenze
+	// Retrieve the deadlines
 	report, err := h.deadlineService.GetAllDeadlines(ctx, filters, pagination)
 	if err != nil {
 		switch err {

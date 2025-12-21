@@ -27,7 +27,7 @@ const mockStats = {
 
 const CraneStats: React.FC<CraneStatsProps> = ({ crane }) => {
   const formatNumber = (num: number) => {
-    return num.toLocaleString('it-IT');
+    return num.toLocaleString('en-GB');
   };
 
   // Calculate days until verification

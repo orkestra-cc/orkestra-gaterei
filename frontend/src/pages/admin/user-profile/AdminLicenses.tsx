@@ -36,8 +36,8 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
 
   // Helper function to format date
   const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'Non specificato';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -67,20 +67,20 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
     if (isExpired(dateString)) {
       return (
         <Badge bg="danger" className="ms-2">
-          Scaduto
+          Expired
         </Badge>
       );
     }
     if (isExpiringSoon(dateString)) {
       return (
         <Badge bg="warning" className="ms-2">
-          In scadenza
+          Expiring Soon
         </Badge>
       );
     }
     return (
       <Badge bg="success" className="ms-2">
-        Valido
+        Valid
       </Badge>
     );
   };
@@ -170,12 +170,12 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
           <FontAwesomeIcon icon={'id-card' as IconProp} className="me-2" />
-          Documenti e Certificazioni
+          Documents and Certifications
         </h5>
         <div>
           {!isEditing ? (
             <Button variant="falcon-default" size="sm" onClick={handleEdit}>
-              <FaEdit className="me-1" /> Modifica
+              <FaEdit className="me-1" /> Edit
             </Button>
           ) : (
             <>
@@ -186,7 +186,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                 onClick={handleSave}
                 disabled={isLoading}
               >
-                <FaSave className="me-1" /> Salva
+                <FaSave className="me-1" /> Save
               </Button>
               <Button
                 variant="secondary"
@@ -194,7 +194,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                 onClick={handleCancel}
                 disabled={isLoading}
               >
-                <FaTimes className="me-1" /> Annulla
+                <FaTimes className="me-1" /> Cancel
               </Button>
             </>
           )}
@@ -203,7 +203,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
       <Card.Body>
         <Row className="mb-3 border-bottom pb-x1">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Numero Patente</small>
+            <small className="text-700 d-block mb-1">License Number</small>
             {isEditing ? (
               <Form.Control
                 type="text"
@@ -211,7 +211,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                 value={formData.licenseNumber}
                 onChange={handleChange}
                 size="sm"
-                placeholder="Es. AB1234567"
+                placeholder="e.g. AB1234567"
               />
             ) : (
               <div className="fw-semi-bold">
@@ -219,12 +219,12 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                   icon={'id-card' as IconProp}
                   className="me-2 text-muted"
                 />
-                {user.licenseNumber || 'Non specificato'}
+                {user.licenseNumber || 'Not specified'}
               </div>
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza Patente</small>
+            <small className="text-700 d-block mb-1">License Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -249,7 +249,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
         <Row className="mb-3 border-bottom pb-x1">
           <Col md={6}>
             <small className="text-700 d-block mb-1">
-              Numero Carta del Conducente
+              Driver Card Number
             </small>
             {isEditing ? (
               <Form.Control
@@ -258,7 +258,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                 value={formData.driverCardNumber}
                 onChange={handleChange}
                 size="sm"
-                placeholder="Es. ITA123456789"
+                placeholder="e.g. ITA123456789"
               />
             ) : (
               <div className="fw-semi-bold">
@@ -266,13 +266,13 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                   icon={'id-card' as IconProp}
                   className="me-2 text-muted"
                 />
-                {user.driverCardNumber || 'Non specificato'}
+                {user.driverCardNumber || 'Not specified'}
               </div>
             )}
           </Col>
           <Col md={6}>
             <small className="text-700 d-block mb-1">
-              Scadenza Carta del Conducente
+              Driver Card Expiry
             </small>
             {isEditing ? (
               <Form.Control
@@ -299,7 +299,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
         <Row className="mb-3 border-bottom pb-x1">
           <Col md={6}></Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza CQC</small>
+            <small className="text-700 d-block mb-1">CQC Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -322,7 +322,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
         </Row>
         <Row className="mb-3 border-bottom pb-x1">
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Numero ADR</small>
+            <small className="text-700 d-block mb-1">ADR Number</small>
             {isEditing ? (
               <Form.Control
                 type="text"
@@ -330,7 +330,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                 value={formData.adrNumber}
                 onChange={handleChange}
                 size="sm"
-                placeholder="Es. ADR12345"
+                placeholder="e.g. ADR12345"
               />
             ) : (
               <div className="fw-semi-bold">
@@ -338,12 +338,12 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
                   icon={'exclamation-triangle' as IconProp}
                   className="me-2 text-muted"
                 />
-                {user.adrNumber || 'Non specificato'}
+                {user.adrNumber || 'Not specified'}
               </div>
             )}
           </Col>
           <Col md={6}>
-            <small className="text-700 d-block mb-1">Scadenza ADR</small>
+            <small className="text-700 d-block mb-1">ADR Expiry</small>
             {isEditing ? (
               <Form.Control
                 type="date"
@@ -369,7 +369,7 @@ const AdminLicenses: React.FC<AdminLicensesProps> = ({ user }) => {
 
           <Col md={6}>
             <small className="text-700 d-block mb-1">
-              Scadenza Tachigrafo
+              Tachograph Expiry
             </small>
             {isEditing ? (
               <Form.Control

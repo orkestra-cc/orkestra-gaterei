@@ -18,28 +18,20 @@ export const ROLE_HIERARCHY: UserRole[] = [
 
 /**
  * Mapping from backend roles to frontend roles
- * Backend now uses English role names (developer, ceo, administrator, manager, operator, guest)
- * Keeps Italian role mappings for backward compatibility with legacy data
+ * Backend uses English role names (developer, ceo, administrator, manager, operator, guest)
  */
 export const ROLE_MAPPING: Record<string, UserRole> = {
-  // Primary English roles (current backend standard)
   'developer': 'developer',
   'ceo': 'ceo',
   'administrator': 'administrator',
   'admin': 'administrator', // alias support
   'manager': 'manager',
   'operator': 'operator',
-  'guest': 'guest',
-  // Legacy Italian roles (backward compatibility)
-  'sviluppatore': 'developer',
-  'amministratore': 'administrator',
-  'operatore': 'operator',
-  'ospite': 'guest'
+  'guest': 'guest'
 };
 
 /**
  * Normalize a role string to a valid UserRole
- * Handles both Italian (backend) and English role names
  *
  * @param role - Role string from backend or other source
  * @returns Normalized UserRole or null if not recognized
@@ -176,7 +168,7 @@ export const isManagerOrAbove = (userRole: UserRole): boolean => {
 
 /**
  * Get user role from various possible sources (for flexibility)
- * Handles different auth data structures and normalizes Italian backend roles
+ * Handles different auth data structures
  *
  * @param authData - Authentication data object
  * @returns UserRole or null if not found
@@ -193,7 +185,7 @@ export const extractUserRole = (authData: any): UserRole | null => {
     return null;
   }
 
-  // Normalize the role (supports both Italian backend roles and English roles)
+  // Normalize the role
   const normalizedRole = normalizeRole(role);
 
   if (normalizedRole) {

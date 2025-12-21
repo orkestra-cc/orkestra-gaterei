@@ -19,8 +19,8 @@ interface VehicleBannerProps {
 const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
   // Helper function to format date
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/D';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -37,13 +37,13 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
     return diffDays;
   };
 
-  // Type labels in Italian
+  // Type labels
   const tipoLabels: Record<string, string> = {
-    motrice: 'Motrice',
-    rimorchio: 'Rimorchio',
-    'semi-rimorchio': 'Semi-rimorchio',
-    trattore: 'Trattore',
-    semovente: 'Semovente'
+    motrice: 'Truck',
+    rimorchio: 'Trailer',
+    'semi-rimorchio': 'Semi-trailer',
+    trattore: 'Tractor',
+    semovente: 'Self-propelled'
   };
 
   const daysUntilRevision = getDaysUntilRevision(vehicle.scadenzaRevisione);
@@ -73,13 +73,13 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
                 bg={vehicle.isActive ? 'success' : 'secondary'}
                 className="ms-2"
               >
-                {vehicle.isActive ? 'Attivo' : 'Inattivo'}
+                {vehicle.isActive ? 'Active' : 'Inactive'}
               </Badge>
             </Flex>
 
             <div className="fs-10 fw-medium text-500 mb-2">
               <FontAwesomeIcon icon="id-card" className="me-2" />
-              Targa: <span className="text-900 fw-bold">{vehicle.targa}</span>
+              License Plate: <span className="text-900 fw-bold">{vehicle.targa}</span>
             </div>
 
             <p className="text-1000 mb-0">
@@ -89,7 +89,7 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
               {vehicle.luogo && (
                 <>
                   <FaMapMarkerAlt className="me-1 text-muted" />
-                  <span className="text-muted">Posizione: {vehicle.luogo}</span>
+                  <span className="text-muted">Location: {vehicle.luogo}</span>
                 </>
               )}
             </p>
@@ -99,7 +99,7 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
               <div className="mb-3">
                 <h6 className="text-uppercase text-600 mb-0">
                   <FontAwesomeIcon icon="calendar-alt" className="me-2" />
-                  Scadenza Revisione
+                  Inspection Expiry
                 </h6>
                 <div className="fs-5 fw-medium text-1000">
                   {formatDate(vehicle.scadenzaRevisione)}
@@ -116,10 +116,10 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
                     className="mt-1"
                   >
                     {daysUntilRevision < 0
-                      ? `Scaduta da ${Math.abs(daysUntilRevision)} giorni`
+                      ? `Expired ${Math.abs(daysUntilRevision)} days ago`
                       : daysUntilRevision === 0
-                        ? 'Scade oggi'
-                        : `${daysUntilRevision} giorni rimanenti`}
+                        ? 'Expires today'
+                        : `${daysUntilRevision} days remaining`}
                   </Badge>
                 )}
               </div>
@@ -128,7 +128,7 @@ const VehicleBanner: React.FC<VehicleBannerProps> = ({ vehicle }) => {
                 <div>
                   <h6 className="text-uppercase text-600 mb-0">
                     <FaCalendarCheck className="me-2" />
-                    Revisione Programmata
+                    Scheduled Inspection
                   </h6>
                   <div className="fs-5 fw-medium text-1000">
                     {formatDate(vehicle.revisioneProgrammata)}

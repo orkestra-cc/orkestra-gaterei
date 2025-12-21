@@ -18,8 +18,8 @@ interface CraneBannerProps {
 const CraneBanner: React.FC<CraneBannerProps> = ({ crane }) => {
   // Helper function to format date
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/D';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'

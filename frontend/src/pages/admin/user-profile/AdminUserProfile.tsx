@@ -28,7 +28,7 @@ const AdminUserProfile: React.FC = () => {
         style={{ minHeight: '400px' }}
       >
         <Spinner animation="border" role="status">
-          <span className="visually-hidden">Caricamento...</span>
+          <span className="visually-hidden">Loading...</span>
         </Spinner>
       </div>
     );
@@ -37,13 +37,13 @@ const AdminUserProfile: React.FC = () => {
   if (error) {
     return (
       <Alert variant="danger">
-        Errore nel caricamento dei dati utente. Riprova più tardi.
+        Error loading user data. Please try again later.
       </Alert>
     );
   }
 
   if (!user) {
-    return <Alert variant="warning">Utente non trovato.</Alert>;
+    return <Alert variant="warning">User not found.</Alert>;
   }
 
   return (

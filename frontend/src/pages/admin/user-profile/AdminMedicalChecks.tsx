@@ -32,8 +32,8 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
 
   // Helper function to format date
   const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'Non specificato';
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -63,20 +63,20 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
     if (isExpired(dateString)) {
       return (
         <Badge bg="danger" className="ms-2">
-          Scaduta
+          Expired
         </Badge>
       );
     }
     if (isExpiringSoon(dateString)) {
       return (
         <Badge bg="warning" className="ms-2">
-          In scadenza
+          Expiring Soon
         </Badge>
       );
     }
     return (
       <Badge bg="success" className="ms-2">
-        Valido
+        Valid
       </Badge>
     );
   };
@@ -184,12 +184,12 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
             icon={'file-alt' as IconProp}
             className="me-2"
           />
-          Visite Mediche
+          Medical Checks
         </h5>
         <div>
           {!isEditing ? (
             <Button variant="falcon-default" size="sm" onClick={handleEdit}>
-              <FaEdit className="me-1" /> Modifica
+              <FaEdit className="me-1" /> Edit
             </Button>
           ) : (
             <>
@@ -200,7 +200,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                 onClick={handleSave}
                 disabled={isLoading}
               >
-                <FaSave className="me-1" /> Salva
+                <FaSave className="me-1" /> Save
               </Button>
               <Button
                 variant="secondary"
@@ -208,7 +208,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                 onClick={handleCancel}
                 disabled={isLoading}
               >
-                <FaTimes className="me-1" /> Annulla
+                <FaTimes className="me-1" /> Cancel
               </Button>
             </>
           )}
@@ -227,7 +227,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                     <div className="d-flex justify-content-between align-items-start">
                       <div className="flex-grow-1">
                         <small className="text-700 d-block mb-1">
-                          Tipo Visita
+                          Check Type
                         </small>
                         {isEditing ? (
                           <Form.Control
@@ -241,7 +241,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                               )
                             }
                             size="sm"
-                            placeholder="Es. Visita medica periodica"
+                            placeholder="e.g. Periodic medical check"
                           />
                         ) : (
                           <div className="fw-semi-bold">
@@ -249,7 +249,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                               icon={'file-alt' as IconProp}
                               className="me-2 text-muted"
                             />
-                            {check.type || 'Non specificato'}
+                            {check.type || 'Not specified'}
                             {check.expiry && getExpiryBadge(check.expiry)}
                           </div>
                         )}
@@ -268,7 +268,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                   </Col>
 
                   <Col md={6} className="mb-3">
-                    <small className="text-700 d-block mb-1">Scadenza</small>
+                    <small className="text-700 d-block mb-1">Expiry</small>
                     {isEditing ? (
                       <Form.Control
                         type="date"
@@ -295,7 +295,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
 
                   <Col md={6} className="mb-3">
                     <small className="text-700 d-block mb-1">
-                      Data Prenotazione
+                      Booking Date
                     </small>
                     {isEditing ? (
                       <Form.Control
@@ -318,13 +318,13 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                         />
                         {check.booked
                           ? formatDate(check.booked)
-                          : 'Non prenotato'}
+                          : 'Not booked'}
                       </div>
                     )}
                   </Col>
 
                   <Col md={6} className="mb-3">
-                    <small className="text-700 d-block mb-1">Luogo</small>
+                    <small className="text-700 d-block mb-1">Location</small>
                     {isEditing ? (
                       <Form.Control
                         type="text"
@@ -337,7 +337,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                           )
                         }
                         size="sm"
-                        placeholder="Es. ASL Milano"
+                        placeholder="e.g. Local clinic"
                       />
                     ) : (
                       <div className="fw-semi-bold">
@@ -345,13 +345,13 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                           icon={'map-marker-alt' as IconProp}
                           className="me-2 text-muted"
                         />
-                        {check.where || 'Non specificato'}
+                        {check.where || 'Not specified'}
                       </div>
                     )}
                   </Col>
 
                   <Col md={6} className="mb-3">
-                    <small className="text-700 d-block mb-1">Medico</small>
+                    <small className="text-700 d-block mb-1">Doctor</small>
                     {isEditing ? (
                       <Form.Control
                         type="text"
@@ -364,7 +364,7 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                           )
                         }
                         size="sm"
-                        placeholder="Es. Dr. Rossi"
+                        placeholder="e.g. Dr. Smith"
                       />
                     ) : (
                       <div className="fw-semi-bold">
@@ -372,13 +372,13 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                           icon={'user' as IconProp}
                           className="me-2 text-muted"
                         />
-                        {check.doctor || 'Non specificato'}
+                        {check.doctor || 'Not specified'}
                       </div>
                     )}
                   </Col>
 
                   <Col xs={12}>
-                    <small className="text-700 d-block mb-1">Note</small>
+                    <small className="text-700 d-block mb-1">Notes</small>
                     {isEditing ? (
                       <Form.Control
                         as="textarea"
@@ -392,11 +392,11 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                           )
                         }
                         size="sm"
-                        placeholder="Note aggiuntive..."
+                        placeholder="Additional notes..."
                       />
                     ) : (
                       <div className="text-600">
-                        {check.notes || 'Nessuna nota'}
+                        {check.notes || 'No notes'}
                       </div>
                     )}
                   </Col>
@@ -411,14 +411,14 @@ const AdminMedicalChecks: React.FC<AdminMedicalChecksProps> = ({ user }) => {
                   onClick={handleAddMedicalCheck}
                 >
                   <FontAwesomeIcon icon={'plus' as IconProp} className="me-1" />
-                  Aggiungi Visita Medica
+                  Add Medical Check
                 </Button>
               </div>
             )}
           </>
         ) : (
           <p className="text-600 text-center mb-0">
-            Nessuna visita medica registrata
+            No medical checks registered
           </p>
         )}
       </Card.Body>

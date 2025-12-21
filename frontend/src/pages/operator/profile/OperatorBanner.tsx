@@ -8,14 +8,14 @@ import { Col, Row, Badge } from 'react-bootstrap';
 import ProfileBanner from 'pages/admin/user-profile/AdminProfileBanner';
 import { User } from 'store/api/userApi';
 
-interface OperatoreBannerProps {
+interface OperatorBannerProps {
   user: User;
 }
 
-const OperatoreBanner: React.FC<OperatoreBannerProps> = ({ user }) => {
+const OperatorBanner: React.FC<OperatorBannerProps> = ({ user }) => {
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -24,7 +24,7 @@ const OperatoreBanner: React.FC<OperatoreBannerProps> = ({ user }) => {
 
   // Helper function to format last login
   const formatLastLogin = (lastLogin?: string) => {
-    if (!lastLogin) return 'Mai';
+    if (!lastLogin) return 'Never';
 
     const loginDate = new Date(lastLogin);
     const now = new Date();
@@ -32,20 +32,20 @@ const OperatoreBanner: React.FC<OperatoreBannerProps> = ({ user }) => {
       (now.getTime() - loginDate.getTime()) / (1000 * 60 * 60)
     );
 
-    if (diffInHours < 1) return "Meno di un'ora fa";
-    if (diffInHours < 24) return `${diffInHours} ore fa`;
-    if (diffInHours < 48) return '1 giorno fa';
-    return `${Math.floor(diffInHours / 24)} giorni fa`;
+    if (diffInHours < 1) return 'Less than an hour ago';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    if (diffInHours < 48) return '1 day ago';
+    return `${Math.floor(diffInHours / 24)} days ago`;
   };
 
-  // Role labels in Italian
+  // Role labels
   const roleLabels: Record<string, string> = {
-    developer: 'Sviluppatore',
+    developer: 'Developer',
     ceo: 'CEO',
-    administrator: 'Amministratore',
+    administrator: 'Administrator',
     manager: 'Manager',
-    operator: 'Operatore',
-    guest: 'Ospite'
+    operator: 'Operator',
+    guest: 'Guest'
   };
 
   return (
@@ -62,22 +62,22 @@ const OperatoreBanner: React.FC<OperatoreBannerProps> = ({ user }) => {
                 {user.fullName} {user.emailVerified && <VerifiedBadge />}
               </h4>
               <Badge bg={user.isActive ? 'success' : 'danger'} className="ms-2">
-                {user.isActive ? 'Attivo' : 'Inattivo'}
+                {user.isActive ? 'Active' : 'Inactive'}
               </Badge>
             </Flex>
             <h5 className="fs-9 fw-normal">{user.email}</h5>
             <Flex className="mb-3 mt-2">
               <small className="text-700 me-3">
                 <FontAwesomeIcon icon="calendar-alt" className="me-1" />
-                Registrato: {formatDate(user.createdAt)}
+                Registered: {formatDate(user.createdAt)}
               </small>
               <small className="text-700 me-3">
                 <FontAwesomeIcon icon="clock" className="me-1" />
-                Ultimo accesso: {formatLastLogin(user.lastLogin)}
+                Last Login: {formatLastLogin(user.lastLogin)}
               </small>
               <small className="text-700">
                 <FontAwesomeIcon icon="shield-alt" className="me-1" />
-                Ruolo: {roleLabels[user.role] || user.role}
+                Role: {roleLabels[user.role] || user.role}
               </small>
             </Flex>
           </Col>
@@ -87,4 +87,4 @@ const OperatoreBanner: React.FC<OperatoreBannerProps> = ({ user }) => {
   );
 };
 
-export default OperatoreBanner;
+export default OperatorBanner;

@@ -13,19 +13,19 @@ const mockVerificationData = [
   {
     id: '1',
     type: 'verifica_periodica',
-    action: 'Verifica Periodica Annuale Completata',
+    action: 'Annual Periodic Verification Completed',
     timestamp: '2024-01-15T10:30:00',
-    description: 'Verifica completa secondo normativa INAIL. Esito positivo.',
+    description: 'Complete verification according to INAIL regulations. Positive result.',
     status: 'completed',
-    operator: 'Ing. Mario Rossi',
+    operator: 'Eng. Mario Rossi',
     icon: <FaClipboardCheck />
   },
   {
     id: '2',
     type: 'verifica_trimestrale',
-    action: 'Verifica Trimestrale Funi',
+    action: 'Quarterly Cable Verification',
     timestamp: '2024-01-10T14:20:00',
-    description: 'Controllo integrità funi e catene. Nessuna anomalia rilevata.',
+    description: 'Cable and chain integrity check. No anomalies detected.',
     status: 'completed',
     operator: 'Tech. Luigi Bianchi',
     icon: <FaCheckCircle />
@@ -33,28 +33,28 @@ const mockVerificationData = [
   {
     id: '3',
     type: 'ispezione',
-    action: 'Ispezione Straordinaria',
+    action: 'Extraordinary Inspection',
     timestamp: '2023-12-20T09:15:00',
-    description: 'Ispezione post-manutenzione del sistema idraulico.',
+    description: 'Post-maintenance inspection of hydraulic system.',
     status: 'completed',
-    operator: 'Ing. Giuseppe Verdi',
+    operator: 'Eng. Giuseppe Verdi',
     icon: <FaFileAlt />
   },
   {
     id: '4',
     type: 'programmata',
-    action: 'Verifica Programmata',
+    action: 'Scheduled Verification',
     timestamp: '2024-03-15T00:00:00',
-    description: 'Prossima verifica trimestrale programmata',
+    description: 'Next scheduled quarterly verification',
     status: 'scheduled',
     icon: <FaCalendarAlt />
   },
   {
     id: '5',
     type: 'scadenza',
-    action: 'Avviso Scadenza',
+    action: 'Expiry Warning',
     timestamp: '2023-11-30T11:00:00',
-    description: 'Verifica in scadenza entro 30 giorni',
+    description: 'Verification expiring within 30 days',
     status: 'warning',
     icon: <FaExclamationTriangle />
   }
@@ -70,11 +70,11 @@ const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className =
     if (diffInHours < 0) {
       const futureDiff = Math.abs(diffInHours);
       if (futureDiff < 24) {
-        return `tra ${futureDiff} ore`;
+        return `in ${futureDiff} hours`;
       } else if (futureDiff < 720) {
-        return `tra ${Math.floor(futureDiff / 24)} giorni`;
+        return `in ${Math.floor(futureDiff / 24)} days`;
       } else {
-        return date.toLocaleDateString('it-IT', {
+        return date.toLocaleDateString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric'
@@ -84,13 +84,13 @@ const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className =
 
     // Past date
     if (diffInHours < 24) {
-      return `${diffInHours} ore fa`;
+      return `${diffInHours} hours ago`;
     } else if (diffInHours < 48) {
-      return '1 giorno fa';
+      return '1 day ago';
     } else if (diffInHours < 720) {
-      return `${Math.floor(diffInHours / 24)} giorni fa`;
+      return `${Math.floor(diffInHours / 24)} days ago`;
     } else {
-      return date.toLocaleDateString('it-IT', {
+      return date.toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric'
@@ -100,14 +100,14 @@ const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className =
 
   const getStatusBadge = (type: string) => {
     const badges: Record<string, { bg: string; text: string }> = {
-      verifica_periodica: { bg: 'success', text: 'Verifica Annuale' },
-      verifica_trimestrale: { bg: 'primary', text: 'Verifica Trimestrale' },
-      ispezione: { bg: 'info', text: 'Ispezione' },
-      programmata: { bg: 'warning', text: 'Programmata' },
-      scadenza: { bg: 'danger', text: 'In Scadenza' }
+      verifica_periodica: { bg: 'success', text: 'Annual Verification' },
+      verifica_trimestrale: { bg: 'primary', text: 'Quarterly Verification' },
+      ispezione: { bg: 'info', text: 'Inspection' },
+      programmata: { bg: 'warning', text: 'Scheduled' },
+      scadenza: { bg: 'danger', text: 'Expiring' }
     };
 
-    const badge = badges[type] || { bg: 'secondary', text: 'Altro' };
+    const badge = badges[type] || { bg: 'secondary', text: 'Other' };
     return <Badge bg={badge.bg}>{badge.text}</Badge>;
   };
 
@@ -126,11 +126,11 @@ const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className =
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
           <FaClock className="me-2" />
-          Cronologia Verifiche
+          Verification History
         </h5>
         <Button variant="falcon-primary" size="sm">
           <FontAwesomeIcon icon="plus" className="me-1" />
-          Nuova Verifica
+          New Verification
         </Button>
       </Card.Header>
       <Card.Body className="p-0">
@@ -181,7 +181,7 @@ const CraneVerificationLog: React.FC<CraneVerificationLogProps> = ({ className =
       </Card.Body>
       <Card.Footer className="bg-body-tertiary p-3">
         <Button variant="link" size="sm" className="p-0">
-          Vedi tutte le verifiche
+          View all verifications
           <FontAwesomeIcon icon="angle-right" className="ms-1" />
         </Button>
       </Card.Footer>

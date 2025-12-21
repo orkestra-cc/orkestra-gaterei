@@ -13,45 +13,45 @@ const mockMaintenanceData = [
   {
     id: '1',
     type: 'revisione',
-    action: 'Revisione Periodica Completata',
+    action: 'Periodic Inspection Completed',
     timestamp: '2024-01-15T10:30:00',
-    description: 'Revisione completa del veicolo presso officina autorizzata',
+    description: 'Full vehicle inspection at authorized workshop',
     status: 'completed',
     icon: <FaClipboardCheck />
   },
   {
     id: '2',
     type: 'manutenzione',
-    action: 'Cambio Olio Motore',
+    action: 'Engine Oil Change',
     timestamp: '2024-01-10T14:20:00',
-    description: 'Sostituzione olio motore e filtro olio',
+    description: 'Engine oil and oil filter replacement',
     status: 'completed',
     icon: <FaOilCan />
   },
   {
     id: '3',
     type: 'riparazione',
-    action: 'Sostituzione Pneumatici',
+    action: 'Tire Replacement',
     timestamp: '2023-12-20T09:15:00',
-    description: 'Sostituzione set completo pneumatici anteriori e posteriori',
+    description: 'Complete set of front and rear tires replaced',
     status: 'completed',
     icon: <FaWrench />
   },
   {
     id: '4',
     type: 'controllo',
-    action: 'Controllo Chilometraggio',
+    action: 'Mileage Check',
     timestamp: '2023-12-15T16:45:00',
-    description: '120,000 km registrati',
+    description: '120,000 km recorded',
     status: 'info',
     icon: <FaTachometerAlt />
   },
   {
     id: '5',
     type: 'manutenzione',
-    action: 'Tagliando Programmato',
+    action: 'Scheduled Service',
     timestamp: '2023-11-30T11:00:00',
-    description: 'Tagliando completo: olio, filtri, liquidi',
+    description: 'Full service: oil, filters, fluids',
     status: 'completed',
     icon: <FaTools />
   }
@@ -64,13 +64,13 @@ const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ className
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
 
     if (diffInHours < 24) {
-      return `${diffInHours} ore fa`;
+      return `${diffInHours} hours ago`;
     } else if (diffInHours < 48) {
-      return '1 giorno fa';
+      return '1 day ago';
     } else if (diffInHours < 720) { // Less than 30 days
-      return `${Math.floor(diffInHours / 24)} giorni fa`;
+      return `${Math.floor(diffInHours / 24)} days ago`;
     } else {
-      return date.toLocaleDateString('it-IT', {
+      return date.toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
         year: 'numeric'
@@ -80,13 +80,13 @@ const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ className
 
   const getStatusBadge = (type: string) => {
     const badges: Record<string, { bg: string; text: string }> = {
-      revisione: { bg: 'success', text: 'Revisione' },
-      manutenzione: { bg: 'primary', text: 'Manutenzione' },
-      riparazione: { bg: 'warning', text: 'Riparazione' },
-      controllo: { bg: 'info', text: 'Controllo' }
+      revisione: { bg: 'success', text: 'Inspection' },
+      manutenzione: { bg: 'primary', text: 'Maintenance' },
+      riparazione: { bg: 'warning', text: 'Repair' },
+      controllo: { bg: 'info', text: 'Check' }
     };
 
-    const badge = badges[type] || { bg: 'secondary', text: 'Altro' };
+    const badge = badges[type] || { bg: 'secondary', text: 'Other' };
     return <Badge bg={badge.bg}>{badge.text}</Badge>;
   };
 
@@ -105,17 +105,17 @@ const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ className
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
           <FontAwesomeIcon icon="history" className="me-2" />
-          Storico Manutenzione
+          Maintenance History
         </h5>
         <Button variant="falcon-default" size="sm">
           <FontAwesomeIcon icon="plus" className="me-1" />
-          Aggiungi Evento
+          Add Event
         </Button>
       </Card.Header>
       <Card.Body>
         <div className="mb-3">
           <small className="text-muted">
-            Ultimi interventi di manutenzione e controlli effettuati sul veicolo
+            Recent maintenance and inspection activities for this vehicle
           </small>
         </div>
 
@@ -155,14 +155,14 @@ const VehicleMaintenanceLog: React.FC<VehicleMaintenanceLogProps> = ({ className
         {mockMaintenanceData.length === 0 && (
           <div className="text-center text-muted py-4">
             <FaTools className="mb-2" size={32} />
-            <p>Nessun intervento di manutenzione registrato</p>
+            <p>No maintenance records</p>
           </div>
         )}
 
         {mockMaintenanceData.length > 5 && (
           <div className="text-center mt-3">
             <Button variant="link" size="sm">
-              Mostra tutto lo storico
+              Show full history
               <FontAwesomeIcon icon="arrow-right" className="ms-2" />
             </Button>
           </div>

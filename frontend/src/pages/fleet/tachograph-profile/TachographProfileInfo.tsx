@@ -77,7 +77,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString('it-IT', {
+    return date.toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -104,7 +104,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
       <Card.Header className="bg-body-tertiary d-flex justify-content-between align-items-center">
         <h5 className="mb-0">
           <FontAwesomeIcon icon="info-circle" className="me-2 text-info" />
-          Informazioni Tachigrafo
+          Tachograph Information
         </h5>
         <div>
           {!isEditing ? (
@@ -114,7 +114,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               onClick={() => setIsEditing(true)}
             >
               <FontAwesomeIcon icon="edit" className="me-1" />
-              Modifica
+              Edit
             </Button>
           ) : (
             <>
@@ -126,7 +126,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
                 disabled={isUpdating}
               >
                 <FontAwesomeIcon icon="save" className="me-1" />
-                {isUpdating ? 'Salvataggio...' : 'Salva'}
+                {isUpdating ? 'Saving...' : 'Save'}
               </Button>
               <Button
                 variant="secondary"
@@ -135,7 +135,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
                 disabled={isUpdating}
               >
                 <FontAwesomeIcon icon="times" className="me-1" />
-                Annulla
+                Cancel
               </Button>
             </>
           )}
@@ -146,14 +146,14 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
           <>
             <Row className="mb-3">
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Nome Tachigrafo</small>
+                <small className="text-700 d-block mb-1">Tachograph Name</small>
                 <div className="fw-semi-bold">
                   <FontAwesomeIcon icon="gauge-high" className="me-2 text-info" />
                   {tachograph.nome}
                 </div>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Targa</small>
+                <small className="text-700 d-block mb-1">License Plate</small>
                 <div className="fw-semi-bold">
                   <FontAwesomeIcon icon="id-card" className="me-2 text-muted" />
                   {tachograph.targa}
@@ -162,18 +162,18 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
             </Row>
             <Row className="mb-3">
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Posizione Attuale</small>
+                <small className="text-700 d-block mb-1">Current Location</small>
                 <div className="fw-semi-bold">
                   <FontAwesomeIcon icon="map-marker-alt" className="me-2 text-muted" />
-                  {tachograph.luogo || 'Non specificata'}
+                  {tachograph.luogo || 'Not specified'}
                 </div>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Stato</small>
+                <small className="text-700 d-block mb-1">Status</small>
                 <div>
                   <Badge bg={tachograph.isActive ? 'soft-success' : 'soft-secondary'}>
                     <span className={`text-${tachograph.isActive ? 'success' : 'secondary'}`}>
-                      {tachograph.isActive ? 'Attivo' : 'Inattivo'}
+                      {tachograph.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </Badge>
                 </div>
@@ -181,7 +181,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
             </Row>
             <Row className="mb-3">
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Scadenza Revisione</small>
+                <small className="text-700 d-block mb-1">Inspection Expiry</small>
                 <div className={
                   isRevisionExpired(tachograph.scadenzaRevisione) ? 'fw-semi-bold text-danger' :
                   isRevisionExpiring(tachograph.scadenzaRevisione) ? 'fw-semi-bold text-warning' :
@@ -195,7 +195,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
                 </div>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Revisione Programmata</small>
+                <small className="text-700 d-block mb-1">Scheduled Inspection</small>
                 <div className="fw-semi-bold">
                   <FontAwesomeIcon icon="calendar-check" className="me-2 text-muted" />
                   {formatDate(tachograph.revisioneProgrammata)}
@@ -207,20 +207,20 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
 
             <Row className="mb-3">
               <Col md={12}>
-                <small className="text-700 d-block mb-1">Note</small>
-                <div>{tachograph.note || <span className="text-muted">Nessuna nota</span>}</div>
+                <small className="text-700 d-block mb-1">Notes</small>
+                <div>{tachograph.note || <span className="text-muted">No notes</span>}</div>
               </Col>
             </Row>
             <hr />
             <Row>
               <Col md={6}>
                 <small className="text-muted">
-                  Creato il: {formatDate(tachograph.createdAt)}
+                  Created On: {formatDate(tachograph.createdAt)}
                 </small>
               </Col>
               <Col md={6}>
                 <small className="text-muted">
-                  Ultimo aggiornamento: {formatDate(tachograph.updatedAt)}
+                  Last Update: {formatDate(tachograph.updatedAt)}
                 </small>
               </Col>
             </Row>
@@ -230,7 +230,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
             <Row className="g-3">
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Nome</Form.Label>
+                  <Form.Label>Name</Form.Label>
                   <Form.Control
                     type="text"
                     name="nome"
@@ -243,7 +243,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               </Col>
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Targa</Form.Label>
+                  <Form.Label>License Plate</Form.Label>
                   <Form.Control
                     type="text"
                     name="targa"
@@ -257,7 +257,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               </Col>
               <Col md={12}>
                 <Form.Group>
-                  <Form.Label>Posizione</Form.Label>
+                  <Form.Label>Location</Form.Label>
                   <Form.Control
                     type="text"
                     name="luogo"
@@ -269,7 +269,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               </Col>
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Scadenza Revisione</Form.Label>
+                  <Form.Label>Inspection Expiry</Form.Label>
                   <Form.Control
                     type="date"
                     name="scadenzaRevisione"
@@ -280,7 +280,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               </Col>
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Revisione Programmata</Form.Label>
+                  <Form.Label>Scheduled Inspection</Form.Label>
                   <Form.Control
                     type="date"
                     name="revisioneProgrammata"
@@ -291,7 +291,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
               </Col>
               <Col md={12}>
                 <Form.Group>
-                  <Form.Label>Note</Form.Label>
+                  <Form.Label>Notes</Form.Label>
                   <Form.Control
                     as="textarea"
                     rows={3}
@@ -301,7 +301,7 @@ const TachographProfileInfo: React.FC<TachographProfileInfoProps> = ({ tachograp
                     maxLength={500}
                   />
                   <Form.Text className="text-muted">
-                    {formData.note.length}/500 caratteri
+                    {formData.note.length}/500 characters
                   </Form.Text>
                 </Form.Group>
               </Col>

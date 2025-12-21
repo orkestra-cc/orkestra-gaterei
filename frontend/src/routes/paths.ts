@@ -122,7 +122,7 @@ export interface AppPaths {
   userManagement: string;
   adminUserProfile: string;
   deadlineReports: string;
-  operatoreProfile: string;
+  operatorProfile: string;
   fleetVehicles: string;
   fleetVehicleProfile: string;
   fleetCranes: string;
@@ -296,7 +296,7 @@ const paths: AppPaths = {
   userManagement: `/${rootPaths.adminRoot}/users`,
   adminUserProfile: `/${rootPaths.adminRoot}/user/profile/:userId`,
   deadlineReports: `/${rootPaths.adminRoot}/reports/deadlines`,
-  operatoreProfile: `/${rootPaths.adminRoot}/operatore/profile/:operatoreId`,
+  operatorProfile: `/${rootPaths.adminRoot}/operator/profile/:operatorId`,
   fleetVehicles: '/fleet/vehicles',
   fleetVehicleProfile: '/fleet/vehicle/:vehicleId',
   fleetCranes: '/fleet/cranes',

@@ -44,11 +44,11 @@ func isDevelopment() bool {
 // Accessible by: operator, manager, administrator, ceo, developer
 func buildOperatorRoutes() models.RouteGroup {
 	return models.RouteGroup{
-		Label: "Operatori",
+		Label: "Operators",
 		Roles: []string{"operator"},
 		Children: []models.NavItem{
 			{
-				Name:   "Cruscotto",
+				Name:   "Dashboard",
 				Icon:   "chart-pie",
 				To:     "/user/dashboard",
 				Active: true,
@@ -56,14 +56,14 @@ func buildOperatorRoutes() models.RouteGroup {
 				Roles:  []string{"operator"},
 			},
 			{
-				Name:   "Profilo",
+				Name:   "Profile",
 				Icon:   "user",
 				To:     "/user/profile",
 				Active: true,
 				Roles:  []string{"operator"},
 			},
 			{
-				Name:   "Calendario",
+				Name:   "Calendar",
 				Icon:   "calendar-alt",
 				To:     "/user/calendar",
 				Active: true,
@@ -77,29 +77,29 @@ func buildOperatorRoutes() models.RouteGroup {
 // Accessible by: administrator, ceo, developer
 func buildAdminRoutes() models.RouteGroup {
 	return models.RouteGroup{
-		Label: "Amministrazione",
+		Label: "Administration",
 		Roles: []string{"administrator"},
 		Children: []models.NavItem{
 			{
-				Name:   "Gestione flotta",
+				Name:   "Fleet Management",
 				Icon:   "truck",
 				Active: true,
 				Roles:  []string{"administrator"},
 				Children: []models.NavItem{
 					{
-						Name:   "Mezzi",
+						Name:   "Vehicles",
 						To:     "/fleet/vehicles",
 						Active: true,
 						Roles:  []string{"administrator"},
 					},
 					{
-						Name:   "Gru",
+						Name:   "Cranes",
 						To:     "/fleet/cranes",
 						Active: true,
 						Roles:  []string{"administrator"},
 					},
 					{
-						Name:   "Tachigrafi",
+						Name:   "Tachographs",
 						To:     "/fleet/tachographs",
 						Active: true,
 						Roles:  []string{"administrator"},
@@ -107,7 +107,7 @@ func buildAdminRoutes() models.RouteGroup {
 				},
 			},
 			{
-				Name:   "Scadenze",
+				Name:   "Deadlines",
 				To:     "/reports/deadlines",
 				Icon:   "calendar-check",
 				Active: true,
@@ -121,18 +121,18 @@ func buildAdminRoutes() models.RouteGroup {
 // Accessible by: administrator, ceo, developer
 func buildSuperAdminRoutes() models.RouteGroup {
 	return models.RouteGroup{
-		Label: "Amministrazione Sistema",
+		Label: "System Administration",
 		Roles: []string{"administrator"},
 		Children: []models.NavItem{
 			{
-				Name:   "Gestione utenti",
+				Name:   "User Management",
 				Icon:   "users",
 				To:     "/admin/users",
 				Active: true,
 				Roles:  []string{"administrator"},
 			},
 			{
-				Name:   "Impostazioni",
+				Name:   "Settings",
 				Icon:   "cog",
 				To:     "/admin/settings",
 				Active: true,
@@ -146,24 +146,24 @@ func buildSuperAdminRoutes() models.RouteGroup {
 // Accessible by: developer only
 func buildDevelopmentRoutes() models.RouteGroup {
 	return models.RouteGroup{
-		Label: "Sviluppo",
+		Label: "Development",
 		Roles: []string{"developer"},
 		Children: []models.NavItem{
 			{
-				Name:   "Cruscotto",
+				Name:   "Dashboard",
 				Icon:   "chart-pie",
 				Active: true,
 				Roles:  []string{"developer"},
 				Children: []models.NavItem{
 					{
-						Name:   "Predefinito",
+						Name:   "Default",
 						To:     "/",
 						Active: true,
 						Exact:  true,
 						Roles:  []string{"developer"},
 					},
 					{
-						Name:   "Analisi",
+						Name:   "Analytics",
 						To:     "/dashboard/analytics",
 						Active: true,
 						Roles:  []string{"developer"},
@@ -175,7 +175,7 @@ func buildDevelopmentRoutes() models.RouteGroup {
 						Roles:  []string{"developer"},
 					},
 					{
-						Name:   "Gestione",
+						Name:   "Management",
 						To:     "/dashboard/project-management",
 						Active: true,
 						Roles:  []string{"developer"},
@@ -187,7 +187,7 @@ func buildDevelopmentRoutes() models.RouteGroup {
 						Roles:  []string{"developer"},
 					},
 					{
-						Name:   "Supporto tecnico",
+						Name:   "Support Desk",
 						To:     "/dashboard/support-desk",
 						Active: true,
 						Roles:  []string{"developer"},
@@ -195,13 +195,13 @@ func buildDevelopmentRoutes() models.RouteGroup {
 				},
 			},
 			{
-				Name:   "Applicazioni",
+				Name:   "Applications",
 				Icon:   "th",
 				Active: true,
 				Roles:  []string{"developer"},
 				Children: []models.NavItem{
 					{
-						Name:   "Calendario",
+						Name:   "Calendar",
 						To:     "/app/calendar",
 						Active: true,
 						Roles:  []string{"developer"},
@@ -221,7 +221,7 @@ func buildDevelopmentRoutes() models.RouteGroup {
 				},
 			},
 			{
-				Name:   "Componenti",
+				Name:   "Components",
 				Icon:   "puzzle-piece",
 				Active: true,
 				Roles:  []string{"developer"},
@@ -259,7 +259,7 @@ func buildDevelopmentRoutes() models.RouteGroup {
 				},
 			},
 			{
-				Name:   "Documentazione",
+				Name:   "Documentation",
 				Icon:   "book",
 				To:     "/documentation/getting-started",
 				Active: true,

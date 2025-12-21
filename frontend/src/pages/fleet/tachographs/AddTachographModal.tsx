@@ -43,48 +43,48 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
 
     // Nome validation (required, 1-100 chars)
     if (!formData.nome.trim()) {
-      errors.nome = 'Il nome del tachigrafo è obbligatorio';
+      errors.nome = 'Tachograph name is required';
     } else if (formData.nome.trim().length > 100) {
-      errors.nome = 'Il nome deve essere massimo 100 caratteri';
+      errors.nome = 'Name must be maximum 100 characters';
     }
 
     // Targa validation (required, 1-20 chars)
     if (!formData.targa.trim()) {
-      errors.targa = 'La targa è obbligatoria';
+      errors.targa = 'License plate is required';
     } else if (formData.targa.trim().length > 20) {
-      errors.targa = 'La targa deve essere massimo 20 caratteri';
+      errors.targa = 'License plate must be maximum 20 characters';
     } else if (!/^[A-Z0-9]+$/i.test(formData.targa.replace(/\s/g, ''))) {
-      errors.targa = 'La targa deve contenere solo lettere e numeri';
+      errors.targa = 'License plate must contain only letters and numbers';
     }
 
     // Luogo validation (optional, max 200 chars)
     if (formData.luogo.trim().length > 200) {
-      errors.luogo = 'La posizione deve essere massimo 200 caratteri';
+      errors.luogo = 'Location must be maximum 200 characters';
     }
 
     // Note validation (optional, max 500 chars)
     if (formData.note.trim().length > 500) {
-      errors.note = 'Le note devono essere massimo 500 caratteri';
+      errors.note = 'Notes must be maximum 500 characters';
     }
 
     // Validate dates if provided
     if (formData.scadenzaRevisione) {
       const date = new Date(formData.scadenzaRevisione);
       if (isNaN(date.getTime())) {
-        errors.scadenzaRevisione = 'Data non valida';
+        errors.scadenzaRevisione = 'Invalid date';
       }
     }
 
     if (formData.revisioneProgrammata) {
       const date = new Date(formData.revisioneProgrammata);
       if (isNaN(date.getTime())) {
-        errors.revisioneProgrammata = 'Data non valida';
+        errors.revisioneProgrammata = 'Invalid date';
       }
       // Check if programmed revision is before expiry
       if (formData.scadenzaRevisione && !errors.scadenzaRevisione) {
         const expiryDate = new Date(formData.scadenzaRevisione);
         if (date > expiryDate) {
-          errors.revisioneProgrammata = 'La revisione programmata non può essere dopo la scadenza';
+          errors.revisioneProgrammata = 'Scheduled inspection cannot be after expiry date';
         }
       }
     }
@@ -138,7 +138,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
       console.error('Failed to create tachograph:', err);
       // Handle specific error cases
       if (err?.data?.code === 409 || err?.status === 409) {
-        setValidationErrors({ targa: 'Questa targa è già registrata nel sistema' });
+        setValidationErrors({ targa: 'This license plate is already registered' });
       }
     }
   };
@@ -160,14 +160,14 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
     <Modal show={show} onHide={handleClose} size="lg" centered>
       <Form onSubmit={handleSubmit}>
         <Modal.Header>
-          <Modal.Title>Aggiungi Nuovo Tachigrafo</Modal.Title>
+          <Modal.Title>Add New Tachograph</Modal.Title>
           <FalconCloseButton onClick={handleClose} />
         </Modal.Header>
         <Modal.Body>
           {error && (
             <Alert variant="danger" dismissible onClose={() => {}}>
               <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-              Si è verificato un errore durante la creazione del tachigrafo.
+              An error occurred while creating the tachograph.
             </Alert>
           )}
 
@@ -183,7 +183,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
                   value={formData.nome}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.nome}
-                  placeholder="Es. Tachigrafo 001"
+                  placeholder="e.g. Tachograph 001"
                   maxLength={100}
                 />
                 <Form.Control.Feedback type="invalid">
@@ -203,7 +203,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
                   value={formData.targa}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.targa}
-                  placeholder="Es. AB123CD"
+                  placeholder="e.g. AB123CD"
                   maxLength={20}
                   style={{ textTransform: 'uppercase' }}
                 />
@@ -211,21 +211,21 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
                   {validationErrors.targa}
                 </Form.Control.Feedback>
                 <Form.Text className="text-muted">
-                  La targa verrà salvata in maiuscolo
+                  License plate will be saved in uppercase
                 </Form.Text>
               </Form.Group>
             </Col>
 
             <Col md={12}>
               <Form.Group>
-                <Form.Label>Posizione</Form.Label>
+                <Form.Label>Location</Form.Label>
                 <Form.Control
                   type="text"
                   name="luogo"
                   value={formData.luogo}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.luogo}
-                  placeholder="Es. Deposito principale, Via Roma 123"
+                  placeholder="e.g. Main depot, 123 Main Street"
                   maxLength={200}
                 />
                 <Form.Control.Feedback type="invalid">
@@ -236,7 +236,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Scadenza Revisione</Form.Label>
+                <Form.Label>Inspection Expiry</Form.Label>
                 <Form.Control
                   type="date"
                   name="scadenzaRevisione"
@@ -252,7 +252,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label>Revisione Programmata</Form.Label>
+                <Form.Label>Scheduled Inspection</Form.Label>
                 <Form.Control
                   type="date"
                   name="revisioneProgrammata"
@@ -264,7 +264,7 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
                   {validationErrors.revisioneProgrammata}
                 </Form.Control.Feedback>
                 <Form.Text className="text-muted">
-                  Data prevista per la prossima revisione
+                  Scheduled date for next inspection
                 </Form.Text>
               </Form.Group>
             </Col>
@@ -279,14 +279,14 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
                   value={formData.note}
                   onChange={handleChange}
                   isInvalid={!!validationErrors.note}
-                  placeholder="Aggiungi note o informazioni aggiuntive..."
+                  placeholder="Add notes or additional information..."
                   maxLength={500}
                 />
                 <Form.Control.Feedback type="invalid">
                   {validationErrors.note}
                 </Form.Control.Feedback>
                 <Form.Text className="text-muted">
-                  {formData.note.length}/500 caratteri
+                  {formData.note.length}/500 characters
                 </Form.Text>
               </Form.Group>
             </Col>
@@ -294,18 +294,18 @@ const AddTachographModal: React.FC<AddTachographModalProps> = ({ show, onHide })
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
-            Annulla
+            Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
             {isLoading ? (
               <>
                 <FontAwesomeIcon icon="spinner" spin className="me-2" />
-                Creazione...
+                Creating...
               </>
             ) : (
               <>
                 <FontAwesomeIcon icon="plus" className="me-2" />
-                Aggiungi Tachigrafo
+                Add Tachograph
               </>
             )}
           </Button>
