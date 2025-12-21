@@ -32,6 +32,7 @@ export interface RootPaths {
   layoutRoot: string;
   adminRoot: string;
   developerRoot: string;
+  referenceRoot: string;
 }
 
 export const rootPaths: RootPaths = {
@@ -67,7 +68,8 @@ export const rootPaths: RootPaths = {
   docRoot: 'documentation',
   layoutRoot: 'layouts',
   adminRoot: 'admin',
-  developerRoot: 'developer'
+  developerRoot: 'developer',
+  referenceRoot: 'reference'
 };
 
 export interface AppPaths {
@@ -242,6 +244,14 @@ export interface AppPaths {
   databaseAdmin: string;
   logViewer: string;
   featureFlags: string;
+
+  // Reference routes (developer-only)
+  refDashboards: string;
+  refComponents: string;
+  refCharts: string;
+  refUtilities: string;
+  refDocumentation: string;
+  refTest: string;
 }
 
 const paths: AppPaths = {
@@ -416,7 +426,15 @@ const paths: AppPaths = {
   apiExplorer: `/${rootPaths.developerRoot}/api-explorer`,
   databaseAdmin: `/${rootPaths.developerRoot}/database-admin`,
   logViewer: `/${rootPaths.developerRoot}/log-viewer`,
-  featureFlags: `/${rootPaths.developerRoot}/feature-flags`
+  featureFlags: `/${rootPaths.developerRoot}/feature-flags`,
+
+  // Reference routes (developer-only)
+  refDashboards: `/${rootPaths.referenceRoot}/dashboards`,
+  refComponents: `/${rootPaths.referenceRoot}/components`,
+  refCharts: `/${rootPaths.referenceRoot}/charts`,
+  refUtilities: `/${rootPaths.referenceRoot}/utilities`,
+  refDocumentation: `/${rootPaths.referenceRoot}/documentation`,
+  refTest: `/${rootPaths.referenceRoot}/test`
 };
 
 export default paths;

@@ -7,85 +7,85 @@ import MainLayout from '../layouts/MainLayout';
 import ErrorLayout from '../layouts/ErrorLayout';
 import Landing from 'pages/landing/Landing';
 import ProtectedRoute from 'components/authentication/ProtectedRoute';
-const Accordion = lazy(() => import('docs/components/Accordion'));
-const Alerts = lazy(() => import('docs/components/Alerts'));
-const Badges = lazy(() => import('docs/components/Badges'));
-const Breadcrumbs = lazy(() => import('docs/components/Breadcrumb'));
-const Buttons = lazy(() => import('docs/components/Buttons'));
-const CalendarExample = lazy(() => import('docs/components/CalendarExample'));
-const Cards = lazy(() => import('docs/components/Cards'));
-const Dropdowns = lazy(() => import('docs/components/Dropdowns'));
-const ListGroups = lazy(() => import('docs/components/ListGroups'));
-const Modals = lazy(() => import('docs/components/Modals'));
-const Offcanvas = lazy(() => import('docs/components/Offcanvas'));
-const Pagination = lazy(() => import('docs/components/Pagination'));
-const BasicProgressBar = lazy(() => import('docs/components/ProgressBar'));
-const Spinners = lazy(() => import('docs/components/Spinners'));
-const Toasts = lazy(() => import('docs/components/Toasts'));
-const Avatar = lazy(() => import('docs/components/Avatar'));
-const Image = lazy(() => import('docs/components/Image'));
-const Tooltips = lazy(() => import('docs/components/Tooltips'));
-const Popovers = lazy(() => import('docs/components/Popovers'));
-const Figures = lazy(() => import('docs/components/Figures'));
-const Hoverbox = lazy(() => import('docs/components/Hoverbox'));
-const Tables = lazy(() => import('docs/components/Tables'));
-const FormControl = lazy(() => import('docs/components/FormControl'));
-const InputGroup = lazy(() => import('docs/components/InputGroup'));
-const Select = lazy(() => import('docs/components/Select'));
-const Checks = lazy(() => import('docs/components/Checks'));
-const Range = lazy(() => import('docs/components/Range'));
-const FormLayout = lazy(() => import('docs/components/FormLayout'));
-const FloatingLabels = lazy(() => import('docs/components/FloatingLabels'));
-const FormValidation = lazy(() => import('docs/components/FormValidation'));
+const Accordion = lazy(() => import('reference/components/ui/Accordion'));
+const Alerts = lazy(() => import('reference/components/ui/Alerts'));
+const Badges = lazy(() => import('reference/components/ui/Badges'));
+const Breadcrumbs = lazy(() => import('reference/components/ui/Breadcrumb'));
+const Buttons = lazy(() => import('reference/components/ui/Buttons'));
+const CalendarExample = lazy(() => import('reference/components/misc/CalendarExample'));
+const Cards = lazy(() => import('reference/components/ui/Cards'));
+const Dropdowns = lazy(() => import('reference/components/ui/Dropdowns'));
+const ListGroups = lazy(() => import('reference/components/ui/ListGroups'));
+const Modals = lazy(() => import('reference/components/ui/Modals'));
+const Offcanvas = lazy(() => import('reference/components/ui/Offcanvas'));
+const Pagination = lazy(() => import('reference/components/ui/Pagination'));
+const BasicProgressBar = lazy(() => import('reference/components/ui/ProgressBar'));
+const Spinners = lazy(() => import('reference/components/ui/Spinners'));
+const Toasts = lazy(() => import('reference/components/ui/Toasts'));
+const Avatar = lazy(() => import('reference/components/ui/Avatar'));
+const Image = lazy(() => import('reference/components/media/Image'));
+const Tooltips = lazy(() => import('reference/components/ui/Tooltips'));
+const Popovers = lazy(() => import('reference/components/ui/Popovers'));
+const Figures = lazy(() => import('reference/components/media/Figures'));
+const Hoverbox = lazy(() => import('reference/components/ui/Hoverbox'));
+const Tables = lazy(() => import('reference/components/tables/Tables'));
+const FormControl = lazy(() => import('reference/components/forms/FormControl'));
+const InputGroup = lazy(() => import('reference/components/forms/InputGroup'));
+const Select = lazy(() => import('reference/components/forms/Select'));
+const Checks = lazy(() => import('reference/components/forms/Checks'));
+const Range = lazy(() => import('reference/components/forms/Range'));
+const FormLayout = lazy(() => import('reference/components/forms/FormLayout'));
+const FloatingLabels = lazy(() => import('reference/components/forms/FloatingLabels'));
+const FormValidation = lazy(() => import('reference/components/forms/FormValidation'));
 const BootstrapCarousel = lazy(
-  () => import('docs/components/BootstrapCarousel')
+  () => import('reference/components/media/BootstrapCarousel')
 );
-const SlickCarousel = lazy(() => import('docs/components/SlickCarousel'));
-const Navs = lazy(() => import('docs/components/Navs'));
-const Navbars = lazy(() => import('docs/components/Navbars'));
-const Tabs = lazy(() => import('docs/components/Tabs'));
-const Collapse = lazy(() => import('docs/components/Collapse'));
-const CountUp = lazy(() => import('docs/components/CountUp'));
-const Embed = lazy(() => import('docs/components/Embed'));
-const Backgrounds = lazy(() => import('docs/components/Backgrounds'));
-const Search = lazy(() => import('docs/components/Search'));
-const VerticalNavbar = lazy(() => import('docs/components/VerticalNavbar'));
-const NavBarTop = lazy(() => import('docs/components/NavBarTop'));
-const NavbarDoubleTop = lazy(() => import('docs/components/NavbarDoubleTop'));
-const ComboNavbar = lazy(() => import('docs/components/ComboNavbar'));
-const TypedText = lazy(() => import('docs/components/TypedText'));
-const FileUploader = lazy(() => import('docs/components/FileUploader'));
-const Borders = lazy(() => import('docs/utilities/Borders'));
-const Colors = lazy(() => import('docs/utilities/Colors'));
-const Background = lazy(() => import('docs/utilities/Background'));
-const ColoredLinks = lazy(() => import('docs/utilities/ColoredLinks'));
-const Display = lazy(() => import('docs/utilities/Display'));
-const Visibility = lazy(() => import('docs/utilities/Visibility'));
-const StretchedLink = lazy(() => import('docs/utilities/StretchedLink'));
-const Float = lazy(() => import('docs/utilities/Float'));
-const Position = lazy(() => import('docs/utilities/Position'));
-const Spacing = lazy(() => import('docs/utilities/Spacing'));
-const Sizing = lazy(() => import('docs/utilities/Sizing'));
-const TextTruncation = lazy(() => import('docs/utilities/TextTruncation'));
-const Typography = lazy(() => import('docs/utilities/Typography'));
-const VerticalAlign = lazy(() => import('docs/utilities/VerticalAlign'));
-const Flex = lazy(() => import('docs/utilities/Flex'));
-const Grid = lazy(() => import('docs/utilities/Grid'));
-const WizardForms = lazy(() => import('docs/components/WizardForms'));
-const GettingStarted = lazy(() => import('docs/documentation/GettingStarted'));
-const Configuration = lazy(() => import('docs/documentation/Configuration'));
-const DarkMode = lazy(() => import('docs/documentation/DarkMode'));
-const Plugins = lazy(() => import('docs/documentation/Plugins'));
-const Styling = lazy(() => import('docs/documentation/Styling'));
-const DesignFile = lazy(() => import('docs/documentation/DesignFile'));
+const SlickCarousel = lazy(() => import('reference/components/media/SlickCarousel'));
+const Navs = lazy(() => import('reference/components/navigation/Navs'));
+const Navbars = lazy(() => import('reference/components/navigation/Navbars'));
+const Tabs = lazy(() => import('reference/components/navigation/Tabs'));
+const Collapse = lazy(() => import('reference/components/ui/Collapse'));
+const CountUp = lazy(() => import('reference/components/ui/CountUp'));
+const Embed = lazy(() => import('reference/components/media/Embed'));
+const Backgrounds = lazy(() => import('reference/components/ui/Backgrounds'));
+const Search = lazy(() => import('reference/components/ui/Search'));
+const VerticalNavbar = lazy(() => import('reference/components/navigation/VerticalNavbar'));
+const NavBarTop = lazy(() => import('reference/components/navigation/NavBarTop'));
+const NavbarDoubleTop = lazy(() => import('reference/components/navigation/NavbarDoubleTop'));
+const ComboNavbar = lazy(() => import('reference/components/navigation/ComboNavbar'));
+const TypedText = lazy(() => import('reference/components/ui/TypedText'));
+const FileUploader = lazy(() => import('reference/components/forms/FileUploader'));
+const Borders = lazy(() => import('reference/utilities/Borders'));
+const Colors = lazy(() => import('reference/utilities/Colors'));
+const Background = lazy(() => import('reference/utilities/Background'));
+const ColoredLinks = lazy(() => import('reference/utilities/ColoredLinks'));
+const Display = lazy(() => import('reference/utilities/Display'));
+const Visibility = lazy(() => import('reference/utilities/Visibility'));
+const StretchedLink = lazy(() => import('reference/utilities/StretchedLink'));
+const Float = lazy(() => import('reference/utilities/Float'));
+const Position = lazy(() => import('reference/utilities/Position'));
+const Spacing = lazy(() => import('reference/utilities/Spacing'));
+const Sizing = lazy(() => import('reference/utilities/Sizing'));
+const TextTruncation = lazy(() => import('reference/utilities/TextTruncation'));
+const Typography = lazy(() => import('reference/utilities/Typography'));
+const VerticalAlign = lazy(() => import('reference/utilities/VerticalAlign'));
+const Flex = lazy(() => import('reference/utilities/Flex'));
+const Grid = lazy(() => import('reference/utilities/Grid'));
+const WizardForms = lazy(() => import('reference/components/forms/WizardForms'));
+const GettingStarted = lazy(() => import('reference/documentation/GettingStarted'));
+const Configuration = lazy(() => import('reference/documentation/Configuration'));
+const DarkMode = lazy(() => import('reference/documentation/DarkMode'));
+const Plugins = lazy(() => import('reference/documentation/Plugins'));
+const Styling = lazy(() => import('reference/documentation/Styling'));
+const DesignFile = lazy(() => import('reference/documentation/DesignFile'));
 const Starter = lazy(() => import('pages/Starter'));
-const AnimatedIcons = lazy(() => import('docs/components/AnimatedIcons'));
-const DatePicker = lazy(() => import('docs/components/DatePicker'));
-const FontAwesome = lazy(() => import('docs/components/FontAwesome'));
-const Changelog = lazy(() => import('docs/documentation/change-log/ChangeLog'));
-const Analytics = lazy(() => import('demos/dashboards/AnalyticsDashboard'));
-const Crm = lazy(() => import('demos/dashboards/CrmDashboard'));
-const Saas = lazy(() => import('demos/dashboards/SaasDashboard'));
+const AnimatedIcons = lazy(() => import('reference/components/icons/AnimatedIcons'));
+const DatePicker = lazy(() => import('reference/components/forms/DatePicker'));
+const FontAwesome = lazy(() => import('reference/components/icons/FontAwesome'));
+const Changelog = lazy(() => import('reference/documentation/change-log/ChangeLog'));
+const Analytics = lazy(() => import('reference/dashboards/AnalyticsDashboard'));
+const Crm = lazy(() => import('reference/dashboards/CrmDashboard'));
+const Saas = lazy(() => import('reference/dashboards/SaasDashboard'));
 const Profile = lazy(() => import('pages/operator/profile/OperatorProfile'));
 const Associations = lazy(() => import('pages/asscociations/Associations'));
 const Followers = lazy(() => import('features/social/followers/Followers'));
@@ -97,10 +97,10 @@ const ActivityLog = lazy(
 );
 const Settings = lazy(() => import('pages/user/settings/Settings'));
 const Feed = lazy(() => import('features/social/feed/Feed'));
-const Placeholder = lazy(() => import('docs/components/Placeholder'));
-const Lightbox = lazy(() => import('docs/components/Lightbox'));
+const Placeholder = lazy(() => import('reference/components/ui/Placeholder'));
+const Lightbox = lazy(() => import('reference/components/media/Lightbox'));
 const AdvanceTableExamples = lazy(
-  () => import('docs/components/AdvanceTableExamples')
+  () => import('reference/components/tables/AdvanceTableExamples')
 );
 const Calendar = lazy(() => import('features/calendar/Calendar'));
 import FaqAlt from 'pages/faq/faq-alt/FaqAlt';
@@ -108,8 +108,8 @@ import FaqBasic from 'pages/faq/faq-basic/FaqBasic';
 import FaqAccordion from 'pages/faq/faq-accordion/FaqAccordion';
 import PrivacyPolicy from 'pages/miscellaneous/privacy-policy/PrivacyPolicy';
 import InvitePeople from 'pages/miscellaneous/invite-people/InvitePeople';
-import AuthTestPage from 'pages/test/AuthTestPage';
-import RoleNavigationTester from 'pages/test/RoleNavigationTester';
+import AuthTestPage from 'reference/test/AuthTestPage';
+import RoleNavigationTester from 'reference/test/RoleNavigationTester';
 import PricingDefault from 'pages/pricing/pricing-default/PricingDefault';
 import PricingAlt from 'pages/pricing/pricing-alt/PricingAlt';
 import CreateEvent from 'features/events/create-an-event/CreateEvent';
@@ -118,54 +118,54 @@ import EventDetail from 'features/events/event-detail/EventDetail';
 import EmailDetail from 'features/email/email-detail/EmailDetail';
 import Compose from 'features/email/compose/Compose';
 import Inbox from 'features/email/inbox/Inbox';
-import Rating from 'docs/components/Rating';
-import AdvanceSelect from 'docs/components/AdvanceSelect';
-import Editor from 'docs/components/Editor';
+import Rating from 'reference/components/forms/Rating';
+import AdvanceSelect from 'reference/components/forms/AdvanceSelect';
+import Editor from 'reference/components/forms/Editor';
 import Chat from 'features/chat/Chat';
 const Kanban = lazy(() => import('features/kanban/Kanban'));
-import DraggableExample from 'docs/components/DraggableExample';
+import DraggableExample from 'reference/components/misc/DraggableExample';
 const LineCharts = lazy(
-  () => import('docs/components/charts-example/echarts/line-charts')
+  () => import('reference/charts/echarts/line-charts')
 );
 const BarCharts = lazy(
-  () => import('docs/components/charts-example/echarts/bar-charts')
+  () => import('reference/charts/echarts/bar-charts')
 );
 const CandlestickCharts = lazy(
-  () => import('docs/components/charts-example/echarts/candlestick-charts')
+  () => import('reference/charts/echarts/candlestick-charts')
 );
 const GeoMaps = lazy(
-  () => import('docs/components/charts-example/echarts/geo-map')
+  () => import('reference/charts/echarts/geo-map')
 );
 const ScatterCharts = lazy(
-  () => import('docs/components/charts-example/echarts/scatter-charts')
+  () => import('reference/charts/echarts/scatter-charts')
 );
 const PieCharts = lazy(
-  () => import('docs/components/charts-example/echarts/pie-charts')
+  () => import('reference/charts/echarts/pie-charts')
 );
 const RadarCharts = lazy(
-  () => import('docs/components/charts-example/echarts/radar-charts/Index')
+  () => import('reference/charts/echarts/radar-charts/Index')
 );
 const HeatmapCharts = lazy(
-  () => import('docs/components/charts-example/echarts/heatmap-chart')
+  () => import('reference/charts/echarts/heatmap-chart')
 );
-const Chartjs = lazy(() => import('docs/components/charts-example/chartjs'));
-const D3js = lazy(() => import('docs/components/charts-example/d3'));
-import HowToUse from 'docs/components/charts-example/echarts/HowToUse';
-const GoogleMapExample = lazy(() => import('docs/components/GoogleMapExample'));
-import LeafletMapExample from 'docs/components/LeafletMapExample';
-import CookieNoticeExample from 'docs/components/CookieNoticeExample';
-import Scrollbar from 'docs/components/Scrollbar';
-import Scrollspy from 'docs/components/Scrollspy';
-import ReactIcons from 'docs/components/ReactIcons';
-import ReactPlayerExample from 'docs/components/ReactPlayerExample';
-import EmojiPickerExample from 'docs/components/EmojiPicker';
-import TreeviewExample from 'docs/components/TreeviewExample';
-import Timeline from 'docs/components/Timeline';
-const Widgets = lazy(() => import('widgets/Widgets'));
+const Chartjs = lazy(() => import('reference/charts/chartjs'));
+const D3js = lazy(() => import('reference/charts/d3js'));
+import HowToUse from 'reference/charts/echarts/HowToUse';
+const GoogleMapExample = lazy(() => import('reference/components/maps/GoogleMapExample'));
+import LeafletMapExample from 'reference/components/maps/LeafletMapExample';
+import CookieNoticeExample from 'reference/components/misc/CookieNoticeExample';
+import Scrollbar from 'reference/components/misc/Scrollbar';
+import Scrollspy from 'reference/components/misc/Scrollspy';
+import ReactIcons from 'reference/components/icons/ReactIcons';
+import ReactPlayerExample from 'reference/components/media/ReactPlayerExample';
+import EmojiPickerExample from 'reference/components/forms/EmojiPicker';
+import TreeviewExample from 'reference/components/ui/TreeviewExample';
+import Timeline from 'reference/components/ui/Timeline';
+const Widgets = lazy(() => import('reference/components/widgets/Widgets'));
 const ProjectManagement = lazy(
-  () => import('demos/dashboards/ProjectManagementDashboard')
+  () => import('reference/dashboards/ProjectManagementDashboard')
 );
-const Migration = lazy(() => import('docs/documentation/migration/Migration'));
+const Migration = lazy(() => import('reference/documentation/migration/Migration'));
 
 import Error401 from 'components/errors/Error401';
 import Error404 from 'components/errors/Error404';
@@ -173,11 +173,11 @@ import Error500 from 'components/errors/Error500';
 
 import Login from 'components/authentication/Login';
 import SocialAuthCallback from 'components/authentication/SocialAuthCallback';
-const Dashboard = lazy(() => import('demos/dashboards/DefaultDashboard'));
-import Faq from 'docs/documentation/Faq';
-const SupportDesk = lazy(() => import('demos/dashboards/SupportDeskDashboard'));
+const Dashboard = lazy(() => import('reference/dashboards/DefaultDashboard'));
+import Faq from 'reference/documentation/Faq';
+const SupportDesk = lazy(() => import('reference/dashboards/SupportDeskDashboard'));
 const UserManagement = lazy(
-  () => import('demos/dashboards/UserManagementDashboard')
+  () => import('reference/dashboards/UserManagementDashboard')
 );
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
@@ -189,19 +189,19 @@ const OperatorProfile = lazy(
   () => import('pages/operator/profile/OperatorProfile')
 );
 const VehicleManagement = lazy(
-  () => import('demos/dashboards/VehicleManagementDashboard')
+  () => import('reference/dashboards/VehicleManagementDashboard')
 );
 const VehicleProfile = lazy(
   () => import('pages/fleet/vehicle-profile/VehicleProfile')
 );
 const CraneManagement = lazy(
-  () => import('demos/dashboards/CraneManagementDashboard')
+  () => import('reference/dashboards/CraneManagementDashboard')
 );
 const CraneProfile = lazy(
   () => import('pages/fleet/crane-profile/CraneProfile')
 );
 const TachographManagement = lazy(
-  () => import('demos/dashboards/TachographManagementDashboard')
+  () => import('reference/dashboards/TachographManagementDashboard')
 );
 const TachographProfile = lazy(
   () => import('pages/fleet/tachograph-profile/TachographProfile')
@@ -213,8 +213,8 @@ import ContactDetails from 'features/support-desk/contact-details/ContactDetails
 import TicketsPreview from 'features/support-desk/tickets-preview/TicketsPreview';
 import QuickLinks from 'features/support-desk/quick-links/QuickLinks';
 import Reports from 'features/support-desk/reports/Reports';
-import InputMaskExample from 'docs/components/InputMaskExample';
-import RangeSlider from 'docs/components/RangeSlider';
+import InputMaskExample from 'reference/components/forms/InputMaskExample';
+import RangeSlider from 'reference/components/forms/RangeSlider';
 import VerticalNavLayout from 'layouts/VerticalNavLayout';
 import TopNavLayout from 'layouts/TopNavLayout';
 import ComboNavLayout from 'layouts/ComboNavLayout';
