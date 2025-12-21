@@ -17,22 +17,24 @@ export const ROLE_HIERARCHY: UserRole[] = [
 ];
 
 /**
- * Mapping from backend roles (Italian) to frontend roles (English)
- * Supports both Italian and English role names for flexibility
+ * Mapping from backend roles to frontend roles
+ * Backend now uses English role names (developer, ceo, administrator, manager, operator, guest)
+ * Keeps Italian role mappings for backward compatibility with legacy data
  */
 export const ROLE_MAPPING: Record<string, UserRole> = {
-  // Italian roles from backend → English frontend roles
-  'sviluppatore': 'developer',
-  'ceo': 'ceo',
-  'amministratore': 'administrator',
-  'manager': 'manager',
-  'operatore': 'operator',
-  'ospite': 'guest',
-  // English roles (fallback/direct match)
+  // Primary English roles (current backend standard)
   'developer': 'developer',
+  'ceo': 'ceo',
   'administrator': 'administrator',
+  'admin': 'administrator', // alias support
+  'manager': 'manager',
   'operator': 'operator',
-  'guest': 'guest'
+  'guest': 'guest',
+  // Legacy Italian roles (backward compatibility)
+  'sviluppatore': 'developer',
+  'amministratore': 'administrator',
+  'operatore': 'operator',
+  'ospite': 'guest'
 };
 
 /**

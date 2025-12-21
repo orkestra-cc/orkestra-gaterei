@@ -294,16 +294,16 @@ func main() {
 	authHandler.RegisterRoutes(publicAPI, protectedAPI, router, protectedRouter)
 
 	// Create user management routes with role-based protection within protected router
-	// Only amministratore, ceo, and sviluppatore roles should have access
+	// Only administrator, ceo, and developer roles should have access
 	protectedRouter.Group(func(r chi.Router) {
-		r.Use(authMiddlewareHandler.RequireHierarchicalRole("amministratore"))
+		r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
 		userAPI := humachi.New(r, apiConfig)
 		// Register user management routes (protected with role restrictions)
 		registerUserRoutes(userAPI, userHandler)
 	})
 
 	// Create reporting routes with role-based protection
-	// Only manager, amministratore, ceo, and sviluppatore roles should have access
+	// Only manager, administrator, ceo, and developer roles should have access
 	protectedRouter.Group(func(r chi.Router) {
 		r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
 		reportingAPI := humachi.New(r, apiConfig)

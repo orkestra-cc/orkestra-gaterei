@@ -277,12 +277,12 @@ func GetUserRole(ctx context.Context) (string, bool) {
 type RoleHierarchy map[string][]string
 
 var DefaultRoleHierarchy = RoleHierarchy{
-	"sviluppatore":   {"sviluppatore", "ceo", "amministratore", "manager", "operatore", "ospite"},
-	"ceo":            {"ceo", "amministratore", "manager", "operatore", "ospite"},
-	"amministratore": {"amministratore", "manager", "operatore", "ospite"},
-	"manager":        {"manager", "operatore", "ospite"},
-	"operatore":      {"operatore", "ospite"},
-	"ospite":         {"ospite"},
+	"developer":     {"developer", "ceo", "administrator", "manager", "operator", "guest"},
+	"ceo":           {"ceo", "administrator", "manager", "operator", "guest"},
+	"administrator": {"administrator", "manager", "operator", "guest"},
+	"manager":       {"manager", "operator", "guest"},
+	"operator":      {"operator", "guest"},
+	"guest":         {"guest"},
 }
 
 func (h RoleHierarchy) HasPermission(userRole string, requiredRole string) bool {
