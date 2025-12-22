@@ -1,7 +1,7 @@
 import { Nav, Row, Col } from 'react-bootstrap';
 import { getFlatRoutes } from 'helpers/utils';
 import NavbarNavLink from './NavbarNavLink';
-import { NavItem } from 'routes/siteMaps';
+import type { NavItem } from 'store/api/navigationApi';
 
 interface NavbarDropdownPagesProps {
   items: NavItem[];

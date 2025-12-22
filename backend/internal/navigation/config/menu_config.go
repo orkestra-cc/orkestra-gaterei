@@ -149,14 +149,6 @@ func buildDevelopmentRoutes() models.RouteGroup {
 		Label: "Development",
 		Roles: []string{"developer"},
 		Children: []models.NavItem{
-			// Tables Reference (top-level for easy access)
-			{
-				Name:   "Tables Reference",
-				Icon:   "table",
-				To:     "/reference/tables",
-				Active: true,
-				Roles:  []string{"developer"},
-			},
 			// Dashboards
 			{
 				Name:   "Dashboards",

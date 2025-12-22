@@ -1,4 +1,4 @@
-import paths, { rootPaths } from './paths';
+import paths, { rootPaths } from 'routes/paths';
 
 export interface Badge {
   type: string;
@@ -1146,8 +1146,16 @@ export const referenceRoutes: RouteGroup = {
         { name: 'Analytics', to: paths.refDashboardsAnalytics, active: true },
         { name: 'CRM', to: paths.refDashboardsCrm, active: true },
         { name: 'SaaS', to: paths.refDashboardsSaas, active: true },
-        { name: 'Project Management', to: paths.refDashboardsProjectManagement, active: true },
-        { name: 'Support Desk', to: paths.refDashboardsSupportDesk, active: true }
+        {
+          name: 'Project Management',
+          to: paths.refDashboardsProjectManagement,
+          active: true
+        },
+        {
+          name: 'Support Desk',
+          to: paths.refDashboardsSupportDesk,
+          active: true
+        }
       ]
     },
     {
@@ -1182,8 +1190,16 @@ export const referenceRoutes: RouteGroup = {
           active: true,
           children: [
             { name: 'Feed', to: paths.refAppSocialFeed, active: true },
-            { name: 'Activity Log', to: paths.refAppSocialActivityLog, active: true },
-            { name: 'Notifications', to: paths.refAppSocialNotifications, active: true },
+            {
+              name: 'Activity Log',
+              to: paths.refAppSocialActivityLog,
+              active: true
+            },
+            {
+              name: 'Notifications',
+              to: paths.refAppSocialNotifications,
+              active: true
+            },
             { name: 'Followers', to: paths.refAppSocialFollowers, active: true }
           ]
         },
@@ -1191,13 +1207,41 @@ export const referenceRoutes: RouteGroup = {
           name: 'Support Desk',
           active: true,
           children: [
-            { name: 'Table View', to: paths.refAppSupportDeskTableView, active: true },
-            { name: 'Card View', to: paths.refAppSupportDeskCardView, active: true },
-            { name: 'Contacts', to: paths.refAppSupportDeskContacts, active: true },
-            { name: 'Contact Details', to: paths.refAppSupportDeskContactDetails, active: true },
-            { name: 'Tickets Preview', to: paths.refAppSupportDeskTicketsPreview, active: true },
-            { name: 'Quick Links', to: paths.refAppSupportDeskQuickLinks, active: true },
-            { name: 'Reports', to: paths.refAppSupportDeskReports, active: true }
+            {
+              name: 'Table View',
+              to: paths.refAppSupportDeskTableView,
+              active: true
+            },
+            {
+              name: 'Card View',
+              to: paths.refAppSupportDeskCardView,
+              active: true
+            },
+            {
+              name: 'Contacts',
+              to: paths.refAppSupportDeskContacts,
+              active: true
+            },
+            {
+              name: 'Contact Details',
+              to: paths.refAppSupportDeskContactDetails,
+              active: true
+            },
+            {
+              name: 'Tickets Preview',
+              to: paths.refAppSupportDeskTicketsPreview,
+              active: true
+            },
+            {
+              name: 'Quick Links',
+              to: paths.refAppSupportDeskQuickLinks,
+              active: true
+            },
+            {
+              name: 'Reports',
+              to: paths.refAppSupportDeskReports,
+              active: true
+            }
           ]
         }
       ]
@@ -1210,10 +1254,22 @@ export const referenceRoutes: RouteGroup = {
       children: [
         { name: 'Alerts', to: paths.refComponentsAlerts, active: true },
         { name: 'Accordion', to: paths.refComponentsAccordion, active: true },
-        { name: 'Animated Icons', to: paths.refComponentsAnimatedIcons, active: true },
-        { name: 'Backgrounds', to: paths.refComponentsBackgrounds, active: true },
+        {
+          name: 'Animated Icons',
+          to: paths.refComponentsAnimatedIcons,
+          active: true
+        },
+        {
+          name: 'Backgrounds',
+          to: paths.refComponentsBackgrounds,
+          active: true
+        },
         { name: 'Badges', to: paths.refComponentsBadges, active: true },
-        { name: 'Breadcrumbs', to: paths.refComponentsBreadcrumbs, active: true },
+        {
+          name: 'Breadcrumbs',
+          to: paths.refComponentsBreadcrumbs,
+          active: true
+        },
         { name: 'Buttons', to: paths.refComponentsButtons, active: true },
         { name: 'Calendar', to: paths.refComponentsCalendar, active: true },
         { name: 'Cards', to: paths.refComponentsCards, active: true },
@@ -1221,12 +1277,24 @@ export const referenceRoutes: RouteGroup = {
           name: 'Carousel',
           active: true,
           children: [
-            { name: 'Bootstrap', to: paths.refComponentsCarouselBootstrap, active: true },
-            { name: 'Slick', to: paths.refComponentsCarouselSlick, active: true }
+            {
+              name: 'Bootstrap',
+              to: paths.refComponentsCarouselBootstrap,
+              active: true
+            },
+            {
+              name: 'Slick',
+              to: paths.refComponentsCarouselSlick,
+              active: true
+            }
           ]
         },
         { name: 'Collapse', to: paths.refComponentsCollapse, active: true },
-        { name: 'Cookie Notice', to: paths.refComponentsCookieNotice, active: true },
+        {
+          name: 'Cookie Notice',
+          to: paths.refComponentsCookieNotice,
+          active: true
+        },
         { name: 'Countup', to: paths.refComponentsCountup, active: true },
         { name: 'Draggable', to: paths.refComponentsDraggable, active: true },
         { name: 'Dropdowns', to: paths.refComponentsDropdowns, active: true },
@@ -1239,10 +1307,26 @@ export const referenceRoutes: RouteGroup = {
           children: [
             { name: 'Navs', to: paths.refComponentsNavs, active: true },
             { name: 'Navbar', to: paths.refComponentsNavbar, active: true },
-            { name: 'Vertical Navbar', to: paths.refComponentsVerticalNavbar, active: true },
-            { name: 'Top Navbar', to: paths.refComponentsTopNavbar, active: true },
-            { name: 'Double Top Navbar', to: paths.refComponentsDoubleTopNavbar, active: true },
-            { name: 'Combo Navbar', to: paths.refComponentsComboNavbar, active: true },
+            {
+              name: 'Vertical Navbar',
+              to: paths.refComponentsVerticalNavbar,
+              active: true
+            },
+            {
+              name: 'Top Navbar',
+              to: paths.refComponentsTopNavbar,
+              active: true
+            },
+            {
+              name: 'Double Top Navbar',
+              to: paths.refComponentsDoubleTopNavbar,
+              active: true
+            },
+            {
+              name: 'Combo Navbar',
+              to: paths.refComponentsComboNavbar,
+              active: true
+            },
             { name: 'Tabs', to: paths.refComponentsTabs, active: true }
           ]
         },
@@ -1257,9 +1341,17 @@ export const referenceRoutes: RouteGroup = {
             { name: 'Lightbox', to: paths.refComponentsLightbox, active: true }
           ]
         },
-        { name: 'Progress Bar', to: paths.refComponentsProgressBar, active: true },
+        {
+          name: 'Progress Bar',
+          to: paths.refComponentsProgressBar,
+          active: true
+        },
         { name: 'Pagination', to: paths.refComponentsPagination, active: true },
-        { name: 'Placeholder', to: paths.refComponentsPlaceholder, active: true },
+        {
+          name: 'Placeholder',
+          to: paths.refComponentsPlaceholder,
+          active: true
+        },
         { name: 'Popovers', to: paths.refComponentsPopovers, active: true },
         { name: 'Scrollspy', to: paths.refComponentsScrollspy, active: true },
         { name: 'Search', to: paths.refComponentsSearch, active: true },
@@ -1274,7 +1366,11 @@ export const referenceRoutes: RouteGroup = {
           active: true,
           children: [
             { name: 'Embed', to: paths.refComponentsVideoEmbed, active: true },
-            { name: 'React Player', to: paths.refComponentsVideoReactPlayer, active: true }
+            {
+              name: 'React Player',
+              to: paths.refComponentsVideoReactPlayer,
+              active: true
+            }
           ]
         }
       ]
@@ -1289,7 +1385,11 @@ export const referenceRoutes: RouteGroup = {
           name: 'Basic',
           active: true,
           children: [
-            { name: 'Form Control', to: paths.refFormsFormControl, active: true },
+            {
+              name: 'Form Control',
+              to: paths.refFormsFormControl,
+              active: true
+            },
             { name: 'Input Group', to: paths.refFormsInputGroup, active: true },
             { name: 'Select', to: paths.refFormsSelect, active: true },
             { name: 'Checks', to: paths.refFormsChecks, active: true },
@@ -1301,17 +1401,37 @@ export const referenceRoutes: RouteGroup = {
           name: 'Advance',
           active: true,
           children: [
-            { name: 'Advance Select', to: paths.refFormsAdvanceSelect, active: true },
+            {
+              name: 'Advance Select',
+              to: paths.refFormsAdvanceSelect,
+              active: true
+            },
             { name: 'Date Picker', to: paths.refFormsDatePicker, active: true },
             { name: 'Editor', to: paths.refFormsEditor, active: true },
-            { name: 'Emoji Button', to: paths.refFormsEmojiButton, active: true },
-            { name: 'File Uploader', to: paths.refFormsFileUploader, active: true },
+            {
+              name: 'Emoji Button',
+              to: paths.refFormsEmojiButton,
+              active: true
+            },
+            {
+              name: 'File Uploader',
+              to: paths.refFormsFileUploader,
+              active: true
+            },
             { name: 'Input Mask', to: paths.refFormsInputMask, active: true },
-            { name: 'Range Slider', to: paths.refFormsRangeSlider, active: true },
+            {
+              name: 'Range Slider',
+              to: paths.refFormsRangeSlider,
+              active: true
+            },
             { name: 'Rating', to: paths.refFormsRating, active: true }
           ]
         },
-        { name: 'Floating Labels', to: paths.refFormsFloatingLabels, active: true },
+        {
+          name: 'Floating Labels',
+          to: paths.refFormsFloatingLabels,
+          active: true
+        },
         { name: 'Wizard', to: paths.refFormsWizard, active: true },
         { name: 'Validation', to: paths.refFormsValidation, active: true }
       ]
@@ -1343,7 +1463,13 @@ export const referenceRoutes: RouteGroup = {
         { name: 'Leaflet', to: paths.refMapsLeaflet, active: true }
       ]
     },
-    { name: 'Widgets', to: paths.refWidgets, active: true, icon: 'th', roles: ['developer'] },
+    {
+      name: 'Widgets',
+      to: paths.refWidgets,
+      active: true,
+      icon: 'th',
+      roles: ['developer']
+    },
     {
       name: 'Charts',
       active: true,
@@ -1356,14 +1482,34 @@ export const referenceRoutes: RouteGroup = {
           name: 'ECharts',
           active: true,
           children: [
-            { name: 'How to Use', to: paths.refChartsEchartsHowToUse, active: true },
-            { name: 'Line Charts', to: paths.refChartsEchartsLine, active: true },
+            {
+              name: 'How to Use',
+              to: paths.refChartsEchartsHowToUse,
+              active: true
+            },
+            {
+              name: 'Line Charts',
+              to: paths.refChartsEchartsLine,
+              active: true
+            },
             { name: 'Bar Charts', to: paths.refChartsEchartsBar, active: true },
-            { name: 'Candlestick', to: paths.refChartsEchartsCandlestick, active: true },
+            {
+              name: 'Candlestick',
+              to: paths.refChartsEchartsCandlestick,
+              active: true
+            },
             { name: 'Geo Map', to: paths.refChartsEchartsGeoMap, active: true },
-            { name: 'Scatter Charts', to: paths.refChartsEchartsScatter, active: true },
+            {
+              name: 'Scatter Charts',
+              to: paths.refChartsEchartsScatter,
+              active: true
+            },
             { name: 'Pie Charts', to: paths.refChartsEchartsPie, active: true },
-            { name: 'Radar Charts', to: paths.refChartsEchartsRadar, active: true },
+            {
+              name: 'Radar Charts',
+              to: paths.refChartsEchartsRadar,
+              active: true
+            },
             { name: 'Heatmap', to: paths.refChartsEchartsHeatmap, active: true }
           ]
         }
@@ -1378,17 +1524,33 @@ export const referenceRoutes: RouteGroup = {
         { name: 'Background', to: paths.refUtilitiesBackground, active: true },
         { name: 'Borders', to: paths.refUtilitiesBorders, active: true },
         { name: 'Colors', to: paths.refUtilitiesColors, active: true },
-        { name: 'Colored Links', to: paths.refUtilitiesColoredLinks, active: true },
+        {
+          name: 'Colored Links',
+          to: paths.refUtilitiesColoredLinks,
+          active: true
+        },
         { name: 'Display', to: paths.refUtilitiesDisplay, active: true },
         { name: 'Visibility', to: paths.refUtilitiesVisibility, active: true },
-        { name: 'Stretched Link', to: paths.refUtilitiesStretchedLink, active: true },
+        {
+          name: 'Stretched Link',
+          to: paths.refUtilitiesStretchedLink,
+          active: true
+        },
         { name: 'Float', to: paths.refUtilitiesFloat, active: true },
         { name: 'Position', to: paths.refUtilitiesPosition, active: true },
         { name: 'Spacing', to: paths.refUtilitiesSpacing, active: true },
         { name: 'Sizing', to: paths.refUtilitiesSizing, active: true },
-        { name: 'Text Truncation', to: paths.refUtilitiesTextTruncation, active: true },
+        {
+          name: 'Text Truncation',
+          to: paths.refUtilitiesTextTruncation,
+          active: true
+        },
         { name: 'Typography', to: paths.refUtilitiesTypography, active: true },
-        { name: 'Vertical Align', to: paths.refUtilitiesVerticalAlign, active: true },
+        {
+          name: 'Vertical Align',
+          to: paths.refUtilitiesVerticalAlign,
+          active: true
+        },
         { name: 'Flex', to: paths.refUtilitiesFlex, active: true },
         { name: 'Grid', to: paths.refUtilitiesGrid, active: true },
         { name: 'Scroll Bar', to: paths.refUtilitiesScrollBar, active: true }
@@ -1423,19 +1585,43 @@ export const referenceRoutes: RouteGroup = {
           name: 'Miscellaneous',
           active: true,
           children: [
-            { name: 'Associations', to: paths.refPagesMiscAssociations, active: true },
-            { name: 'Invite People', to: paths.refPagesMiscInvitePeople, active: true },
-            { name: 'Privacy Policy', to: paths.refPagesMiscPrivacyPolicy, active: true }
+            {
+              name: 'Associations',
+              to: paths.refPagesMiscAssociations,
+              active: true
+            },
+            {
+              name: 'Invite People',
+              to: paths.refPagesMiscInvitePeople,
+              active: true
+            },
+            {
+              name: 'Privacy Policy',
+              to: paths.refPagesMiscPrivacyPolicy,
+              active: true
+            }
           ]
         },
         {
           name: 'Layouts',
           active: true,
           children: [
-            { name: 'Vertical Nav', to: paths.refPagesLayoutVerticalNav, active: true },
+            {
+              name: 'Vertical Nav',
+              to: paths.refPagesLayoutVerticalNav,
+              active: true
+            },
             { name: 'Top Nav', to: paths.refPagesLayoutTopNav, active: true },
-            { name: 'Double Top', to: paths.refPagesLayoutDoubleTop, active: true },
-            { name: 'Combo Nav', to: paths.refPagesLayoutComboNav, active: true }
+            {
+              name: 'Double Top',
+              to: paths.refPagesLayoutDoubleTop,
+              active: true
+            },
+            {
+              name: 'Combo Nav',
+              to: paths.refPagesLayoutComboNav,
+              active: true
+            }
           ]
         }
       ]
@@ -1446,7 +1632,11 @@ export const referenceRoutes: RouteGroup = {
       icon: 'book',
       roles: ['developer'],
       children: [
-        { name: 'Getting Started', to: paths.refDocGettingStarted, active: true },
+        {
+          name: 'Getting Started',
+          to: paths.refDocGettingStarted,
+          active: true
+        },
         { name: 'Configuration', to: paths.refDocConfiguration, active: true },
         { name: 'Styling', to: paths.refDocStyling, active: true },
         { name: 'Dark Mode', to: paths.refDocDarkMode, active: true },
@@ -1464,7 +1654,11 @@ export const referenceRoutes: RouteGroup = {
       roles: ['developer'],
       children: [
         { name: 'Auth Test', to: paths.refTestAuth, active: true },
-        { name: 'Role Navigation', to: paths.refTestRoleNavigation, active: true }
+        {
+          name: 'Role Navigation',
+          to: paths.refTestRoleNavigation,
+          active: true
+        }
       ]
     }
   ]
@@ -1475,13 +1669,6 @@ export const developmentRoutes: RouteGroup = {
   label: 'Development',
   roles: ['developer'],
   children: [
-    {
-      name: 'Tables Reference',
-      active: true,
-      icon: 'table',
-      to: paths.refTables,
-      roles: ['developer']
-    },
     {
       name: 'Developer Tools',
       active: true,
