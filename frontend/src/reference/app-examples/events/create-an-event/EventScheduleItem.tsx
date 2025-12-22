@@ -66,7 +66,7 @@ const EventScheduleItem = ({
 
             <DatePicker
               selected={startDate}
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 handleChange(index, 'startDate', newDate);
                 setValue(`ScheduleStartDate${index}`, newDate);
               }}
@@ -85,7 +85,7 @@ const EventScheduleItem = ({
               timeIntervals={15}
               timeCaption="Time"
               dateFormat="h:mm"
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 handleChange(index, 'startTime', newDate);
                 setValue(`ScheduleStartTime${index}`, newDate);
               }}
@@ -99,7 +99,7 @@ const EventScheduleItem = ({
 
             <DatePicker
               selected={endDate}
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 handleChange(index, 'endDate', newDate);
                 setValue(`ScheduleEndDate${index}`, newDate);
               }}
@@ -117,7 +117,7 @@ const EventScheduleItem = ({
               timeIntervals={15}
               timeCaption="Time"
               dateFormat="h:mm"
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 handleChange(index, 'endTime', newDate);
                 setValue(`ScheduleEndTime${index}`, newDate);
               }}

@@ -224,7 +224,7 @@ const EventCustomFieldItem = ({
               timeIntervals={15}
               timeCaption="Time"
               dateFormat="h:mm"
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 setTime(newDate);
                 setValue(`customField${index}`, newDate);
               }}
@@ -244,7 +244,7 @@ const EventCustomFieldItem = ({
             <Form.Label>{name}</Form.Label>
             <DatePicker
               selected={date}
-              onChange={newDate => {
+              onChange={(newDate: Date | null) => {
                 setDate(newDate);
                 setValue(`customField${index}`, newDate);
               }}

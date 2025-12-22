@@ -110,7 +110,7 @@ const AddScheduleModal = ({
             <Form.Label className="fs-9">Start Date</Form.Label>
             <DatePicker
               selected={scheduleStartDate}
-              onChange={date => {
+              onChange={(date: Date | null) => {
                 setScheduleStartDate(date);
                 setFormData({ ...formData, start: date });
               }}
@@ -124,7 +124,7 @@ const AddScheduleModal = ({
             <Form.Label className="fs-9">End Date</Form.Label>
             <DatePicker
               selected={scheduleEndDate}
-              onChange={date => {
+              onChange={(date: Date | null) => {
                 setScheduleEndDate(date);
                 setFormData({ ...formData, end: date });
               }}

@@ -64,7 +64,7 @@ const EventDetails = ({ register, setValue }: EventDetailsProps) => {
               <Form.Label>Start Date</Form.Label>
               <DatePicker
                 selected={formData.startDate}
-                onChange={newDate => {
+                onChange={(newDate: Date | null) => {
                   handleChange('startDate', newDate);
                   setValue('startDate', newDate);
                 }}
@@ -82,7 +82,7 @@ const EventDetails = ({ register, setValue }: EventDetailsProps) => {
                 timeIntervals={15}
                 timeCaption="Time"
                 dateFormat="h:mm"
-                onChange={newDate => {
+                onChange={(newDate: Date | null) => {
                   handleChange('startTime', newDate);
                   setValue('startTime', newDate);
                 }}
@@ -96,7 +96,7 @@ const EventDetails = ({ register, setValue }: EventDetailsProps) => {
 
               <DatePicker
                 selected={formData.endDate}
-                onChange={newDate => {
+                onChange={(newDate: Date | null) => {
                   handleChange('endDate', newDate);
                   setValue('endDate', newDate);
                 }}
@@ -115,7 +115,7 @@ const EventDetails = ({ register, setValue }: EventDetailsProps) => {
                 timeIntervals={15}
                 timeCaption="Time"
                 dateFormat="h:mm"
-                onChange={newDate => {
+                onChange={(newDate: Date | null) => {
                   handleChange('endTime', newDate);
                   setValue('endTime', newDate);
                 }}
@@ -128,7 +128,7 @@ const EventDetails = ({ register, setValue }: EventDetailsProps) => {
               <Form.Label>Registration Deadline</Form.Label>
               <DatePicker
                 selected={formData.regDate}
-                onChange={newDate => {
+                onChange={(newDate: Date | null) => {
                   handleChange('regDate', newDate);
                   setValue('regDate', newDate);
                 }}
