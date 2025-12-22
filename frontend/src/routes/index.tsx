@@ -180,6 +180,15 @@ const AdminUserProfile = lazy(
 const DeadlineReports = lazy(
   () => import('pages/admin/Reports/DeadlineReports')
 );
+const AdminSettings = lazy(
+  () => import('pages/admin/settings/AdminSettings')
+);
+const UserDashboard = lazy(
+  () => import('pages/user/dashboard/UserDashboard')
+);
+const UserCalendar = lazy(
+  () => import('pages/user/calendar/UserCalendar')
+);
 const OperatorProfile = lazy(
   () => import('pages/operator/profile/OperatorProfile')
 );
@@ -555,6 +564,23 @@ const routes: RouteObject[] = [
                     </Suspense>
                   </ProtectedRoute>
                 )
+              },
+              {
+                path: 'settings',
+                element: (
+                  <ProtectedRoute
+                    requiredPermissions={[
+                      ['developer', 'ceo', 'administrator']
+                    ]}
+                  >
+                    <Suspense
+                      key="admin-settings"
+                      fallback={<FalconLoader />}
+                    >
+                      <AdminSettings />
+                    </Suspense>
+                  </ProtectedRoute>
+                )
               }
             ]
           },
@@ -566,6 +592,22 @@ const routes: RouteObject[] = [
                 element: (
                   <Suspense key="operator-profile" fallback={<FalconLoader />}>
                     <OperatorProfile />
+                  </Suspense>
+                )
+              },
+              {
+                path: 'dashboard',
+                element: (
+                  <Suspense key="user-dashboard" fallback={<FalconLoader />}>
+                    <UserDashboard />
+                  </Suspense>
+                )
+              },
+              {
+                path: 'calendar',
+                element: (
+                  <Suspense key="user-calendar" fallback={<FalconLoader />}>
+                    <UserCalendar />
                   </Suspense>
                 )
               }

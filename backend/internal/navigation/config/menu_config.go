@@ -389,7 +389,7 @@ func buildDevelopmentRoutes() models.RouteGroup {
 				Active: true,
 				Roles:  []string{"developer"},
 				Children: []models.NavItem{
-					{Name: "Auth Test", To: "/reference/test/auth", Active: true, Roles: []string{"developer"}},
+					{Name: "Auth Test", To: "/reference/test/auth-test", Active: true, Roles: []string{"developer"}},
 					{Name: "Role Navigation", To: "/reference/test/role-navigation", Active: true, Roles: []string{"developer"}},
 				},
 			},
