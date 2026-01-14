@@ -23,7 +23,8 @@
       "mcp__chrome-devtools__evaluate_script",
       "mcp__chrome-devtools__press_key",
       "Bash(npm run build:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(docker logs:*)"
     ]
   },
   "enabledMcpjsonServers": [
