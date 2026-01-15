@@ -37,6 +37,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
     name: '',
     surname: '',
     address: '',
+    numeroCivico: '',
     city: '',
     province: '',
     postalCode: '',
@@ -65,6 +66,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
         name: customer.name || '',
         surname: customer.surname || '',
         address: customer.address || '',
+        numeroCivico: customer.numeroCivico || '',
         city: customer.city || '',
         province: customer.province || '',
         postalCode: customer.postalCode || '',
@@ -137,6 +139,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
           name: formData.name,
           surname: formData.surname,
           address: formData.address,
+          numeroCivico: formData.numeroCivico,
           city: formData.city,
           province: formData.province,
           postalCode: formData.postalCode,
@@ -315,19 +318,36 @@ const CustomerModal: React.FC<CustomerModalProps> = ({
 
               {/* Address Tab */}
               <Tab.Pane eventKey="address">
-                <Form.Group className="mb-3">
-                  <Form.Label>
-                    Indirizzo <span className="text-danger">*</span>
-                  </Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="es. Via Roma, 123"
-                    required
-                  />
-                </Form.Group>
+                <Row>
+                  <Col md={9}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>
+                        Indirizzo <span className="text-danger">*</span>
+                      </Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        placeholder="es. Via Roma"
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={3}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>N. Civico</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="numeroCivico"
+                        value={formData.numeroCivico}
+                        onChange={handleChange}
+                        placeholder="123"
+                        maxLength={10}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
 
                 <Row>
                   <Col md={6}>

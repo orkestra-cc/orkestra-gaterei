@@ -45,7 +45,8 @@ export type DocumentType =
   | 'TD25' // Fattura differita di cui all'art. 21, comma 4, terzo periodo lett. b)
   | 'TD26' // Cessione di beni ammortizzabili e per passaggi interni
   | 'TD27' // Fattura per autoconsumo o per cessioni gratuite senza rivalsa
-  | 'TD28'; // Acquisti da San Marino con IVA
+  | 'TD28' // Acquisti da San Marino con IVA
+  | 'TD29'; // Operazioni legate al sisma (v1.9)
 
 export type RegimeFiscale =
   | 'RF01' // Ordinario
@@ -65,7 +66,42 @@ export type RegimeFiscale =
   | 'RF16' // IVA per cassa P.A.
   | 'RF17' // IVA per cassa
   | 'RF18' // Altro
-  | 'RF19'; // Regime forfettario
+  | 'RF19' // Regime forfettario
+  | 'RF20'; // Regime forfettario agricolo (v1.9)
+
+// Withholding tax types (Ritenuta d'acconto)
+export type TipoRitenuta =
+  | 'RT01' // Ritenuta persone fisiche
+  | 'RT02' // Ritenuta persone giuridiche
+  | 'RT03' // Contributo INPS
+  | 'RT04' // Contributo ENASARCO
+  | 'RT05' // Contributo ENPAM
+  | 'RT06'; // Altro contributo previdenziale
+
+// Social security fund types (Cassa previdenziale)
+export type TipoCassa =
+  | 'TC01' // Cassa nazionale previdenza e assistenza avvocati e procuratori legali
+  | 'TC02' // Cassa previdenza dottori commercialisti
+  | 'TC03' // Cassa previdenza e assistenza geometri
+  | 'TC04' // Cassa nazionale previdenza e assistenza ingegneri e architetti liberi professionisti
+  | 'TC05' // Cassa nazionale del notariato
+  | 'TC06' // Cassa nazionale previdenza e assistenza ragionieri e periti commerciali
+  | 'TC07' // Ente nazionale assistenza agenti e rappresentanti di commercio (ENASARCO)
+  | 'TC08' // Ente nazionale previdenza e assistenza consulenti del lavoro (ENPACL)
+  | 'TC09' // Ente nazionale previdenza e assistenza medici (ENPAM)
+  | 'TC10' // Ente nazionale previdenza e assistenza farmacisti (ENPAF)
+  | 'TC11' // Ente nazionale previdenza e assistenza veterinari (ENPAV)
+  | 'TC12' // Ente nazionale previdenza e assistenza impiegati dell'agricoltura (ENPAIA)
+  | 'TC13' // Fondo previdenza impiegati imprese di spedizione e agenzie marittime
+  | 'TC14' // Istituto nazionale previdenza giornalisti italiani (INPGI)
+  | 'TC15' // Opera nazionale assistenza orfani sanitari italiani (ONAOSI)
+  | 'TC16' // Cassa autonoma assistenza integrativa giornalisti italiani (CASAGIT)
+  | 'TC17' // Ente previdenza periti industriali e periti industriali laureati (EPPI)
+  | 'TC18' // Ente previdenza e assistenza pluricategoriale (EPAP)
+  | 'TC19' // Ente nazionale previdenza e assistenza biologi (ENPAB)
+  | 'TC20' // Ente nazionale previdenza e assistenza professione infermieristica (ENPAPI)
+  | 'TC21' // Ente nazionale previdenza e assistenza psicologi (ENPAP)
+  | 'TC22'; // INPS
 
 export type PaymentMethod =
   | 'MP01' // Contanti
@@ -154,6 +190,7 @@ export interface Customer {
   name?: string;
   surname?: string;
   address: string;
+  numeroCivico?: string; // Street number (separate per XSD)
   city: string;
   province?: string;
   postalCode: string;
@@ -184,6 +221,7 @@ export interface CreateCustomerInput {
   name?: string;
   surname?: string;
   address: string;
+  numeroCivico?: string;
   city: string;
   province?: string;
   postalCode: string;
@@ -203,6 +241,7 @@ export interface UpdateCustomerInput {
   name?: string;
   surname?: string;
   address?: string;
+  numeroCivico?: string;
   city?: string;
   province?: string;
   postalCode?: string;
@@ -246,6 +285,7 @@ export interface Supplier {
   surname?: string;
   regimeFiscale?: RegimeFiscale;
   address: string;
+  numeroCivico?: string; // Street number (separate per XSD)
   city: string;
   province?: string;
   postalCode: string;
@@ -273,6 +313,7 @@ export interface CreateSupplierInput {
   surname?: string;
   regimeFiscale?: RegimeFiscale;
   address: string;
+  numeroCivico?: string;
   city: string;
   province?: string;
   postalCode: string;
@@ -291,6 +332,7 @@ export interface UpdateSupplierInput {
   surname?: string;
   regimeFiscale?: RegimeFiscale;
   address?: string;
+  numeroCivico?: string;
   city?: string;
   province?: string;
   postalCode?: string;
@@ -322,6 +364,15 @@ export interface SupplierListParams {
 // Party Data (Embedded snapshot in Invoice)
 // ========================================
 
+// REA Registration (Registro Imprese)
+export interface IscrizioneREA {
+  ufficio: string; // Province code (2 chars)
+  numeroREA: string; // REA registration number
+  capitaleSociale?: number; // Share capital
+  socioUnico?: 'SU' | 'SM'; // SU=single shareholder, SM=multiple
+  statoLiquidazione: 'LS' | 'LN'; // LS=in liquidation, LN=not in liquidation
+}
+
 export interface PartyData {
   fiscalIdCountry: string;
   fiscalIdCode: string;
@@ -332,6 +383,7 @@ export interface PartyData {
   surname?: string;
   regimeFiscale?: RegimeFiscale;
   address: string;
+  numeroCivico?: string; // Street number (separate per XSD)
   city: string;
   province?: string;
   postalCode: string;
@@ -341,11 +393,43 @@ export interface PartyData {
   phone?: string;
   codiceDestinatario?: string;
   pecDestinatario?: string;
+  iscrizioneREA?: IscrizioneREA; // REA registration for Italian companies
 }
 
 // ========================================
 // Invoice Types
 // ========================================
+
+// Withholding tax data (Ritenuta d'acconto)
+export interface DatiRitenuta {
+  tipoRitenuta: TipoRitenuta;
+  importoRitenuta: number;
+  aliquotaRitenuta: number; // Percentage
+  causalePagamento?: string; // A-Z causale codes
+}
+
+// Stamp duty data (Bollo virtuale)
+export interface DatiBollo {
+  importoBollo: number; // Usually 2.00 EUR
+}
+
+// Social security fund data (Cassa previdenziale)
+export interface DatiCassa {
+  tipoCassa: TipoCassa;
+  alCassa: number; // Percentage
+  importoContributoCassa: number;
+  imponibileCassa?: number;
+  aliquotaIVA: number;
+  ritenuta?: boolean; // Whether withholding applies
+  natura?: VATNature;
+  riferimentoAmministrazione?: string;
+}
+
+// Product/article code
+export interface ProductCode {
+  codiceTipo: string; // INTERNO, EAN, TARIC, CPV, etc.
+  codiceValore: string;
+}
 
 export interface LineDiscount {
   type: 'SC' | 'MG'; // SC=sconto (discount), MG=maggiorazione (surcharge)
@@ -365,7 +449,9 @@ export interface InvoiceLine {
   vatNature?: VATNature;
   vatAmount: number;
   administrativeRef?: string;
-  productCode?: string;
+  productCode?: string; // Simple product code (deprecated, use codiciArticolo)
+  codiciArticolo?: ProductCode[]; // Multiple product codes per XSD
+  ritenuta?: boolean; // Whether withholding tax applies to this line
   startDate?: string;
   endDate?: string;
 }
@@ -389,7 +475,11 @@ export interface PaymentInstallment {
 export interface PaymentTerms {
   condition: PaymentCondition;
   paymentMethod: PaymentMethod;
+  beneficiario?: string; // Payment beneficiary name
+  istitutoFinanziario?: string; // Bank/financial institution name
   iban?: string;
+  abi?: string; // Italian bank code (5 digits)
+  cab?: string; // Italian branch code (5 digits)
   bic?: string;
   dueDate?: string;
   installments?: PaymentInstallment[];
@@ -425,6 +515,10 @@ export interface Invoice {
   customerId?: string;
   cedentePrestatore?: PartyData;
   cessionarioCommittente?: PartyData;
+  // FatturaPA specific data
+  datiRitenuta?: DatiRitenuta[]; // Withholding tax data
+  datiBollo?: DatiBollo; // Stamp duty data
+  datiCassaPrevidenziale?: DatiCassa[]; // Social security fund data
   lines: InvoiceLine[];
   vatSummary: VATSummaryLine[];
   totalTaxableAmount: number;
@@ -471,7 +565,9 @@ export interface CreateInvoiceLineInput {
   vatRate: number;
   vatNature?: VATNature;
   discounts?: LineDiscount[];
-  productCode?: string;
+  productCode?: string; // Simple product code (deprecated)
+  codiciArticolo?: ProductCode[]; // Multiple product codes per XSD
+  ritenuta?: boolean; // Whether withholding tax applies
   startDate?: string;
   endDate?: string;
 }
@@ -479,7 +575,11 @@ export interface CreateInvoiceLineInput {
 export interface CreatePaymentTermsInput {
   condition: PaymentCondition;
   paymentMethod: PaymentMethod;
+  beneficiario?: string;
+  istitutoFinanziario?: string;
   iban?: string;
+  abi?: string;
+  cab?: string;
   bic?: string;
   dueDate?: string;
 }
@@ -490,6 +590,10 @@ export interface CreateInvoiceInput {
   date: string;
   currency?: string;
   customerId?: string;
+  // FatturaPA specific data
+  datiRitenuta?: DatiRitenuta[]; // Withholding tax
+  datiBollo?: DatiBollo; // Stamp duty
+  datiCassaPrevidenziale?: DatiCassa[]; // Social security fund
   lines: CreateInvoiceLineInput[];
   paymentTerms?: CreatePaymentTermsInput;
   relatedDocuments?: RelatedDocument[];
@@ -502,6 +606,9 @@ export interface CreateInvoiceInput {
 export interface UpdateInvoiceInput {
   number?: string;
   date?: string;
+  datiRitenuta?: DatiRitenuta[];
+  datiBollo?: DatiBollo;
+  datiCassaPrevidenziale?: DatiCassa[];
   lines?: CreateInvoiceLineInput[];
   paymentTerms?: CreatePaymentTermsInput;
   relatedDocuments?: RelatedDocument[];
@@ -718,6 +825,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   TD26: 'Cessione beni ammortizzabili',
   TD27: 'Autoconsumo/cessioni gratuite',
   TD28: 'Acquisti da San Marino con IVA',
+  TD29: 'Operazioni legate al sisma',
 };
 
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
@@ -760,6 +868,7 @@ export const REGIME_FISCALE_LABELS: Record<RegimeFiscale, string> = {
   RF17: 'IVA per cassa',
   RF18: 'Altro',
   RF19: 'Regime forfettario',
+  RF20: 'Regime forfettario agricolo',
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -815,6 +924,40 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   NE: 'Notifica Esito',
   DT: 'Decorrenza Termini',
   AT: 'Attestazione',
+};
+
+export const TIPO_RITENUTA_LABELS: Record<TipoRitenuta, string> = {
+  RT01: 'Ritenuta persone fisiche',
+  RT02: 'Ritenuta persone giuridiche',
+  RT03: 'Contributo INPS',
+  RT04: 'Contributo ENASARCO',
+  RT05: 'Contributo ENPAM',
+  RT06: 'Altro contributo previdenziale',
+};
+
+export const TIPO_CASSA_LABELS: Record<TipoCassa, string> = {
+  TC01: 'Cassa Avvocati e Procuratori',
+  TC02: 'Cassa Dottori Commercialisti',
+  TC03: 'Cassa Geometri',
+  TC04: 'Cassa Ingegneri e Architetti',
+  TC05: 'Cassa Notariato',
+  TC06: 'Cassa Ragionieri e Periti',
+  TC07: 'ENASARCO',
+  TC08: 'ENPACL (Consulenti Lavoro)',
+  TC09: 'ENPAM (Medici)',
+  TC10: 'ENPAF (Farmacisti)',
+  TC11: 'ENPAV (Veterinari)',
+  TC12: 'ENPAIA (Agricoltura)',
+  TC13: 'Fondo Spedizionieri',
+  TC14: 'INPGI (Giornalisti)',
+  TC15: 'ONAOSI',
+  TC16: 'CASAGIT',
+  TC17: 'EPPI (Periti Industriali)',
+  TC18: 'EPAP',
+  TC19: 'ENPAB (Biologi)',
+  TC20: 'ENPAPI (Infermieri)',
+  TC21: 'ENPAP (Psicologi)',
+  TC22: 'INPS',
 };
 
 // ========================================

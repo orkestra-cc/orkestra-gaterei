@@ -126,11 +126,15 @@ type PartyData struct {
 	RegimeFiscale RegimeFiscale `bson:"regimeFiscale,omitempty" json:"regimeFiscale,omitempty"`
 
 	// Address
-	Address    string `bson:"address" json:"address"`
-	City       string `bson:"city" json:"city"`
-	Province   string `bson:"province,omitempty" json:"province,omitempty"`
-	PostalCode string `bson:"postalCode" json:"postalCode"`
-	Country    string `bson:"country" json:"country"`
+	Address      string `bson:"address" json:"address"`
+	NumeroCivico string `bson:"numeroCivico,omitempty" json:"numeroCivico,omitempty"` // Street number (separate per XSD)
+	City         string `bson:"city" json:"city"`
+	Province     string `bson:"province,omitempty" json:"province,omitempty"`
+	PostalCode   string `bson:"postalCode" json:"postalCode"`
+	Country      string `bson:"country" json:"country"`
+
+	// REA registration (for Italian companies)
+	IscrizioneREA *IscrizioneREAInput `bson:"iscrizioneREA,omitempty" json:"iscrizioneREA,omitempty"`
 
 	// Contacts
 	Email string `bson:"email,omitempty" json:"email,omitempty"`
@@ -140,6 +144,16 @@ type PartyData struct {
 	// SDI delivery (only for cessionario/committente)
 	CodiceDestinatario string `bson:"codiceDestinatario,omitempty" json:"codiceDestinatario,omitempty"`
 	PECDestinatario    string `bson:"pecDestinatario,omitempty" json:"pecDestinatario,omitempty"`
+}
+
+// IscrizioneREAInput represents REA (Registro Imprese) registration data
+// Required for Italian companies in the seller/provider section
+type IscrizioneREAInput struct {
+	Ufficio           string  `bson:"ufficio" json:"ufficio" validate:"required,len=2"`      // Province code (2 chars)
+	NumeroREA         string  `bson:"numeroREA" json:"numeroREA" validate:"required"`        // REA registration number
+	CapitaleSociale   float64 `bson:"capitaleSociale,omitempty" json:"capitaleSociale,omitempty"` // Share capital
+	SocioUnico        string  `bson:"socioUnico,omitempty" json:"socioUnico,omitempty"`      // SU=single shareholder, SM=multiple
+	StatoLiquidazione string  `bson:"statoLiquidazione" json:"statoLiquidazione" validate:"required,oneof=LS LN"` // LS=in liquidation, LN=not in liquidation
 }
 
 // GetDisplayName returns the display name for a party

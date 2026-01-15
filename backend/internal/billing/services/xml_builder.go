@@ -28,6 +28,11 @@ func NewXMLBuilder(cfg *config.OpenAPIConfig) XMLBuilder {
 }
 
 func (b *xmlBuilder) Build(invoice *models.Invoice) (string, error) {
+	// Validate invoice before building XML
+	if err := ValidateInvoiceForXML(invoice); err != nil {
+		return "", fmt.Errorf("invoice validation failed: %w", err)
+	}
+
 	// Determine format based on recipient type
 	format := models.FormatFPR12 // Private sector
 	if invoice.CessionarioCommittente != nil && len(invoice.CessionarioCommittente.CodiceDestinatario) == 6 {
@@ -35,6 +40,9 @@ func (b *xmlBuilder) Build(invoice *models.Invoice) (string, error) {
 	}
 
 	fatturaPA := models.NewFatturaElettronica(format)
+
+	// Set SistemaEmittente (issuing system identifier, max 10 chars)
+	fatturaPA.SistemaEmittente = "ORKESTRA"
 
 	// Build header
 	fatturaPA.FatturaElettronicaHeader = b.buildHeader(invoice, format)
@@ -83,13 +91,13 @@ func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format model
 		IdCodice: idCodice,
 	}
 
-	// Determine recipient code
-	codiceDestinatario := b.config.RecipientCode // Default to our OpenAPI recipient code
+	// Determine recipient code (normalize to uppercase)
+	codiceDestinatario := NormalizeCodiceDestinatario(b.config.RecipientCode) // Default to our OpenAPI recipient code
 	pecDestinatario := ""
 
 	if invoice.CessionarioCommittente != nil {
 		if invoice.CessionarioCommittente.CodiceDestinatario != "" {
-			codiceDestinatario = invoice.CessionarioCommittente.CodiceDestinatario
+			codiceDestinatario = NormalizeCodiceDestinatario(invoice.CessionarioCommittente.CodiceDestinatario)
 		} else if invoice.CessionarioCommittente.PECDestinatario != "" {
 			codiceDestinatario = "0000000" // When using PEC, code is 7 zeros
 			pecDestinatario = invoice.CessionarioCommittente.PECDestinatario
@@ -124,7 +132,7 @@ func (b *xmlBuilder) buildCedentePrestatore(party *models.PartyData) models.Cede
 	}
 
 	// Ensure IdPaese is uppercase 2-letter country code
-	idPaese := ensureIdPaese(party.FiscalIDCountry)
+	idPaese := NormalizeNazione(party.FiscalIDCountry)
 
 	// Validate RegimeFiscale - must be a valid code (RF01-RF19, RF20)
 	regimeFiscale := party.RegimeFiscale
@@ -132,8 +140,10 @@ func (b *xmlBuilder) buildCedentePrestatore(party *models.PartyData) models.Cede
 		regimeFiscale = models.RegimeOrdinario // Default to RF01
 	}
 
-	// Ensure Nazione is uppercase 2-letter country code
-	nazione := ensureIdPaese(party.Country)
+	// Normalize address fields per XSD requirements
+	nazione := NormalizeNazione(party.Country)
+	cap := NormalizeCAP(party.PostalCode)
+	provincia := NormalizeProvincia(party.Province)
 
 	cp := models.CedentePrestatore{
 		DatiAnagrafici: models.DatiAnagraficiCedente{
@@ -146,12 +156,29 @@ func (b *xmlBuilder) buildCedentePrestatore(party *models.PartyData) models.Cede
 			RegimeFiscale: regimeFiscale,
 		},
 		Sede: models.Indirizzo{
-			Indirizzo: party.Address,
-			CAP:       party.PostalCode,
-			Comune:    party.City,
-			Provincia: party.Province,
-			Nazione:   nazione,
+			Indirizzo:    party.Address,
+			NumeroCivico: party.NumeroCivico, // Street number (separate per XSD)
+			CAP:          cap,
+			Comune:       party.City,
+			Provincia:    provincia,
+			Nazione:      nazione,
 		},
+	}
+
+	// Add IscrizioneREA if available (for Italian companies)
+	if party.IscrizioneREA != nil {
+		cp.IscrizioneREA = &models.IscrizioneREA{
+			Ufficio:           NormalizeProvincia(party.IscrizioneREA.Ufficio),
+			NumeroREA:         party.IscrizioneREA.NumeroREA,
+			StatoLiquidazione: party.IscrizioneREA.StatoLiquidazione,
+		}
+		// Add optional fields
+		if party.IscrizioneREA.CapitaleSociale > 0 {
+			cp.IscrizioneREA.CapitaleSociale = formatAmount(party.IscrizioneREA.CapitaleSociale)
+		}
+		if party.IscrizioneREA.SocioUnico != "" {
+			cp.IscrizioneREA.SocioUnico = party.IscrizioneREA.SocioUnico
+		}
 	}
 
 	// Add contacts if available
@@ -178,25 +205,28 @@ func (b *xmlBuilder) buildCessionarioCommittente(party *models.PartyData) models
 		anagrafica.Cognome = party.Surname
 	}
 
-	// Ensure Nazione is uppercase 2-letter country code
-	nazione := ensureIdPaese(party.Country)
+	// Normalize address fields per XSD requirements
+	nazione := NormalizeNazione(party.Country)
+	cap := NormalizeCAP(party.PostalCode)
+	provincia := NormalizeProvincia(party.Province)
 
 	cc := models.CessionarioCommittente{
 		DatiAnagrafici: models.DatiAnagraficiCessionario{
 			Anagrafica: anagrafica,
 		},
 		Sede: models.Indirizzo{
-			Indirizzo: party.Address,
-			CAP:       party.PostalCode,
-			Comune:    party.City,
-			Provincia: party.Province,
-			Nazione:   nazione,
+			Indirizzo:    party.Address,
+			NumeroCivico: party.NumeroCivico, // Street number (separate per XSD)
+			CAP:          cap,
+			Comune:       party.City,
+			Provincia:    provincia,
+			Nazione:      nazione,
 		},
 	}
 
 	// Add fiscal ID if available
 	if party.FiscalIDCode != "" {
-		idPaese := ensureIdPaese(party.FiscalIDCountry)
+		idPaese := NormalizeNazione(party.FiscalIDCountry)
 		cc.DatiAnagrafici.IdFiscaleIVA = &models.IdFiscale{
 			IdPaese:  idPaese,
 			IdCodice: party.FiscalIDCode,
@@ -239,6 +269,53 @@ func (b *xmlBuilder) buildDatiGenerali(invoice *models.Invoice) models.DatiGener
 			Numero:                 invoice.Number,
 			ImportoTotaleDocumento: formatAmount(invoice.TotalAmount),
 		},
+	}
+
+	// Add DatiRitenuta (withholding tax) if present
+	for _, dr := range invoice.DatiRitenuta {
+		datiRitenuta := &models.DatiRitenuta{
+			TipoRitenuta:     dr.TipoRitenuta,
+			ImportoRitenuta:  formatAmount(dr.ImportoRitenuta),
+			AliquotaRitenuta: formatAmount(dr.AliquotaRitenuta),
+		}
+		if dr.CausalePagamento != "" {
+			datiRitenuta.CausalePagamento = dr.CausalePagamento
+		}
+		dg.DatiGeneraliDocumento.DatiRitenuta = datiRitenuta
+		break // XSD only allows one DatiRitenuta in v1.2.3 (but our model supports multiple for future)
+	}
+
+	// Add DatiBollo (stamp duty) if present
+	if invoice.DatiBollo != nil {
+		dg.DatiGeneraliDocumento.DatiBollo = &models.DatiBollo{
+			BolloVirtuale: "SI", // Always "SI" for virtual stamp duty
+		}
+		if invoice.DatiBollo.ImportoBollo > 0 {
+			dg.DatiGeneraliDocumento.DatiBollo.ImportoBollo = formatAmount(invoice.DatiBollo.ImportoBollo)
+		}
+	}
+
+	// Add DatiCassaPrevidenziale (social security fund) if present
+	for _, dc := range invoice.DatiCassaPrevidenziale {
+		datiCassa := models.DatiCassa{
+			TipoCassa:              dc.TipoCassa,
+			AlCassa:                formatAmount(dc.AlCassa),
+			ImportoContributoCassa: formatAmount(dc.ImportoContributoCassa),
+			AliquotaIVA:            formatAmount(dc.AliquotaIVA),
+		}
+		if dc.ImponibileCassa > 0 {
+			datiCassa.ImponibileCassa = formatAmount(dc.ImponibileCassa)
+		}
+		if dc.Ritenuta {
+			datiCassa.Ritenuta = "SI"
+		}
+		if dc.Natura != "" {
+			datiCassa.Natura = dc.Natura
+		}
+		if dc.RiferimentoAmm != "" {
+			datiCassa.RiferimentoAmm = dc.RiferimentoAmm
+		}
+		dg.DatiGeneraliDocumento.DatiCassaPrevidenziale = append(dg.DatiGeneraliDocumento.DatiCassaPrevidenziale, datiCassa)
 	}
 
 	// Add rounding if present
@@ -322,8 +399,27 @@ func (b *xmlBuilder) buildDatiBeniServizi(invoice *models.Invoice) models.DatiBe
 			dl.DataFinePeriodo = line.EndDate.Format("2006-01-02")
 		}
 
-		// Add product code if present
-		if line.ProductCode != "" {
+		// Add Ritenuta flag if applicable
+		if line.Ritenuta {
+			dl.Ritenuta = "SI"
+		}
+
+		// Add administrative reference if present
+		if line.AdministrativeRef != "" {
+			dl.RiferimentoAmm = line.AdministrativeRef
+		}
+
+		// Add product codes (support multiple codes per XSD unbounded)
+		if len(line.CodiciArticolo) > 0 {
+			// Use the new multiple codes structure
+			for _, code := range line.CodiciArticolo {
+				dl.CodiceArticolo = append(dl.CodiceArticolo, models.CodArticolo{
+					CodiceTipo:   code.CodiceTipo,
+					CodiceValore: code.CodiceValore,
+				})
+			}
+		} else if line.ProductCode != "" {
+			// Fallback to legacy single product code
 			dl.CodiceArticolo = []models.CodArticolo{
 				{
 					CodiceTipo:   "INTERNO",
@@ -397,6 +493,28 @@ func (b *xmlBuilder) buildDatiPagamento(invoice *models.Invoice) *models.DatiPag
 		DettaglioPagamento:  []models.DettaglioPagamento{},
 	}
 
+	// Helper function to populate payment detail common fields
+	populatePaymentDetail := func(detail *models.DettaglioPagamento) {
+		if pt.Beneficiario != "" {
+			detail.Beneficiario = pt.Beneficiario
+		}
+		if pt.IstitutoFinanziario != "" {
+			detail.IstitutoFinanziario = pt.IstitutoFinanziario
+		}
+		if pt.IBAN != "" {
+			detail.IBAN = NormalizeIBAN(pt.IBAN)
+		}
+		if pt.ABI != "" {
+			detail.ABI = pt.ABI
+		}
+		if pt.CAB != "" {
+			detail.CAB = pt.CAB
+		}
+		if pt.BIC != "" {
+			detail.BIC = NormalizeBIC(pt.BIC)
+		}
+	}
+
 	// For installment payments
 	if pt.Condition == models.PaymentConditionRata && len(pt.Installments) > 0 {
 		for _, inst := range pt.Installments {
@@ -405,12 +523,7 @@ func (b *xmlBuilder) buildDatiPagamento(invoice *models.Invoice) *models.DatiPag
 				DataScadenzaPagamento: inst.DueDate.Format("2006-01-02"),
 				ImportoPagamento:      formatAmount(inst.Amount),
 			}
-			if pt.IBAN != "" {
-				detail.IBAN = pt.IBAN
-			}
-			if pt.BIC != "" {
-				detail.BIC = pt.BIC
-			}
+			populatePaymentDetail(&detail)
 			dp.DettaglioPagamento = append(dp.DettaglioPagamento, detail)
 		}
 	} else {
@@ -422,12 +535,7 @@ func (b *xmlBuilder) buildDatiPagamento(invoice *models.Invoice) *models.DatiPag
 		if pt.DueDate != nil {
 			detail.DataScadenzaPagamento = pt.DueDate.Format("2006-01-02")
 		}
-		if pt.IBAN != "" {
-			detail.IBAN = pt.IBAN
-		}
-		if pt.BIC != "" {
-			detail.BIC = pt.BIC
-		}
+		populatePaymentDetail(&detail)
 		dp.DettaglioPagamento = append(dp.DettaglioPagamento, detail)
 	}
 
@@ -492,12 +600,10 @@ func isAlpha(s string) bool {
 	return len(s) > 0
 }
 
-// ensureIdPaese ensures IdPaese is uppercase 2-letter country code
+// ensureIdPaese is deprecated - use NormalizeNazione instead
+// Keeping for backward compatibility but internally uses NormalizeNazione
 func ensureIdPaese(s string) string {
-	if s == "" {
-		return "IT" // Default to Italy
-	}
-	return strings.ToUpper(s)
+	return NormalizeNazione(s)
 }
 
 // getDefaultNormativeRef returns a default normative reference based on VAT Nature code

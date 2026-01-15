@@ -11,6 +11,7 @@ type FatturaElettronica struct {
 	XmlnsXsi                   string                     `xml:"xmlns:xsi,attr,omitempty"`
 	SchemaLocation             string                     `xml:"xsi:schemaLocation,attr,omitempty"`
 	Versione                   TransmissionFormat         `xml:"versione,attr"`
+	SistemaEmittente           string                     `xml:"SistemaEmittente,attr,omitempty"` // Max 10 chars, identifies the issuing system
 	FatturaElettronicaHeader   FatturaElettronicaHeader   `xml:"FatturaElettronicaHeader"`
 	FatturaElettronicaBody     []FatturaElettronicaBody   `xml:"FatturaElettronicaBody"`
 }

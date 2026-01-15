@@ -40,6 +40,11 @@ import type {
   PaymentCondition,
   UnitOfMeasure,
   VATNature,
+  DatiRitenuta,
+  DatiBollo,
+  DatiCassa,
+  TipoRitenuta,
+  TipoCassa,
 } from 'types/billing';
 import {
   DOCUMENT_TYPE_LABELS,
@@ -48,6 +53,8 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_CONDITION_LABELS,
   UNIT_OF_MEASURE_LABELS,
+  TIPO_RITENUTA_LABELS,
+  TIPO_CASSA_LABELS,
   formatCurrency,
   formatItalianDate,
   getPartyDisplayName,
@@ -100,6 +107,26 @@ const VAT_NATURES: { value: VATNature; label: string }[] = [
   { value: 'N5', label: 'N5 - Regime del margine' },
   { value: 'N6.1', label: 'N6.1 - Reverse charge (rottami)' },
   { value: 'N6.9', label: 'N6.9 - Reverse charge (altri casi)' },
+];
+
+// Withholding tax type options
+const TIPO_RITENUTA_OPTIONS: { value: TipoRitenuta; label: string }[] = [
+  { value: 'RT01', label: `RT01 - ${TIPO_RITENUTA_LABELS['RT01']}` },
+  { value: 'RT02', label: `RT02 - ${TIPO_RITENUTA_LABELS['RT02']}` },
+  { value: 'RT03', label: `RT03 - ${TIPO_RITENUTA_LABELS['RT03']}` },
+  { value: 'RT04', label: `RT04 - ${TIPO_RITENUTA_LABELS['RT04']}` },
+  { value: 'RT05', label: `RT05 - ${TIPO_RITENUTA_LABELS['RT05']}` },
+  { value: 'RT06', label: `RT06 - ${TIPO_RITENUTA_LABELS['RT06']}` },
+];
+
+// Social security fund type options (common ones)
+const TIPO_CASSA_OPTIONS: { value: TipoCassa; label: string }[] = [
+  { value: 'TC01', label: `TC01 - ${TIPO_CASSA_LABELS['TC01']}` },
+  { value: 'TC02', label: `TC02 - ${TIPO_CASSA_LABELS['TC02']}` },
+  { value: 'TC03', label: `TC03 - ${TIPO_CASSA_LABELS['TC03']}` },
+  { value: 'TC04', label: `TC04 - ${TIPO_CASSA_LABELS['TC04']}` },
+  { value: 'TC05', label: `TC05 - ${TIPO_CASSA_LABELS['TC05']}` },
+  { value: 'TC22', label: `TC22 - ${TIPO_CASSA_LABELS['TC22']}` },
 ];
 
 // Convert date string (YYYY-MM-DD) to RFC 3339 datetime (YYYY-MM-DDTHH:mm:ssZ)
@@ -162,6 +189,31 @@ const IssuedInvoiceDetail: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MP05');
   const [paymentIban, setPaymentIban] = useState('');
   const [paymentDueDate, setPaymentDueDate] = useState('');
+  const [paymentBeneficiario, setPaymentBeneficiario] = useState('');
+  const [paymentIstituto, setPaymentIstituto] = useState('');
+  const [paymentBic, setPaymentBic] = useState('');
+  const [paymentAbi, setPaymentAbi] = useState('');
+  const [paymentCab, setPaymentCab] = useState('');
+
+  // FatturaPA additional fields
+  const [enableRitenuta, setEnableRitenuta] = useState(false);
+  const [datiRitenuta, setDatiRitenuta] = useState<DatiRitenuta>({
+    tipoRitenuta: 'RT01',
+    importoRitenuta: 0,
+    aliquotaRitenuta: 20,
+    causalePagamento: 'A',
+  });
+  const [enableBollo, setEnableBollo] = useState(false);
+  const [datiBollo, setDatiBollo] = useState<DatiBollo>({
+    importoBollo: 2.0,
+  });
+  const [enableCassa, setEnableCassa] = useState(false);
+  const [datiCassa, setDatiCassa] = useState<DatiCassa>({
+    tipoCassa: 'TC22',
+    alCassa: 4,
+    importoContributoCassa: 0,
+    aliquotaIVA: 22,
+  });
 
   // Check if invoice is editable (only draft status)
   const isDraft = invoice?.status === 'draft';
@@ -195,6 +247,33 @@ const IssuedInvoiceDetail: React.FC = () => {
         setPaymentMethod(invoice.paymentTerms.paymentMethod);
         setPaymentIban(invoice.paymentTerms.iban || '');
         setPaymentDueDate(fromRFC3339(invoice.paymentTerms.dueDate || ''));
+        setPaymentBeneficiario(invoice.paymentTerms.beneficiario || '');
+        setPaymentIstituto(invoice.paymentTerms.istitutoFinanziario || '');
+        setPaymentBic(invoice.paymentTerms.bic || '');
+        setPaymentAbi(invoice.paymentTerms.abi || '');
+        setPaymentCab(invoice.paymentTerms.cab || '');
+      }
+
+      // FatturaPA additional fields
+      if (invoice.datiRitenuta && invoice.datiRitenuta.length > 0) {
+        setEnableRitenuta(true);
+        setDatiRitenuta(invoice.datiRitenuta[0]);
+      } else {
+        setEnableRitenuta(false);
+      }
+
+      if (invoice.datiBollo) {
+        setEnableBollo(true);
+        setDatiBollo(invoice.datiBollo);
+      } else {
+        setEnableBollo(false);
+      }
+
+      if (invoice.datiCassaPrevidenziale && invoice.datiCassaPrevidenziale.length > 0) {
+        setEnableCassa(true);
+        setDatiCassa(invoice.datiCassaPrevidenziale[0]);
+      } else {
+        setEnableCassa(false);
       }
     }
   }, [invoice]);
@@ -301,6 +380,11 @@ const IssuedInvoiceDetail: React.FC = () => {
             paymentMethod: paymentMethod,
             iban: paymentIban || undefined,
             dueDate: paymentDueDate ? toRFC3339(paymentDueDate) : undefined,
+            beneficiario: paymentBeneficiario || undefined,
+            istitutoFinanziario: paymentIstituto || undefined,
+            bic: paymentBic || undefined,
+            abi: paymentAbi || undefined,
+            cab: paymentCab || undefined,
           }
         : undefined;
 
@@ -314,6 +398,9 @@ const IssuedInvoiceDetail: React.FC = () => {
       paymentTerms,
       causale: causale.filter((c) => c.trim()),
       internalNotes: internalNotes || undefined,
+      datiRitenuta: enableRitenuta ? [datiRitenuta] : undefined,
+      datiBollo: enableBollo ? datiBollo : undefined,
+      datiCassaPrevidenziale: enableCassa ? [datiCassa] : undefined,
     };
   };
 
@@ -436,6 +523,36 @@ const IssuedInvoiceDetail: React.FC = () => {
         setPaymentMethod(invoice.paymentTerms.paymentMethod);
         setPaymentIban(invoice.paymentTerms.iban || '');
         setPaymentDueDate(fromRFC3339(invoice.paymentTerms.dueDate || ''));
+        setPaymentBeneficiario(invoice.paymentTerms.beneficiario || '');
+        setPaymentIstituto(invoice.paymentTerms.istitutoFinanziario || '');
+        setPaymentBic(invoice.paymentTerms.bic || '');
+        setPaymentAbi(invoice.paymentTerms.abi || '');
+        setPaymentCab(invoice.paymentTerms.cab || '');
+      }
+
+      // Reset FatturaPA fields
+      if (invoice.datiRitenuta && invoice.datiRitenuta.length > 0) {
+        setEnableRitenuta(true);
+        setDatiRitenuta(invoice.datiRitenuta[0]);
+      } else {
+        setEnableRitenuta(false);
+        setDatiRitenuta({ tipoRitenuta: 'RT01', importoRitenuta: 0, aliquotaRitenuta: 20, causalePagamento: 'A' });
+      }
+
+      if (invoice.datiBollo) {
+        setEnableBollo(true);
+        setDatiBollo(invoice.datiBollo);
+      } else {
+        setEnableBollo(false);
+        setDatiBollo({ importoBollo: 2.0 });
+      }
+
+      if (invoice.datiCassaPrevidenziale && invoice.datiCassaPrevidenziale.length > 0) {
+        setEnableCassa(true);
+        setDatiCassa(invoice.datiCassaPrevidenziale[0]);
+      } else {
+        setEnableCassa(false);
+        setDatiCassa({ tipoCassa: 'TC22', alCassa: 4, importoContributoCassa: 0, aliquotaIVA: 22 });
       }
     }
     setError('');
@@ -630,6 +747,9 @@ const IssuedInvoiceDetail: React.FC = () => {
                   <Nav.Link eventKey="lines">Righe ({lines.length})</Nav.Link>
                 </Nav.Item>
                 <Nav.Item>
+                  <Nav.Link eventKey="ritenute">Ritenute e Contributi</Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
                   <Nav.Link eventKey="payment">Pagamento</Nav.Link>
                 </Nav.Item>
                 <Nav.Item>
@@ -725,7 +845,7 @@ const IssuedInvoiceDetail: React.FC = () => {
                 <Tab.Pane eventKey="lines">
                   <div className="table-responsive">
                     <Table bordered hover size="sm">
-                      <thead className="bg-light">
+                      <thead className="bg-body-tertiary">
                         <tr>
                           <th style={{ width: '30%' }}>Descrizione *</th>
                           <th style={{ width: '8%' }}>Qtà *</th>
@@ -885,6 +1005,209 @@ const IssuedInvoiceDetail: React.FC = () => {
                   </Row>
                 </Tab.Pane>
 
+                {/* Ritenute e Contributi Tab */}
+                <Tab.Pane eventKey="ritenute">
+                  {/* Ritenuta d'Acconto */}
+                  <Card className="mb-3">
+                    <Card.Header className="bg-body-tertiary d-flex align-items-center">
+                      <Form.Check
+                        type="switch"
+                        id="enableRitenuta"
+                        label="Ritenuta d'Acconto"
+                        checked={enableRitenuta}
+                        onChange={(e) => setEnableRitenuta(e.target.checked)}
+                        className="mb-0"
+                      />
+                    </Card.Header>
+                    {enableRitenuta && (
+                      <Card.Body>
+                        <Row>
+                          <Col md={4}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Tipo Ritenuta</Form.Label>
+                              <Form.Select
+                                value={datiRitenuta.tipoRitenuta}
+                                onChange={(e) =>
+                                  setDatiRitenuta({ ...datiRitenuta, tipoRitenuta: e.target.value as TipoRitenuta })
+                                }
+                              >
+                                {TIPO_RITENUTA_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </Form.Select>
+                            </Form.Group>
+                          </Col>
+                          <Col md={3}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Aliquota %</Form.Label>
+                              <Form.Control
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={datiRitenuta.aliquotaRitenuta}
+                                onChange={(e) =>
+                                  setDatiRitenuta({ ...datiRitenuta, aliquotaRitenuta: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </Form.Group>
+                          </Col>
+                          <Col md={3}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Importo</Form.Label>
+                              <Form.Control
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={datiRitenuta.importoRitenuta}
+                                onChange={(e) =>
+                                  setDatiRitenuta({ ...datiRitenuta, importoRitenuta: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </Form.Group>
+                          </Col>
+                          <Col md={2}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Causale</Form.Label>
+                              <Form.Control
+                                type="text"
+                                value={datiRitenuta.causalePagamento || ''}
+                                onChange={(e) =>
+                                  setDatiRitenuta({ ...datiRitenuta, causalePagamento: e.target.value.toUpperCase() })
+                                }
+                                maxLength={2}
+                                placeholder="A"
+                              />
+                            </Form.Group>
+                          </Col>
+                        </Row>
+                      </Card.Body>
+                    )}
+                  </Card>
+
+                  {/* Bollo Virtuale */}
+                  <Card className="mb-3">
+                    <Card.Header className="bg-body-tertiary d-flex align-items-center">
+                      <Form.Check
+                        type="switch"
+                        id="enableBollo"
+                        label="Bollo Virtuale"
+                        checked={enableBollo}
+                        onChange={(e) => setEnableBollo(e.target.checked)}
+                        className="mb-0"
+                      />
+                    </Card.Header>
+                    {enableBollo && (
+                      <Card.Body>
+                        <Row>
+                          <Col md={4}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Importo Bollo</Form.Label>
+                              <Form.Control
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={datiBollo.importoBollo}
+                                onChange={(e) =>
+                                  setDatiBollo({ ...datiBollo, importoBollo: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                              <Form.Text className="text-muted">
+                                Solitamente €2.00 per fatture esenti IVA &gt; €77.47
+                              </Form.Text>
+                            </Form.Group>
+                          </Col>
+                        </Row>
+                      </Card.Body>
+                    )}
+                  </Card>
+
+                  {/* Cassa Previdenziale */}
+                  <Card className="mb-3">
+                    <Card.Header className="bg-body-tertiary d-flex align-items-center">
+                      <Form.Check
+                        type="switch"
+                        id="enableCassa"
+                        label="Cassa Previdenziale"
+                        checked={enableCassa}
+                        onChange={(e) => setEnableCassa(e.target.checked)}
+                        className="mb-0"
+                      />
+                    </Card.Header>
+                    {enableCassa && (
+                      <Card.Body>
+                        <Row>
+                          <Col md={4}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Tipo Cassa</Form.Label>
+                              <Form.Select
+                                value={datiCassa.tipoCassa}
+                                onChange={(e) =>
+                                  setDatiCassa({ ...datiCassa, tipoCassa: e.target.value as TipoCassa })
+                                }
+                              >
+                                {TIPO_CASSA_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </Form.Select>
+                            </Form.Group>
+                          </Col>
+                          <Col md={2}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Aliquota %</Form.Label>
+                              <Form.Control
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={datiCassa.alCassa}
+                                onChange={(e) =>
+                                  setDatiCassa({ ...datiCassa, alCassa: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </Form.Group>
+                          </Col>
+                          <Col md={3}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Importo</Form.Label>
+                              <Form.Control
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={datiCassa.importoContributoCassa}
+                                onChange={(e) =>
+                                  setDatiCassa({ ...datiCassa, importoContributoCassa: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </Form.Group>
+                          </Col>
+                          <Col md={3}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Aliquota IVA %</Form.Label>
+                              <Form.Select
+                                value={datiCassa.aliquotaIVA}
+                                onChange={(e) =>
+                                  setDatiCassa({ ...datiCassa, aliquotaIVA: parseFloat(e.target.value) })
+                                }
+                              >
+                                {VAT_RATES.map((rate) => (
+                                  <option key={rate} value={rate}>
+                                    {rate}%
+                                  </option>
+                                ))}
+                              </Form.Select>
+                            </Form.Group>
+                          </Col>
+                        </Row>
+                      </Card.Body>
+                    )}
+                  </Card>
+                </Tab.Pane>
+
                 {/* Payment Tab */}
                 <Tab.Pane eventKey="payment">
                   <Row>
@@ -921,7 +1244,32 @@ const IssuedInvoiceDetail: React.FC = () => {
                   </Row>
 
                   <Row>
-                    <Col md={8}>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Beneficiario</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={paymentBeneficiario}
+                          onChange={(e) => setPaymentBeneficiario(e.target.value)}
+                          placeholder="Nome del beneficiario"
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Istituto Finanziario</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={paymentIstituto}
+                          onChange={(e) => setPaymentIstituto(e.target.value)}
+                          placeholder="Nome della banca"
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Row>
+                    <Col md={6}>
                       <Form.Group className="mb-3">
                         <Form.Label>IBAN</Form.Label>
                         <Form.Control
@@ -933,7 +1281,46 @@ const IssuedInvoiceDetail: React.FC = () => {
                         />
                       </Form.Group>
                     </Col>
-                    <Col md={4}>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>BIC/SWIFT</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={paymentBic}
+                          onChange={(e) => setPaymentBic(e.target.value.toUpperCase())}
+                          placeholder="es. BCITITMM"
+                          maxLength={11}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Row>
+                    <Col md={3}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>ABI</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={paymentAbi}
+                          onChange={(e) => setPaymentAbi(e.target.value)}
+                          placeholder="es. 03069"
+                          maxLength={5}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={3}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>CAB</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={paymentCab}
+                          onChange={(e) => setPaymentCab(e.target.value)}
+                          placeholder="es. 05000"
+                          maxLength={5}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
                       <Form.Group className="mb-3">
                         <Form.Label>Scadenza Pagamento</Form.Label>
                         <Form.Control
@@ -976,7 +1363,7 @@ const IssuedInvoiceDetail: React.FC = () => {
             // Read-only View - Lines table
             <div className="table-responsive">
               <Table bordered hover size="sm">
-                <thead className="bg-light">
+                <thead className="bg-body-tertiary">
                   <tr>
                     <th>#</th>
                     <th>Descrizione</th>
@@ -1002,7 +1389,7 @@ const IssuedInvoiceDetail: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-light">
+                <tfoot className="bg-body-tertiary">
                   <tr>
                     <td colSpan={7} className="text-end">
                       Imponibile:
@@ -1028,6 +1415,83 @@ const IssuedInvoiceDetail: React.FC = () => {
         </Card.Body>
       </Card>
 
+      {/* Ritenute e Contributi (Read-only) */}
+      {!isEditMode && (invoice.datiRitenuta?.length || invoice.datiBollo || invoice.datiCassaPrevidenziale?.length) && (
+        <Card className="mb-3">
+          <FalconCardHeader title="Ritenute e Contributi" light={false} />
+          <Card.Body>
+            {/* Ritenuta d'Acconto */}
+            {invoice.datiRitenuta && invoice.datiRitenuta.length > 0 && (
+              <div className="mb-3">
+                <h6 className="text-primary mb-2">Ritenuta d'Acconto</h6>
+                {invoice.datiRitenuta.map((ritenuta, idx) => (
+                  <Row key={idx}>
+                    <Col md={3}>
+                      <small className="text-muted">Tipo</small>
+                      <div>{ritenuta.tipoRitenuta} - {TIPO_RITENUTA_LABELS[ritenuta.tipoRitenuta]}</div>
+                    </Col>
+                    <Col md={3}>
+                      <small className="text-muted">Aliquota</small>
+                      <div>{ritenuta.aliquotaRitenuta}%</div>
+                    </Col>
+                    <Col md={3}>
+                      <small className="text-muted">Importo</small>
+                      <div>{formatCurrency(ritenuta.importoRitenuta)}</div>
+                    </Col>
+                    {ritenuta.causalePagamento && (
+                      <Col md={3}>
+                        <small className="text-muted">Causale</small>
+                        <div>{ritenuta.causalePagamento}</div>
+                      </Col>
+                    )}
+                  </Row>
+                ))}
+              </div>
+            )}
+
+            {/* Bollo Virtuale */}
+            {invoice.datiBollo && (
+              <div className="mb-3">
+                <h6 className="text-primary mb-2">Bollo Virtuale</h6>
+                <Row>
+                  <Col md={3}>
+                    <small className="text-muted">Importo</small>
+                    <div>{formatCurrency(invoice.datiBollo.importoBollo)}</div>
+                  </Col>
+                </Row>
+              </div>
+            )}
+
+            {/* Cassa Previdenziale */}
+            {invoice.datiCassaPrevidenziale && invoice.datiCassaPrevidenziale.length > 0 && (
+              <div>
+                <h6 className="text-primary mb-2">Cassa Previdenziale</h6>
+                {invoice.datiCassaPrevidenziale.map((cassa, idx) => (
+                  <Row key={idx}>
+                    <Col md={3}>
+                      <small className="text-muted">Tipo</small>
+                      <div>{cassa.tipoCassa} - {TIPO_CASSA_LABELS[cassa.tipoCassa]}</div>
+                    </Col>
+                    <Col md={2}>
+                      <small className="text-muted">Aliquota</small>
+                      <div>{cassa.alCassa}%</div>
+                    </Col>
+                    <Col md={3}>
+                      <small className="text-muted">Importo</small>
+                      <div>{formatCurrency(cassa.importoContributoCassa)}</div>
+                    </Col>
+                    <Col md={2}>
+                      <small className="text-muted">Aliquota IVA</small>
+                      <div>{cassa.aliquotaIVA}%</div>
+                    </Col>
+                  </Row>
+                ))}
+              </div>
+            )}
+          </Card.Body>
+        </Card>
+      )}
+
       {/* Payment Terms (Read-only) */}
       {!isEditMode && invoice.paymentTerms && (
         <Card className="mb-3">
@@ -1042,19 +1506,53 @@ const IssuedInvoiceDetail: React.FC = () => {
                 <small className="text-muted">Metodo</small>
                 <div>{PAYMENT_METHOD_LABELS[invoice.paymentTerms.paymentMethod]}</div>
               </Col>
-              {invoice.paymentTerms.iban && (
-                <Col md={3}>
-                  <small className="text-muted">IBAN</small>
-                  <div>{invoice.paymentTerms.iban}</div>
-                </Col>
-              )}
               {invoice.paymentTerms.dueDate && (
                 <Col md={3}>
                   <small className="text-muted">Scadenza</small>
                   <div>{formatItalianDate(invoice.paymentTerms.dueDate)}</div>
                 </Col>
               )}
+              {invoice.paymentTerms.beneficiario && (
+                <Col md={3}>
+                  <small className="text-muted">Beneficiario</small>
+                  <div>{invoice.paymentTerms.beneficiario}</div>
+                </Col>
+              )}
             </Row>
+            {(invoice.paymentTerms.iban || invoice.paymentTerms.bic || invoice.paymentTerms.istitutoFinanziario) && (
+              <Row className="mt-3">
+                {invoice.paymentTerms.istitutoFinanziario && (
+                  <Col md={3}>
+                    <small className="text-muted">Istituto Finanziario</small>
+                    <div>{invoice.paymentTerms.istitutoFinanziario}</div>
+                  </Col>
+                )}
+                {invoice.paymentTerms.iban && (
+                  <Col md={4}>
+                    <small className="text-muted">IBAN</small>
+                    <div>{invoice.paymentTerms.iban}</div>
+                  </Col>
+                )}
+                {invoice.paymentTerms.bic && (
+                  <Col md={2}>
+                    <small className="text-muted">BIC/SWIFT</small>
+                    <div>{invoice.paymentTerms.bic}</div>
+                  </Col>
+                )}
+                {invoice.paymentTerms.abi && (
+                  <Col md={1}>
+                    <small className="text-muted">ABI</small>
+                    <div>{invoice.paymentTerms.abi}</div>
+                  </Col>
+                )}
+                {invoice.paymentTerms.cab && (
+                  <Col md={1}>
+                    <small className="text-muted">CAB</small>
+                    <div>{invoice.paymentTerms.cab}</div>
+                  </Col>
+                )}
+              </Row>
+            )}
           </Card.Body>
         </Card>
       )}

@@ -68,6 +68,15 @@ type Invoice struct {
 	// References to other documents
 	RelatedDocuments []RelatedDocument `bson:"relatedDocuments,omitempty" json:"relatedDocuments,omitempty"`
 
+	// Withholding tax (ritenuta d'acconto) - for professionals/freelancers
+	DatiRitenuta []DatiRitenutaInput `bson:"datiRitenuta,omitempty" json:"datiRitenuta,omitempty"`
+
+	// Stamp duty (bollo virtuale) - required for exempt invoices > €77.47
+	DatiBollo *DatiBolloInput `bson:"datiBollo,omitempty" json:"datiBollo,omitempty"`
+
+	// Social security fund contributions (cassa previdenziale)
+	DatiCassaPrevidenziale []DatiCassaInput `bson:"datiCassa,omitempty" json:"datiCassa,omitempty"`
+
 	// Additional data
 	Causale     []string          `bson:"causale,omitempty" json:"causale,omitempty"`         // Causale (max 200 chars each)
 	Attachments []InvoiceAttachment `bson:"attachments,omitempty" json:"attachments,omitempty"`
@@ -105,11 +114,15 @@ type InvoiceLine struct {
 	VATNature VATNature `bson:"vatNature,omitempty" json:"vatNature,omitempty"` // Natura IVA (se aliquota 0)
 	VATAmount float64   `bson:"vatAmount" json:"vatAmount"`                     // Importo IVA calcolato
 
+	// Withholding tax indicator
+	Ritenuta bool `bson:"ritenuta,omitempty" json:"ritenuta,omitempty"` // SI if withholding tax applies
+
 	// Additional info
-	AdministrativeRef string `bson:"administrativeRef,omitempty" json:"administrativeRef,omitempty"` // Riferimento amministrazione
-	ProductCode       string `bson:"productCode,omitempty" json:"productCode,omitempty"`             // Codice articolo
-	StartDate         *time.Time `bson:"startDate,omitempty" json:"startDate,omitempty"`             // Data inizio periodo
-	EndDate           *time.Time `bson:"endDate,omitempty" json:"endDate,omitempty"`                 // Data fine periodo
+	AdministrativeRef string        `bson:"administrativeRef,omitempty" json:"administrativeRef,omitempty"` // Riferimento amministrazione
+	ProductCode       string        `bson:"productCode,omitempty" json:"productCode,omitempty"`             // Codice articolo (legacy single code)
+	CodiciArticolo    []ProductCode `bson:"codiciArticolo,omitempty" json:"codiciArticolo,omitempty"`       // Multiple product codes (XSD unbounded)
+	StartDate         *time.Time    `bson:"startDate,omitempty" json:"startDate,omitempty"`                 // Data inizio periodo
+	EndDate           *time.Time    `bson:"endDate,omitempty" json:"endDate,omitempty"`                     // Data fine periodo
 }
 
 // LineDiscount represents a discount applied to an invoice line
@@ -137,6 +150,12 @@ type PaymentTerms struct {
 	// Bank details for payment
 	IBAN string `bson:"iban,omitempty" json:"iban,omitempty"`
 	BIC  string `bson:"bic,omitempty" json:"bic,omitempty"`
+	ABI  string `bson:"abi,omitempty" json:"abi,omitempty"` // 5 digits
+	CAB  string `bson:"cab,omitempty" json:"cab,omitempty"` // 5 digits
+
+	// Beneficiary and financial institution
+	Beneficiario        string `bson:"beneficiario,omitempty" json:"beneficiario,omitempty"`
+	IstitutoFinanziario string `bson:"istitutoFinanziario,omitempty" json:"istitutoFinanziario,omitempty"`
 
 	// Payment deadline
 	DueDate *time.Time `bson:"dueDate,omitempty" json:"dueDate,omitempty"`
@@ -171,6 +190,41 @@ type InvoiceAttachment struct {
 	Format      string `bson:"format,omitempty" json:"format,omitempty"` // MIME type
 	Content     string `bson:"content,omitempty" json:"-"`               // Base64 encoded content (not in JSON)
 	FilePath    string `bson:"filePath,omitempty" json:"-"`              // Path to stored file
+}
+
+// DatiRitenutaInput represents withholding tax data (ritenuta d'acconto)
+// Used for invoices to professionals/freelancers subject to withholding
+type DatiRitenutaInput struct {
+	TipoRitenuta     string  `bson:"tipoRitenuta" json:"tipoRitenuta" validate:"required,oneof=RT01 RT02 RT03 RT04 RT05 RT06"`
+	ImportoRitenuta  float64 `bson:"importoRitenuta" json:"importoRitenuta" validate:"required"`  // Withholding amount
+	AliquotaRitenuta float64 `bson:"aliquotaRitenuta" json:"aliquotaRitenuta" validate:"required"` // Withholding rate (e.g., 20.00)
+	CausalePagamento string  `bson:"causalePagamento,omitempty" json:"causalePagamento,omitempty"` // Payment reason code (A-Z)
+}
+
+// DatiBolloInput represents stamp duty data (bollo virtuale)
+// Required for exempt invoices exceeding €77.47
+type DatiBolloInput struct {
+	ImportoBollo float64 `bson:"importoBollo" json:"importoBollo"` // Usually 2.00 EUR
+}
+
+// DatiCassaInput represents social security fund contribution data
+// Used for professionals with mandatory fund contributions (INPS, ENPAM, etc.)
+type DatiCassaInput struct {
+	TipoCassa              string  `bson:"tipoCassa" json:"tipoCassa" validate:"required"` // TC01-TC22
+	AlCassa                float64 `bson:"alCassa" json:"alCassa" validate:"required"`     // Fund contribution rate
+	ImportoContributoCassa float64 `bson:"importoCassa" json:"importoCassa" validate:"required"` // Contribution amount
+	ImponibileCassa        float64 `bson:"imponibileCassa,omitempty" json:"imponibileCassa,omitempty"` // Taxable base
+	AliquotaIVA            float64 `bson:"aliquotaIva" json:"aliquotaIva"`                 // VAT rate on contribution
+	Ritenuta               bool    `bson:"ritenuta,omitempty" json:"ritenuta,omitempty"`  // Subject to withholding
+	Natura                 string  `bson:"natura,omitempty" json:"natura,omitempty"`      // VAT nature if rate is 0
+	RiferimentoAmm         string  `bson:"riferimentoAmm,omitempty" json:"riferimentoAmm,omitempty"` // Admin reference
+}
+
+// ProductCode represents a product code with type identifier
+// Supports multiple coding systems (EAN, TARIC, internal codes, etc.)
+type ProductCode struct {
+	CodiceTipo   string `bson:"codiceTipo" json:"codiceTipo" validate:"required"`     // Code type (INTERNO, EAN, TARIC, etc.)
+	CodiceValore string `bson:"codiceValore" json:"codiceValore" validate:"required"` // Code value
 }
 
 // CalculateTotals recalculates all totals from invoice lines
