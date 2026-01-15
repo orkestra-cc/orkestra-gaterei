@@ -235,16 +235,16 @@ export const billingApi = baseApi.injectEndpoints({
       query: (id) => ({
         url: `/api/v1/billing/invoices/${id}/xml`,
         method: 'GET',
-        responseHandler: 'text',
       }),
+      transformResponse: (response: { xml: string }) => response.xml,
     }),
 
     getInvoiceHtml: builder.query<string, string>({
       query: (id) => ({
         url: `/api/v1/billing/invoices/${id}/html`,
         method: 'GET',
-        responseHandler: 'text',
       }),
+      transformResponse: (response: { html: string }) => response.html,
     }),
 
     importInvoice: builder.mutation<ImportInvoiceResponse, ImportInvoiceInput>({

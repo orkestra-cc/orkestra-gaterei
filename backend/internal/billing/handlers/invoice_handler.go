@@ -424,10 +424,14 @@ func (h *InvoiceHandler) GetStats(ctx context.Context, req *GetStatsRequest) (*G
 func (h *InvoiceHandler) GetInvoiceHTML(ctx context.Context, req *GetInvoiceHTMLRequest) (*GetInvoiceHTMLResponse, error) {
 	htmlBytes, err := h.invoiceService.GetInvoiceHTML(ctx, req.ID)
 	if err != nil {
-		if err == services.ErrInvoiceNotFound {
+		switch err {
+		case services.ErrInvoiceNotFound:
 			return nil, huma.Error404NotFound("Invoice not found", err)
+		case services.ErrInvoiceHTMLNotReady:
+			return nil, huma.Error422UnprocessableEntity("HTML view not available: invoice has not been sent to SDI yet", err)
+		default:
+			return nil, huma.Error500InternalServerError("Failed to get invoice HTML", err)
 		}
-		return nil, huma.Error500InternalServerError("Failed to get invoice HTML", err)
 	}
 
 	resp := &GetInvoiceHTMLResponse{}

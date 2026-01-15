@@ -14,13 +14,14 @@ import (
 
 // Common errors
 var (
-	ErrInvoiceNotFound      = errors.New("invoice not found")
-	ErrInvoiceCannotEdit    = errors.New("invoice cannot be edited in current status")
-	ErrInvoiceCannotSend    = errors.New("invoice cannot be sent in current status")
-	ErrInvoiceCannotDelete  = errors.New("invoice cannot be deleted in current status")
-	ErrCustomerNotFound     = errors.New("customer not found")
-	ErrSupplierNotFound     = errors.New("supplier not found")
-	ErrInvalidInvoiceData   = errors.New("invalid invoice data")
+	ErrInvoiceNotFound       = errors.New("invoice not found")
+	ErrInvoiceCannotEdit     = errors.New("invoice cannot be edited in current status")
+	ErrInvoiceCannotSend     = errors.New("invoice cannot be sent in current status")
+	ErrInvoiceCannotDelete   = errors.New("invoice cannot be deleted in current status")
+	ErrInvoiceHTMLNotReady   = errors.New("HTML view not available: invoice has not been sent to SDI")
+	ErrCustomerNotFound      = errors.New("customer not found")
+	ErrSupplierNotFound      = errors.New("supplier not found")
+	ErrInvalidInvoiceData    = errors.New("invalid invoice data")
 )
 
 // InvoiceService defines the interface for invoice business logic
@@ -494,7 +495,7 @@ func (s *invoiceService) GetInvoiceHTML(ctx context.Context, uuid string) ([]byt
 
 	// HTML is only available for invoices that have been sent to SDI
 	if invoice.OpenAPIUUID == "" {
-		return nil, errors.New("HTML view not available for draft invoices")
+		return nil, ErrInvoiceHTMLNotReady
 	}
 
 	return s.openAPIClient.DownloadInvoiceHTML(ctx, invoice.OpenAPIUUID)

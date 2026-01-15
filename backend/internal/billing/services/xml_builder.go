@@ -68,9 +68,19 @@ func (b *xmlBuilder) buildHeader(invoice *models.Invoice, format models.Transmis
 
 func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format models.TransmissionFormat) models.DatiTrasmissione {
 	// Use transmitter's fiscal ID (our company)
+	// FiscalID should be in format "ITXXXXXXX" where IT is the country code
+	idPaese := "IT"
+	idCodice := b.config.FiscalID
+	if len(b.config.FiscalID) >= 2 {
+		// Check if first 2 chars are letters (country code)
+		if isAlpha(b.config.FiscalID[:2]) {
+			idPaese = strings.ToUpper(b.config.FiscalID[:2])
+			idCodice = b.config.FiscalID[2:]
+		}
+	}
 	idTrasmittente := models.IdFiscale{
-		IdPaese:  b.config.FiscalID[:2], // First 2 chars are country code (IT)
-		IdCodice: b.config.FiscalID[2:], // Rest is the VAT number
+		IdPaese:  idPaese,
+		IdCodice: idCodice,
 	}
 
 	// Determine recipient code
@@ -113,22 +123,34 @@ func (b *xmlBuilder) buildCedentePrestatore(party *models.PartyData) models.Cede
 		anagrafica.Cognome = party.Surname
 	}
 
+	// Ensure IdPaese is uppercase 2-letter country code
+	idPaese := ensureIdPaese(party.FiscalIDCountry)
+
+	// Validate RegimeFiscale - must be a valid code (RF01-RF19, RF20)
+	regimeFiscale := party.RegimeFiscale
+	if regimeFiscale == "" {
+		regimeFiscale = models.RegimeOrdinario // Default to RF01
+	}
+
+	// Ensure Nazione is uppercase 2-letter country code
+	nazione := ensureIdPaese(party.Country)
+
 	cp := models.CedentePrestatore{
 		DatiAnagrafici: models.DatiAnagraficiCedente{
 			IdFiscaleIVA: models.IdFiscale{
-				IdPaese:  party.FiscalIDCountry,
+				IdPaese:  idPaese,
 				IdCodice: party.FiscalIDCode,
 			},
 			CodiceFiscale: party.CodiceFiscale,
 			Anagrafica:    anagrafica,
-			RegimeFiscale: party.RegimeFiscale,
+			RegimeFiscale: regimeFiscale,
 		},
 		Sede: models.Indirizzo{
 			Indirizzo: party.Address,
 			CAP:       party.PostalCode,
 			Comune:    party.City,
 			Provincia: party.Province,
-			Nazione:   party.Country,
+			Nazione:   nazione,
 		},
 	}
 
@@ -156,6 +178,9 @@ func (b *xmlBuilder) buildCessionarioCommittente(party *models.PartyData) models
 		anagrafica.Cognome = party.Surname
 	}
 
+	// Ensure Nazione is uppercase 2-letter country code
+	nazione := ensureIdPaese(party.Country)
+
 	cc := models.CessionarioCommittente{
 		DatiAnagrafici: models.DatiAnagraficiCessionario{
 			Anagrafica: anagrafica,
@@ -165,14 +190,15 @@ func (b *xmlBuilder) buildCessionarioCommittente(party *models.PartyData) models
 			CAP:       party.PostalCode,
 			Comune:    party.City,
 			Provincia: party.Province,
-			Nazione:   party.Country,
+			Nazione:   nazione,
 		},
 	}
 
 	// Add fiscal ID if available
 	if party.FiscalIDCode != "" {
+		idPaese := ensureIdPaese(party.FiscalIDCountry)
 		cc.DatiAnagrafici.IdFiscaleIVA = &models.IdFiscale{
-			IdPaese:  party.FiscalIDCountry,
+			IdPaese:  idPaese,
 			IdCodice: party.FiscalIDCode,
 		}
 	}
@@ -334,6 +360,13 @@ func (b *xmlBuilder) buildDatiBeniServizi(invoice *models.Invoice) models.DatiBe
 		// Add natura if rate is 0
 		if vs.VATRate == 0 && vs.VATNature != "" {
 			dr.Natura = string(vs.VATNature)
+			// RiferimentoNormativo is REQUIRED when AliquotaIVA is 0
+			if vs.NormativeRef != "" {
+				dr.RiferimentoNormativo = vs.NormativeRef
+			} else {
+				// Provide a default normative reference based on Natura
+				dr.RiferimentoNormativo = getDefaultNormativeRef(string(vs.VATNature))
+			}
 		}
 
 		// Add esigibilità if present
@@ -341,8 +374,8 @@ func (b *xmlBuilder) buildDatiBeniServizi(invoice *models.Invoice) models.DatiBe
 			dr.EsigibilitaIVA = vs.VATExigibility
 		}
 
-		// Add normative reference if present
-		if vs.NormativeRef != "" {
+		// Add normative reference if present (for non-zero rates with specific references)
+		if vs.VATRate != 0 && vs.NormativeRef != "" {
 			dr.RiferimentoNormativo = vs.NormativeRef
 		}
 
@@ -425,10 +458,20 @@ func formatAmount(amount float64) string {
 }
 
 func formatQuantity(qty float64) string {
-	// Format quantity, removing trailing zeros
+	// FatturaPA requires minimum 2 decimals, maximum 8 decimals for Quantita
 	s := strconv.FormatFloat(qty, 'f', 8, 64)
+	// Remove trailing zeros but keep at least 2 decimal places
 	s = strings.TrimRight(s, "0")
-	s = strings.TrimRight(s, ".")
+	// Ensure minimum 2 decimal places
+	parts := strings.Split(s, ".")
+	if len(parts) == 1 {
+		// No decimal point, add .00
+		return s + ".00"
+	}
+	if len(parts[1]) < 2 {
+		// Less than 2 decimals, pad with zeros
+		return s + strings.Repeat("0", 2-len(parts[1]))
+	}
 	return s
 }
 
@@ -439,9 +482,79 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen]
 }
 
+// isAlpha checks if a string contains only alphabetic characters
+func isAlpha(s string) bool {
+	for _, r := range s {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+// ensureIdPaese ensures IdPaese is uppercase 2-letter country code
+func ensureIdPaese(s string) string {
+	if s == "" {
+		return "IT" // Default to Italy
+	}
+	return strings.ToUpper(s)
+}
+
+// getDefaultNormativeRef returns a default normative reference based on VAT Nature code
+func getDefaultNormativeRef(natura string) string {
+	switch natura {
+	case "N1":
+		return "Art. 15 DPR 633/72"
+	case "N2.1":
+		return "Artt. 7-7 septies DPR 633/72"
+	case "N2.2":
+		return "Art. 7 DPR 633/72"
+	case "N3.1":
+		return "Art. 8 c.1 lett.a DPR 633/72"
+	case "N3.2":
+		return "Art. 8 c.1 lett.b DPR 633/72"
+	case "N3.3":
+		return "Art. 8-bis DPR 633/72"
+	case "N3.4":
+		return "Art. 41 DL 331/93"
+	case "N3.5":
+		return "Art. 8 c.1 lett.c DPR 633/72"
+	case "N3.6":
+		return "Art. 9 DPR 633/72"
+	case "N4":
+		return "Art. 10 DPR 633/72"
+	case "N5":
+		return "Art. 36 DL 41/95"
+	case "N6.1":
+		return "Art. 74-ter DPR 633/72"
+	case "N6.2":
+		return "Art. 17 c.6 DPR 633/72"
+	case "N6.3":
+		return "Art. 17 c.6 lett.a-bis DPR 633/72"
+	case "N6.4":
+		return "Art. 17 c.6 lett.b DPR 633/72"
+	case "N6.5":
+		return "Art. 17 c.6 lett.c DPR 633/72"
+	case "N6.6":
+		return "Art. 17 c.5 DPR 633/72"
+	case "N6.7":
+		return "Art. 17 c.6 lett.d-bis/d-ter/d-quater DPR 633/72"
+	case "N6.8":
+		return "Art. 17 c.6 lett.d DPR 633/72"
+	case "N6.9":
+		return "Art. 17 DPR 633/72"
+	case "N7":
+		return "Art. 7-bis DPR 633/72"
+	default:
+		return "Operazione non soggetta ad IVA"
+	}
+}
+
 // GenerateProgressivoInvio generates a unique progressivo invio
+// Max 10 characters alphanumeric as per FatturaPA spec
 func GenerateProgressivoInvio() string {
-	// Format: YYYYMMDD + 5 char random string
+	// Format: 5 chars from timestamp + 5 chars random = 10 chars max
 	now := time.Now()
-	return fmt.Sprintf("%s%05d", now.Format("20060102"), now.UnixNano()%100000)
+	// Use last 5 digits of unix timestamp + 5 random digits
+	return fmt.Sprintf("%05d%05d", now.Unix()%100000, now.UnixNano()%100000)
 }
