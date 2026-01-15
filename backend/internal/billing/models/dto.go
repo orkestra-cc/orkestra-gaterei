@@ -124,6 +124,7 @@ type CreateCompanyInput struct {
 // UpdateCompanyInput represents the input for updating a company
 type UpdateCompanyInput struct {
 	Denomination        *string        `json:"denomination,omitempty"`
+	CodiceFiscale       *string        `json:"codiceFiscale,omitempty" doc:"Fiscal code (required for XML export per D.P.R. 605-1973)"`
 	RegimeFiscale       *RegimeFiscale `json:"regimeFiscale,omitempty"`
 	Address             *string        `json:"address,omitempty"`
 	NumeroCivico        *string        `json:"numeroCivico,omitempty"`
@@ -288,6 +289,10 @@ type CreatePaymentTermsInput struct {
 	PaymentMethod PaymentMethod    `json:"paymentMethod" validate:"required"`
 	IBAN          string           `json:"iban,omitempty"`
 	BIC           string           `json:"bic,omitempty"`
+	ABI           string           `json:"abi,omitempty"`
+	CAB           string           `json:"cab,omitempty"`
+	Beneficiario        string `json:"beneficiario,omitempty" doc:"Payment beneficiary name"`
+	IstitutoFinanziario string `json:"istitutoFinanziario,omitempty" doc:"Financial institution name"`
 	DueDate       *time.Time       `json:"dueDate,omitempty"`
 }
 

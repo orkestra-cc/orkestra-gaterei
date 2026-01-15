@@ -87,7 +87,7 @@ func (s *companyService) CreateCompany(ctx context.Context, input *models.Create
 		// Contacts
 		Email: input.Email,
 		PEC:   input.PEC,
-		Phone: input.Phone,
+		Phone: NormalizePhone(input.Phone),
 		// Bank details
 		IBAN:                input.IBAN,
 		BIC:                 input.BIC,
@@ -196,6 +196,9 @@ func (s *companyService) UpdateCompany(ctx context.Context, uuid string, input *
 	if input.Denomination != nil {
 		company.Denomination = *input.Denomination
 	}
+	if input.CodiceFiscale != nil {
+		company.CodiceFiscale = *input.CodiceFiscale
+	}
 	if input.RegimeFiscale != nil {
 		company.RegimeFiscale = *input.RegimeFiscale
 	}
@@ -240,7 +243,7 @@ func (s *companyService) UpdateCompany(ctx context.Context, uuid string, input *
 		company.PEC = *input.PEC
 	}
 	if input.Phone != nil {
-		company.Phone = *input.Phone
+		company.Phone = NormalizePhone(*input.Phone)
 	}
 	if input.IBAN != nil {
 		company.IBAN = *input.IBAN

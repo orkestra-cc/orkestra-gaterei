@@ -197,7 +197,7 @@ func (b *xmlBuilder) buildCedentePrestatore(party *models.PartyData) models.Cede
 	// Add contacts if available
 	if party.Phone != "" || party.Email != "" {
 		cp.Contatti = &models.Contatti{
-			Telefono: party.Phone,
+			Telefono: NormalizePhone(party.Phone),
 			Email:    party.Email,
 		}
 	}

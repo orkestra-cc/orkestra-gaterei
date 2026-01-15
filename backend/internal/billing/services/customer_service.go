@@ -72,7 +72,7 @@ func (s *customerService) CreateCustomer(ctx context.Context, input *models.Crea
 		Country:            input.Country,
 		Email:              input.Email,
 		PEC:                input.PEC,
-		Phone:              input.Phone,
+		Phone:              NormalizePhone(input.Phone),
 		CodiceDestinatario: codiceDestinatario,
 		PECDestinatario:    input.PECDestinatario,
 		IsPA:               input.IsPA,
@@ -182,7 +182,7 @@ func (s *customerService) UpdateCustomer(ctx context.Context, uuid string, input
 		customer.PEC = *input.PEC
 	}
 	if input.Phone != nil {
-		customer.Phone = *input.Phone
+		customer.Phone = NormalizePhone(*input.Phone)
 	}
 	if input.CodiceDestinatario != nil {
 		customer.CodiceDestinatario = *input.CodiceDestinatario

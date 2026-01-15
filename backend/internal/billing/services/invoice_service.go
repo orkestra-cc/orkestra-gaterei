@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -175,11 +176,15 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 	// Convert payment terms
 	if input.PaymentTerms != nil {
 		invoice.PaymentTerms = &models.PaymentTerms{
-			Condition:     input.PaymentTerms.Condition,
-			PaymentMethod: input.PaymentTerms.PaymentMethod,
-			IBAN:          input.PaymentTerms.IBAN,
-			BIC:           input.PaymentTerms.BIC,
-			DueDate:       input.PaymentTerms.DueDate,
+			Condition:           input.PaymentTerms.Condition,
+			PaymentMethod:       input.PaymentTerms.PaymentMethod,
+			IBAN:                input.PaymentTerms.IBAN,
+			BIC:                 input.PaymentTerms.BIC,
+			ABI:                 input.PaymentTerms.ABI,
+			CAB:                 input.PaymentTerms.CAB,
+			Beneficiario:        input.PaymentTerms.Beneficiario,
+			IstitutoFinanziario: input.PaymentTerms.IstitutoFinanziario,
+			DueDate:             input.PaymentTerms.DueDate,
 		}
 	}
 
@@ -324,11 +329,15 @@ func (s *invoiceService) UpdateInvoice(ctx context.Context, uuid string, input *
 	// Update payment terms if provided
 	if input.PaymentTerms != nil {
 		invoice.PaymentTerms = &models.PaymentTerms{
-			Condition:     input.PaymentTerms.Condition,
-			PaymentMethod: input.PaymentTerms.PaymentMethod,
-			IBAN:          input.PaymentTerms.IBAN,
-			BIC:           input.PaymentTerms.BIC,
-			DueDate:       input.PaymentTerms.DueDate,
+			Condition:           input.PaymentTerms.Condition,
+			PaymentMethod:       input.PaymentTerms.PaymentMethod,
+			IBAN:                input.PaymentTerms.IBAN,
+			BIC:                 input.PaymentTerms.BIC,
+			ABI:                 input.PaymentTerms.ABI,
+			CAB:                 input.PaymentTerms.CAB,
+			Beneficiario:        input.PaymentTerms.Beneficiario,
+			IstitutoFinanziario: input.PaymentTerms.IstitutoFinanziario,
+			DueDate:             input.PaymentTerms.DueDate,
 		}
 	}
 
@@ -458,13 +467,43 @@ func (s *invoiceService) GetInvoiceXML(ctx context.Context, uuid string) (string
 		return "", err
 	}
 
-	// If XML is already stored, return it
+	// If XML is already stored, ensure it has XML declaration and return it
 	if invoice.XMLContent != "" {
-		return invoice.XMLContent, nil
+		return ensureXMLDeclaration(invoice.XMLContent), nil
 	}
 
 	// Generate XML on the fly
-	return s.xmlBuilder.Build(invoice)
+	xmlContent, err := s.xmlBuilder.Build(invoice)
+	if err != nil {
+		return "", err
+	}
+
+	// Ensure XML declaration is properly formatted
+	return ensureXMLDeclaration(xmlContent), nil
+}
+
+// ensureXMLDeclaration ensures the XML has the proper declaration prolog
+// FatturaPA requires: <?xml version="1.0" encoding="UTF-8"?>
+func ensureXMLDeclaration(xmlContent string) string {
+	const xmlDeclaration = `<?xml version="1.0" encoding="UTF-8"?>`
+
+	trimmed := strings.TrimSpace(xmlContent)
+
+	// Check if already has declaration
+	if strings.HasPrefix(trimmed, "<?xml") {
+		// Verify it has the correct format, replace if not
+		if strings.HasPrefix(trimmed, xmlDeclaration) {
+			return xmlContent
+		}
+		// Has a declaration but might be malformed, find the end and replace
+		endIdx := strings.Index(trimmed, "?>")
+		if endIdx != -1 {
+			rest := strings.TrimSpace(trimmed[endIdx+2:])
+			return xmlDeclaration + "\n" + rest
+		}
+	}
+
+	return xmlDeclaration + "\n" + trimmed
 }
 
 func (s *invoiceService) ListReceivedInvoices(ctx context.Context, filters *models.InvoiceFilters, pagination models.PaginationParams) (*models.InvoiceListResponse, error) {

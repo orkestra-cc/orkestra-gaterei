@@ -67,7 +67,7 @@ func (s *supplierService) CreateSupplier(ctx context.Context, input *models.Crea
 		Country:         input.Country,
 		Email:           input.Email,
 		PEC:             input.PEC,
-		Phone:           input.Phone,
+		Phone:           NormalizePhone(input.Phone),
 		IBAN:            input.IBAN,
 		BIC:             input.BIC,
 		Notes:           input.Notes,
@@ -173,7 +173,7 @@ func (s *supplierService) UpdateSupplier(ctx context.Context, uuid string, input
 		supplier.PEC = *input.PEC
 	}
 	if input.Phone != nil {
-		supplier.Phone = *input.Phone
+		supplier.Phone = NormalizePhone(*input.Phone)
 	}
 	if input.IBAN != nil {
 		supplier.IBAN = *input.IBAN

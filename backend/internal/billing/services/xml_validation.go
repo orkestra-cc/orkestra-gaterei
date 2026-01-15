@@ -195,6 +195,19 @@ func ValidateCodiceFiscale(cf string) error {
 	return nil
 }
 
+// ValidateCodiceFiscaleRequired validates that CodiceFiscale is present and valid
+// Used for CedentePrestatore where CodiceFiscale is required per D.P.R. 605-1973
+func ValidateCodiceFiscaleRequired(cf string, partyType string) error {
+	if cf == "" {
+		return fmt.Errorf("%s: codice fiscale is required (D.P.R. 605-1973)", partyType)
+	}
+	upper := strings.ToUpper(cf)
+	if !regexCodiceFiscale.MatchString(upper) {
+		return fmt.Errorf("%s: %w: got '%s'", partyType, ErrInvalidCodiceFiscale, cf)
+	}
+	return nil
+}
+
 // ValidatePartitaIVA validates Italian VAT number format
 // Pattern: [0-9]{11}
 func ValidatePartitaIVA(piva string) error {
@@ -389,6 +402,8 @@ func ValidateInvoiceForXML(invoice *models.Invoice) error {
 	// Validate cedente prestatore (seller)
 	if invoice.CedentePrestatore != nil {
 		errs.Add(validateParty(invoice.CedentePrestatore, "cedente_prestatore"))
+		// Require CodiceFiscale for CedentePrestatore (Italian regulation D.P.R. 605-1973)
+		errs.Add(ValidateCodiceFiscaleRequired(invoice.CedentePrestatore.CodiceFiscale, "cedente_prestatore"))
 	}
 
 	// Validate cessionario committente (buyer)
@@ -543,4 +558,30 @@ func NormalizeCodiceDestinatario(code string) string {
 		return ""
 	}
 	return strings.ToUpper(strings.TrimSpace(code))
+}
+
+// NormalizePhone normalizes phone numbers for FatturaPA (5-12 chars max)
+// Removes country code prefix (+39, 0039) and non-digit characters
+func NormalizePhone(phone string) string {
+	if phone == "" {
+		return ""
+	}
+
+	// Remove spaces, dashes, parentheses
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+	phone = strings.ReplaceAll(phone, "(", "")
+	phone = strings.ReplaceAll(phone, ")", "")
+
+	// Remove Italian country code prefix
+	phone = strings.TrimPrefix(phone, "+39")
+	phone = strings.TrimPrefix(phone, "0039")
+	phone = strings.TrimPrefix(phone, "+")
+
+	// Truncate to max 12 characters (FatturaPA XSD limit)
+	if len(phone) > 12 {
+		phone = phone[:12]
+	}
+
+	return phone
 }
