@@ -166,6 +166,9 @@ type CreateInvoiceInput struct {
 	Causale       []string `json:"causale,omitempty" doc:"Invoice description/reason"`
 	InternalNotes string   `json:"internalNotes,omitempty" doc:"Internal notes (not sent to SDI)"`
 
+	// Stamp duty (bollo virtuale) - required for exempt invoices > €77.47
+	DatiBollo *DatiBolloInput `json:"datiBollo,omitempty" doc:"Stamp duty data (bollo virtuale)"`
+
 	// Storage options
 	LegalStorageEnabled bool `json:"legalStorageEnabled,omitempty" doc:"Enable legal storage"`
 	SignatureEnabled    bool `json:"signatureEnabled,omitempty" doc:"Enable digital signature"`
@@ -203,6 +206,7 @@ type UpdateInvoiceInput struct {
 	RelatedDocuments []RelatedDocument         `json:"relatedDocuments,omitempty"`
 	Causale          []string                  `json:"causale,omitempty"`
 	InternalNotes    *string                   `json:"internalNotes,omitempty"`
+	DatiBollo        *DatiBolloInput           `json:"datiBollo,omitempty"`
 }
 
 // InvoiceListResponse represents a paginated list of invoices

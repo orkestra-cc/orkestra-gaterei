@@ -154,6 +154,11 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 		}
 	}
 
+	// Copy stamp duty data (bollo virtuale)
+	if input.DatiBollo != nil {
+		invoice.DatiBollo = input.DatiBollo
+	}
+
 	// Save to database
 	if err := s.invoiceRepo.Create(ctx, invoice); err != nil {
 		return nil, err
@@ -296,6 +301,11 @@ func (s *invoiceService) UpdateInvoice(ctx context.Context, uuid string, input *
 			BIC:           input.PaymentTerms.BIC,
 			DueDate:       input.PaymentTerms.DueDate,
 		}
+	}
+
+	// Update stamp duty (bollo virtuale) if provided
+	if input.DatiBollo != nil {
+		invoice.DatiBollo = input.DatiBollo
 	}
 
 	// Save updates
