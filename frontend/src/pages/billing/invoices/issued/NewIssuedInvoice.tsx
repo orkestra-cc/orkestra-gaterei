@@ -238,6 +238,11 @@ const NewIssuedInvoice: React.FC = () => {
     return true;
   };
 
+  // Convert date string (YYYY-MM-DD) to RFC 3339 datetime (YYYY-MM-DDTHH:mm:ssZ)
+  const toRFC3339 = (dateStr: string): string => {
+    return `${dateStr}T00:00:00Z`;
+  };
+
   // Build invoice input
   const buildInvoiceInput = (): CreateInvoiceInput => {
     const paymentTerms: CreatePaymentTermsInput | undefined =
@@ -246,14 +251,14 @@ const NewIssuedInvoice: React.FC = () => {
             condition: paymentCondition,
             paymentMethod: paymentMethod,
             iban: paymentIban || undefined,
-            dueDate: paymentDueDate || undefined,
+            dueDate: paymentDueDate ? toRFC3339(paymentDueDate) : undefined,
           }
         : undefined;
 
     return {
       documentType,
       number,
-      date,
+      date: toRFC3339(date),
       currency: 'EUR',
       customerId,
       lines: lines.map((line) => ({
