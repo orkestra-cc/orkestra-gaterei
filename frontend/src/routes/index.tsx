@@ -233,6 +233,9 @@ const SDINotifications = lazy(
 const NewIssuedInvoice = lazy(
   () => import('pages/billing/invoices/issued/NewIssuedInvoice')
 );
+const IssuedInvoiceDetail = lazy(
+  () => import('pages/billing/invoices/issued/IssuedInvoiceDetail')
+);
 
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
@@ -801,6 +804,23 @@ const routes: RouteObject[] = [
                   fallback={<FalconLoader />}
                 >
                   <NewIssuedInvoice />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'billing/invoices/issued/:invoiceId',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[
+                  ['developer', 'ceo', 'administrator']
+                ]}
+              >
+                <Suspense
+                  key="billing-invoices-issued-detail"
+                  fallback={<FalconLoader />}
+                >
+                  <IssuedInvoiceDetail />
                 </Suspense>
               </ProtectedRoute>
             )
