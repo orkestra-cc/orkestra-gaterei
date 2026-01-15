@@ -5,6 +5,7 @@ import { Badge, Button, Modal, Dropdown, Spinner, Form } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileImport, faCheck, faTimes, faEye, faDownload } from '@fortawesome/free-solid-svg-icons';
 import { useGetInvoicesQuery, useAcceptInvoiceMutation, useRejectInvoiceMutation } from 'store/api/billingApi';
+import useAdvanceTable from './useAdvanceTable';
 import type { InvoiceSummary, InvoiceStatus, DocumentType } from 'types/billing';
 import {
   INVOICE_STATUS_LABELS,
@@ -316,16 +317,20 @@ const useReceivedInvoiceTable = ({
     </Modal>
   ), [invoiceToReject, rejectReason, isRejecting, handleReject]);
 
-  return {
+  const table = useAdvanceTable({
     columns,
     data: data?.invoices || [],
-    loading: isLoading,
+    isLoading,
     error,
     selection,
     sortable,
     pagination,
     perPage,
     selectionColumnWidth,
+  });
+
+  return {
+    ...table,
     AcceptModal,
     RejectModal,
   };

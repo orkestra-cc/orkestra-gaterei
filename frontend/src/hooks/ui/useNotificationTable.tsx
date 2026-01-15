@@ -14,6 +14,7 @@ import {
   faCheckCircle,
 } from '@fortawesome/free-solid-svg-icons';
 import { useGetNotificationsQuery, useMarkNotificationProcessedMutation } from 'store/api/billingApi';
+import useAdvanceTable from './useAdvanceTable';
 import type { SDINotification, NotificationType } from 'types/billing';
 import { NOTIFICATION_TYPE_LABELS, formatItalianDate } from 'types/billing';
 
@@ -263,16 +264,20 @@ const useNotificationTable = ({
     </Modal>
   ), [notificationToProcess, isProcessing, handleMarkProcessed]);
 
-  return {
+  const table = useAdvanceTable({
     columns,
     data: data?.notifications || [],
-    loading: isLoading,
+    isLoading,
     error,
     selection,
     sortable,
     pagination,
     perPage,
     selectionColumnWidth,
+  });
+
+  return {
+    ...table,
     MarkProcessedModal,
   };
 };

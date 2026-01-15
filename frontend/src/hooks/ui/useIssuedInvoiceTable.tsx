@@ -5,6 +5,7 @@ import { Badge, Button, Modal, Dropdown, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoice, faPaperPlane, faEye, faTrash, faDownload } from '@fortawesome/free-solid-svg-icons';
 import { useGetInvoicesQuery, useDeleteInvoiceMutation, useSendInvoiceMutation } from 'store/api/billingApi';
+import useAdvanceTable from './useAdvanceTable';
 import type { InvoiceSummary, InvoiceStatus, DocumentType } from 'types/billing';
 import {
   INVOICE_STATUS_LABELS,
@@ -302,16 +303,20 @@ const useIssuedInvoiceTable = ({
     </Modal>
   ), [invoiceToSend, isSending, handleSend]);
 
-  return {
+  const table = useAdvanceTable({
     columns,
     data: data?.invoices || [],
-    loading: isLoading,
+    isLoading,
     error,
     selection,
     sortable,
     pagination,
     perPage,
     selectionColumnWidth,
+  });
+
+  return {
+    ...table,
     DeleteModal,
     SendModal,
   };
