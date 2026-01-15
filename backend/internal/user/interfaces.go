@@ -36,4 +36,7 @@ type UserServiceForAuth interface {
 	// User validation
 	ValidateUserExists(ctx context.Context, id string) (bool, error)
 	ValidateUserActive(ctx context.Context, id string) (bool, error)
+
+	// User count for first-user detection
+	GetUserCount(ctx context.Context, filters *models.UserFilters) (int64, error)
 }

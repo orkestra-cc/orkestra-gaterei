@@ -564,10 +564,23 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 			newUUID := models.GenerateUUIDv7()
 			fmt.Printf("[AUTH_DEBUG] Generated new UUID for user: %s\n", newUUID)
 
+			// Check if this is the first user in the system
+			userCount, err := s.userService.GetUserCount(ctx, nil)
+			if err != nil {
+				fmt.Printf("[AUTH_DEBUG] WARNING: Failed to get user count: %v, defaulting to 'user' role\n", err)
+				userCount = 1 // Default to non-first-user behavior on error
+			}
+
+			role := "user"
+			if userCount == 0 {
+				role = "developer"
+				fmt.Printf("[AUTH_DEBUG] First user detected, assigning 'developer' role\n")
+			}
+
 			createInput := &userModels.CreateUserInput{
 				Email:    email,
 				FullName: userInfo["name"].(string),
-				Role:     "user",
+				Role:     role,
 			}
 			fmt.Printf("[AUTH_DEBUG] Creating new user - Name: %s, Role: %s\n", createInput.FullName, createInput.Role)
 
