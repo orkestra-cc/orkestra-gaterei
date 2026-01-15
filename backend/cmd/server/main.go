@@ -22,6 +22,12 @@ import (
 	"github.com/orkestra/backend/internal/auth/models"
 	"github.com/orkestra/backend/internal/auth/repository"
 	"github.com/orkestra/backend/internal/auth/services"
+	"github.com/orkestra/backend/internal/billing"
+	billingConfig "github.com/orkestra/backend/internal/billing/config"
+	billingHandlers "github.com/orkestra/backend/internal/billing/handlers"
+	billingJobs "github.com/orkestra/backend/internal/billing/jobs"
+	billingRepo "github.com/orkestra/backend/internal/billing/repository"
+	billingSvc "github.com/orkestra/backend/internal/billing/services"
 	reportingHandlers "github.com/orkestra/backend/internal/reporting/handlers"
 	reportingRepository "github.com/orkestra/backend/internal/reporting/repository"
 	reportingServices "github.com/orkestra/backend/internal/reporting/services"
@@ -195,6 +201,67 @@ func main() {
 	navigationService := navigationServices.NewNavigationService(menuConfig)
 	navigationHandler := navigationHandlers.NewNavigationHandler(navigationService)
 
+	// Initialize billing module (OpenAPI SDI integration)
+	var billingPollingJob *billingJobs.PollingJob
+	var billingInvoiceHandler *billingHandlers.InvoiceHandler
+	var billingCustomerHandler *billingHandlers.CustomerHandler
+	var billingSupplierHandler *billingHandlers.SupplierHandler
+	var billingNotificationHandler *billingHandlers.NotificationHandler
+	billingEnabled := cfg.Billing.OpenAPIBearerToken != ""
+
+	if billingEnabled {
+		// Create OpenAPI config from shared config
+		openAPIConfig := &billingConfig.OpenAPIConfig{
+			BaseURL:        cfg.Billing.OpenAPIBaseURL,
+			BearerToken:    cfg.Billing.OpenAPIBearerToken,
+			FiscalID:       cfg.Billing.OpenAPIFiscalID,
+			RecipientCode:  cfg.Billing.OpenAPIRecipientCode,
+			ApplySignature: cfg.Billing.ApplySignature,
+			ApplyStorage:   cfg.Billing.ApplyStorage,
+			Timeout:        cfg.Billing.Timeout,
+			RetryAttempts:  cfg.Billing.RetryAttempts,
+			SandboxMode:    cfg.Billing.SandboxMode,
+		}
+
+		// Create repositories
+		invoiceRepo := billingRepo.NewInvoiceRepository(db)
+		customerRepo := billingRepo.NewCustomerRepository(db)
+		supplierRepo := billingRepo.NewSupplierRepository(db)
+		notificationRepo := billingRepo.NewNotificationRepository(db)
+
+		// Create OpenAPI client and XML builder
+		openAPIClient := billingSvc.NewOpenAPIClient(openAPIConfig, logger)
+		xmlBuilder := billingSvc.NewXMLBuilder(openAPIConfig)
+
+		// Create services
+		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, openAPIClient, xmlBuilder, logger)
+		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
+		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
+		notificationSvc := billingSvc.NewNotificationService(notificationRepo, logger)
+
+		// Create handlers
+		billingInvoiceHandler = billingHandlers.NewInvoiceHandler(invoiceSvc)
+		billingCustomerHandler = billingHandlers.NewCustomerHandler(customerSvc)
+		billingSupplierHandler = billingHandlers.NewSupplierHandler(supplierSvc)
+		billingNotificationHandler = billingHandlers.NewNotificationHandler(notificationSvc)
+
+		// Create polling job
+		billingPollingJob = billingJobs.NewPollingJob(
+			openAPIClient,
+			invoiceRepo,
+			notificationRepo,
+			logger,
+			cfg.Billing.PollingInterval,
+		)
+
+		logger.Info("Billing module initialized",
+			slog.String("baseURL", cfg.Billing.OpenAPIBaseURL),
+			slog.Bool("sandbox", cfg.Billing.SandboxMode),
+		)
+	} else {
+		logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
+	}
+
 	// Initialize auth service with all repositories
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
@@ -323,6 +390,22 @@ func main() {
 	// Role filtering happens inside the service based on user's role
 	navigationAPI := humachi.New(protectedRouter, apiConfig)
 	registerNavigationRoutes(navigationAPI, navigationHandler)
+
+	// Billing routes - manager role and above
+	// Only register if billing module is enabled
+	if billingEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
+			billingAPI := humachi.New(r, apiConfig)
+			billing.RegisterRoutes(
+				billingAPI,
+				billingInvoiceHandler,
+				billingCustomerHandler,
+				billingSupplierHandler,
+				billingNotificationHandler,
+			)
+		})
+	}
 
 	// Mount the protected routes
 	router.Mount("/", protectedRouter)
@@ -482,6 +565,17 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Start billing polling job if enabled
+	if billingEnabled && billingPollingJob != nil {
+		pollingCtx, pollingCancel := context.WithCancel(context.Background())
+		defer pollingCancel()
+
+		go func() {
+			logger.Info("Starting SDI notification polling job")
+			billingPollingJob.Start(pollingCtx)
+		}()
+	}
+
 	go func() {
 		logger.Info("Starting server",
 			slog.String("port", cfg.Server.Port),
@@ -499,6 +593,12 @@ func main() {
 	<-quit
 
 	logger.Info("Shutting down server...")
+
+	// Stop billing polling job
+	if billingEnabled && billingPollingJob != nil {
+		logger.Info("Stopping SDI notification polling job")
+		billingPollingJob.Stop()
+	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

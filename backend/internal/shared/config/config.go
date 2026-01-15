@@ -20,6 +20,22 @@ type Config struct {
 	Redis    RedisConfig
 	Auth     AuthConfig
 	Rate     RateLimitConfig
+	Billing  BillingConfig
+}
+
+// BillingConfig holds configuration for the billing/invoicing module (OpenAPI SDI integration)
+type BillingConfig struct {
+	// OpenAPI SDI configuration
+	OpenAPIBaseURL       string        // Base URL: https://sdi.openapi.it (prod) or https://test.sdi.openapi.it (sandbox)
+	OpenAPIBearerToken   string        // OAuth Bearer Token for authentication
+	OpenAPIFiscalID      string        // Company fiscal ID (P.IVA with country code, e.g., IT12345678901)
+	OpenAPIRecipientCode string        // SDI recipient code (OpenAPI's code: JKKZDGR)
+	ApplySignature       bool          // Enable digital signature for invoices
+	ApplyStorage         bool          // Enable legal storage (conservazione sostitutiva)
+	Timeout              time.Duration // HTTP client timeout
+	RetryAttempts        int           // Number of retry attempts for failed requests
+	PollingInterval      time.Duration // Interval between polling for notifications
+	SandboxMode          bool          // Use sandbox environment
 }
 
 type ServerConfig struct {
@@ -206,6 +222,26 @@ func Load() (*Config, error) {
 	config.Rate = RateLimitConfig{
 		RequestsPerMinute: getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
 		Burst:             getEnvAsInt("RATE_LIMIT_BURST", 10),
+	}
+
+	// Billing/Invoicing configuration (OpenAPI SDI)
+	sandboxMode := getEnvAsBool("OPENAPI_SANDBOX_MODE", true)
+	defaultBaseURL := "https://test.sdi.openapi.it"
+	if !sandboxMode {
+		defaultBaseURL = "https://sdi.openapi.it"
+	}
+
+	config.Billing = BillingConfig{
+		OpenAPIBaseURL:       getEnv("OPENAPI_BASE_URL", defaultBaseURL),
+		OpenAPIBearerToken:   getEnv("OPENAPI_BEARER_TOKEN", ""),
+		OpenAPIFiscalID:      getEnv("OPENAPI_FISCAL_ID", ""),
+		OpenAPIRecipientCode: getEnv("OPENAPI_RECIPIENT_CODE", "JKKZDGR"),
+		ApplySignature:       getEnvAsBool("OPENAPI_APPLY_SIGNATURE", true),
+		ApplyStorage:         getEnvAsBool("OPENAPI_APPLY_STORAGE", true),
+		Timeout:              getEnvAsDuration("OPENAPI_TIMEOUT", "30s"),
+		RetryAttempts:        getEnvAsInt("OPENAPI_RETRY_ATTEMPTS", 3),
+		PollingInterval:      getEnvAsDuration("OPENAPI_POLLING_INTERVAL", "5m"),
+		SandboxMode:          sandboxMode,
 	}
 
 	if err := config.Validate(); err != nil {
