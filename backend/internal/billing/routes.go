@@ -1,0 +1,296 @@
+package billing
+
+import (
+	"net/http"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/orkestra/backend/internal/billing/handlers"
+)
+
+// RegisterRoutes registers all billing module routes
+func RegisterRoutes(
+	api huma.API,
+	invoiceHandler *handlers.InvoiceHandler,
+	customerHandler *handlers.CustomerHandler,
+	supplierHandler *handlers.SupplierHandler,
+	notificationHandler *handlers.NotificationHandler,
+) {
+	// ========================================
+	// Invoice Routes (Issued - Fatture Attive)
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "create-invoice",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/invoices",
+		Summary:     "Create invoice",
+		Description: "Creates a new draft invoice for emission",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.CreateInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-invoices",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/invoices",
+		Summary:     "List invoices",
+		Description: "Lists invoices with optional filtering and pagination",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.ListInvoices)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-invoice",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/invoices/{id}",
+		Summary:     "Get invoice",
+		Description: "Retrieves an invoice by its UUID",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.GetInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-invoice",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/billing/invoices/{id}",
+		Summary:     "Update invoice",
+		Description: "Updates a draft invoice. Only draft invoices can be modified.",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.UpdateInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-invoice",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/billing/invoices/{id}",
+		Summary:     "Delete invoice",
+		Description: "Deletes a draft invoice. Only draft invoices can be deleted.",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.DeleteInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "send-invoice",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/invoices/{id}/send",
+		Summary:     "Send invoice to SDI",
+		Description: "Sends the invoice to the SDI (Sistema di Interscambio) for delivery",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.SendInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-invoice-xml",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/invoices/{id}/xml",
+		Summary:     "Get invoice XML",
+		Description: "Returns the FatturaPA XML content of the invoice",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.GetInvoiceXML)
+
+	// ========================================
+	// Received Invoice Routes (Fatture Passive)
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "list-received-invoices",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/received-invoices",
+		Summary:     "List received invoices",
+		Description: "Lists received invoices (fatture passive) with optional filtering",
+		Tags:        []string{"Billing - Received Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.ListInvoices) // Reuses ListInvoices with direction=received
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-received-invoice",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/received-invoices/{id}",
+		Summary:     "Get received invoice",
+		Description: "Retrieves a received invoice by its UUID",
+		Tags:        []string{"Billing - Received Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.GetInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "accept-received-invoice",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/received-invoices/{id}/accept",
+		Summary:     "Accept received invoice",
+		Description: "Marks a received invoice as accepted",
+		Tags:        []string{"Billing - Received Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.AcceptReceivedInvoice)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "reject-received-invoice",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/received-invoices/{id}/reject",
+		Summary:     "Reject received invoice",
+		Description: "Marks a received invoice as rejected with a reason",
+		Tags:        []string{"Billing - Received Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.RejectReceivedInvoice)
+
+	// ========================================
+	// Customer Routes
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "create-customer",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/customers",
+		Summary:     "Create customer",
+		Description: "Creates a new billing customer for invoice emission",
+		Tags:        []string{"Billing - Customers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, customerHandler.CreateCustomer)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-customers",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/customers",
+		Summary:     "List customers",
+		Description: "Lists billing customers with optional search and pagination",
+		Tags:        []string{"Billing - Customers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, customerHandler.ListCustomers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-customer",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/customers/{id}",
+		Summary:     "Get customer",
+		Description: "Retrieves a billing customer by its UUID",
+		Tags:        []string{"Billing - Customers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, customerHandler.GetCustomer)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-customer",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/billing/customers/{id}",
+		Summary:     "Update customer",
+		Description: "Updates a billing customer's information",
+		Tags:        []string{"Billing - Customers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, customerHandler.UpdateCustomer)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-customer",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/billing/customers/{id}",
+		Summary:     "Delete customer",
+		Description: "Soft deletes (deactivates) a billing customer",
+		Tags:        []string{"Billing - Customers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, customerHandler.DeleteCustomer)
+
+	// ========================================
+	// Supplier Routes
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "create-supplier",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/suppliers",
+		Summary:     "Create supplier",
+		Description: "Creates a new billing supplier for received invoices",
+		Tags:        []string{"Billing - Suppliers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, supplierHandler.CreateSupplier)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-suppliers",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/suppliers",
+		Summary:     "List suppliers",
+		Description: "Lists billing suppliers with optional search and pagination",
+		Tags:        []string{"Billing - Suppliers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, supplierHandler.ListSuppliers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-supplier",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/suppliers/{id}",
+		Summary:     "Get supplier",
+		Description: "Retrieves a billing supplier by its UUID",
+		Tags:        []string{"Billing - Suppliers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, supplierHandler.GetSupplier)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-supplier",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/billing/suppliers/{id}",
+		Summary:     "Update supplier",
+		Description: "Updates a billing supplier's information",
+		Tags:        []string{"Billing - Suppliers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, supplierHandler.UpdateSupplier)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-supplier",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/billing/suppliers/{id}",
+		Summary:     "Delete supplier",
+		Description: "Soft deletes (deactivates) a billing supplier",
+		Tags:        []string{"Billing - Suppliers"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, supplierHandler.DeleteSupplier)
+
+	// ========================================
+	// Notification Routes
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "list-notifications",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/notifications",
+		Summary:     "List SDI notifications",
+		Description: "Lists SDI notifications with optional filtering",
+		Tags:        []string{"Billing - Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, notificationHandler.ListNotifications)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-notification",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/notifications/{id}",
+		Summary:     "Get notification",
+		Description: "Retrieves an SDI notification by its UUID",
+		Tags:        []string{"Billing - Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, notificationHandler.GetNotification)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "mark-notification-processed",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/notifications/{id}/process",
+		Summary:     "Mark notification as processed",
+		Description: "Marks an SDI notification as processed",
+		Tags:        []string{"Billing - Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, notificationHandler.MarkAsProcessed)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-notification-summary",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/notifications/summary",
+		Summary:     "Get notification summary",
+		Description: "Returns a summary of SDI notifications",
+		Tags:        []string{"Billing - Notifications"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, notificationHandler.GetSummary)
+
+	// ========================================
+	// Statistics Routes
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "get-billing-stats",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/stats",
+		Summary:     "Get billing statistics",
+		Description: "Returns billing statistics for the specified period",
+		Tags:        []string{"Billing - Statistics"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.GetStats)
+}

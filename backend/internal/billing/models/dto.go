@@ -1,0 +1,299 @@
+package models
+
+import "time"
+
+// ========================================
+// Customer DTOs
+// ========================================
+
+// CreateCustomerInput represents the input for creating a customer
+type CreateCustomerInput struct {
+	// Fiscal identifiers
+	FiscalIDCountry string `json:"fiscalIdCountry" validate:"required,len=2" doc:"Country code (IT)"`
+	FiscalIDCode    string `json:"fiscalIdCode" validate:"required" doc:"VAT number or fiscal code"`
+	CodiceFiscale   string `json:"codiceFiscale,omitempty" doc:"Fiscal code if different from VAT"`
+
+	// Company/Person data
+	IsCompany    bool   `json:"isCompany" doc:"True if company, false if individual"`
+	Denomination string `json:"denomination,omitempty" doc:"Company name (required if isCompany)"`
+	Name         string `json:"name,omitempty" doc:"First name (required if not company)"`
+	Surname      string `json:"surname,omitempty" doc:"Last name (required if not company)"`
+
+	// Address
+	Address    string `json:"address" validate:"required" doc:"Street address"`
+	City       string `json:"city" validate:"required" doc:"City"`
+	Province   string `json:"province,omitempty" doc:"Province code (2 chars)"`
+	PostalCode string `json:"postalCode" validate:"required" doc:"Postal code"`
+	Country    string `json:"country" validate:"required,len=2" doc:"Country code ISO 3166-1 alpha-2"`
+
+	// Contacts
+	Email string `json:"email,omitempty" validate:"omitempty,email" doc:"Email address"`
+	PEC   string `json:"pec,omitempty" validate:"omitempty,email" doc:"PEC address"`
+	Phone string `json:"phone,omitempty" doc:"Phone number"`
+
+	// SDI delivery
+	CodiceDestinatario string `json:"codiceDestinatario,omitempty" doc:"SDI recipient code (7 chars B2B, 6 chars PA)"`
+	PECDestinatario    string `json:"pecDestinatario,omitempty" doc:"PEC for SDI delivery"`
+
+	// PA specific
+	IsPA          bool   `json:"isPA,omitempty" doc:"True if Public Administration"`
+	CodiceUfficio string `json:"codiceUfficio,omitempty" doc:"PA office code (6 chars)"`
+
+	// Notes
+	Notes string `json:"notes,omitempty" doc:"Internal notes"`
+}
+
+// UpdateCustomerInput represents the input for updating a customer
+type UpdateCustomerInput struct {
+	Denomination       *string `json:"denomination,omitempty"`
+	Name               *string `json:"name,omitempty"`
+	Surname            *string `json:"surname,omitempty"`
+	Address            *string `json:"address,omitempty"`
+	City               *string `json:"city,omitempty"`
+	Province           *string `json:"province,omitempty"`
+	PostalCode         *string `json:"postalCode,omitempty"`
+	Email              *string `json:"email,omitempty"`
+	PEC                *string `json:"pec,omitempty"`
+	Phone              *string `json:"phone,omitempty"`
+	CodiceDestinatario *string `json:"codiceDestinatario,omitempty"`
+	PECDestinatario    *string `json:"pecDestinatario,omitempty"`
+	Notes              *string `json:"notes,omitempty"`
+}
+
+// CustomerListResponse represents a paginated list of customers
+type CustomerListResponse struct {
+	Customers  []Customer `json:"customers"`
+	Total      int64      `json:"total"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"pageSize"`
+	TotalPages int        `json:"totalPages"`
+}
+
+// ========================================
+// Supplier DTOs
+// ========================================
+
+// CreateSupplierInput represents the input for creating a supplier
+type CreateSupplierInput struct {
+	// Fiscal identifiers
+	FiscalIDCountry string `json:"fiscalIdCountry" validate:"required,len=2"`
+	FiscalIDCode    string `json:"fiscalIdCode" validate:"required"`
+	CodiceFiscale   string `json:"codiceFiscale,omitempty"`
+
+	// Company/Person data
+	IsCompany    bool   `json:"isCompany"`
+	Denomination string `json:"denomination,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Surname      string `json:"surname,omitempty"`
+
+	// Fiscal regime
+	RegimeFiscale RegimeFiscale `json:"regimeFiscale,omitempty"`
+
+	// Address
+	Address    string `json:"address" validate:"required"`
+	City       string `json:"city" validate:"required"`
+	Province   string `json:"province,omitempty"`
+	PostalCode string `json:"postalCode" validate:"required"`
+	Country    string `json:"country" validate:"required,len=2"`
+
+	// Contacts
+	Email string `json:"email,omitempty" validate:"omitempty,email"`
+	PEC   string `json:"pec,omitempty" validate:"omitempty,email"`
+	Phone string `json:"phone,omitempty"`
+
+	// Bank details
+	IBAN string `json:"iban,omitempty"`
+	BIC  string `json:"bic,omitempty"`
+
+	// Notes
+	Notes string `json:"notes,omitempty"`
+}
+
+// UpdateSupplierInput represents the input for updating a supplier
+type UpdateSupplierInput struct {
+	Denomination  *string        `json:"denomination,omitempty"`
+	Name          *string        `json:"name,omitempty"`
+	Surname       *string        `json:"surname,omitempty"`
+	RegimeFiscale *RegimeFiscale `json:"regimeFiscale,omitempty"`
+	Address       *string        `json:"address,omitempty"`
+	City          *string        `json:"city,omitempty"`
+	Province      *string        `json:"province,omitempty"`
+	PostalCode    *string        `json:"postalCode,omitempty"`
+	Email         *string        `json:"email,omitempty"`
+	PEC           *string        `json:"pec,omitempty"`
+	Phone         *string        `json:"phone,omitempty"`
+	IBAN          *string        `json:"iban,omitempty"`
+	BIC           *string        `json:"bic,omitempty"`
+	Notes         *string        `json:"notes,omitempty"`
+}
+
+// SupplierListResponse represents a paginated list of suppliers
+type SupplierListResponse struct {
+	Suppliers  []Supplier `json:"suppliers"`
+	Total      int64      `json:"total"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"pageSize"`
+	TotalPages int        `json:"totalPages"`
+}
+
+// ========================================
+// Invoice DTOs
+// ========================================
+
+// CreateInvoiceInput represents the input for creating an invoice
+type CreateInvoiceInput struct {
+	// Document type
+	DocumentType DocumentType `json:"documentType" validate:"required" doc:"Document type (TD01, TD04, etc.)"`
+
+	// Document data
+	Number   string    `json:"number" validate:"required" doc:"Invoice number"`
+	Date     time.Time `json:"date" validate:"required" doc:"Invoice date"`
+	Currency string    `json:"currency,omitempty" doc:"Currency code (default: EUR)"`
+
+	// Customer (for issued invoices)
+	CustomerID string `json:"customerId,omitempty" doc:"Reference to existing customer"`
+
+	// Invoice lines
+	Lines []CreateInvoiceLineInput `json:"lines" validate:"required,min=1,dive" doc:"Invoice line items"`
+
+	// Payment terms
+	PaymentTerms *CreatePaymentTermsInput `json:"paymentTerms,omitempty" doc:"Payment terms"`
+
+	// Related documents
+	RelatedDocuments []RelatedDocument `json:"relatedDocuments,omitempty" doc:"Related documents (orders, contracts)"`
+
+	// Additional data
+	Causale       []string `json:"causale,omitempty" doc:"Invoice description/reason"`
+	InternalNotes string   `json:"internalNotes,omitempty" doc:"Internal notes (not sent to SDI)"`
+
+	// Storage options
+	LegalStorageEnabled bool `json:"legalStorageEnabled,omitempty" doc:"Enable legal storage"`
+	SignatureEnabled    bool `json:"signatureEnabled,omitempty" doc:"Enable digital signature"`
+}
+
+// CreateInvoiceLineInput represents input for a single invoice line
+type CreateInvoiceLineInput struct {
+	Description   string        `json:"description" validate:"required,max=1000"`
+	Quantity      float64       `json:"quantity" validate:"required"`
+	UnitOfMeasure UnitOfMeasure `json:"unitOfMeasure,omitempty"`
+	UnitPrice     float64       `json:"unitPrice" validate:"required"`
+	VATRate       float64       `json:"vatRate" validate:"required,min=0,max=100"`
+	VATNature     VATNature     `json:"vatNature,omitempty"`
+	Discounts     []LineDiscount `json:"discounts,omitempty"`
+	ProductCode   string        `json:"productCode,omitempty"`
+	StartDate     *time.Time    `json:"startDate,omitempty"`
+	EndDate       *time.Time    `json:"endDate,omitempty"`
+}
+
+// CreatePaymentTermsInput represents input for payment terms
+type CreatePaymentTermsInput struct {
+	Condition     PaymentCondition `json:"condition" validate:"required"`
+	PaymentMethod PaymentMethod    `json:"paymentMethod" validate:"required"`
+	IBAN          string           `json:"iban,omitempty"`
+	BIC           string           `json:"bic,omitempty"`
+	DueDate       *time.Time       `json:"dueDate,omitempty"`
+}
+
+// UpdateInvoiceInput represents the input for updating an invoice (only draft)
+type UpdateInvoiceInput struct {
+	Number           *string                   `json:"number,omitempty"`
+	Date             *time.Time                `json:"date,omitempty"`
+	Lines            []CreateInvoiceLineInput  `json:"lines,omitempty"`
+	PaymentTerms     *CreatePaymentTermsInput  `json:"paymentTerms,omitempty"`
+	RelatedDocuments []RelatedDocument         `json:"relatedDocuments,omitempty"`
+	Causale          []string                  `json:"causale,omitempty"`
+	InternalNotes    *string                   `json:"internalNotes,omitempty"`
+}
+
+// InvoiceListResponse represents a paginated list of invoices
+type InvoiceListResponse struct {
+	Invoices   []InvoiceSummary `json:"invoices"`
+	Total      int64            `json:"total"`
+	Page       int              `json:"page"`
+	PageSize   int              `json:"pageSize"`
+	TotalPages int              `json:"totalPages"`
+}
+
+// InvoiceSummary represents a summary of an invoice for list views
+type InvoiceSummary struct {
+	UUID          string           `json:"id"`
+	Direction     InvoiceDirection `json:"direction"`
+	DocumentType  DocumentType     `json:"documentType"`
+	Number        string           `json:"number"`
+	Date          time.Time        `json:"date"`
+	PartyName     string           `json:"partyName"` // Customer or Supplier name
+	TotalAmount   float64          `json:"totalAmount"`
+	Status        InvoiceStatus    `json:"status"`
+	SDIStatus     SDIStatus        `json:"sdiStatus,omitempty"`
+	CreatedAt     time.Time        `json:"createdAt"`
+}
+
+// InvoiceFilters for querying invoices
+type InvoiceFilters struct {
+	Direction    *InvoiceDirection `json:"direction,omitempty"`
+	Status       *InvoiceStatus    `json:"status,omitempty"`
+	SDIStatus    *SDIStatus        `json:"sdiStatus,omitempty"`
+	CustomerID   string            `json:"customerId,omitempty"`
+	SupplierID   string            `json:"supplierId,omitempty"`
+	FromDate     *time.Time        `json:"fromDate,omitempty"`
+	ToDate       *time.Time        `json:"toDate,omitempty"`
+	Search       string            `json:"search,omitempty"` // Search in number, party name
+	DocumentType *DocumentType     `json:"documentType,omitempty"`
+}
+
+// SendInvoiceResponse represents the response after sending an invoice to SDI
+type SendInvoiceResponse struct {
+	InvoiceUUID   string `json:"invoiceId"`
+	OpenAPIUUID   string `json:"openApiUuid"`
+	SDIIdentifier string `json:"sdiIdentifier,omitempty"`
+	Status        InvoiceStatus `json:"status"`
+	Message       string `json:"message"`
+}
+
+// ========================================
+// Statistics DTOs
+// ========================================
+
+// BillingStats represents billing statistics
+type BillingStats struct {
+	// Issued invoices
+	IssuedTotal       int64   `json:"issuedTotal"`
+	IssuedDraft       int64   `json:"issuedDraft"`
+	IssuedSent        int64   `json:"issuedSent"`
+	IssuedDelivered   int64   `json:"issuedDelivered"`
+	IssuedRejected    int64   `json:"issuedRejected"`
+	IssuedAmount      float64 `json:"issuedAmount"`
+
+	// Received invoices
+	ReceivedTotal     int64   `json:"receivedTotal"`
+	ReceivedPending   int64   `json:"receivedPending"`
+	ReceivedAccepted  int64   `json:"receivedAccepted"`
+	ReceivedRejected  int64   `json:"receivedRejected"`
+	ReceivedAmount    float64 `json:"receivedAmount"`
+
+	// Notifications
+	UnprocessedNotifications int64 `json:"unprocessedNotifications"`
+	PendingActions           int64 `json:"pendingActions"`
+
+	// Period
+	PeriodStart time.Time `json:"periodStart"`
+	PeriodEnd   time.Time `json:"periodEnd"`
+}
+
+// ========================================
+// Pagination
+// ========================================
+
+// PaginationParams for list requests
+type PaginationParams struct {
+	Page     int `json:"page" validate:"min=1"`
+	PageSize int `json:"pageSize" validate:"min=1,max=100"`
+}
+
+// DefaultPagination returns default pagination params
+func DefaultPagination() PaginationParams {
+	return PaginationParams{
+		Page:     1,
+		PageSize: 20,
+	}
+}
