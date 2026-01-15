@@ -125,6 +125,11 @@ func (s *customerService) ListCustomers(ctx context.Context, search string, pagi
 		return nil, err
 	}
 
+	// Ensure customers is never nil (serializes as [] instead of null)
+	if customers == nil {
+		customers = []models.Customer{}
+	}
+
 	totalPages := int(total) / pagination.PageSize
 	if int(total)%pagination.PageSize > 0 {
 		totalPages++
