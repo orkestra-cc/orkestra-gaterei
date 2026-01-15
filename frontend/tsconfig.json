@@ -42,7 +42,8 @@
       "store/*": ["src/store/*"],
       "stores/*": ["src/stores/*"],
       "config": ["src/config"],
-      "reference/*": ["src/reference/*"]
+      "reference/*": ["src/reference/*"],
+      "types/*": ["src/types/*"]
     }
   },
   "include": ["src/**/*", "vite.config.js"],

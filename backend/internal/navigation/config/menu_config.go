@@ -107,6 +107,50 @@ func buildAdminRoutes() models.RouteGroup {
 				},
 			},
 			{
+				Name:   "Fatturazione",
+				Icon:   "file-invoice-dollar",
+				Active: true,
+				Roles:  []string{"administrator"},
+				Children: []models.NavItem{
+					{
+						Name:   "Dashboard",
+						To:     "/billing/dashboard",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Clienti",
+						To:     "/billing/customers",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Fornitori",
+						To:     "/billing/suppliers",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Fatture Emesse",
+						To:     "/billing/invoices/issued",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Fatture Ricevute",
+						To:     "/billing/invoices/received",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Notifiche SDI",
+						To:     "/billing/notifications",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+				},
+			},
+			{
 				Name:   "Deadlines",
 				To:     "/admin/reports/deadlines",
 				Icon:   "calendar-check",

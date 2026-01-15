@@ -36,7 +36,8 @@ export default ({ mode }) => {
         store: path.resolve(__dirname, './src/store'),
         stores: path.resolve(__dirname, './src/stores'),
         config: path.resolve(__dirname, './src/config'),
-        reference: path.resolve(__dirname, './src/reference')
+        reference: path.resolve(__dirname, './src/reference'),
+        types: path.resolve(__dirname, './src/types')
       }
     },
     esbuild: {
