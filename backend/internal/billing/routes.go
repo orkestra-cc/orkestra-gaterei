@@ -14,6 +14,7 @@ func RegisterRoutes(
 	invoiceHandler *handlers.InvoiceHandler,
 	customerHandler *handlers.CustomerHandler,
 	supplierHandler *handlers.SupplierHandler,
+	companyHandler *handlers.CompanyHandler,
 	notificationHandler *handlers.NotificationHandler,
 ) {
 	// ========================================
@@ -257,6 +258,79 @@ func RegisterRoutes(
 		Tags:        []string{"Billing - Suppliers"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, supplierHandler.DeleteSupplier)
+
+	// ========================================
+	// Company Routes (Issuing Companies / Settings)
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "create-company",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/companies",
+		Summary:     "Create company",
+		Description: "Creates a new issuing company for invoice emission",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.CreateCompany)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-companies",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/companies",
+		Summary:     "List companies",
+		Description: "Lists issuing companies with optional search and pagination",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.ListCompanies)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-default-company",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/companies/default",
+		Summary:     "Get default company",
+		Description: "Retrieves the default issuing company for new invoices",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.GetDefaultCompany)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-company",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/companies/{id}",
+		Summary:     "Get company",
+		Description: "Retrieves an issuing company by its UUID",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.GetCompany)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-company",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/billing/companies/{id}",
+		Summary:     "Update company",
+		Description: "Updates an issuing company's information",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.UpdateCompany)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-company",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/billing/companies/{id}",
+		Summary:     "Delete company",
+		Description: "Soft deletes (deactivates) an issuing company",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.DeleteCompany)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-default-company",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/companies/{id}/default",
+		Summary:     "Set default company",
+		Description: "Sets a company as the default for new invoices",
+		Tags:        []string{"Billing - Companies"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, companyHandler.SetDefaultCompany)
 
 	// ========================================
 	// Notification Routes

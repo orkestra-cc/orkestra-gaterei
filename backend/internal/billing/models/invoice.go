@@ -28,6 +28,7 @@ type Invoice struct {
 	Currency string    `bson:"currency" json:"currency" validate:"required,len=3"` // ISO 4217 (default: EUR)
 
 	// Related parties
+	CompanyID  string `bson:"companyId,omitempty" json:"companyId,omitempty"`   // Reference to Company (for issued invoices)
 	SupplierID string `bson:"supplierId,omitempty" json:"supplierId,omitempty"` // Reference to Supplier (for received invoices)
 	CustomerID string `bson:"customerId,omitempty" json:"customerId,omitempty"` // Reference to Customer (for issued invoices)
 

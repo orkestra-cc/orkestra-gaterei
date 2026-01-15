@@ -206,6 +206,7 @@ func main() {
 	var billingInvoiceHandler *billingHandlers.InvoiceHandler
 	var billingCustomerHandler *billingHandlers.CustomerHandler
 	var billingSupplierHandler *billingHandlers.SupplierHandler
+	var billingCompanyHandler *billingHandlers.CompanyHandler
 	var billingNotificationHandler *billingHandlers.NotificationHandler
 	billingEnabled := cfg.Billing.OpenAPIBearerToken != ""
 
@@ -227,6 +228,7 @@ func main() {
 		invoiceRepo := billingRepo.NewInvoiceRepository(db)
 		customerRepo := billingRepo.NewCustomerRepository(db)
 		supplierRepo := billingRepo.NewSupplierRepository(db)
+		companyRepo := billingRepo.NewCompanyRepository(db)
 		notificationRepo := billingRepo.NewNotificationRepository(db)
 
 		// Create OpenAPI client and XML builder
@@ -234,15 +236,17 @@ func main() {
 		xmlBuilder := billingSvc.NewXMLBuilder(openAPIConfig)
 
 		// Create services
-		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, openAPIClient, xmlBuilder, logger)
+		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, logger)
 		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
 		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
+		companySvc := billingSvc.NewCompanyService(companyRepo, logger)
 		notificationSvc := billingSvc.NewNotificationService(notificationRepo, logger)
 
 		// Create handlers
 		billingInvoiceHandler = billingHandlers.NewInvoiceHandler(invoiceSvc)
 		billingCustomerHandler = billingHandlers.NewCustomerHandler(customerSvc)
 		billingSupplierHandler = billingHandlers.NewSupplierHandler(supplierSvc)
+		billingCompanyHandler = billingHandlers.NewCompanyHandler(companySvc)
 		billingNotificationHandler = billingHandlers.NewNotificationHandler(notificationSvc)
 
 		// Create polling job
@@ -402,6 +406,7 @@ func main() {
 				billingInvoiceHandler,
 				billingCustomerHandler,
 				billingSupplierHandler,
+				billingCompanyHandler,
 				billingNotificationHandler,
 			)
 		})

@@ -361,6 +361,106 @@ export interface SupplierListParams {
 }
 
 // ========================================
+// Company Types (Issuing Company / Cedente Prestatore)
+// ========================================
+
+export interface Company {
+  id: string;
+  fiscalIdCountry: string;
+  fiscalIdCode: string;
+  codiceFiscale?: string;
+  denomination: string;
+  regimeFiscale: RegimeFiscale;
+  address: string;
+  numeroCivico?: string;
+  city: string;
+  province?: string;
+  postalCode: string;
+  country: string;
+  iscrizioneREA?: IscrizioneREA;
+  email?: string;
+  pec?: string;
+  phone?: string;
+  iban?: string;
+  bic?: string;
+  abi?: string;
+  cab?: string;
+  beneficiario?: string;
+  istitutoFinanziario?: string;
+  isDefault: boolean;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  createdBy?: string;
+}
+
+export interface CreateCompanyInput {
+  fiscalIdCountry: string;
+  fiscalIdCode: string;
+  codiceFiscale?: string;
+  denomination: string;
+  regimeFiscale: RegimeFiscale;
+  address: string;
+  numeroCivico?: string;
+  city: string;
+  province?: string;
+  postalCode: string;
+  country: string;
+  iscrizioneREA?: IscrizioneREA;
+  email?: string;
+  pec?: string;
+  phone?: string;
+  iban?: string;
+  bic?: string;
+  abi?: string;
+  cab?: string;
+  beneficiario?: string;
+  istitutoFinanziario?: string;
+  isDefault?: boolean;
+  notes?: string;
+}
+
+export interface UpdateCompanyInput {
+  denomination?: string;
+  regimeFiscale?: RegimeFiscale;
+  address?: string;
+  numeroCivico?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
+  iscrizioneREA?: IscrizioneREA;
+  email?: string;
+  pec?: string;
+  phone?: string;
+  iban?: string;
+  bic?: string;
+  abi?: string;
+  cab?: string;
+  beneficiario?: string;
+  istitutoFinanziario?: string;
+  notes?: string;
+}
+
+export interface CompanyListResponse {
+  companies: Company[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface CompanyListParams {
+  search?: string;
+  isActive?: boolean;
+  page?: number;
+  pageSize?: number;
+  [key: string]: string | number | boolean | undefined;
+}
+
+// ========================================
 // Party Data (Embedded snapshot in Invoice)
 // ========================================
 
@@ -870,6 +970,28 @@ export const REGIME_FISCALE_LABELS: Record<RegimeFiscale, string> = {
   RF19: 'Regime forfettario',
   RF20: 'Regime forfettario agricolo',
 };
+
+export const REGIME_FISCALE_OPTIONS: Array<{ value: RegimeFiscale; label: string }> = [
+  { value: 'RF01', label: 'RF01 - Ordinario' },
+  { value: 'RF02', label: 'RF02 - Contribuenti minimi' },
+  { value: 'RF04', label: 'RF04 - Agricoltura e pesca' },
+  { value: 'RF05', label: 'RF05 - Vendita sali e tabacchi' },
+  { value: 'RF06', label: 'RF06 - Commercio fiammiferi' },
+  { value: 'RF07', label: 'RF07 - Editoria' },
+  { value: 'RF08', label: 'RF08 - Telefonia pubblica' },
+  { value: 'RF09', label: 'RF09 - Rivendita trasporto pubblico' },
+  { value: 'RF10', label: 'RF10 - Intrattenimenti e giochi' },
+  { value: 'RF11', label: 'RF11 - Agenzie viaggi' },
+  { value: 'RF12', label: 'RF12 - Agriturismo' },
+  { value: 'RF13', label: 'RF13 - Vendite a domicilio' },
+  { value: 'RF14', label: 'RF14 - Rivendita beni usati' },
+  { value: 'RF15', label: 'RF15 - Agenzie vendite aste' },
+  { value: 'RF16', label: 'RF16 - IVA per cassa P.A.' },
+  { value: 'RF17', label: 'RF17 - IVA per cassa' },
+  { value: 'RF18', label: 'RF18 - Altro' },
+  { value: 'RF19', label: 'RF19 - Regime forfettario' },
+  { value: 'RF20', label: 'RF20 - Regime forfettario agricolo' },
+];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   MP01: 'Contanti',

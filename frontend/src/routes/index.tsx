@@ -183,6 +183,9 @@ const DeadlineReports = lazy(
 const AdminSettings = lazy(
   () => import('pages/admin/settings/AdminSettings')
 );
+const CompanyManagement = lazy(
+  () => import('pages/admin/settings/companies')
+);
 const UserDashboard = lazy(
   () => import('pages/user/dashboard/UserDashboard')
 );
@@ -587,6 +590,23 @@ const routes: RouteObject[] = [
                       fallback={<FalconLoader />}
                     >
                       <AdminSettings />
+                    </Suspense>
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'settings/companies',
+                element: (
+                  <ProtectedRoute
+                    requiredPermissions={[
+                      ['developer', 'ceo', 'administrator']
+                    ]}
+                  >
+                    <Suspense
+                      key="admin-companies"
+                      fallback={<FalconLoader />}
+                    >
+                      <CompanyManagement />
                     </Suspense>
                   </ProtectedRoute>
                 )

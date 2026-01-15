@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Card,
@@ -24,6 +24,8 @@ import {
   useCreateInvoiceMutation,
   useSendInvoiceMutation,
   useGetCustomersQuery,
+  useGetCompaniesQuery,
+  useGetDefaultCompanyQuery,
 } from 'store/api/billingApi';
 import type {
   CreateInvoiceInput,
@@ -145,6 +147,8 @@ const NewIssuedInvoice: React.FC = () => {
   const [createInvoice, { isLoading: isCreating }] = useCreateInvoiceMutation();
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
   const { data: customersData } = useGetCustomersQuery({ pageSize: 100 });
+  const { data: companiesData } = useGetCompaniesQuery({ pageSize: 100 });
+  const { data: defaultCompany } = useGetDefaultCompanyQuery();
 
   const [activeTab, setActiveTab] = useState('document');
   const [error, setError] = useState<string>('');
@@ -154,6 +158,7 @@ const NewIssuedInvoice: React.FC = () => {
   const [documentType, setDocumentType] = useState<DocumentType>('TD01');
   const [number, setNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [companyId, setCompanyId] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [lines, setLines] = useState<CreateInvoiceLineInput[]>([createEmptyLine()]);
   const [causale, setCausale] = useState<string[]>(['']);
@@ -197,6 +202,13 @@ const NewIssuedInvoice: React.FC = () => {
   });
 
   const isLoading = isCreating || isSending;
+
+  // Set default company when loaded
+  useEffect(() => {
+    if (defaultCompany && !companyId) {
+      setCompanyId(defaultCompany.id);
+    }
+  }, [defaultCompany, companyId]);
 
   // Calculate totals
   const calculateLineTotals = (line: CreateInvoiceLineInput) => {
@@ -257,6 +269,12 @@ const NewIssuedInvoice: React.FC = () => {
 
   // Validation
   const validate = (): boolean => {
+    if (!companyId) {
+      setError('Selezionare un\'azienda emittente');
+      setActiveTab('document');
+      return false;
+    }
+
     if (!number.trim()) {
       setError('Il numero fattura è obbligatorio');
       setActiveTab('document');
@@ -324,6 +342,7 @@ const NewIssuedInvoice: React.FC = () => {
       number,
       date: toRFC3339(date),
       currency: 'EUR',
+      companyId,
       customerId,
       // FatturaPA specific data
       datiRitenuta: enableRitenuta ? [datiRitenuta] : undefined,
@@ -441,6 +460,34 @@ const NewIssuedInvoice: React.FC = () => {
             <Tab.Content>
               {/* Document Tab */}
               <Tab.Pane eventKey="document">
+                {/* Company Selector */}
+                <Row className="mb-3">
+                  <Col md={12}>
+                    <Form.Group>
+                      <Form.Label>
+                        Azienda Emittente <span className="text-danger">*</span>
+                      </Form.Label>
+                      <Form.Select
+                        value={companyId}
+                        onChange={(e) => setCompanyId(e.target.value)}
+                      >
+                        <option value="">Seleziona azienda...</option>
+                        {companiesData?.companies?.filter(c => c.isActive).map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.denomination} - P.IVA {company.fiscalIdCode}
+                            {company.isDefault && ' (Default)'}
+                          </option>
+                        ))}
+                      </Form.Select>
+                      <Form.Text className="text-muted">
+                        L'azienda selezionata verrà utilizzata come cedente/prestatore nella fattura
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                </Row>
+
+                <hr className="my-3" />
+
                 <Row>
                   <Col md={4}>
                     <Form.Group className="mb-3">

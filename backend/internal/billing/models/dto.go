@@ -70,6 +70,97 @@ type CustomerListResponse struct {
 }
 
 // ========================================
+// Company DTOs (Issuing Company / Cedente Prestatore)
+// ========================================
+
+// CreateCompanyInput represents the input for creating an issuing company
+type CreateCompanyInput struct {
+	// Fiscal identifiers
+	FiscalIDCountry string `json:"fiscalIdCountry" validate:"required,len=2" doc:"Country code (IT)"`
+	FiscalIDCode    string `json:"fiscalIdCode" validate:"required" doc:"VAT number (P.IVA)"`
+	CodiceFiscale   string `json:"codiceFiscale,omitempty" doc:"Fiscal code if different from P.IVA"`
+
+	// Company data
+	Denomination string `json:"denomination" validate:"required" doc:"Company name (Ragione sociale)"`
+
+	// Fiscal regime
+	RegimeFiscale RegimeFiscale `json:"regimeFiscale" validate:"required" doc:"Fiscal regime (RF01-RF19)"`
+
+	// Address
+	Address      string `json:"address" validate:"required" doc:"Street address (Indirizzo)"`
+	NumeroCivico string `json:"numeroCivico,omitempty" doc:"Street number"`
+	City         string `json:"city" validate:"required" doc:"City (Comune)"`
+	Province     string `json:"province,omitempty" doc:"Province code (2 chars)"`
+	PostalCode   string `json:"postalCode" validate:"required" doc:"Postal code (CAP)"`
+	Country      string `json:"country" validate:"required,len=2" doc:"Country code ISO 3166-1 alpha-2"`
+
+	// REA registration (flat fields for easier frontend integration)
+	REAOffice          string   `json:"reaOffice,omitempty" doc:"REA office (province code)"`
+	REANumber          string   `json:"reaNumber,omitempty" doc:"REA registration number"`
+	CapitaleSociale    *float64 `json:"capitaleSociale,omitempty" doc:"Share capital"`
+	SocioUnico         string   `json:"socioUnico,omitempty" doc:"SU=sole shareholder, SM=multiple shareholders"`
+	StatoLiquidazione  string   `json:"statoLiquidazione,omitempty" doc:"LN=not in liquidation, LS=in liquidation"`
+
+	// Contacts
+	Email string `json:"email,omitempty" validate:"omitempty,email" doc:"Email address"`
+	PEC   string `json:"pec,omitempty" validate:"omitempty,email" doc:"PEC address"`
+	Phone string `json:"phone,omitempty" doc:"Phone number"`
+
+	// Bank details
+	IBAN                string `json:"iban,omitempty" doc:"IBAN for payments"`
+	BIC                 string `json:"bic,omitempty" doc:"BIC/SWIFT code"`
+	ABI                 string `json:"abi,omitempty" doc:"Italian bank code (ABI)"`
+	CAB                 string `json:"cab,omitempty" doc:"Italian branch code (CAB)"`
+	Beneficiario        string `json:"beneficiario,omitempty" doc:"Beneficiary name"`
+	IstitutoFinanziario string `json:"istitutoFinanziario,omitempty" doc:"Bank name"`
+
+	// Default flag
+	IsDefault bool `json:"isDefault,omitempty" doc:"Set as default company for new invoices"`
+
+	// Notes
+	Notes string `json:"notes,omitempty" doc:"Internal notes"`
+}
+
+// UpdateCompanyInput represents the input for updating a company
+type UpdateCompanyInput struct {
+	Denomination        *string        `json:"denomination,omitempty"`
+	RegimeFiscale       *RegimeFiscale `json:"regimeFiscale,omitempty"`
+	Address             *string        `json:"address,omitempty"`
+	NumeroCivico        *string        `json:"numeroCivico,omitempty"`
+	City                *string        `json:"city,omitempty"`
+	Province            *string        `json:"province,omitempty"`
+	PostalCode          *string        `json:"postalCode,omitempty"`
+	Country             *string        `json:"country,omitempty"`
+	// REA registration (flat fields)
+	REAOffice         *string  `json:"reaOffice,omitempty"`
+	REANumber         *string  `json:"reaNumber,omitempty"`
+	CapitaleSociale   *float64 `json:"capitaleSociale,omitempty"`
+	SocioUnico        *string  `json:"socioUnico,omitempty"`
+	StatoLiquidazione *string  `json:"statoLiquidazione,omitempty"`
+	// Contacts
+	Email *string `json:"email,omitempty"`
+	PEC   *string `json:"pec,omitempty"`
+	Phone *string `json:"phone,omitempty"`
+	// Bank details
+	IBAN                *string `json:"iban,omitempty"`
+	BIC                 *string `json:"bic,omitempty"`
+	ABI                 *string `json:"abi,omitempty"`
+	CAB                 *string `json:"cab,omitempty"`
+	Beneficiario        *string `json:"beneficiario,omitempty"`
+	IstitutoFinanziario *string `json:"istitutoFinanziario,omitempty"`
+	Notes               *string `json:"notes,omitempty"`
+}
+
+// CompanyListResponse represents a paginated list of companies
+type CompanyListResponse struct {
+	Companies  []Company `json:"companies"`
+	Total      int64     `json:"total"`
+	Page       int       `json:"page"`
+	PageSize   int       `json:"pageSize"`
+	TotalPages int       `json:"totalPages"`
+}
+
+// ========================================
 // Supplier DTOs
 // ========================================
 
@@ -149,6 +240,9 @@ type CreateInvoiceInput struct {
 	Number   string    `json:"number" validate:"required" doc:"Invoice number"`
 	Date     time.Time `json:"date" validate:"required" doc:"Invoice date"`
 	Currency string    `json:"currency,omitempty" doc:"Currency code (default: EUR)"`
+
+	// Company (seller/provider for issued invoices)
+	CompanyID string `json:"companyId,omitempty" doc:"Reference to issuing company (uses default if not specified)"`
 
 	// Customer (for issued invoices)
 	CustomerID string `json:"customerId,omitempty" doc:"Reference to existing customer"`

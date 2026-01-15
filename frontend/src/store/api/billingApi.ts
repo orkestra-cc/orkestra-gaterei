@@ -10,6 +10,11 @@ import type {
   SupplierListParams,
   CreateSupplierInput,
   UpdateSupplierInput,
+  Company,
+  CompanyListResponse,
+  CompanyListParams,
+  CreateCompanyInput,
+  UpdateCompanyInput,
   Invoice,
   InvoiceListResponse,
   InvoiceListParams,
@@ -154,6 +159,85 @@ export const billingApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, id) => [
         { type: 'Supplier', id },
         { type: 'Supplier', id: 'LIST' },
+      ],
+    }),
+
+    // ========================================
+    // Company Endpoints (Issuing Companies)
+    // ========================================
+
+    getCompanies: builder.query<CompanyListResponse, CompanyListParams | undefined>({
+      query: (params) => {
+        const queryString = params ? buildQueryParams(params) : '';
+        return {
+          url: `/api/v1/billing/companies${queryString ? `?${queryString}` : ''}`,
+          method: 'GET',
+        };
+      },
+      providesTags: (result) =>
+        result?.companies
+          ? [
+              ...result.companies.map(({ id }) => ({ type: 'Company' as const, id })),
+              { type: 'Company', id: 'LIST' },
+            ]
+          : [{ type: 'Company', id: 'LIST' }],
+    }),
+
+    getCompany: builder.query<Company, string>({
+      query: (id) => `/api/v1/billing/companies/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'Company', id }],
+    }),
+
+    getDefaultCompany: builder.query<Company, void>({
+      query: () => '/api/v1/billing/companies/default',
+      providesTags: [{ type: 'Company', id: 'DEFAULT' }],
+    }),
+
+    createCompany: builder.mutation<Company, CreateCompanyInput>({
+      query: (data) => ({
+        url: '/api/v1/billing/companies',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [
+        { type: 'Company', id: 'LIST' },
+        { type: 'Company', id: 'DEFAULT' },
+      ],
+    }),
+
+    updateCompany: builder.mutation<Company, { id: string; data: UpdateCompanyInput }>({
+      query: ({ id, data }) => ({
+        url: `/api/v1/billing/companies/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'Company', id },
+        { type: 'Company', id: 'LIST' },
+        { type: 'Company', id: 'DEFAULT' },
+      ],
+    }),
+
+    deleteCompany: builder.mutation<void, string>({
+      query: (id) => ({
+        url: `/api/v1/billing/companies/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: 'Company', id },
+        { type: 'Company', id: 'LIST' },
+        { type: 'Company', id: 'DEFAULT' },
+      ],
+    }),
+
+    setDefaultCompany: builder.mutation<Company, string>({
+      query: (id) => ({
+        url: `/api/v1/billing/companies/${id}/default`,
+        method: 'POST',
+      }),
+      invalidatesTags: [
+        { type: 'Company', id: 'LIST' },
+        { type: 'Company', id: 'DEFAULT' },
       ],
     }),
 
@@ -393,6 +477,14 @@ export const {
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,
+  // Company hooks
+  useGetCompaniesQuery,
+  useGetCompanyQuery,
+  useGetDefaultCompanyQuery,
+  useCreateCompanyMutation,
+  useUpdateCompanyMutation,
+  useDeleteCompanyMutation,
+  useSetDefaultCompanyMutation,
   // Invoice hooks
   useGetInvoicesQuery,
   useGetInvoiceQuery,

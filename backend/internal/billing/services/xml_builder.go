@@ -75,17 +75,30 @@ func (b *xmlBuilder) buildHeader(invoice *models.Invoice, format models.Transmis
 }
 
 func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format models.TransmissionFormat) models.DatiTrasmissione {
-	// Use transmitter's fiscal ID (our company)
-	// FiscalID should be in format "ITXXXXXXX" where IT is the country code
+	// Use transmitter's fiscal ID from the company (CedentePrestatore)
+	// This is the seller/provider company's fiscal ID
 	idPaese := "IT"
-	idCodice := b.config.FiscalID
-	if len(b.config.FiscalID) >= 2 {
-		// Check if first 2 chars are letters (country code)
-		if isAlpha(b.config.FiscalID[:2]) {
-			idPaese = strings.ToUpper(b.config.FiscalID[:2])
-			idCodice = b.config.FiscalID[2:]
+	idCodice := ""
+
+	// First try to get from invoice's CedentePrestatore (company data)
+	if invoice.CedentePrestatore != nil && invoice.CedentePrestatore.FiscalIDCode != "" {
+		idPaese = strings.ToUpper(invoice.CedentePrestatore.FiscalIDCountry)
+		if idPaese == "" {
+			idPaese = "IT"
+		}
+		idCodice = invoice.CedentePrestatore.FiscalIDCode
+	} else if b.config.FiscalID != "" {
+		// Fallback to config (for backwards compatibility)
+		idCodice = b.config.FiscalID
+		if len(b.config.FiscalID) >= 2 {
+			// Check if first 2 chars are letters (country code)
+			if isAlpha(b.config.FiscalID[:2]) {
+				idPaese = strings.ToUpper(b.config.FiscalID[:2])
+				idCodice = b.config.FiscalID[2:]
+			}
 		}
 	}
+
 	idTrasmittente := models.IdFiscale{
 		IdPaese:  idPaese,
 		IdCodice: idCodice,

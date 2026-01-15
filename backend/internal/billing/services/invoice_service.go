@@ -54,6 +54,7 @@ type invoiceService struct {
 	invoiceRepo   repository.InvoiceRepository
 	customerRepo  repository.CustomerRepository
 	supplierRepo  repository.SupplierRepository
+	companyRepo   repository.CompanyRepository
 	openAPIClient OpenAPIClient
 	xmlBuilder    XMLBuilder
 	logger        *slog.Logger
@@ -64,6 +65,7 @@ func NewInvoiceService(
 	invoiceRepo repository.InvoiceRepository,
 	customerRepo repository.CustomerRepository,
 	supplierRepo repository.SupplierRepository,
+	companyRepo repository.CompanyRepository,
 	openAPIClient OpenAPIClient,
 	xmlBuilder XMLBuilder,
 	logger *slog.Logger,
@@ -72,6 +74,7 @@ func NewInvoiceService(
 		invoiceRepo:   invoiceRepo,
 		customerRepo:  customerRepo,
 		supplierRepo:  supplierRepo,
+		companyRepo:   companyRepo,
 		openAPIClient: openAPIClient,
 		xmlBuilder:    xmlBuilder,
 		logger:        logger,
@@ -82,6 +85,30 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 	// Validate input
 	if err := s.validateCreateInput(input); err != nil {
 		return nil, err
+	}
+
+	// Get company (seller/provider) data
+	var companyData *models.PartyData
+	if input.CompanyID != "" {
+		// Use specified company
+		company, err := s.companyRepo.GetByUUID(ctx, input.CompanyID)
+		if err != nil {
+			if errors.Is(err, repository.ErrCompanyNotFound) {
+				return nil, errors.New("specified company not found")
+			}
+			return nil, err
+		}
+		companyData = company.ToPartyData()
+	} else {
+		// Use default company
+		company, err := s.companyRepo.GetDefault(ctx)
+		if err != nil {
+			if errors.Is(err, repository.ErrNoDefaultCompany) {
+				return nil, errors.New("no company configured: please add a company in settings before creating invoices")
+			}
+			return nil, err
+		}
+		companyData = company.ToPartyData()
 	}
 
 	// Get customer data
@@ -99,15 +126,17 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 
 	// Build invoice
 	invoice := &models.Invoice{
-		UUID:         uuid.New().String(),
-		Direction:    models.DirectionIssued,
-		DocumentType: input.DocumentType,
-		Number:       input.Number,
-		Date:         input.Date,
-		Currency:     "EUR",
-		CustomerID:   input.CustomerID,
+		UUID:               uuid.New().String(),
+		Direction:          models.DirectionIssued,
+		DocumentType:       input.DocumentType,
+		Number:             input.Number,
+		Date:               input.Date,
+		Currency:           "EUR",
+		CompanyID:          input.CompanyID,
+		CedentePrestatore:  companyData,
+		CustomerID:         input.CustomerID,
 		CessionarioCommittente: customerData,
-		Status:       models.StatusDraft,
+		Status:             models.StatusDraft,
 		LegalStorageEnabled: input.LegalStorageEnabled,
 		SignatureEnabled:    input.SignatureEnabled,
 		Causale:      input.Causale,
