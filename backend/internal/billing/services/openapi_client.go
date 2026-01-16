@@ -96,14 +96,29 @@ type SupplierInvoicesResponse struct {
 
 // OpenAPIInvoice represents an invoice from OpenAPI
 type OpenAPIInvoice struct {
-	UUID              string    `json:"uuid"`
-	SDIIdentifier     string    `json:"sdi_identifier"`
-	Number            string    `json:"number"`
-	Date              time.Time `json:"date"`
-	SupplierFiscalID  string    `json:"supplier_fiscal_id"`
-	SupplierName      string    `json:"supplier_name"`
-	TotalAmount       float64   `json:"total_amount"`
-	ReceivedAt        time.Time `json:"received_at"`
+	UUID             string    `json:"uuid"`
+	SDIFileID        string    `json:"sdi_file_id"`
+	SDIFileName      string    `json:"sdi_file_name"`
+	DocumentType     string    `json:"document_type"`
+	CreatedAt        time.Time `json:"created_at"`
+	Marking          string    `json:"marking"` // sent, received
+	Sender           *OpenAPIParty `json:"sender"`
+	Recipient        *OpenAPIParty `json:"recipient"`
+	Payload          string    `json:"payload"` // Raw FatturaPA JSON
+}
+
+// OpenAPIParty represents a party (sender/recipient) in OpenAPI response
+type OpenAPIParty struct {
+	UUID                   string `json:"uuid"`
+	BusinessVATNumberCode  string `json:"business_vat_number_code"`
+	BusinessFiscalCode     string `json:"business_fiscal_code"`
+	BusinessName           string `json:"business_name"`
+	Name                   string `json:"name"`
+	Surname                string `json:"surname"`
+	HeadOfficeAddressStreet string `json:"head_office_address_street"`
+	HeadOfficeAddressCity   string `json:"head_office_address_city"`
+	RecipientCode          string `json:"recipient_code"`
+	PEC                    string `json:"pec"`
 }
 
 // OpenAPINotification represents a notification from OpenAPI
@@ -385,22 +400,67 @@ func (c *openAPIClient) GetBusinessRegistryConfig(ctx context.Context, fiscalID 
 		return nil, fmt.Errorf("%w: status %d", ErrOpenAPIRequestFailed, statusCode)
 	}
 
-	var result BusinessRegistryConfig
-	if err := json.Unmarshal(respBody, &result); err != nil {
+	// Parse wrapped response: {"data": {...}, "success": true}
+	var wrapper struct {
+		Data    BusinessRegistryConfig `json:"data"`
+		Success bool                   `json:"success"`
+		Message string                 `json:"message"`
+	}
+	if err := json.Unmarshal(respBody, &wrapper); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return &result, nil
+	c.logger.Info("business registry config parsed",
+		"fiscalID", fiscalID,
+		"applySignature", wrapper.Data.ApplySignature,
+		"applyLegalStorage", wrapper.Data.ApplyLegalStorage,
+		"active", wrapper.Data.Active,
+	)
+
+	return &wrapper.Data, nil
 }
 
 func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice, xmlContent string) (*SendInvoiceResponse, error) {
+	// Get the company's fiscal ID from the invoice
+	var fiscalID string
+	if invoice.CedentePrestatore != nil {
+		fiscalID = invoice.CedentePrestatore.FiscalIDCode
+	}
+
+	// Fetch the Business Registry configuration for this fiscal ID
+	var applySignature, applyStorage bool
+	if fiscalID != "" {
+		brConfig, err := c.GetBusinessRegistryConfig(ctx, fiscalID)
+		if err != nil {
+			c.logger.Warn("failed to get business registry config, using default settings",
+				"fiscalID", fiscalID,
+				"error", err,
+			)
+			// Fall back to static config
+			applySignature = c.config.ApplySignature
+			applyStorage = c.config.ApplyStorage
+		} else {
+			applySignature = brConfig.ApplySignature
+			applyStorage = brConfig.ApplyLegalStorage
+			c.logger.Info("using business registry config for invoice",
+				"fiscalID", fiscalID,
+				"applySignature", applySignature,
+				"applyLegalStorage", applyStorage,
+			)
+		}
+	} else {
+		// No fiscal ID, use static config
+		applySignature = c.config.ApplySignature
+		applyStorage = c.config.ApplyStorage
+	}
+
 	// Determine endpoint based on storage/signature config
 	var endpoint string
-	if c.config.ApplySignature && c.config.ApplyStorage {
+	if applySignature && applyStorage {
 		endpoint = "/invoices_signature_legal_storage"
-	} else if c.config.ApplySignature {
+	} else if applySignature {
 		endpoint = "/invoices_signature"
-	} else if c.config.ApplyStorage {
+	} else if applyStorage {
 		endpoint = "/invoices_legal_storage"
 	} else {
 		endpoint = "/invoices"
@@ -604,9 +664,40 @@ func (c *openAPIClient) GetSupplierInvoices(ctx context.Context, fromDate time.T
 	}
 
 	if statusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: status %d", ErrOpenAPIRequestFailed, statusCode)
+		return nil, fmt.Errorf("%w: status %d, response: %s", ErrOpenAPIRequestFailed, statusCode, string(respBody))
 	}
 
+	// Debug: log raw response
+	c.logger.Info("supplier invoices raw response",
+		"response", string(respBody),
+	)
+
+	// Try to parse wrapped response first: {"data": {...}, "success": true}
+	var wrapper struct {
+		Data    json.RawMessage `json:"data"`
+		Success bool            `json:"success"`
+		Message string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBody, &wrapper); err == nil && wrapper.Success {
+		// Parse the data field - it could be an array or object
+		var invoices []OpenAPIInvoice
+		if err := json.Unmarshal(wrapper.Data, &invoices); err == nil {
+			return &SupplierInvoicesResponse{
+				Invoices:   invoices,
+				Total:      len(invoices),
+				Page:       page,
+				PageSize:   pageSize,
+				TotalPages: 1,
+			}, nil
+		}
+		// Try as SupplierInvoicesResponse
+		var result SupplierInvoicesResponse
+		if err := json.Unmarshal(wrapper.Data, &result); err == nil {
+			return &result, nil
+		}
+	}
+
+	// Try direct parse
 	var result SupplierInvoicesResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)

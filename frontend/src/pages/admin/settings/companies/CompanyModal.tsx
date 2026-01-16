@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Alert, Tab, Nav, Row, Col } from 'react-bootstrap';
+import { Modal, Button, Form, Alert, Tab, Nav, Row, Col, Spinner } from 'react-bootstrap';
 import {
   useCreateCompanyMutation,
   useUpdateCompanyMutation,
+  useLazyGetBusinessRegistryConfigQuery,
+  useConfigureBusinessRegistryMutation,
 } from 'store/api/billingApi';
 import type { Company, CreateCompanyInput, UpdateCompanyInput, RegimeFiscale } from 'types/billing';
 import { REGIME_FISCALE_LABELS, REGIME_FISCALE_OPTIONS } from 'types/billing';
@@ -26,8 +28,20 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
   const [updateCompany, { isLoading: isUpdating }] = useUpdateCompanyMutation();
   const isLoading = isCreating || isUpdating;
 
+  // OpenAPI SDI Business Registry
+  const [getBusinessRegistryConfig, { data: businessRegistryConfig, isLoading: isLoadingConfig }] =
+    useLazyGetBusinessRegistryConfigQuery();
+  const [configureBusinessRegistry, { isLoading: isConfiguringRegistry }] =
+    useConfigureBusinessRegistryMutation();
+
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('general');
+
+  // OpenAPI SDI state
+  const [applySignature, setApplySignature] = useState(false);
+  const [applyLegalStorage, setApplyLegalStorage] = useState(false);
+  const [openApiSuccess, setOpenApiSuccess] = useState<string>('');
+  const [openApiError, setOpenApiError] = useState<string>('');
 
   const initialFormData: CreateCompanyInput = {
     fiscalIdCountry: 'IT',
@@ -100,6 +114,21 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
     }
   }, [company, show]);
 
+  // Load OpenAPI Business Registry config when editing
+  useEffect(() => {
+    if (isEditMode && company?.fiscalIdCode && show) {
+      getBusinessRegistryConfig(company.fiscalIdCode);
+    }
+  }, [isEditMode, company?.fiscalIdCode, show, getBusinessRegistryConfig]);
+
+  // Populate OpenAPI settings from config
+  useEffect(() => {
+    if (businessRegistryConfig) {
+      setApplySignature(businessRegistryConfig.applySignature || false);
+      setApplyLegalStorage(businessRegistryConfig.applyLegalStorage || false);
+    }
+  }, [businessRegistryConfig]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
@@ -122,6 +151,44 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
       [name]: value ? parseFloat(value) : undefined
     }));
     setError('');
+  };
+
+  // Register company on OpenAPI SDI
+  const handleRegisterOpenAPI = async () => {
+    if (!company?.fiscalIdCode) return;
+
+    setOpenApiError('');
+    setOpenApiSuccess('');
+
+    const email = formData.email || formData.pec;
+    if (!email || !email.includes('@')) {
+      setOpenApiError('Email o PEC richiesta per la registrazione OpenAPI');
+      return;
+    }
+
+    try {
+      const result = await configureBusinessRegistry({
+        fiscalId: company.fiscalIdCode,
+        email,
+        applySignature,
+        applyLegalStorage,
+      }).unwrap();
+
+      if (result.success) {
+        setOpenApiSuccess(result.message || 'Registrazione su OpenAPI SDI completata');
+        // Refresh config
+        getBusinessRegistryConfig(company.fiscalIdCode);
+      } else {
+        setOpenApiError(result.message || 'Errore durante la registrazione');
+      }
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : (err as { data?: { detail?: string } })?.data?.detail ||
+            'Errore durante la registrazione su OpenAPI SDI';
+      setOpenApiError(errorMessage);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,6 +260,11 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
     setFormData(initialFormData);
     setError('');
     setActiveTab('general');
+    // Reset OpenAPI state
+    setApplySignature(false);
+    setApplyLegalStorage(false);
+    setOpenApiSuccess('');
+    setOpenApiError('');
     onHide();
   };
 
@@ -228,6 +300,9 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
               </Nav.Item>
               <Nav.Item>
                 <Nav.Link eventKey="bank">Banca</Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="openapi">OpenAPI SDI</Nav.Link>
               </Nav.Item>
             </Nav>
 
@@ -627,6 +702,104 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                     placeholder="es. Banca XYZ S.p.A."
                   />
                 </Form.Group>
+              </Tab.Pane>
+
+              {/* OpenAPI SDI Tab */}
+              <Tab.Pane eventKey="openapi">
+                {openApiError && (
+                  <Alert variant="danger" dismissible onClose={() => setOpenApiError('')}>
+                    {openApiError}
+                  </Alert>
+                )}
+                {openApiSuccess && (
+                  <Alert variant="success" dismissible onClose={() => setOpenApiSuccess('')}>
+                    {openApiSuccess}
+                  </Alert>
+                )}
+
+                {isEditMode ? (
+                  <>
+                    <Alert variant="info" className="mb-3">
+                      <strong>Registrazione Business Registry OpenAPI SDI</strong>
+                      <p className="mb-0 mt-1">
+                        Prima di poter inviare fatture elettroniche tramite OpenAPI SDI,
+                        è necessario registrare l'anagrafica aziendale.
+                      </p>
+                    </Alert>
+
+                    {businessRegistryConfig?.active && (
+                      <Alert variant="success" className="mb-3">
+                        <strong>Stato: Registrato</strong>
+                        <ul className="mb-0 mt-2">
+                          <li>Email: {businessRegistryConfig.email}</li>
+                          <li>Firma digitale: {businessRegistryConfig.applySignature ? 'Attiva' : 'Non attiva'}</li>
+                          <li>Conservazione: {businessRegistryConfig.applyLegalStorage ? 'Attiva' : 'Non attiva'}</li>
+                        </ul>
+                      </Alert>
+                    )}
+
+                    <Row className="mb-3">
+                      <Col md={6}>
+                        <Form.Check
+                          type="switch"
+                          id="applySignature"
+                          label="Applica firma digitale"
+                          checked={applySignature}
+                          onChange={(e) => setApplySignature(e.target.checked)}
+                        />
+                        <Form.Text className="text-muted d-block mt-1">
+                          Firma digitalmente le fatture prima dell'invio
+                        </Form.Text>
+                      </Col>
+                      <Col md={6}>
+                        <Form.Check
+                          type="switch"
+                          id="applyLegalStorage"
+                          label="Conservazione sostitutiva"
+                          checked={applyLegalStorage}
+                          onChange={(e) => setApplyLegalStorage(e.target.checked)}
+                        />
+                        <Form.Text className="text-muted d-block mt-1">
+                          Archivia le fatture in conservazione a norma
+                        </Form.Text>
+                      </Col>
+                    </Row>
+
+                    <Alert variant="secondary" className="mb-3">
+                      <small>
+                        L'email per le notifiche SDI sarà: <strong>{formData.email || formData.pec || '(non configurata)'}</strong>
+                        <br />
+                        Per modificarla, vai alla tab "Contatti".
+                      </small>
+                    </Alert>
+
+                    <div className="d-flex justify-content-end">
+                      <Button
+                        variant="primary"
+                        onClick={handleRegisterOpenAPI}
+                        disabled={isConfiguringRegistry || isLoadingConfig}
+                      >
+                        {isConfiguringRegistry ? (
+                          <>
+                            <Spinner size="sm" className="me-2" />
+                            Registrazione...
+                          </>
+                        ) : businessRegistryConfig?.active ? (
+                          'Aggiorna configurazione OpenAPI SDI'
+                        ) : (
+                          'Registra su OpenAPI SDI'
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <Alert variant="warning">
+                    <strong>Azienda non ancora salvata</strong>
+                    <p className="mb-0 mt-1">
+                      Salva prima l'azienda per poterla registrare su OpenAPI SDI.
+                    </p>
+                  </Alert>
+                )}
               </Tab.Pane>
             </Tab.Content>
           </Tab.Container>

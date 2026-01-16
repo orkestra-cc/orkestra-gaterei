@@ -2,7 +2,9 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +13,19 @@ import (
 	"github.com/orkestra/backend/internal/billing/repository"
 	"github.com/orkestra/backend/internal/billing/services"
 )
+
+// FatturaPayload represents the parsed payload from OpenAPI SDI response
+type FatturaPayload struct {
+	FatturaElettronicaBody []struct {
+		DatiGenerali struct {
+			DatiGeneraliDocumento struct {
+				Numero                 string `json:"numero"`
+				Data                   string `json:"data"`
+				ImportoTotaleDocumento string `json:"importo_totale_documento"`
+			} `json:"dati_generali_documento"`
+		} `json:"dati_generali"`
+	} `json:"fattura_elettronica_body"`
+}
 
 // PollingJob handles periodic polling of SDI notifications
 type PollingJob struct {
@@ -87,8 +102,163 @@ func (j *PollingJob) Poll(ctx context.Context) error {
 	return j.poll(ctx)
 }
 
+// SyncReceivedInvoices syncs received invoices from OpenAPI SDI
+func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
+	j.logger.Info("syncing received invoices from OpenAPI SDI")
+
+	// Fetch received invoices from last 30 days
+	fromDate := time.Now().AddDate(0, 0, -30)
+	page := 1
+	pageSize := 100
+	totalImported := 0
+
+	for {
+		invoices, err := j.openAPIClient.GetSupplierInvoices(ctx, fromDate, page, pageSize)
+		if err != nil {
+			j.logger.Error("failed to fetch supplier invoices from OpenAPI", "error", err)
+			return err
+		}
+
+		j.logger.Info("fetched supplier invoices from OpenAPI",
+			"page", page,
+			"count", len(invoices.Invoices),
+			"total", invoices.Total,
+		)
+
+		for _, inv := range invoices.Invoices {
+			// Check if we already have this invoice
+			existing, _ := j.invoiceRepo.GetByOpenAPIUUID(ctx, inv.UUID)
+			if existing != nil {
+				j.logger.Debug("invoice already exists, skipping",
+					"uuid", inv.UUID,
+				)
+				continue
+			}
+
+			// Fetch the full XML content
+			xmlContent, err := j.openAPIClient.DownloadInvoiceXML(ctx, inv.UUID)
+			if err != nil {
+				j.logger.Error("failed to download invoice XML",
+					"uuid", inv.UUID,
+					"error", err,
+				)
+				continue
+			}
+
+			// Extract supplier info from the Sender field
+			var supplierFiscalID, supplierName string
+			if inv.Sender != nil {
+				supplierFiscalID = inv.Sender.BusinessVATNumberCode
+				supplierName = inv.Sender.BusinessName
+				if supplierName == "" && inv.Sender.Name != "" {
+					supplierName = inv.Sender.Name + " " + inv.Sender.Surname
+				}
+			}
+
+			// Determine document type
+			docType := models.DocTypeFattura // Default TD01
+			if inv.DocumentType != "" {
+				docType = models.DocumentType(inv.DocumentType)
+			}
+
+			// Parse payload to extract invoice details (number, date, amount)
+			var invoiceNumber string
+			var invoiceDate time.Time
+			var totalAmount float64
+
+			if inv.Payload != "" {
+				var payload FatturaPayload
+				if err := json.Unmarshal([]byte(inv.Payload), &payload); err == nil {
+					if len(payload.FatturaElettronicaBody) > 0 {
+						doc := payload.FatturaElettronicaBody[0].DatiGenerali.DatiGeneraliDocumento
+						invoiceNumber = doc.Numero
+						if parsedDate, err := time.Parse("2006-01-02", doc.Data); err == nil {
+							invoiceDate = parsedDate
+						}
+						if amount, err := strconv.ParseFloat(doc.ImportoTotaleDocumento, 64); err == nil {
+							totalAmount = amount
+						}
+					}
+				} else {
+					j.logger.Warn("failed to parse invoice payload",
+						"uuid", inv.UUID,
+						"error", err,
+					)
+				}
+			}
+
+			// Fall back to CreatedAt if invoice date not found in payload
+			if invoiceDate.IsZero() {
+				if !inv.CreatedAt.IsZero() {
+					invoiceDate = inv.CreatedAt
+				} else {
+					invoiceDate = time.Now()
+				}
+			}
+
+			// Create the received invoice record
+			receivedInvoice := &models.Invoice{
+				UUID:          uuid.New().String(),
+				OpenAPIUUID:   inv.UUID,
+				SDIIdentifier: inv.SDIFileID,
+				Direction:     models.DirectionReceived,
+				DocumentType:  docType,
+				Number:        invoiceNumber,
+				Date:          invoiceDate,
+				Currency:      "EUR",
+				TotalAmount:   totalAmount,
+				Status:        models.StatusDelivered, // Received invoices are already delivered to us
+				SDIStatus:     models.SDIStatusRC,
+				XMLContent:    string(xmlContent),
+				CedentePrestatore: &models.PartyData{
+					FiscalIDCode: supplierFiscalID,
+					Denomination: supplierName,
+				},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			if err := j.invoiceRepo.Create(ctx, receivedInvoice); err != nil {
+				j.logger.Error("failed to create received invoice",
+					"uuid", inv.UUID,
+					"error", err,
+				)
+				continue
+			}
+
+			totalImported++
+			j.logger.Info("imported received invoice",
+				"uuid", receivedInvoice.UUID,
+				"openApiUUID", inv.UUID,
+				"number", invoiceNumber,
+				"supplier", supplierName,
+				"amount", totalAmount,
+				"docType", docType,
+			)
+		}
+
+		// Check if there are more pages
+		if page >= invoices.TotalPages || len(invoices.Invoices) < pageSize {
+			break
+		}
+		page++
+	}
+
+	j.logger.Info("received invoices sync completed",
+		"totalImported", totalImported,
+	)
+
+	return nil
+}
+
 func (j *PollingJob) poll(ctx context.Context) error {
 	j.logger.Debug("polling for SDI notifications")
+
+	// Also sync received invoices
+	if err := j.SyncReceivedInvoices(ctx); err != nil {
+		j.logger.Error("failed to sync received invoices", "error", err)
+		// Continue with notification polling
+	}
 
 	// Get last polling state
 	state, err := j.notificationRepo.GetPollingState(ctx)

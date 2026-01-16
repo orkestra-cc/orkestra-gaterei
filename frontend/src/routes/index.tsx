@@ -221,9 +221,6 @@ const NewIssuedInvoice = lazy(
 const IssuedInvoiceDetail = lazy(
   () => import('pages/billing/invoices/issued/IssuedInvoiceDetail')
 );
-const BusinessRegistrySettings = lazy(
-  () => import('pages/billing/settings/BusinessRegistrySettings')
-);
 
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
@@ -778,23 +775,6 @@ const routes: RouteObject[] = [
                   fallback={<FalconLoader />}
                 >
                   <SDINotifications />
-                </Suspense>
-              </ProtectedRoute>
-            )
-          },
-          {
-            path: 'billing/settings/business-registry',
-            element: (
-              <ProtectedRoute
-                requiredPermissions={[
-                  ['developer', 'ceo', 'administrator']
-                ]}
-              >
-                <Suspense
-                  key="billing-settings-business-registry"
-                  fallback={<FalconLoader />}
-                >
-                  <BusinessRegistrySettings />
                 </Suspense>
               </ProtectedRoute>
             )
