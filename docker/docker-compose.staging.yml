@@ -74,8 +74,8 @@ services:
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend-staging}
     volumes:
       - ./keys:/app/keys:ro
-      - backend_logs_staging:/app/logs
-      - backend_uploads_staging:/app/uploads
+      - orkestra-backend-logs-staging:/app/logs
+      - orkestra-backend-uploads-staging:/app/uploads
     networks:
       - orkestra-network
     # Note: mongodb and redis are in docker-compose.infra.yml
@@ -115,9 +115,9 @@ services:
       retries: 3
 
 volumes:
-  backend_logs_staging:
+  orkestra-backend-logs-staging:
     driver: local
-  backend_uploads_staging:
+  orkestra-backend-uploads-staging:
     driver: local
 
 networks:
