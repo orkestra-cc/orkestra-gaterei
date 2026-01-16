@@ -155,17 +155,18 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 	invoice.Lines = make([]models.InvoiceLine, 0, len(input.Lines))
 	for i, line := range input.Lines {
 		invoiceLine := models.InvoiceLine{
-			LineNumber:    i + 1,
-			Description:   line.Description,
-			Quantity:      line.Quantity,
-			UnitOfMeasure: line.UnitOfMeasure,
-			UnitPrice:     line.UnitPrice,
-			VATRate:       line.VATRate,
-			VATNature:     line.VATNature,
-			Discounts:     line.Discounts,
-			ProductCode:   line.ProductCode,
-			StartDate:     line.StartDate,
-			EndDate:       line.EndDate,
+			LineNumber:          i + 1,
+			Description:         line.Description,
+			Quantity:            line.Quantity,
+			UnitOfMeasure:       line.UnitOfMeasure,
+			UnitPrice:           line.UnitPrice,
+			VATRate:             line.VATRate,
+			VATNature:           line.VATNature,
+			Discounts:           line.Discounts,
+			ProductCode:         line.ProductCode,
+			StartDate:           line.StartDate,
+			EndDate:             line.EndDate,
+			AltriDatiGestionali: line.AltriDatiGestionali,
 		}
 		invoice.Lines = append(invoice.Lines, invoiceLine)
 	}
@@ -308,17 +309,18 @@ func (s *invoiceService) UpdateInvoice(ctx context.Context, uuid string, input *
 		invoice.Lines = make([]models.InvoiceLine, 0, len(input.Lines))
 		for i, line := range input.Lines {
 			invoiceLine := models.InvoiceLine{
-				LineNumber:    i + 1,
-				Description:   line.Description,
-				Quantity:      line.Quantity,
-				UnitOfMeasure: line.UnitOfMeasure,
-				UnitPrice:     line.UnitPrice,
-				VATRate:       line.VATRate,
-				VATNature:     line.VATNature,
-				Discounts:     line.Discounts,
-				ProductCode:   line.ProductCode,
-				StartDate:     line.StartDate,
-				EndDate:       line.EndDate,
+				LineNumber:          i + 1,
+				Description:         line.Description,
+				Quantity:            line.Quantity,
+				UnitOfMeasure:       line.UnitOfMeasure,
+				UnitPrice:           line.UnitPrice,
+				VATRate:             line.VATRate,
+				VATNature:           line.VATNature,
+				Discounts:           line.Discounts,
+				ProductCode:         line.ProductCode,
+				StartDate:           line.StartDate,
+				EndDate:             line.EndDate,
+				AltriDatiGestionali: line.AltriDatiGestionali,
 			}
 			invoice.Lines = append(invoice.Lines, invoiceLine)
 		}

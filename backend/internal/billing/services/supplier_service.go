@@ -61,6 +61,7 @@ func (s *supplierService) CreateSupplier(ctx context.Context, input *models.Crea
 		Surname:         input.Surname,
 		RegimeFiscale:   input.RegimeFiscale,
 		Address:         input.Address,
+		NumeroCivico:    input.NumeroCivico,
 		City:            input.City,
 		Province:        input.Province,
 		PostalCode:      input.PostalCode,
@@ -156,6 +157,9 @@ func (s *supplierService) UpdateSupplier(ctx context.Context, uuid string, input
 	}
 	if input.Address != nil {
 		supplier.Address = *input.Address
+	}
+	if input.NumeroCivico != nil {
+		supplier.NumeroCivico = *input.NumeroCivico
 	}
 	if input.City != nil {
 		supplier.City = *input.City

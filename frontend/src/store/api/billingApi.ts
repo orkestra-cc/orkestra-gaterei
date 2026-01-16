@@ -460,8 +460,47 @@ export const billingApi = baseApi.injectEndpoints({
     getPreservedDocument: builder.query<PreservedDocument, string>({
       query: (id) => `/api/v1/billing/preserved-documents/${id}`,
     }),
+
+    // ========================================
+    // Business Registry Configuration Endpoints
+    // ========================================
+
+    getBusinessRegistryConfig: builder.query<BusinessRegistryConfig, string>({
+      query: (fiscalId) => `/api/v1/billing/business-registry/${fiscalId}`,
+      providesTags: (_result, _error, fiscalId) => [{ type: 'BusinessRegistry', id: fiscalId }],
+    }),
+
+    configureBusinessRegistry: builder.mutation<ConfigureBusinessRegistryResponse, ConfigureBusinessRegistryInput>({
+      query: (data) => ({
+        url: '/api/v1/billing/business-registry',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { fiscalId }) => [{ type: 'BusinessRegistry', id: fiscalId }],
+    }),
   }),
 });
+
+// Business Registry types
+export interface BusinessRegistryConfig {
+  fiscalId: string;
+  email: string;
+  applySignature: boolean;
+  applyLegalStorage: boolean;
+  active: boolean;
+}
+
+export interface ConfigureBusinessRegistryInput {
+  fiscalId: string;
+  email: string;
+  applySignature: boolean;
+  applyLegalStorage: boolean;
+}
+
+export interface ConfigureBusinessRegistryResponse {
+  success: boolean;
+  message: string;
+}
 
 // Export hooks for usage in components
 export const {
@@ -511,4 +550,8 @@ export const {
   useGetBillingStatsQuery,
   // Preserved Documents hooks
   useGetPreservedDocumentQuery,
+  // Business Registry hooks
+  useGetBusinessRegistryConfigQuery,
+  useLazyGetBusinessRegistryConfigQuery,
+  useConfigureBusinessRegistryMutation,
 } = billingApi;

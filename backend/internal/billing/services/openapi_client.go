@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -221,6 +223,90 @@ func (c *openAPIClient) doRequest(ctx context.Context, method, path string, body
 	return respBody, resp.StatusCode, nil
 }
 
+// doXMLRequest sends a request with raw XML body
+func (c *openAPIClient) doXMLRequest(ctx context.Context, method, path string, xmlContent string) ([]byte, int, error) {
+	// Check circuit breaker
+	if !c.circuitBreaker.Allow() {
+		return nil, 0, ErrCircuitBreakerOpen
+	}
+
+	url := c.config.GetEndpoint(path)
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(xmlContent))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers for XML request
+	req.Header.Set("Authorization", "Bearer "+c.config.BearerToken)
+	req.Header.Set("Content-Type", "application/xml")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.circuitBreaker.RecordFailure()
+		return nil, 0, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Record success/failure for circuit breaker
+	if resp.StatusCode >= 500 {
+		c.circuitBreaker.RecordFailure()
+	} else {
+		c.circuitBreaker.RecordSuccess()
+	}
+
+	return respBody, resp.StatusCode, nil
+}
+
+// doXMLRequestWithRetry performs an XML request with retry logic
+func (c *openAPIClient) doXMLRequestWithRetry(ctx context.Context, method, path string, xmlContent string) ([]byte, int, error) {
+	var lastErr error
+	var respBody []byte
+	var statusCode int
+
+	for attempt := 0; attempt < c.config.RetryAttempts; attempt++ {
+		respBody, statusCode, lastErr = c.doXMLRequest(ctx, method, path, xmlContent)
+
+		if lastErr == nil && statusCode < 500 {
+			return respBody, statusCode, nil
+		}
+
+		// Don't retry on client errors
+		if statusCode >= 400 && statusCode < 500 {
+			break
+		}
+
+		// Wait before retry with exponential backoff
+		if attempt < c.config.RetryAttempts-1 {
+			backoff := time.Duration(1<<uint(attempt)) * time.Second
+			select {
+			case <-ctx.Done():
+				return nil, 0, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+
+		c.logger.Warn("retrying OpenAPI XML request",
+			"attempt", attempt+1,
+			"method", method,
+			"path", path,
+			"error", lastErr,
+		)
+	}
+
+	if lastErr != nil {
+		return nil, statusCode, lastErr
+	}
+
+	return respBody, statusCode, nil
+}
+
 func (c *openAPIClient) doRequestWithRetry(ctx context.Context, method, path string, body interface{}) ([]byte, int, error) {
 	var lastErr error
 	var respBody []byte
@@ -320,11 +406,16 @@ func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice
 		endpoint = "/invoices"
 	}
 
-	body := map[string]interface{}{
-		"fattura_elettronica": xmlContent,
-	}
+	// Debug: log the XML content
+	c.logger.Info("sending invoice XML to SDI",
+		"endpoint", endpoint,
+		"xmlLength", len(xmlContent),
+	)
+	// Write XML to file for debugging
+	_ = writeDebugXML(xmlContent, invoice.Number)
 
-	respBody, statusCode, err := c.doRequestWithRetry(ctx, http.MethodPost, endpoint, body)
+	// Send raw XML with Content-Type: application/xml
+	respBody, statusCode, err := c.doXMLRequestWithRetry(ctx, http.MethodPost, endpoint, xmlContent)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvoiceSendFailed, err)
 	}
@@ -636,4 +727,10 @@ func (cb *circuitBreaker) RecordFailure() {
 	if cb.failures >= cb.maxFailures {
 		cb.state = "open"
 	}
+}
+
+// writeDebugXML writes XML to a file for debugging purposes
+func writeDebugXML(xmlContent string, invoiceNumber string) error {
+	filename := fmt.Sprintf("/tmp/invoice_%s.xml", strings.ReplaceAll(invoiceNumber, "/", "_"))
+	return os.WriteFile(filename, []byte(xmlContent), 0644)
 }

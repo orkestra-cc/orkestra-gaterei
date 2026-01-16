@@ -49,7 +49,11 @@ When modifying or adding billing endpoints:
    - `/invoices_legal_storage` - With legal storage
    - `/invoices_signature_legal_storage` - Both signature and storage
 
-3. **Required Registration**: Users must register recipient code `JKKZDGR` with Agenzia delle Entrate before receiving supplier invoices.
+3. **Invoice Request Format**: Invoices are sent as **raw XML** with `Content-Type: application/xml` header. The API returns JSON responses.
+
+4. **Required Registrations**:
+   - **Recipient Code**: Register `JKKZDGR` with Agenzia delle Entrate before receiving supplier invoices
+   - **Business Registry**: Configure your Fiscal ID in OpenAPI SDI console before sending invoices (see Setup section below)
 
 ## Module Structure
 
@@ -205,11 +209,36 @@ if cfg.OpenAPI.BearerToken != "" {
 
 ### Testing with Sandbox
 
-1. Get sandbox credentials from OpenAPI SDI
-2. Configure environment variables in `.env.development`
-3. Set `OPENAPI_SANDBOX_MODE=true`
-4. Test invoice creation and sending
-5. Verify notification polling
+1. **Get sandbox credentials** from [OpenAPI SDI Console](https://console.openapi.com)
+   - Create an account and access the SDI service
+   - Get your sandbox API token from the token list
+
+2. **Configure Business Registry** in OpenAPI SDI Console (REQUIRED before sending invoices)
+   - Go to **Business Registry Configurations** section
+   - Add a new configuration with:
+     - **Fiscal ID**: Your company's P.IVA (e.g., `02081880490`)
+     - **Email**: Email for SDI notifications
+     - **Apply Signature**: Enable/disable digital signature
+     - **Apply Legal Storage**: Enable/disable legal storage (conservazione sostitutiva)
+   - Without this configuration, invoice sending will fail with error 389: "Missing configuration for fiscal Id"
+
+3. **Configure environment variables** in `.env.development`:
+   ```bash
+   OPENAPI_BASE_URL=https://test.sdi.openapi.it
+   OPENAPI_BEARER_TOKEN=your_sandbox_token
+   OPENAPI_FISCAL_ID=02081880490
+   OPENAPI_RECIPIENT_CODE=JKKZDGR
+   OPENAPI_APPLY_SIGNATURE=false  # Set to true if configured in console
+   OPENAPI_APPLY_STORAGE=false    # Set to true if configured in console
+   OPENAPI_SANDBOX_MODE=true
+   ```
+
+4. **Test invoice flow**:
+   - Create a draft invoice via API or frontend
+   - Send invoice to SDI
+   - Verify notification polling retrieves SDI responses
+
+5. **Self-invoicing for testing**: Use document types TD16-TD20 (autofatture) which allow cedente=cessionario (sender=recipient). Standard TD01 invoices cannot be sent to yourself.
 
 ### FatturaPA XML Format
 
@@ -231,6 +260,21 @@ SDI errors are mapped to appropriate HTTP responses:
 - Authentication errors → 401 Unauthorized
 - SDI rejection → 422 Unprocessable Entity
 - Network errors → 503 Service Unavailable
+
+### Common Errors & Troubleshooting
+
+| Error Code | Message | Cause | Solution |
+|------------|---------|-------|----------|
+| 389 | Missing configuration for fiscal Id | Business Registry not configured in OpenAPI console | Configure your Fiscal ID in OpenAPI SDI Console → Business Registry Configurations |
+| 401 | Wrong Token / Expired Token | Invalid or expired API token | Refresh token in OpenAPI console; use `docker compose up --force-recreate` to reload env vars |
+| 802 | Parsing error: malformed XML | XML format issue | Verify XML is sent with `Content-Type: application/xml` (not base64 JSON) |
+| 00471 | CedentePrestatore = CessionarioCommittente | Self-invoicing not allowed for this document type | Use autofatture document types (TD16-TD20) for self-invoicing |
+| 422 | unexpected property | Frontend sending field not in backend DTO | Add missing field to DTO in `models/dto.go` |
+
+**Debugging Tips**:
+- XML files are written to `/tmp/invoice_<number>.xml` inside the container for debugging
+- Check logs with `docker compose logs orkestra-backend`
+- Environment variable changes require `docker compose up --force-recreate` (not just `restart`)
 
 ## MongoDB Collections
 

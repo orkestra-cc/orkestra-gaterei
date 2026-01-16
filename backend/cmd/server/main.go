@@ -208,6 +208,7 @@ func main() {
 	var billingSupplierHandler *billingHandlers.SupplierHandler
 	var billingCompanyHandler *billingHandlers.CompanyHandler
 	var billingNotificationHandler *billingHandlers.NotificationHandler
+	var billingBusinessRegistryHandler *billingHandlers.BusinessRegistryHandler
 	billingEnabled := cfg.Billing.OpenAPIBearerToken != ""
 
 	if billingEnabled {
@@ -248,6 +249,7 @@ func main() {
 		billingSupplierHandler = billingHandlers.NewSupplierHandler(supplierSvc)
 		billingCompanyHandler = billingHandlers.NewCompanyHandler(companySvc)
 		billingNotificationHandler = billingHandlers.NewNotificationHandler(notificationSvc)
+		billingBusinessRegistryHandler = billingHandlers.NewBusinessRegistryHandler(openAPIClient)
 
 		// Create polling job
 		billingPollingJob = billingJobs.NewPollingJob(
@@ -408,6 +410,7 @@ func main() {
 				billingSupplierHandler,
 				billingCompanyHandler,
 				billingNotificationHandler,
+				billingBusinessRegistryHandler,
 			)
 		})
 	}

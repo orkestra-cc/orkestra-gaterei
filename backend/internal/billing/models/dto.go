@@ -20,11 +20,12 @@ type CreateCustomerInput struct {
 	Surname      string `json:"surname,omitempty" doc:"Last name (required if not company)"`
 
 	// Address
-	Address    string `json:"address" validate:"required" doc:"Street address"`
-	City       string `json:"city" validate:"required" doc:"City"`
-	Province   string `json:"province,omitempty" doc:"Province code (2 chars)"`
-	PostalCode string `json:"postalCode" validate:"required" doc:"Postal code"`
-	Country    string `json:"country" validate:"required,len=2" doc:"Country code ISO 3166-1 alpha-2"`
+	Address      string `json:"address" validate:"required" doc:"Street address"`
+	NumeroCivico string `json:"numeroCivico,omitempty" doc:"Street number"`
+	City         string `json:"city" validate:"required" doc:"City"`
+	Province     string `json:"province,omitempty" doc:"Province code (2 chars)"`
+	PostalCode   string `json:"postalCode" validate:"required" doc:"Postal code"`
+	Country      string `json:"country" validate:"required,len=2" doc:"Country code ISO 3166-1 alpha-2"`
 
 	// Contacts
 	Email string `json:"email,omitempty" validate:"omitempty,email" doc:"Email address"`
@@ -49,6 +50,7 @@ type UpdateCustomerInput struct {
 	Name               *string `json:"name,omitempty"`
 	Surname            *string `json:"surname,omitempty"`
 	Address            *string `json:"address,omitempty"`
+	NumeroCivico       *string `json:"numeroCivico,omitempty"`
 	City               *string `json:"city,omitempty"`
 	Province           *string `json:"province,omitempty"`
 	PostalCode         *string `json:"postalCode,omitempty"`
@@ -182,11 +184,12 @@ type CreateSupplierInput struct {
 	RegimeFiscale RegimeFiscale `json:"regimeFiscale,omitempty"`
 
 	// Address
-	Address    string `json:"address" validate:"required"`
-	City       string `json:"city" validate:"required"`
-	Province   string `json:"province,omitempty"`
-	PostalCode string `json:"postalCode" validate:"required"`
-	Country    string `json:"country" validate:"required,len=2"`
+	Address      string `json:"address" validate:"required"`
+	NumeroCivico string `json:"numeroCivico,omitempty"`
+	City         string `json:"city" validate:"required"`
+	Province     string `json:"province,omitempty"`
+	PostalCode   string `json:"postalCode" validate:"required"`
+	Country      string `json:"country" validate:"required,len=2"`
 
 	// Contacts
 	Email string `json:"email,omitempty" validate:"omitempty,email"`
@@ -208,6 +211,7 @@ type UpdateSupplierInput struct {
 	Surname       *string        `json:"surname,omitempty"`
 	RegimeFiscale *RegimeFiscale `json:"regimeFiscale,omitempty"`
 	Address       *string        `json:"address,omitempty"`
+	NumeroCivico  *string        `json:"numeroCivico,omitempty"`
 	City          *string        `json:"city,omitempty"`
 	Province      *string        `json:"province,omitempty"`
 	PostalCode    *string        `json:"postalCode,omitempty"`
@@ -271,16 +275,17 @@ type CreateInvoiceInput struct {
 
 // CreateInvoiceLineInput represents input for a single invoice line
 type CreateInvoiceLineInput struct {
-	Description   string        `json:"description" validate:"required,max=1000"`
-	Quantity      float64       `json:"quantity" validate:"required"`
-	UnitOfMeasure UnitOfMeasure `json:"unitOfMeasure,omitempty"`
-	UnitPrice     float64       `json:"unitPrice" validate:"required"`
-	VATRate       float64       `json:"vatRate" validate:"required,min=0,max=100"`
-	VATNature     VATNature     `json:"vatNature,omitempty"`
-	Discounts     []LineDiscount `json:"discounts,omitempty"`
-	ProductCode   string        `json:"productCode,omitempty"`
-	StartDate     *time.Time    `json:"startDate,omitempty"`
-	EndDate       *time.Time    `json:"endDate,omitempty"`
+	Description         string           `json:"description" validate:"required,max=1000"`
+	Quantity            float64          `json:"quantity" validate:"required"`
+	UnitOfMeasure       UnitOfMeasure    `json:"unitOfMeasure,omitempty"`
+	UnitPrice           float64          `json:"unitPrice" validate:"required"`
+	VATRate             float64          `json:"vatRate" validate:"required,min=0,max=100"`
+	VATNature           VATNature        `json:"vatNature,omitempty"`
+	Discounts           []LineDiscount   `json:"discounts,omitempty"`
+	ProductCode         string           `json:"productCode,omitempty"`
+	StartDate           *time.Time       `json:"startDate,omitempty"`
+	EndDate             *time.Time       `json:"endDate,omitempty"`
+	AltriDatiGestionali []AltriDatiInput `json:"altriDatiGestionali,omitempty" doc:"Additional management data"`
 }
 
 // CreatePaymentTermsInput represents input for payment terms

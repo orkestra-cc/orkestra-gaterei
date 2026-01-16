@@ -16,6 +16,7 @@ func RegisterRoutes(
 	supplierHandler *handlers.SupplierHandler,
 	companyHandler *handlers.CompanyHandler,
 	notificationHandler *handlers.NotificationHandler,
+	businessRegistryHandler *handlers.BusinessRegistryHandler,
 ) {
 	// ========================================
 	// Invoice Routes (Issued - Fatture Attive)
@@ -400,4 +401,27 @@ func RegisterRoutes(
 		Tags:        []string{"Billing - Preserved Documents"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, invoiceHandler.GetPreservedDocument)
+
+	// ========================================
+	// Business Registry Configuration Routes
+	// ========================================
+	huma.Register(api, huma.Operation{
+		OperationID: "get-business-registry-config",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/billing/business-registry/{fiscalId}",
+		Summary:     "Get business registry configuration",
+		Description: "Retrieves the OpenAPI SDI business registry configuration for a fiscal ID",
+		Tags:        []string{"Billing - Business Registry"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, businessRegistryHandler.GetConfig)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "configure-business-registry",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/billing/business-registry",
+		Summary:     "Configure business registry",
+		Description: "Creates or updates the OpenAPI SDI business registry configuration. Required before sending invoices.",
+		Tags:        []string{"Billing - Business Registry"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, businessRegistryHandler.Configure)
 }

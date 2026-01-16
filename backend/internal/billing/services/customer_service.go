@@ -66,6 +66,7 @@ func (s *customerService) CreateCustomer(ctx context.Context, input *models.Crea
 		Name:               input.Name,
 		Surname:            input.Surname,
 		Address:            input.Address,
+		NumeroCivico:       input.NumeroCivico,
 		City:               input.City,
 		Province:           input.Province,
 		PostalCode:         input.PostalCode,
@@ -165,6 +166,9 @@ func (s *customerService) UpdateCustomer(ctx context.Context, uuid string, input
 	}
 	if input.Address != nil {
 		customer.Address = *input.Address
+	}
+	if input.NumeroCivico != nil {
+		customer.NumeroCivico = *input.NumeroCivico
 	}
 	if input.City != nil {
 		customer.City = *input.City

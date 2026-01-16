@@ -71,13 +71,31 @@ const createEmptyAltriDati = (): AltriDatiGestionali => ({
 
 // Document type options
 const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
+  // Fatture standard
   { value: 'TD01', label: 'TD01 - Fattura' },
   { value: 'TD02', label: 'TD02 - Acconto/Anticipo su fattura' },
+  { value: 'TD03', label: 'TD03 - Acconto/Anticipo su parcella' },
   { value: 'TD04', label: 'TD04 - Nota di Credito' },
   { value: 'TD05', label: 'TD05 - Nota di Debito' },
   { value: 'TD06', label: 'TD06 - Parcella' },
-  { value: 'TD24', label: 'TD24 - Fattura differita' },
-  { value: 'TD25', label: 'TD25 - Fattura differita (lett. b)' },
+  // Fatture semplificate
+  { value: 'TD07', label: 'TD07 - Fattura semplificata' },
+  { value: 'TD08', label: 'TD08 - Nota di credito semplificata' },
+  { value: 'TD09', label: 'TD09 - Nota di debito semplificata' },
+  // Autofatture e integrazioni (cedente = cessionario consentito)
+  { value: 'TD16', label: 'TD16 - Integrazione reverse charge interno' },
+  { value: 'TD17', label: 'TD17 - Autofattura acquisto servizi estero' },
+  { value: 'TD18', label: 'TD18 - Integrazione acquisto beni intraUE' },
+  { value: 'TD19', label: 'TD19 - Integrazione acquisto beni art.17' },
+  { value: 'TD20', label: 'TD20 - Autofattura regolarizzazione' },
+  { value: 'TD21', label: 'TD21 - Autofattura splafonamento' },
+  // Fatture differite
+  { value: 'TD24', label: 'TD24 - Fattura differita (art.21 c.4 lett.a)' },
+  { value: 'TD25', label: 'TD25 - Fattura differita (art.21 c.4 lett.b)' },
+  // Altri tipi
+  { value: 'TD26', label: 'TD26 - Cessione beni ammortizzabili' },
+  { value: 'TD27', label: 'TD27 - Autoconsumo/cessioni gratuite' },
+  { value: 'TD28', label: 'TD28 - Acquisti da San Marino con IVA' },
 ];
 
 // Payment method options

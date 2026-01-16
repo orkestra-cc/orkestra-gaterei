@@ -6,8 +6,7 @@ import (
 
 // FatturaElettronica represents the root element of the Italian electronic invoice
 type FatturaElettronica struct {
-	XMLName                    xml.Name                   `xml:"p:FatturaElettronica"`
-	XmlnsP                     string                     `xml:"xmlns:p,attr"`
+	XMLName                    xml.Name                   `xml:"http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2 FatturaElettronica"`
 	XmlnsXsi                   string                     `xml:"xmlns:xsi,attr,omitempty"`
 	SchemaLocation             string                     `xml:"xsi:schemaLocation,attr,omitempty"`
 	Versione                   TransmissionFormat         `xml:"versione,attr"`
@@ -356,7 +355,6 @@ type Allegato struct {
 // NewFatturaElettronica creates a new FatturaPA document
 func NewFatturaElettronica(format TransmissionFormat) *FatturaElettronica {
 	return &FatturaElettronica{
-		XmlnsP:         "http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2",
 		XmlnsXsi:       "http://www.w3.org/2001/XMLSchema-instance",
 		SchemaLocation: "http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2 http://www.fatturapa.gov.it/export/fatturazione/sdi/fatturapa/v1.2/Schema_del_file_xml_FatturaPA_versione_1.2.xsd",
 		Versione:       format,

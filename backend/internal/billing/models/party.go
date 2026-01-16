@@ -25,11 +25,12 @@ type Customer struct {
 	Surname      string `bson:"surname,omitempty" json:"surname,omitempty"`           // Cognome (persone fisiche)
 
 	// Address
-	Address    string `bson:"address" json:"address" validate:"required"`
-	City       string `bson:"city" json:"city" validate:"required"`
-	Province   string `bson:"province,omitempty" json:"province,omitempty"` // Sigla provincia (2 chars)
-	PostalCode string `bson:"postalCode" json:"postalCode" validate:"required"`
-	Country    string `bson:"country" json:"country" validate:"required,len=2"` // ISO 3166-1 alpha-2
+	Address      string `bson:"address" json:"address" validate:"required"`
+	NumeroCivico string `bson:"numeroCivico,omitempty" json:"numeroCivico,omitempty"` // Street number
+	City         string `bson:"city" json:"city" validate:"required"`
+	Province     string `bson:"province,omitempty" json:"province,omitempty"` // Sigla provincia (2 chars)
+	PostalCode   string `bson:"postalCode" json:"postalCode" validate:"required"`
+	Country      string `bson:"country" json:"country" validate:"required,len=2"` // ISO 3166-1 alpha-2
 
 	// Contacts
 	Email string `bson:"email,omitempty" json:"email,omitempty" validate:"omitempty,email"`
@@ -81,11 +82,12 @@ type Supplier struct {
 	RegimeFiscale RegimeFiscale `bson:"regimeFiscale,omitempty" json:"regimeFiscale,omitempty"` // RF01-RF19
 
 	// Address
-	Address    string `bson:"address" json:"address" validate:"required"`
-	City       string `bson:"city" json:"city" validate:"required"`
-	Province   string `bson:"province,omitempty" json:"province,omitempty"`
-	PostalCode string `bson:"postalCode" json:"postalCode" validate:"required"`
-	Country    string `bson:"country" json:"country" validate:"required,len=2"`
+	Address      string `bson:"address" json:"address" validate:"required"`
+	NumeroCivico string `bson:"numeroCivico,omitempty" json:"numeroCivico,omitempty"` // Street number
+	City         string `bson:"city" json:"city" validate:"required"`
+	Province     string `bson:"province,omitempty" json:"province,omitempty"`
+	PostalCode   string `bson:"postalCode" json:"postalCode" validate:"required"`
+	Country      string `bson:"country" json:"country" validate:"required,len=2"`
 
 	// Contacts
 	Email string `bson:"email,omitempty" json:"email,omitempty" validate:"omitempty,email"`
@@ -182,6 +184,7 @@ func CustomerFromPartyData(pd *PartyData, uuid string) *Customer {
 		Name:               pd.Name,
 		Surname:            pd.Surname,
 		Address:            pd.Address,
+		NumeroCivico:       pd.NumeroCivico,
 		City:               pd.City,
 		Province:           pd.Province,
 		PostalCode:         pd.PostalCode,
@@ -207,6 +210,7 @@ func (c *Customer) ToPartyData() *PartyData {
 		Name:               c.Name,
 		Surname:            c.Surname,
 		Address:            c.Address,
+		NumeroCivico:       c.NumeroCivico,
 		City:               c.City,
 		Province:           c.Province,
 		PostalCode:         c.PostalCode,
@@ -230,6 +234,7 @@ func (s *Supplier) ToPartyData() *PartyData {
 		Surname:         s.Surname,
 		RegimeFiscale:   s.RegimeFiscale,
 		Address:         s.Address,
+		NumeroCivico:    s.NumeroCivico,
 		City:            s.City,
 		Province:        s.Province,
 		PostalCode:      s.PostalCode,

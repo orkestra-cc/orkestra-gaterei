@@ -115,6 +115,7 @@ export const baseApi = createApi({
     'Invoice',
     'Notification',
     'BillingStats',
+    'BusinessRegistry',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,
@@ -131,7 +132,7 @@ export const {
 } = baseApi;
 
 // Helper function to invalidate multiple tags
-export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats">) => {
+export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry">) => {
   return baseApi.util.invalidateTags(tags);
 };
 
