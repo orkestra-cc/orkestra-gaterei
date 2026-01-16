@@ -125,7 +125,7 @@ export default ({ mode }) => {
         'orkestra.cc'
       ],
       hmr: {
-        clientPort: 8080
+        clientPort: 8087
       },
       watch: {
         usePolling: false,

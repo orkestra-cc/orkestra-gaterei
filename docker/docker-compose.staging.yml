@@ -13,13 +13,13 @@ services:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       ENV: staging
-      PORT: ${BACKEND_PORT:-3000}
+      PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
 
-      # MongoDB
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:${MONGO_PORT:-27017}/${MONGO_DATABASE}?authSource=admin
+      # MongoDB (internal port is always 27017, MONGO_PORT is for host mapping only)
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:27017/${MONGO_DATABASE}?authSource=admin
 
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+      # Redis (internal port is always 6379, REDIS_PORT is for host mapping only)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:6379/${REDIS_DB:-0}
 
       # JWT & Auth (RS256 asymmetric keys)
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}

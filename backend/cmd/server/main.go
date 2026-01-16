@@ -298,7 +298,7 @@ func main() {
 
 	// CORS middleware - must be before other middleware
 	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8080", "http://192.168.88.53:8080", "http://localhost:5173"},
+		AllowedOrigins:   []string{"http://localhost:8080", "http://localhost:8087", "http://192.168.88.53:8080", "http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Request-ID"},
 		ExposedHeaders:   []string{"Link", "X-Total-Count", "X-Ratelimit-Limit", "X-Ratelimit-Remaining"},
