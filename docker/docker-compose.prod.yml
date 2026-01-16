@@ -1,6 +1,8 @@
 # ORKESTRA Production Environment Docker Compose
 # Full security, production credentials
 
+name: orkestra-prod
+
 services:
   backend:
     build:

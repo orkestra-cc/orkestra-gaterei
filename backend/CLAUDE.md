@@ -37,7 +37,7 @@ The backend serves as the **monolithic Go server** handling all API operations, 
 
 - **🚫 NEVER manually start the server** - The development server runs automatically in Docker with AIR (hot reload)
 - **🐳 Always use Docker Compose** - The backend runs in a containerized environment with live reload
-- **📋 Check logs via Docker Compose** - Use `docker compose logs backend` to view server logs
+- **📋 Check logs via Docker Compose** - Use `docker compose logs orkestra-backend` to view server logs
 - **🔄 Automatic rebuilds** - AIR detects code changes and automatically rebuilds/restarts the server
 - **🚪 No manual server management** - The server is managed entirely through Docker Compose
 
@@ -195,16 +195,16 @@ The backend runs in Docker with **AIR (Live Reload)** which provides:
 
 ```bash
 # View server logs (ALWAYS use this to check server status)
-docker compose logs backend
+docker compose logs orkestra-backend
 
 # Follow logs in real-time
-docker compose logs -f backend
+docker compose logs -f orkestra-backend
 
 # Check all services status
 docker compose ps
 
 # Restart if needed (rarely required)
-docker compose restart backend
+docker compose restart orkestra-backend
 ```
 
 #### 🚫 **DON'T** - Avoid These Practices
@@ -225,7 +225,7 @@ go build ./cmd/server/ && ./server
 - **Port**: 3000 (exposed via Docker)
 - **Hot Reload**: Enabled by default in development
 - **Config**: Uses `.env` file for environment variables
-- **Logs**: Accessible via `docker compose logs backend`
+- **Logs**: Accessible via `docker compose logs orkestra-backend`
 - **Restart Policy**: Automatic on file changes
 
 ## Common Pitfalls to Avoid

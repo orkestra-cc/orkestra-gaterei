@@ -37,8 +37,8 @@ The docker module provides **containerized infrastructure and deployment configu
 ```bash
 # ✅ CORRECT - Always specify the env file
 docker compose -f docker-compose.dev.yml --env-file .env.development up -d
-docker compose -f docker-compose.dev.yml --env-file .env.development restart backend
-docker compose -f docker-compose.dev.yml --env-file .env.development logs backend
+docker compose -f docker-compose.dev.yml --env-file .env.development restart orkestra-backend
+docker compose -f docker-compose.dev.yml --env-file .env.development logs orkestra-backend
 
 # ❌ WRONG - Missing env file causes missing variable warnings
 docker compose -f docker-compose.dev.yml up -d
@@ -485,10 +485,10 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 # View logs for specific services
-docker compose -f docker-compose.dev.yml logs -f backend frontend
+docker compose -f docker-compose.dev.yml logs -f orkestra-backend orkestra-frontend
 
 # Restart a specific service
-docker compose -f docker-compose.dev.yml restart backend
+docker compose -f docker-compose.dev.yml restart orkestra-backend
 
 # Scale production backend
 docker compose -f docker-compose.prod.yml up -d --scale backend=3

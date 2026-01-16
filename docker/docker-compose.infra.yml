@@ -1,3 +1,5 @@
+name: orkestra-infra
+
 services:
   mongodb:
     image: mongo:8.0

@@ -252,6 +252,15 @@ operation_deploy() {
             ;;
     esac
 
+    # Set service names based on environment (dev uses orkestra-prefixed names)
+    if [ "$ENV" = "development" ]; then
+        BACKEND_SERVICE="orkestra-backend"
+        FRONTEND_SERVICE="orkestra-frontend"
+    else
+        BACKEND_SERVICE="backend"
+        FRONTEND_SERVICE="frontend"
+    fi
+
     # Module selection
     echo ""
     show_module_menu
@@ -418,7 +427,7 @@ execute_deploy() {
                 --build-arg VERSION="$VERSION" \
                 --build-arg BUILD_TIME="$BUILD_TIME" \
                 --build-arg GIT_COMMIT="$GIT_COMMIT" \
-                backend
+                $BACKEND_SERVICE
             echo -e "${GREEN}  ✓ Backend image built${NC}"
         fi
 
@@ -429,7 +438,7 @@ execute_deploy() {
                 --build-arg VERSION="$VERSION" \
                 --build-arg BUILD_TIME="$BUILD_TIME" \
                 --build-arg GIT_COMMIT="$GIT_COMMIT" \
-                frontend
+                $FRONTEND_SERVICE
             echo -e "${GREEN}  ✓ Frontend image built${NC}"
         fi
 
@@ -453,7 +462,7 @@ execute_deploy() {
         # Deploy backend if scope includes it
         if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "backend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
             echo -e "${YELLOW}  ⟳ Deploying backend with rolling update...${NC}"
-            docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps backend
+            docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps $BACKEND_SERVICE
             echo -e "${GREEN}  ✓ Backend updated${NC}"
 
             echo -e "${YELLOW}  ⟳ Waiting for backend to be healthy (15s)...${NC}"
@@ -463,7 +472,7 @@ execute_deploy() {
         # Deploy frontend if scope includes it
         if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "frontend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
             echo -e "${YELLOW}  ⟳ Deploying frontend...${NC}"
-            docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps frontend
+            docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d --no-deps $FRONTEND_SERVICE
             echo -e "${GREEN}  ✓ Frontend updated${NC}"
         fi
 
@@ -483,22 +492,22 @@ execute_deploy() {
             # Stop and restart only the selected service(s)
             if [ "$DEPLOY_SCOPE" = "backend" ]; then
                 echo -e "${YELLOW}  ⟳ Restarting backend service...${NC}"
-                docker compose -f $COMPOSE_FILE stop backend 2>/dev/null || true
-                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d backend
+                docker compose -f $COMPOSE_FILE stop $BACKEND_SERVICE 2>/dev/null || true
+                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d $BACKEND_SERVICE
                 echo -e "${GREEN}  ✓ Backend restarted${NC}"
             fi
 
             if [ "$DEPLOY_SCOPE" = "frontend" ]; then
                 echo -e "${YELLOW}  ⟳ Restarting frontend service...${NC}"
-                docker compose -f $COMPOSE_FILE stop frontend 2>/dev/null || true
-                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d frontend
+                docker compose -f $COMPOSE_FILE stop $FRONTEND_SERVICE 2>/dev/null || true
+                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d $FRONTEND_SERVICE
                 echo -e "${GREEN}  ✓ Frontend restarted${NC}"
             fi
 
             if [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
                 echo -e "${YELLOW}  ⟳ Restarting frontend and backend services...${NC}"
-                docker compose -f $COMPOSE_FILE stop frontend backend 2>/dev/null || true
-                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d frontend backend
+                docker compose -f $COMPOSE_FILE stop $FRONTEND_SERVICE $BACKEND_SERVICE 2>/dev/null || true
+                docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d $FRONTEND_SERVICE $BACKEND_SERVICE
                 echo -e "${GREEN}  ✓ Frontend and backend restarted${NC}"
             fi
         fi

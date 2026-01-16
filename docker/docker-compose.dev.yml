@@ -1,8 +1,10 @@
 # ORKESTRA Development Environment Docker Compose
 # Local development with hot reload, relaxed security
 
+name: orkestra-dev
+
 services:
-  backend:
+  orkestra-backend:
     image: dhi.io/golang:1
     container_name: orkestra-backend-dev
     user: "1000:1000"
@@ -98,7 +100,7 @@ services:
       - orkestra-network
     command: ["sh", "-c", "go mod download && go install github.com/air-verse/air@latest && air"]
 
-  frontend:
+  orkestra-frontend:
     image: dhi.io/node:24-dev
     container_name: orkestra-frontend-dev
     user: "1000:1000"

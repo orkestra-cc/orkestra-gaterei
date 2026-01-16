@@ -1,6 +1,8 @@
 # ORKESTRA Staging Environment Docker Compose
 # Production-like behavior with staging credentials and URLs
 
+name: orkestra-staging
+
 services:
   backend:
     build:
