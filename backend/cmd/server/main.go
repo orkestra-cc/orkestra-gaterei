@@ -28,6 +28,8 @@ import (
 	billingJobs "github.com/orkestra/backend/internal/billing/jobs"
 	billingRepo "github.com/orkestra/backend/internal/billing/repository"
 	billingSvc "github.com/orkestra/backend/internal/billing/services"
+	"github.com/orkestra/backend/internal/dev"
+	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	reportingHandlers "github.com/orkestra/backend/internal/reporting/handlers"
 	reportingRepository "github.com/orkestra/backend/internal/reporting/repository"
 	reportingServices "github.com/orkestra/backend/internal/reporting/services"
@@ -413,6 +415,16 @@ func main() {
 				billingBusinessRegistryHandler,
 			)
 		})
+	}
+
+	// Dev token generation routes - only in non-production environments
+	// IMPORTANT: These routes are NOT registered in production for security
+	if !cfg.IsProduction() {
+		devTokenHandler := devHandlers.NewDevTokenHandler(jwtService, cfg)
+		dev.RegisterRoutes(publicAPI, devTokenHandler)
+		logger.Info("Dev token endpoints registered",
+			slog.String("environment", cfg.Server.Environment),
+		)
 	}
 
 	// Mount the protected routes

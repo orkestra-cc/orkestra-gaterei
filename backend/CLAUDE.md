@@ -178,6 +178,67 @@ backend/
 2. Specs update automatically on server restart
 3. Visit `/docs` for interactive testing and documentation
 
+### Testing Protected Endpoints (Dev/Staging Only)
+
+**IMPORTANT FOR AI ASSISTANTS**: When testing protected API endpoints in development or staging, use the dev token generator to obtain JWT tokens. These endpoints are hidden from Scalar docs but fully functional.
+
+#### Generate Token via Script
+
+```bash
+# Interactive role selection
+./scripts/devtoken.sh
+
+# Generate token for specific role
+./scripts/devtoken.sh administrator
+
+# Get token only (for piping)
+./scripts/devtoken.sh manager --quiet
+
+# Get ready-to-use curl command
+./scripts/devtoken.sh operator --curl
+
+# Custom expiry (default 15m, max 24h)
+./scripts/devtoken.sh admin --expiry 1h
+```
+
+#### Generate Token via API
+
+```bash
+# Generate token
+curl -X POST http://localhost:3000/api/v1/dev/token \
+  -H "Content-Type: application/json" \
+  -d '{"role": "administrator", "expiry": "1h"}'
+
+# List available roles
+curl http://localhost:3000/api/v1/dev/token/roles
+```
+
+#### Use Token to Test Protected Endpoints
+
+```bash
+# Store token in variable
+TOKEN=$(./scripts/devtoken.sh admin -q)
+
+# Test any protected endpoint
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/users
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/billing/invoices
+```
+
+#### Available Roles
+
+| Role | Access Level |
+|------|--------------|
+| `developer` | Full system access (highest) |
+| `ceo` | Executive access |
+| `administrator` | Admin operations |
+| `manager` | Team management |
+| `operator` | Basic operations |
+| `guest` | Read-only (lowest) |
+
+**Shorthand**: `admin` → administrator, `dev` → developer, `mgr` → manager, `op` → operator
+
+**Security**: These endpoints are disabled in production and create synthetic users (no database writes).
+
 ## Development Environment
 
 ### AIR Hot Reload System
