@@ -306,6 +306,7 @@ Ensure these indexes exist for performance:
 ### Related Guides
 
 - [FatturaPA XML Specification](FATTURAPA_SPEC.md) - Complete bilingual XML field reference (IT/EN)
+- [Documents Module](../documents/CLAUDE.md) - PDF generation for invoices using Gotenberg
 - [Backend Module](../../CLAUDE.md) - Backend architecture and development workflow
 - [Project Overview](../../../../CLAUDE.md) - System architecture
 - [OpenAPI SDI Documentation](https://www.openapi.it/documentazione-sdi/) - External API docs

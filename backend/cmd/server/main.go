@@ -29,6 +29,11 @@ import (
 	billingRepo "github.com/orkestra/backend/internal/billing/repository"
 	billingSvc "github.com/orkestra/backend/internal/billing/services"
 	"github.com/orkestra/backend/internal/dev"
+	"github.com/orkestra/backend/internal/documents"
+	documentsConfig "github.com/orkestra/backend/internal/documents/config"
+	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
+	documentsRepo "github.com/orkestra/backend/internal/documents/repository"
+	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	reportingHandlers "github.com/orkestra/backend/internal/reporting/handlers"
 	reportingRepository "github.com/orkestra/backend/internal/reporting/repository"
@@ -270,6 +275,51 @@ func main() {
 		logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
 	}
 
+	// Initialize documents module (PDF generation with Gotenberg)
+	var documentsTemplateHandler *documentsHandlers.TemplateHandler
+	var documentsDocumentHandler *documentsHandlers.DocumentHandler
+	documentsEnabled := cfg.Documents.GotenbergURL != ""
+
+	if documentsEnabled {
+		// Create documents config
+		docsConfig := &documentsConfig.Config{
+			GotenbergURL:  cfg.Documents.GotenbergURL,
+			Timeout:       cfg.Documents.Timeout,
+			RetryAttempts: cfg.Documents.RetryAttempts,
+			DefaultMargins: documentsConfig.PDFMargins{
+				Top:    cfg.Documents.DefaultMargins.Top,
+				Bottom: cfg.Documents.DefaultMargins.Bottom,
+				Left:   cfg.Documents.DefaultMargins.Left,
+				Right:  cfg.Documents.DefaultMargins.Right,
+			},
+		}
+
+		// Create repositories
+		templateRepo := documentsRepo.NewTemplateRepository(db)
+		documentRepo := documentsRepo.NewDocumentRepository(db)
+
+		// Create services
+		gotenbergClient := documentsSvc.NewGotenbergClient(docsConfig, logger)
+		templateEngine := documentsSvc.NewTemplateEngine()
+		templateSvc := documentsSvc.NewTemplateService(templateRepo, templateEngine, logger)
+		pdfSvc := documentsSvc.NewPDFService(templateRepo, documentRepo, gotenbergClient, templateEngine, logger)
+
+		// Create handlers
+		documentsTemplateHandler = documentsHandlers.NewTemplateHandler(templateSvc)
+		documentsDocumentHandler = documentsHandlers.NewDocumentHandler(pdfSvc)
+
+		// Seed built-in templates
+		if err := templateSvc.SeedBuiltInTemplates(context.Background()); err != nil {
+			logger.Warn("Failed to seed built-in templates", slog.String("error", err.Error()))
+		}
+
+		logger.Info("Documents module initialized",
+			slog.String("gotenbergURL", cfg.Documents.GotenbergURL),
+		)
+	} else {
+		logger.Warn("Documents module disabled: GOTENBERG_URL not configured")
+	}
+
 	// Initialize auth service with all repositories
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
@@ -413,6 +463,20 @@ func main() {
 				billingCompanyHandler,
 				billingNotificationHandler,
 				billingBusinessRegistryHandler,
+			)
+		})
+	}
+
+	// Documents routes - manager role and above for templates, all authenticated for PDF generation
+	// Only register if documents module is enabled
+	if documentsEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
+			documentsAPI := humachi.New(r, apiConfig)
+			documents.RegisterRoutes(
+				documentsAPI,
+				documentsTemplateHandler,
+				documentsDocumentHandler,
 			)
 		})
 	}

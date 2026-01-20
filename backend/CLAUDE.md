@@ -99,6 +99,16 @@ backend/
 │   │   ├── service.go
 │   │   ├── repository.go
 │   │   └── aggregations.go      # MongoDB aggregations
+│   ├── billing/                 # Italian electronic invoicing (FatturaPA)
+│   │   ├── handlers/            # HTTP handlers
+│   │   ├── services/            # Business logic, SDI client
+│   │   ├── repository/          # Data access
+│   │   └── CLAUDE.md            # Module documentation
+│   ├── documents/               # PDF generation service
+│   │   ├── handlers/            # HTTP handlers
+│   │   ├── services/            # PDF, Template, Gotenberg client
+│   │   ├── repository/          # Template & document storage
+│   │   └── CLAUDE.md            # Module documentation
 │   ├── shared/                  # Shared components
 │   │   ├── database/            # Database connections
 │   │   ├── middleware/          # HTTP middleware

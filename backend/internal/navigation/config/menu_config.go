@@ -131,6 +131,13 @@ func buildAdminRoutes() models.RouteGroup {
 				Active: true,
 				Roles:  []string{"manager"},
 			},
+			{
+				Name:   "Template Documenti",
+				To:     "/admin/templates",
+				Icon:   "file-alt",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
 		},
 	}
 }

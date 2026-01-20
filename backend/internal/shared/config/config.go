@@ -15,12 +15,13 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Auth     AuthConfig
-	Rate     RateLimitConfig
-	Billing  BillingConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	Auth      AuthConfig
+	Rate      RateLimitConfig
+	Billing   BillingConfig
+	Documents DocumentsConfig
 }
 
 // BillingConfig holds configuration for the billing/invoicing module (OpenAPI SDI integration)
@@ -36,6 +37,22 @@ type BillingConfig struct {
 	RetryAttempts        int           // Number of retry attempts for failed requests
 	PollingInterval      time.Duration // Interval between polling for notifications
 	SandboxMode          bool          // Use sandbox environment
+}
+
+// DocumentsConfig holds configuration for the documents/PDF generation module (Gotenberg integration)
+type DocumentsConfig struct {
+	GotenbergURL   string        // Gotenberg service URL (e.g., http://gotenberg:3000)
+	Timeout        time.Duration // HTTP client timeout for PDF generation
+	RetryAttempts  int           // Number of retry attempts for failed requests
+	DefaultMargins PDFMargins    // Default page margins in millimeters
+}
+
+// PDFMargins defines page margins for PDF generation
+type PDFMargins struct {
+	Top    float64 // Top margin in millimeters
+	Bottom float64 // Bottom margin in millimeters
+	Left   float64 // Left margin in millimeters
+	Right  float64 // Right margin in millimeters
 }
 
 type ServerConfig struct {
@@ -242,6 +259,19 @@ func Load() (*Config, error) {
 		RetryAttempts:        getEnvAsInt("OPENAPI_RETRY_ATTEMPTS", 3),
 		PollingInterval:      getEnvAsDuration("OPENAPI_POLLING_INTERVAL", "5m"),
 		SandboxMode:          sandboxMode,
+	}
+
+	// Documents/PDF generation configuration (Gotenberg)
+	config.Documents = DocumentsConfig{
+		GotenbergURL:  getEnv("GOTENBERG_URL", "http://gotenberg:3000"),
+		Timeout:       getEnvAsDuration("GOTENBERG_TIMEOUT", "60s"),
+		RetryAttempts: getEnvAsInt("GOTENBERG_RETRY_ATTEMPTS", 3),
+		DefaultMargins: PDFMargins{
+			Top:    20.0,
+			Bottom: 20.0,
+			Left:   20.0,
+			Right:  20.0,
+		},
 	}
 
 	if err := config.Validate(); err != nil {

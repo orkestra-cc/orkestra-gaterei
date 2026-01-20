@@ -39,6 +39,24 @@ services:
       timeout: 5s
       retries: 5
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: orkestra-gotenberg
+    restart: unless-stopped
+    ports:
+      - "${GOTENBERG_PORT:-3030}:3000"
+    command:
+      - "gotenberg"
+      - "--api-timeout=120s"
+      - "--chromium-max-queue-size=20"
+    networks:
+      - orkestra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   orkestra-mongodb-data:
     driver: local

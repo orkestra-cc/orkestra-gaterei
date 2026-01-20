@@ -196,6 +196,11 @@ const OperatorProfile = lazy(
   () => import('pages/operator/profile/OperatorProfile')
 );
 
+// Document templates
+const DocumentTemplates = lazy(
+  () => import('pages/admin/templates')
+);
+
 // Billing pages
 const BillingDashboard = lazy(
   () => import('pages/billing/dashboard')
@@ -607,6 +612,23 @@ const routes: RouteObject[] = [
                       fallback={<FalconLoader />}
                     >
                       <CompanyManagement />
+                    </Suspense>
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'templates',
+                element: (
+                  <ProtectedRoute
+                    requiredPermissions={[
+                      ['developer', 'ceo', 'administrator', 'manager']
+                    ]}
+                  >
+                    <Suspense
+                      key="admin-templates"
+                      fallback={<FalconLoader />}
+                    >
+                      <DocumentTemplates />
                     </Suspense>
                   </ProtectedRoute>
                 )

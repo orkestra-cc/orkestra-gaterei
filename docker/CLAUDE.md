@@ -192,10 +192,11 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 **Shared across all environments - start once, use everywhere**
 
-| Service     | Port  | Purpose          | Health Check   |
-| ----------- | ----- | ---------------- | -------------- |
-| **mongodb** | 27017 | Primary database | mongosh ping   |
-| **redis**   | 6379  | Cache & sessions | redis-cli ping |
+| Service       | Port  | Purpose             | Health Check     |
+| ------------- | ----- | ------------------- | ---------------- |
+| **mongodb**   | 27017 | Primary database    | mongosh ping     |
+| **redis**     | 6379  | Cache & sessions    | redis-cli ping   |
+| **gotenberg** | 3030  | PDF generation      | curl /health     |
 
 ### Application Services
 
@@ -232,6 +233,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 Infrastructure (docker-compose.infra.yml):
 27017 → mongodb:27017     # Database access
 6379  → redis:6379        # Cache access
+3030  → gotenberg:3000    # PDF generation (Chromium-based)
 
 Application Services (dev/prod):
 3000  → backend:3000      # API server
@@ -390,6 +392,9 @@ docker exec orkestra-mongodb mongosh --eval "db.adminCommand('ping')"
 
 # Check Redis health
 docker exec orkestra-redis redis-cli ping
+
+# Check Gotenberg health (PDF service)
+curl http://localhost:3030/health
 
 # Check application health endpoints
 curl http://localhost:3000/health  # Backend health
@@ -677,4 +682,5 @@ docker compose -f docker-compose.dev.yml restart
 - [Project Overview](../CLAUDE.md) - System architecture and design principles
 - [Backend Containerization](../backend/CLAUDE.md) - Go API server configuration
 - [Frontend Containerization](../frontend/CLAUDE.md) - React application setup
+- [Documents Module](../backend/internal/documents/CLAUDE.md) - PDF generation with Gotenberg
 - [Deployment Scripts](../scripts/CLAUDE.md) - Automation and deployment orchestration
