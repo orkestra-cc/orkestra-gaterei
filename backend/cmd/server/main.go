@@ -28,7 +28,6 @@ import (
 	billingJobs "github.com/orkestra/backend/internal/billing/jobs"
 	billingRepo "github.com/orkestra/backend/internal/billing/repository"
 	billingSvc "github.com/orkestra/backend/internal/billing/services"
-	"github.com/orkestra/backend/internal/dev"
 	"github.com/orkestra/backend/internal/documents"
 	documentsConfig "github.com/orkestra/backend/internal/documents/config"
 	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
@@ -397,6 +396,18 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(60 * time.Second))
 
+	// Dev token routes - registered directly on main router in non-production
+	// These routes are registered BEFORE the protected router mount, so they take precedence
+	if !cfg.IsProduction() {
+		devTokenHandler := devHandlers.NewDevTokenHandler(jwtService, cfg)
+		// Register dev routes directly on the main router (no auth required)
+		router.Post("/dev/token", devTokenHandler.GenerateTokenHTTP)
+		router.Get("/dev/token/roles", devTokenHandler.ListRolesHTTP)
+		logger.Info("Dev token routes registered",
+			slog.String("environment", cfg.Server.Environment),
+		)
+	}
+
 	apiConfig := huma.DefaultConfig("Orkestra API", "1.0.0")
 	apiConfig.DocsPath = ""
 	apiConfig.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
@@ -479,16 +490,6 @@ func main() {
 				documentsDocumentHandler,
 			)
 		})
-	}
-
-	// Dev token generation routes - only in non-production environments
-	// IMPORTANT: These routes are NOT registered in production for security
-	if !cfg.IsProduction() {
-		devTokenHandler := devHandlers.NewDevTokenHandler(jwtService, cfg)
-		dev.RegisterRoutes(publicAPI, devTokenHandler)
-		logger.Info("Dev token endpoints registered",
-			slog.String("environment", cfg.Server.Environment),
-		)
 	}
 
 	// Mount the protected routes

@@ -2,12 +2,23 @@ package handlers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/documents/models"
 	"github.com/orkestra/backend/internal/documents/repository"
 	"github.com/orkestra/backend/internal/documents/services"
 )
+
+// stringToBoolPtr converts a query string ("true"/"false") to *bool.
+// Returns nil if the string is empty (parameter not provided).
+func stringToBoolPtr(s string) *bool {
+	if s == "" {
+		return nil
+	}
+	v := strings.ToLower(s) == "true"
+	return &v
+}
 
 // TemplateHandler handles template-related HTTP requests
 type TemplateHandler struct {
@@ -45,13 +56,13 @@ type GetTemplateResponse struct {
 
 // ListTemplatesRequest is the request for listing templates
 type ListTemplatesRequest struct {
-	Page      int                  `query:"page" default:"1" minimum:"1" doc:"Page number"`
-	PageSize  int                  `query:"pageSize" default:"20" minimum:"1" maximum:"100" doc:"Items per page"`
-	Type      *models.TemplateType `query:"type" doc:"Filter by template type"`
-	IsDefault *bool                `query:"isDefault" doc:"Filter by default flag"`
-	IsBuiltIn *bool                `query:"isBuiltIn" doc:"Filter by built-in flag"`
-	IsActive  *bool                `query:"isActive" doc:"Filter by active flag"`
-	Search    *string              `query:"search" doc:"Search in name and description"`
+	Page      int                 `query:"page" default:"1" minimum:"1" doc:"Page number"`
+	PageSize  int                 `query:"pageSize" default:"20" minimum:"1" maximum:"100" doc:"Items per page"`
+	Type      models.TemplateType `query:"type" doc:"Filter by template type"`
+	IsDefault string              `query:"isDefault" enum:"true,false" doc:"Filter by default flag"`
+	IsBuiltIn string              `query:"isBuiltIn" enum:"true,false" doc:"Filter by built-in flag"`
+	IsActive  string              `query:"isActive" enum:"true,false" doc:"Filter by active flag"`
+	Search    string              `query:"search" doc:"Search in name and description"`
 }
 
 // ListTemplatesResponse is the response for template listing
@@ -161,12 +172,23 @@ func (h *TemplateHandler) GetTemplate(ctx context.Context, req *GetTemplateReque
 
 // ListTemplates lists templates with optional filters
 func (h *TemplateHandler) ListTemplates(ctx context.Context, req *ListTemplatesRequest) (*ListTemplatesResponse, error) {
+	// Build filters, converting value types to pointers for optional fields
+	var typePtr *models.TemplateType
+	if req.Type != "" {
+		typePtr = &req.Type
+	}
+
+	var searchPtr *string
+	if req.Search != "" {
+		searchPtr = &req.Search
+	}
+
 	filters := &models.TemplateFilters{
-		Type:      req.Type,
-		IsDefault: req.IsDefault,
-		IsBuiltIn: req.IsBuiltIn,
-		IsActive:  req.IsActive,
-		Search:    req.Search,
+		Type:      typePtr,
+		IsDefault: stringToBoolPtr(req.IsDefault),
+		IsBuiltIn: stringToBoolPtr(req.IsBuiltIn),
+		IsActive:  stringToBoolPtr(req.IsActive),
+		Search:    searchPtr,
 	}
 
 	pagination := models.PaginationParams{
