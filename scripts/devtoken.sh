@@ -170,7 +170,7 @@ if ! $QUIET; then
     echo -e "${BLUE}Generating token for role: ${YELLOW}$ROLE${NC}"
 fi
 
-RESPONSE=$(curl -s -X POST "$API_URL/api/v1/dev/token" \
+RESPONSE=$(curl -s -X POST "$API_URL/dev/token" \
     -H "Content-Type: application/json" \
     -d "$REQUEST_BODY")
 

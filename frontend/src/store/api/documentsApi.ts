@@ -1,14 +1,12 @@
 import { baseApi } from './baseApi';
 import type {
   Template,
-  TemplateListItem,
   TemplateListResponse,
   TemplateListParams,
   CreateTemplateInput,
   UpdateTemplateInput,
   DuplicateTemplateInput,
   GeneratePDFInput,
-  GeneratePDFResponse,
   PreviewHTMLInput,
   PreviewHTMLFromContentInput,
   PreviewHTMLResponse,
@@ -53,43 +51,43 @@ export const documentsApi = baseApi.injectEndpoints({
     }),
 
     // Get a single template by ID
+    // Note: Huma v2 returns the template directly at root level, not wrapped in {template: ...}
     getTemplate: builder.query<Template, string>({
       query: (id) => ({
         url: `/api/v1/documents/templates/${id}`,
         method: 'GET',
       }),
-      transformResponse: (response: { template: Template }) => response.template,
       providesTags: (result, error, id) => [{ type: 'DocumentTemplate' as const, id }],
     }),
 
     // Get template variables for a type
+    // Note: Huma v2 returns the response directly at root level
     getTemplateVariables: builder.query<TemplateVariablesResponse, TemplateType>({
       query: (type) => ({
         url: `/api/v1/documents/templates/variables/${type}`,
         method: 'GET',
       }),
-      transformResponse: (response: { variables: TemplateVariablesResponse }) => response.variables,
     }),
 
     // Create a new template
+    // Note: Huma v2 returns the template directly at root level
     createTemplate: builder.mutation<Template, CreateTemplateInput>({
       query: (data) => ({
         url: '/api/v1/documents/templates',
         method: 'POST',
         body: { template: data },
       }),
-      transformResponse: (response: { template: Template }) => response.template,
       invalidatesTags: [{ type: 'DocumentTemplate', id: 'LIST' }],
     }),
 
     // Update an existing template
+    // Note: Huma v2 returns the template directly at root level
     updateTemplate: builder.mutation<Template, { id: string; data: UpdateTemplateInput }>({
       query: ({ id, data }) => ({
         url: `/api/v1/documents/templates/${id}`,
         method: 'PATCH',
         body: { template: data },
       }),
-      transformResponse: (response: { template: Template }) => response.template,
       invalidatesTags: (result, error, { id }) => [
         { type: 'DocumentTemplate', id },
         { type: 'DocumentTemplate', id: 'LIST' },
@@ -118,13 +116,13 @@ export const documentsApi = baseApi.injectEndpoints({
     }),
 
     // Duplicate a template
+    // Note: Huma v2 returns the template directly at root level
     duplicateTemplate: builder.mutation<Template, { id: string; data: DuplicateTemplateInput }>({
       query: ({ id, data }) => ({
         url: `/api/v1/documents/templates/${id}/duplicate`,
         method: 'POST',
         body: data,
       }),
-      transformResponse: (response: { template: Template }) => response.template,
       invalidatesTags: [{ type: 'DocumentTemplate', id: 'LIST' }],
     }),
 
@@ -133,13 +131,13 @@ export const documentsApi = baseApi.injectEndpoints({
     // ============================================
 
     // Generate a PDF
+    // Note: Huma v2 returns the document metadata directly at root level
     generatePDF: builder.mutation<GeneratedDocumentMeta, GeneratePDFInput>({
       query: (data) => ({
         url: '/api/v1/documents/generate',
         method: 'POST',
         body: { input: data },
       }),
-      transformResponse: (response: GeneratePDFResponse) => response.document,
       invalidatesTags: [{ type: 'GeneratedDocument', id: 'LIST' }],
     }),
 
@@ -164,12 +162,12 @@ export const documentsApi = baseApi.injectEndpoints({
     }),
 
     // Get document metadata
+    // Note: Huma v2 returns the document metadata directly at root level
     getDocument: builder.query<GeneratedDocumentMeta, string>({
       query: (id) => ({
         url: `/api/v1/documents/${id}`,
         method: 'GET',
       }),
-      transformResponse: (response: { document: GeneratedDocumentMeta }) => response.document,
       providesTags: (result, error, id) => [{ type: 'GeneratedDocument' as const, id }],
     }),
 
