@@ -3,8 +3,8 @@ import { ColumnDef, createColumnHelper } from '@tanstack/react-table';
 import { Link } from 'react-router';
 import { Badge, Button, Modal, Dropdown, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoice, faPaperPlane, faEye, faTrash, faDownload } from '@fortawesome/free-solid-svg-icons';
-import { useGetInvoicesQuery, useDeleteInvoiceMutation, useSendInvoiceMutation } from 'store/api/billingApi';
+import { faFileInvoice, faPaperPlane, faEye, faTrash, faFilePdf, faFileCode } from '@fortawesome/free-solid-svg-icons';
+import { useGetInvoicesQuery, useDeleteInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoiceXmlQuery, useLazyGetInvoicePdfQuery } from 'store/api/billingApi';
 import useAdvanceTable from './useAdvanceTable';
 import type { InvoiceSummary, InvoiceStatus, DocumentType } from 'types/billing';
 import {
@@ -53,6 +53,37 @@ const useIssuedInvoiceTable = ({
 
   const [deleteInvoice, { isLoading: isDeleting }] = useDeleteInvoiceMutation();
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
+  const [getInvoiceXml] = useLazyGetInvoiceXmlQuery();
+  const [getInvoicePdf] = useLazyGetInvoicePdfQuery();
+
+  // Download XML file
+  const handleDownloadXml = useCallback(async (invoice: InvoiceSummary) => {
+    try {
+      const result = await getInvoiceXml(invoice.id).unwrap();
+      const encoder = new TextEncoder();
+      const utf8Bytes = encoder.encode(result);
+      const blob = new Blob([utf8Bytes], { type: 'application/xml; charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `fattura_${invoice.number}.xml`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download XML:', err);
+    }
+  }, [getInvoiceXml]);
+
+  // Download PDF file
+  const handleDownloadPdf = useCallback(async (invoice: InvoiceSummary) => {
+    try {
+      await getInvoicePdf({ id: invoice.id, filename: `fattura_${invoice.number}.pdf` }).unwrap();
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+    }
+  }, [getInvoicePdf]);
 
   const handleDelete = useCallback(async () => {
     if (!invoiceToDelete) return;
@@ -183,8 +214,13 @@ const useIssuedInvoiceTable = ({
                     Invia a SDI
                   </Dropdown.Item>
                 )}
-                <Dropdown.Item>
-                  <FontAwesomeIcon icon={faDownload} className="me-2" fixedWidth />
+                <Dropdown.Divider />
+                <Dropdown.Item onClick={() => handleDownloadPdf(invoice)}>
+                  <FontAwesomeIcon icon={faFilePdf} className="me-2 text-danger" fixedWidth />
+                  Scarica PDF
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => handleDownloadXml(invoice)}>
+                  <FontAwesomeIcon icon={faFileCode} className="me-2" fixedWidth />
                   Scarica XML
                 </Dropdown.Item>
                 {canDelete && (
@@ -205,7 +241,7 @@ const useIssuedInvoiceTable = ({
         },
       }),
     ],
-    [sortable, columnHelper]
+    [sortable, columnHelper, handleDownloadPdf, handleDownloadXml]
   );
 
   // Delete confirmation modal component

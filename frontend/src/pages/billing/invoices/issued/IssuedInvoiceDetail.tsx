@@ -24,6 +24,7 @@ import {
   faEye,
   faFileCode,
   faDownload,
+  faFilePdf,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   useGetInvoiceQuery,
@@ -32,6 +33,7 @@ import {
   useDeleteInvoiceMutation,
   useLazyGetInvoiceXmlQuery,
   useLazyGetInvoiceHtmlQuery,
+  useLazyGetInvoicePdfQuery,
 } from 'store/api/billingApi';
 import type {
   CreateInvoiceLineInput,
@@ -181,6 +183,7 @@ const IssuedInvoiceDetail: React.FC = () => {
   const [deleteInvoice, { isLoading: isDeleting }] = useDeleteInvoiceMutation();
   const [getInvoiceXml] = useLazyGetInvoiceXmlQuery();
   const [getInvoiceHtml] = useLazyGetInvoiceHtmlQuery();
+  const [getInvoicePdf] = useLazyGetInvoicePdfQuery();
 
   // UI state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -586,6 +589,34 @@ const IssuedInvoiceDetail: React.FC = () => {
     }
   };
 
+  // Generate PDF filename
+  const generatePdfFilename = () => {
+    const cedente = invoice?.cedentePrestatore;
+    const invoiceNumber = invoice?.number || invoiceId;
+    if (!cedente) {
+      return `fattura_${invoiceNumber}.pdf`;
+    }
+    const fiscalCode = cedente.codiceFiscale || cedente.fiscalIdCode;
+    if (!fiscalCode) {
+      return `fattura_${invoiceNumber}.pdf`;
+    }
+    const countryCode = cedente.fiscalIdCountry || 'IT';
+    const progressive = invoice?.progressivoInvio ||
+      invoiceId?.slice(-5) ||
+      String(invoice?.number).replace(/\D/g, '').slice(-5).padStart(5, '0') ||
+      '00001';
+    return `${countryCode}${fiscalCode}_${progressive}.pdf`;
+  };
+
+  // Download PDF
+  const handleDownloadPdf = async () => {
+    try {
+      await getInvoicePdf({ id: invoiceId!, filename: generatePdfFilename() }).unwrap();
+    } catch {
+      setError('Errore durante il download del PDF');
+    }
+  };
+
   // Cancel edit mode
   const handleCancelEdit = () => {
     setIsEditMode(false);
@@ -730,7 +761,17 @@ const IssuedInvoiceDetail: React.FC = () => {
               title="Scarica XML"
             >
               <FontAwesomeIcon icon={faDownload} className="me-1" />
-              Scarica
+              XML
+            </Button>
+            <Button
+              variant="falcon-primary"
+              size="sm"
+              className="me-2"
+              onClick={handleDownloadPdf}
+              title="Scarica PDF"
+            >
+              <FontAwesomeIcon icon={faFilePdf} className="me-1" />
+              PDF
             </Button>
             {canEdit && (
               <Button

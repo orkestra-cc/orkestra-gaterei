@@ -104,6 +104,13 @@ type GetInvoicePDFRequest struct {
 	ID string `path:"id" doc:"Invoice UUID"`
 }
 
+// GetInvoicePDFResponse is a custom response for PDF binary download
+type GetInvoicePDFResponse struct {
+	ContentType        string `header:"Content-Type"`
+	ContentDisposition string `header:"Content-Disposition"`
+	Body               []byte
+}
+
 // GetInvoiceXMLRequest represents the request to download invoice XML
 type GetInvoiceXMLRequest struct {
 	ID string `path:"id" doc:"Invoice UUID"`
@@ -358,6 +365,30 @@ func (h *InvoiceHandler) GetInvoiceXML(ctx context.Context, req *GetInvoiceXMLRe
 	resp := &GetInvoiceXMLResponse{}
 	resp.Body.XML = xml
 	return resp, nil
+}
+
+// GetInvoicePDF returns the invoice as a downloadable PDF
+func (h *InvoiceHandler) GetInvoicePDF(ctx context.Context, req *GetInvoicePDFRequest) (*GetInvoicePDFResponse, error) {
+	pdfBytes, err := h.invoiceService.GetInvoicePDF(ctx, req.ID)
+	if err != nil {
+		if err == services.ErrInvoiceNotFound {
+			return nil, huma.Error404NotFound("Invoice not found", err)
+		}
+		return nil, huma.Error500InternalServerError("Failed to get invoice PDF", err)
+	}
+
+	// Get invoice number for filename
+	invoice, _ := h.invoiceService.GetInvoice(ctx, req.ID)
+	filename := "fattura.pdf"
+	if invoice != nil && invoice.Number != "" {
+		filename = "fattura_" + invoice.Number + ".pdf"
+	}
+
+	return &GetInvoicePDFResponse{
+		ContentType:        "application/pdf",
+		ContentDisposition: "attachment; filename=\"" + filename + "\"",
+		Body:               pdfBytes,
+	}, nil
 }
 
 // AcceptReceivedInvoice accepts a received invoice

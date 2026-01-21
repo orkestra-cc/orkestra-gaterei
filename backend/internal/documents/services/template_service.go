@@ -393,14 +393,20 @@ func getDefaultInvoiceHTML() string {
 <body>
   <div class="header">
     <div class="title-section">
-      <div class="invoice-title">FATTURA</div>
+      <div class="invoice-title">FATTURA{{if .documentType}} <span class="doc-type">({{.documentType}})</span>{{end}}</div>
       <div class="invoice-meta">N. {{.number}} del {{formatDateIT .date}}</div>
     </div>
     <div class="company-info">
       <strong>{{.seller.name}}</strong><br>
       {{.seller.address}}<br>
       P.IVA: {{.seller.vatNumber}}
+      {{if .seller.fiscalCode}}<br>C.F.: {{.seller.fiscalCode}}{{end}}
       {{if .seller.pec}}<br>PEC: {{.seller.pec}}{{end}}
+      {{if .seller.email}}<br>Email: {{.seller.email}}{{end}}
+      {{if .seller.phone}}<br>Tel: {{.seller.phone}}{{end}}
+      {{if .seller.rea}}
+      <br><span class="rea-info">REA: {{.seller.rea.office}}-{{.seller.rea.number}}</span>
+      {{end}}
     </div>
   </div>
 
@@ -410,7 +416,15 @@ func getDefaultInvoiceHTML() string {
     {{.buyer.address}}<br>
     {{if .buyer.vatNumber}}P.IVA: {{.buyer.vatNumber}}<br>{{end}}
     {{if .buyer.fiscalCode}}C.F.: {{.buyer.fiscalCode}}{{end}}
+    {{if .buyer.email}}<br>Email: {{.buyer.email}}{{end}}
   </div>
+
+  {{if .causale}}
+  <div class="causale-section">
+    <strong>Causale:</strong>
+    {{range .causale}}<p>{{.}}</p>{{end}}
+  </div>
+  {{end}}
 
   <table class="items-table">
     <thead>
@@ -418,43 +432,199 @@ func getDefaultInvoiceHTML() string {
         <th class="col-num">#</th>
         <th class="col-desc">Descrizione</th>
         <th class="col-qty">Q.tà</th>
-        <th class="col-price">Prezzo</th>
-        <th class="col-vat">IVA</th>
-        <th class="col-total">Totale</th>
+        <th class="col-unit">U.M.</th>
+        <th class="col-price">Prezzo Unit.</th>
+        <th class="col-vat">Aliq. IVA</th>
+        <th class="col-total">Importo</th>
       </tr>
     </thead>
     <tbody>
       {{range $i, $line := .lines}}
       <tr>
-        <td class="col-num">{{lineNumber $i}}</td>
-        <td class="col-desc">{{$line.Description}}</td>
+        <td class="col-num">{{$line.LineNumber}}</td>
+        <td class="col-desc">
+          {{$line.Description}}
+          {{if $line.Discounts}}
+          <div class="line-discounts">
+            {{range $line.Discounts}}
+              {{if eq .Type "SC"}}
+                <span class="discount">Sconto: {{if gt .Percentage 0}}{{formatNumber .Percentage 2}}%{{else}}{{formatMoneyEUR .Amount}}{{end}}</span>
+              {{else}}
+                <span class="surcharge">Magg.: {{if gt .Percentage 0}}{{formatNumber .Percentage 2}}%{{else}}{{formatMoneyEUR .Amount}}{{end}}</span>
+              {{end}}
+            {{end}}
+          </div>
+          {{end}}
+        </td>
         <td class="col-qty">{{formatNumber $line.Quantity 2}}</td>
+        <td class="col-unit">{{default "-" $line.Unit}}</td>
         <td class="col-price">{{formatMoneyEUR $line.UnitPrice}}</td>
-        <td class="col-vat">{{formatNumber $line.VATRate 0}}%</td>
+        <td class="col-vat">{{if gt $line.VATRate 0}}{{formatNumber $line.VATRate 0}}%{{else}}{{$line.VATNature}}{{end}}</td>
         <td class="col-total">{{formatMoneyEUR $line.TotalPrice}}</td>
       </tr>
       {{end}}
     </tbody>
   </table>
 
-  <div class="totals">
-    <div class="totals-row">
-      <span class="label">Imponibile:</span>
-      <span class="value">{{formatMoneyEUR .totalTaxable}}</span>
-    </div>
-    <div class="totals-row">
-      <span class="label">IVA:</span>
-      <span class="value">{{formatMoneyEUR .totalVAT}}</span>
-    </div>
-    <div class="totals-row total-final">
-      <span class="label">TOTALE:</span>
-      <span class="value">{{formatMoneyEUR .totalAmount}}</span>
+  {{if .vatSummary}}
+  <div class="vat-summary">
+    <h4>Riepilogo IVA</h4>
+    <table class="vat-table">
+      <thead>
+        <tr>
+          <th>Aliquota</th>
+          <th>Natura</th>
+          <th>Imponibile</th>
+          <th>Imposta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .vatSummary}}
+        <tr>
+          <td>{{if gt .Rate 0}}{{formatNumber .Rate 0}}%{{else}}-{{end}}</td>
+          <td>{{default "-" .Nature}}</td>
+          <td>{{formatMoneyEUR .Taxable}}</td>
+          <td>{{formatMoneyEUR .VAT}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
+  <div class="totals-section">
+    <div class="totals">
+      {{if .cassaPrevidenziale}}
+      <div class="totals-row subtotal">
+        <span class="label">Cassa Previdenziale:</span>
+        <span class="value">{{formatMoneyEUR .totalCassa}}</span>
+      </div>
+      {{end}}
+      <div class="totals-row">
+        <span class="label">Imponibile:</span>
+        <span class="value">{{formatMoneyEUR .totalTaxable}}</span>
+      </div>
+      <div class="totals-row">
+        <span class="label">IVA:</span>
+        <span class="value">{{formatMoneyEUR .totalVAT}}</span>
+      </div>
+      {{if .bollo}}
+      <div class="totals-row bollo">
+        <span class="label">Bollo Virtuale:</span>
+        <span class="value">{{formatMoneyEUR .bollo.amount}}</span>
+      </div>
+      {{end}}
+      {{if gt .rounding 0}}
+      <div class="totals-row">
+        <span class="label">Arrotondamento:</span>
+        <span class="value">{{formatMoneyEUR .rounding}}</span>
+      </div>
+      {{end}}
+      <div class="totals-row total-document">
+        <span class="label">TOTALE DOCUMENTO:</span>
+        <span class="value">{{formatMoneyEUR .totalAmount}}</span>
+      </div>
+      {{if .ritenuta}}
+      <div class="totals-row ritenuta">
+        <span class="label">Ritenuta d'Acconto:</span>
+        <span class="value">- {{formatMoneyEUR .totalRitenuta}}</span>
+      </div>
+      <div class="totals-row total-final">
+        <span class="label">NETTO A PAGARE:</span>
+        <span class="value">{{formatMoneyEUR .netPayable}}</span>
+      </div>
+      {{else}}
+      <div class="totals-row total-final">
+        <span class="label">TOTALE:</span>
+        <span class="value">{{formatMoneyEUR .totalAmount}}</span>
+      </div>
+      {{end}}
     </div>
   </div>
 
-  {{if .paymentTerms}}
-  <div class="payment-info">
-    <strong>Modalità di pagamento:</strong> {{.paymentTerms}}
+  {{if .ritenuta}}
+  <div class="ritenuta-details">
+    <h4>Dettaglio Ritenuta d'Acconto</h4>
+    <table class="ritenuta-table">
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Aliquota</th>
+          <th>Importo</th>
+          <th>Causale</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ritenuta}}
+        <tr>
+          <td>{{.Type}}</td>
+          <td>{{formatNumber .Rate 2}}%</td>
+          <td>{{formatMoneyEUR .Amount}}</td>
+          <td>{{default "-" .CausalePag}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
+  {{if .cassaPrevidenziale}}
+  <div class="cassa-details">
+    <h4>Contributi Cassa Previdenziale</h4>
+    <table class="cassa-table">
+      <thead>
+        <tr>
+          <th>Tipo Cassa</th>
+          <th>Aliquota</th>
+          <th>Imponibile</th>
+          <th>Importo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .cassaPrevidenziale}}
+        <tr>
+          <td>{{.Type}}</td>
+          <td>{{formatNumber .Rate 2}}%</td>
+          <td>{{formatMoneyEUR .Taxable}}</td>
+          <td>{{formatMoneyEUR .Amount}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+
+  {{if .payment}}
+  <div class="payment-section">
+    <h4>Modalità di Pagamento</h4>
+    <div class="payment-info">
+      <p><strong>Metodo:</strong> {{.paymentTerms}}</p>
+      {{if .dueDate}}<p><strong>Scadenza:</strong> {{formatDateIT .dueDate}}</p>{{end}}
+      {{if .payment.iban}}<p><strong>IBAN:</strong> {{.payment.iban}}</p>{{end}}
+      {{if .payment.bic}}<p><strong>BIC/SWIFT:</strong> {{.payment.bic}}</p>{{end}}
+    </div>
+    {{if .payment.installments}}
+    <table class="installments-table">
+      <thead>
+        <tr>
+          <th>Rata</th>
+          <th>Scadenza</th>
+          <th>Importo</th>
+          <th>Stato</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $i, $inst := .payment.installments}}
+        <tr>
+          <td>{{lineNumber $i}}</td>
+          <td>{{formatDateIT $inst.DueDate}}</td>
+          <td>{{formatMoneyEUR $inst.Amount}}</td>
+          <td>{{if $inst.Paid}}Pagato{{else}}Da pagare{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{end}}
   </div>
   {{end}}
 
@@ -464,6 +634,10 @@ func getDefaultInvoiceHTML() string {
     {{.notes}}
   </div>
   {{end}}
+
+  <div class="footer">
+    <p class="legal-notice">Documento informatico ai sensi dell'art. 21 D.Lgs. 82/2005</p>
+  </div>
 </body>
 </html>`
 }
@@ -471,12 +645,12 @@ func getDefaultInvoiceHTML() string {
 func getDefaultInvoiceCSS() string {
 	return `@page {
   size: A4;
-  margin: 20mm;
+  margin: 15mm;
 }
 
 body {
   font-family: 'Helvetica Neue', Arial, sans-serif;
-  font-size: 10pt;
+  font-size: 9pt;
   line-height: 1.4;
   color: #333;
   margin: 0;
@@ -486,8 +660,8 @@ body {
 .header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
   border-bottom: 2px solid #333;
 }
 
@@ -496,77 +670,151 @@ body {
 }
 
 .invoice-title {
-  font-size: 28pt;
+  font-size: 24pt;
   font-weight: bold;
   color: #333;
   margin-bottom: 5px;
 }
 
+.doc-type {
+  font-size: 12pt;
+  color: #666;
+  font-weight: normal;
+}
+
 .invoice-meta {
-  font-size: 11pt;
+  font-size: 10pt;
   color: #666;
 }
 
 .company-info {
   text-align: right;
-  font-size: 9pt;
-  line-height: 1.6;
+  font-size: 8pt;
+  line-height: 1.5;
+}
+
+.rea-info {
+  font-size: 7pt;
+  color: #888;
 }
 
 .customer-box {
   background: #f8f8f8;
-  padding: 15px 20px;
-  margin-bottom: 25px;
+  padding: 12px 15px;
+  margin-bottom: 15px;
   border-left: 4px solid #333;
-  font-size: 10pt;
-  line-height: 1.6;
+  font-size: 9pt;
+  line-height: 1.5;
+}
+
+.causale-section {
+  margin-bottom: 15px;
+  padding: 10px 15px;
+  background: #fafafa;
+  border-left: 3px solid #666;
+  font-size: 8pt;
+}
+
+.causale-section p {
+  margin: 5px 0;
 }
 
 .items-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 25px 0;
+  margin: 15px 0;
+  font-size: 8pt;
 }
 
 .items-table th {
   background: #333;
   color: white;
-  padding: 12px 10px;
+  padding: 8px 6px;
   text-align: left;
   font-weight: 600;
-  font-size: 9pt;
+  font-size: 8pt;
   text-transform: uppercase;
 }
 
 .items-table td {
-  padding: 12px 10px;
+  padding: 8px 6px;
   border-bottom: 1px solid #ddd;
-  font-size: 9pt;
+  vertical-align: top;
 }
 
-.items-table tbody tr:hover {
-  background: #fafafa;
-}
-
-.col-num { width: 5%; text-align: center; }
-.col-desc { width: 40%; }
-.col-qty { width: 10%; text-align: right; }
-.col-price { width: 15%; text-align: right; }
+.col-num { width: 4%; text-align: center; }
+.col-desc { width: 36%; }
+.col-qty { width: 8%; text-align: right; }
+.col-unit { width: 8%; text-align: center; }
+.col-price { width: 14%; text-align: right; }
 .col-vat { width: 10%; text-align: center; }
-.col-total { width: 20%; text-align: right; }
+.col-total { width: 16%; text-align: right; }
+
+.line-discounts {
+  margin-top: 4px;
+  font-size: 7pt;
+}
+
+.discount {
+  color: #28a745;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.surcharge {
+  color: #dc3545;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+/* VAT Summary */
+.vat-summary {
+  margin: 15px 0;
+  page-break-inside: avoid;
+}
+
+.vat-summary h4 {
+  font-size: 9pt;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.vat-table {
+  width: 60%;
+  margin-left: auto;
+  border-collapse: collapse;
+  font-size: 8pt;
+}
+
+.vat-table th {
+  background: #e9e9e9;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.vat-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Totals Section */
+.totals-section {
+  margin-top: 15px;
+  page-break-inside: avoid;
+}
 
 .totals {
-  margin-top: 20px;
   margin-left: auto;
-  width: 280px;
+  width: 300px;
 }
 
 .totals-row {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 6px 0;
   border-bottom: 1px solid #eee;
-  font-size: 10pt;
+  font-size: 9pt;
 }
 
 .totals-row .label {
@@ -577,12 +825,34 @@ body {
   font-weight: 500;
 }
 
+.totals-row.subtotal {
+  font-size: 8pt;
+  color: #666;
+}
+
+.totals-row.bollo {
+  font-size: 8pt;
+  background: #fff8e1;
+}
+
+.totals-row.ritenuta {
+  color: #c62828;
+  background: #ffebee;
+}
+
+.totals-row.total-document {
+  font-weight: bold;
+  font-size: 10pt;
+  border-top: 1px solid #333;
+  padding-top: 8px;
+}
+
 .total-final {
   border-bottom: none;
   border-top: 2px solid #333;
-  padding-top: 12px;
+  padding-top: 10px;
   margin-top: 5px;
-  font-size: 14pt;
+  font-size: 12pt;
   font-weight: bold;
 }
 
@@ -591,19 +861,102 @@ body {
   color: #333;
 }
 
-.payment-info {
-  margin-top: 30px;
-  padding: 15px;
-  background: #f8f8f8;
-  font-size: 9pt;
+/* Ritenuta Details */
+.ritenuta-details,
+.cassa-details {
+  margin-top: 15px;
+  page-break-inside: avoid;
 }
 
-.notes {
+.ritenuta-details h4,
+.cassa-details h4 {
+  font-size: 9pt;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.ritenuta-table,
+.cassa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+}
+
+.ritenuta-table th,
+.cassa-table th {
+  background: #e9e9e9;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.ritenuta-table td,
+.cassa-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Payment Section */
+.payment-section {
   margin-top: 20px;
-  padding: 15px;
+  padding: 12px 15px;
+  background: #f5f5f5;
+  page-break-inside: avoid;
+}
+
+.payment-section h4 {
+  font-size: 9pt;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.payment-info {
+  font-size: 8pt;
+}
+
+.payment-info p {
+  margin: 4px 0;
+}
+
+.installments-table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 8pt;
+}
+
+.installments-table th {
+  background: #e0e0e0;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.installments-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Notes */
+.notes {
+  margin-top: 15px;
+  padding: 12px 15px;
   background: #fffbf0;
   border-left: 4px solid #f0ad4e;
-  font-size: 9pt;
+  font-size: 8pt;
+}
+
+/* Footer */
+.footer {
+  margin-top: 25px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  text-align: center;
+}
+
+.legal-notice {
+  font-size: 7pt;
+  color: #888;
+  margin: 0;
 }`
 }
 

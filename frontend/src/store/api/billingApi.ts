@@ -331,6 +331,50 @@ export const billingApi = baseApi.injectEndpoints({
       transformResponse: (response: { html: string }) => response.html,
     }),
 
+    // PDF download - uses raw fetch to bypass RTK Query serialization
+    getInvoicePdf: builder.query<{ success: true }, { id: string; filename?: string }>({
+      queryFn: async ({ id, filename }, { getState }) => {
+        try {
+          const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+          const state = getState() as { auth?: { accessToken?: string; tokenExpiry?: string } };
+
+          const headers: HeadersInit = {};
+          if (state.auth?.accessToken && state.auth?.tokenExpiry && new Date(state.auth.tokenExpiry) > new Date()) {
+            headers['Authorization'] = `Bearer ${state.auth.accessToken}`;
+          }
+
+          // Use raw fetch to completely bypass RTK Query's action dispatch
+          const response = await fetch(`${baseUrl}/api/v1/billing/invoices/${id}/download`, {
+            method: 'GET',
+            credentials: 'include',
+            headers,
+          });
+
+          if (!response.ok) {
+            return { error: { status: response.status, data: 'Failed to download PDF' } };
+          }
+
+          // Get blob and trigger download directly
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename || `fattura_${id}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+          // Return simple success indicator (serializable)
+          return { data: { success: true as const } };
+        } catch (error) {
+          return { error: { status: 'FETCH_ERROR', error: String(error) } };
+        }
+      },
+      // Don't cache this - each download is a fresh fetch
+      keepUnusedDataFor: 0,
+    }),
+
     importInvoice: builder.mutation<ImportInvoiceResponse, ImportInvoiceInput>({
       query: (data) => ({
         url: '/api/v1/billing/invoices/import',
@@ -535,6 +579,7 @@ export const {
   useLazyGetInvoiceXmlQuery,
   useGetInvoiceHtmlQuery,
   useLazyGetInvoiceHtmlQuery,
+  useLazyGetInvoicePdfQuery,
   useImportInvoiceMutation,
   // Received Invoice hooks
   useGetReceivedInvoicesQuery,

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/orkestra/backend/internal/billing/models"
 	"github.com/orkestra/backend/internal/billing/repository"
+	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 )
 
 // Common errors
@@ -58,6 +60,7 @@ type invoiceService struct {
 	companyRepo   repository.CompanyRepository
 	openAPIClient OpenAPIClient
 	xmlBuilder    XMLBuilder
+	pdfService    documentsSvc.PDFService // Optional: nil if documents module disabled
 	logger        *slog.Logger
 }
 
@@ -69,6 +72,7 @@ func NewInvoiceService(
 	companyRepo repository.CompanyRepository,
 	openAPIClient OpenAPIClient,
 	xmlBuilder XMLBuilder,
+	pdfService documentsSvc.PDFService, // Can be nil if documents module is disabled
 	logger *slog.Logger,
 ) InvoiceService {
 	return &invoiceService{
@@ -78,6 +82,7 @@ func NewInvoiceService(
 		companyRepo:   companyRepo,
 		openAPIClient: openAPIClient,
 		xmlBuilder:    xmlBuilder,
+		pdfService:    pdfService,
 		logger:        logger,
 	}
 }
@@ -455,9 +460,31 @@ func (s *invoiceService) GetInvoicePDF(ctx context.Context, uuid string) ([]byte
 		return s.openAPIClient.DownloadInvoicePDF(ctx, invoice.OpenAPIUUID)
 	}
 
-	// For draft invoices, we'd need to generate a PDF locally
-	// This would require a PDF generation library
-	return nil, errors.New("PDF not available for draft invoices")
+	// For draft invoices, generate PDF locally using documents module
+	if s.pdfService == nil {
+		return nil, errors.New("PDF generation not available: documents module not configured")
+	}
+
+	// Convert invoice to template data
+	data := s.invoiceToTemplateData(invoice)
+
+	// Generate PDF (uses default invoice template if none specified)
+	doc, err := s.pdfService.GenerateInvoicePDF(ctx, data, "", "system")
+	if err != nil {
+		s.logger.Error("Failed to generate invoice PDF",
+			slog.String("invoiceUUID", uuid),
+			slog.String("error", err.Error()),
+		)
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	}
+
+	// Get the PDF content
+	content, _, err := s.pdfService.GetDocumentContent(ctx, doc.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve PDF content: %w", err)
+	}
+
+	return content, nil
 }
 
 func (s *invoiceService) GetInvoiceXML(ctx context.Context, uuid string) (string, error) {
@@ -661,4 +688,259 @@ func (s *invoiceService) validateCreateInput(input *models.CreateInvoiceInput) e
 		return ErrInvalidInvoiceData
 	}
 	return nil
+}
+
+// invoiceToTemplateData converts an Invoice model to template-compatible map[string]interface{}
+// Includes all FatturaPA-specific fields for comprehensive PDF generation
+func (s *invoiceService) invoiceToTemplateData(invoice *models.Invoice) map[string]interface{} {
+	data := map[string]interface{}{
+		"uuid":         invoice.UUID,
+		"number":       invoice.Number,
+		"date":         invoice.Date,
+		"currency":     invoice.Currency,
+		"documentType": string(invoice.DocumentType),
+
+		// Totals
+		"totalTaxable": invoice.TotalTaxableAmount,
+		"totalVAT":     invoice.TotalVATAmount,
+		"totalAmount":  invoice.TotalAmount,
+		"rounding":     invoice.Rounding,
+	}
+
+	// Seller (CedentePrestatore)
+	if invoice.CedentePrestatore != nil {
+		seller := map[string]interface{}{
+			"name":          getPartyName(invoice.CedentePrestatore),
+			"address":       formatAddress(invoice.CedentePrestatore),
+			"vatNumber":     invoice.CedentePrestatore.FiscalIDCode,
+			"fiscalCode":    invoice.CedentePrestatore.CodiceFiscale,
+			"email":         invoice.CedentePrestatore.Email,
+			"phone":         invoice.CedentePrestatore.Phone,
+			"pec":           invoice.CedentePrestatore.PEC,
+			"regimeFiscale": string(invoice.CedentePrestatore.RegimeFiscale),
+		}
+		// REA registration (Italian company register)
+		if invoice.CedentePrestatore.IscrizioneREA != nil {
+			seller["rea"] = map[string]interface{}{
+				"office":           invoice.CedentePrestatore.IscrizioneREA.Ufficio,
+				"number":           invoice.CedentePrestatore.IscrizioneREA.NumeroREA,
+				"capitale":         invoice.CedentePrestatore.IscrizioneREA.CapitaleSociale,
+				"socioUnico":       invoice.CedentePrestatore.IscrizioneREA.SocioUnico,
+				"statoLiquidazione": invoice.CedentePrestatore.IscrizioneREA.StatoLiquidazione,
+			}
+		}
+		data["seller"] = seller
+	}
+
+	// Buyer (CessionarioCommittente)
+	if invoice.CessionarioCommittente != nil {
+		data["buyer"] = map[string]interface{}{
+			"name":       getPartyName(invoice.CessionarioCommittente),
+			"address":    formatAddress(invoice.CessionarioCommittente),
+			"vatNumber":  invoice.CessionarioCommittente.FiscalIDCode,
+			"fiscalCode": invoice.CessionarioCommittente.CodiceFiscale,
+			"email":      invoice.CessionarioCommittente.Email,
+		}
+	}
+
+	// Lines with full details
+	lines := make([]map[string]interface{}, len(invoice.Lines))
+	for i, line := range invoice.Lines {
+		lineData := map[string]interface{}{
+			"LineNumber":  line.LineNumber,
+			"Description": line.Description,
+			"Quantity":    line.Quantity,
+			"UnitPrice":   line.UnitPrice,
+			"VATRate":     line.VATRate,
+			"VATNature":   string(line.VATNature),
+			"TotalPrice":  line.TotalPrice,
+			"VATAmount":   line.VATAmount,
+			"Unit":        string(line.UnitOfMeasure),
+			"Ritenuta":    line.Ritenuta,
+		}
+		// Discounts
+		if len(line.Discounts) > 0 {
+			discounts := make([]map[string]interface{}, len(line.Discounts))
+			for j, d := range line.Discounts {
+				discounts[j] = map[string]interface{}{
+					"Type":       d.Type,
+					"Percentage": d.Percentage,
+					"Amount":     d.Amount,
+				}
+			}
+			lineData["Discounts"] = discounts
+		}
+		lines[i] = lineData
+	}
+	data["lines"] = lines
+
+	// VAT Summary by rate
+	if len(invoice.VATSummary) > 0 {
+		vatSummary := make([]map[string]interface{}, len(invoice.VATSummary))
+		for i, vs := range invoice.VATSummary {
+			vatSummary[i] = map[string]interface{}{
+				"Rate":           vs.VATRate,
+				"Nature":         string(vs.VATNature),
+				"Taxable":        vs.TaxableAmount,
+				"VAT":            vs.VATAmount,
+				"Deductible":     vs.VATExigibility,
+				"RifNormativo":   vs.NormativeRef,
+			}
+		}
+		data["vatSummary"] = vatSummary
+	}
+
+	// Payment terms with installments
+	if invoice.PaymentTerms != nil {
+		payment := map[string]interface{}{
+			"condition": string(invoice.PaymentTerms.Condition),
+			"method":    string(invoice.PaymentTerms.PaymentMethod),
+			"iban":      invoice.PaymentTerms.IBAN,
+			"bic":       invoice.PaymentTerms.BIC,
+		}
+		if len(invoice.PaymentTerms.Installments) > 0 {
+			installments := make([]map[string]interface{}, len(invoice.PaymentTerms.Installments))
+			for i, inst := range invoice.PaymentTerms.Installments {
+				installments[i] = map[string]interface{}{
+					"DueDate": inst.DueDate,
+					"Amount":  inst.Amount,
+					"Paid":    inst.Paid,
+				}
+			}
+			payment["installments"] = installments
+			data["dueDate"] = invoice.PaymentTerms.Installments[0].DueDate
+		} else if invoice.PaymentTerms.DueDate != nil {
+			data["dueDate"] = *invoice.PaymentTerms.DueDate
+		}
+		data["payment"] = payment
+		// Backward compatibility
+		data["paymentTerms"] = getPaymentMethodDescription(invoice.PaymentTerms.PaymentMethod)
+	}
+
+	// Withholding tax (Ritenuta d'acconto)
+	if len(invoice.DatiRitenuta) > 0 {
+		ritenute := make([]map[string]interface{}, len(invoice.DatiRitenuta))
+		var totalRitenuta float64
+		for i, r := range invoice.DatiRitenuta {
+			ritenute[i] = map[string]interface{}{
+				"Type":       r.TipoRitenuta,
+				"Rate":       r.AliquotaRitenuta,
+				"Amount":     r.ImportoRitenuta,
+				"CausalePag": r.CausalePagamento,
+			}
+			totalRitenuta += r.ImportoRitenuta
+		}
+		data["ritenuta"] = ritenute
+		data["totalRitenuta"] = totalRitenuta
+		// Calculate net payable (totale - ritenuta)
+		data["netPayable"] = invoice.TotalAmount - totalRitenuta
+	} else {
+		data["netPayable"] = invoice.TotalAmount
+	}
+
+	// Stamp duty (Bollo)
+	if invoice.DatiBollo != nil {
+		data["bollo"] = map[string]interface{}{
+			"virtual": true,
+			"amount":  invoice.DatiBollo.ImportoBollo,
+		}
+	}
+
+	// Social security fund (Cassa previdenziale)
+	if len(invoice.DatiCassaPrevidenziale) > 0 {
+		casse := make([]map[string]interface{}, len(invoice.DatiCassaPrevidenziale))
+		var totalCassa float64
+		for i, c := range invoice.DatiCassaPrevidenziale {
+			casse[i] = map[string]interface{}{
+				"Type":     c.TipoCassa,
+				"Rate":     c.AlCassa,
+				"Amount":   c.ImportoContributoCassa,
+				"Taxable":  c.ImponibileCassa,
+				"VATRate":  c.AliquotaIVA,
+				"Ritenuta": c.Ritenuta,
+				"Nature":   c.Natura,
+			}
+			totalCassa += c.ImportoContributoCassa
+		}
+		data["cassaPrevidenziale"] = casse
+		data["totalCassa"] = totalCassa
+	}
+
+	// Causale (invoice description lines)
+	if len(invoice.Causale) > 0 {
+		data["causale"] = invoice.Causale
+	}
+
+	// Internal notes
+	if invoice.InternalNotes != "" {
+		data["notes"] = invoice.InternalNotes
+	}
+
+	return data
+}
+
+// getPartyName returns the display name for a party
+func getPartyName(party *models.PartyData) string {
+	if party.IsCompany && party.Denomination != "" {
+		return party.Denomination
+	}
+	name := strings.TrimSpace(party.Name + " " + party.Surname)
+	if name != "" {
+		return name
+	}
+	return party.FiscalIDCode
+}
+
+// formatAddress formats a party's address for display
+func formatAddress(party *models.PartyData) string {
+	var parts []string
+
+	// Street address with number
+	address := party.Address
+	if party.NumeroCivico != "" {
+		address = party.Address + ", " + party.NumeroCivico
+	}
+	parts = append(parts, address)
+
+	// City with postal code and province
+	cityLine := party.PostalCode + " " + party.City
+	if party.Province != "" {
+		cityLine += " (" + party.Province + ")"
+	}
+	parts = append(parts, cityLine)
+
+	return strings.Join(parts, " - ")
+}
+
+// getPaymentMethodDescription returns a human-readable description of the payment method
+func getPaymentMethodDescription(method models.PaymentMethod) string {
+	descriptions := map[models.PaymentMethod]string{
+		"MP01": "Contanti",
+		"MP02": "Assegno",
+		"MP03": "Assegno circolare",
+		"MP04": "Contanti presso Tesoreria",
+		"MP05": "Bonifico",
+		"MP06": "Vaglia cambiario",
+		"MP07": "Bollettino bancario",
+		"MP08": "Carta di pagamento",
+		"MP09": "RID",
+		"MP10": "RID utenze",
+		"MP11": "RID veloce",
+		"MP12": "RIBA",
+		"MP13": "MAV",
+		"MP14": "Quietanza erario",
+		"MP15": "Giroconto su conti di contabilità speciale",
+		"MP16": "Domiciliazione bancaria",
+		"MP17": "Domiciliazione postale",
+		"MP18": "Bollettino di c/c postale",
+		"MP19": "SEPA Direct Debit",
+		"MP20": "SEPA Direct Debit CORE",
+		"MP21": "SEPA Direct Debit B2B",
+		"MP22": "Trattenuta su somme già riscosse",
+		"MP23": "PagoPA",
+	}
+	if desc, ok := descriptions[method]; ok {
+		return desc
+	}
+	return string(method)
 }

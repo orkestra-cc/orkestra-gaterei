@@ -207,6 +207,54 @@ func main() {
 	navigationService := navigationServices.NewNavigationService(menuConfig)
 	navigationHandler := navigationHandlers.NewNavigationHandler(navigationService)
 
+	// Initialize documents module (PDF generation with Gotenberg)
+	// IMPORTANT: Documents module must be initialized BEFORE billing module
+	// so pdfSvc can be injected into billing's InvoiceService
+	var documentsTemplateHandler *documentsHandlers.TemplateHandler
+	var documentsDocumentHandler *documentsHandlers.DocumentHandler
+	var pdfSvc documentsSvc.PDFService // Declared here so billing module can use it
+	documentsEnabled := cfg.Documents.GotenbergURL != ""
+
+	if documentsEnabled {
+		// Create documents config
+		docsConfig := &documentsConfig.Config{
+			GotenbergURL:  cfg.Documents.GotenbergURL,
+			Timeout:       cfg.Documents.Timeout,
+			RetryAttempts: cfg.Documents.RetryAttempts,
+			DefaultMargins: documentsConfig.PDFMargins{
+				Top:    cfg.Documents.DefaultMargins.Top,
+				Bottom: cfg.Documents.DefaultMargins.Bottom,
+				Left:   cfg.Documents.DefaultMargins.Left,
+				Right:  cfg.Documents.DefaultMargins.Right,
+			},
+		}
+
+		// Create repositories
+		templateRepo := documentsRepo.NewTemplateRepository(db)
+		documentRepo := documentsRepo.NewDocumentRepository(db)
+
+		// Create services
+		gotenbergClient := documentsSvc.NewGotenbergClient(docsConfig, logger)
+		templateEngine := documentsSvc.NewTemplateEngine()
+		templateSvc := documentsSvc.NewTemplateService(templateRepo, templateEngine, logger)
+		pdfSvc = documentsSvc.NewPDFService(templateRepo, documentRepo, gotenbergClient, templateEngine, logger)
+
+		// Create handlers
+		documentsTemplateHandler = documentsHandlers.NewTemplateHandler(templateSvc)
+		documentsDocumentHandler = documentsHandlers.NewDocumentHandler(pdfSvc)
+
+		// Seed built-in templates
+		if err := templateSvc.SeedBuiltInTemplates(context.Background()); err != nil {
+			logger.Warn("Failed to seed built-in templates", slog.String("error", err.Error()))
+		}
+
+		logger.Info("Documents module initialized",
+			slog.String("gotenbergURL", cfg.Documents.GotenbergURL),
+		)
+	} else {
+		logger.Warn("Documents module disabled: GOTENBERG_URL not configured")
+	}
+
 	// Initialize billing module (OpenAPI SDI integration)
 	var billingPollingJob *billingJobs.PollingJob
 	var billingInvoiceHandler *billingHandlers.InvoiceHandler
@@ -242,8 +290,8 @@ func main() {
 		openAPIClient := billingSvc.NewOpenAPIClient(openAPIConfig, logger)
 		xmlBuilder := billingSvc.NewXMLBuilder(openAPIConfig)
 
-		// Create services
-		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, logger)
+		// Create services (pdfSvc can be nil if documents module is disabled)
+		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, pdfSvc, logger)
 		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
 		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
 		companySvc := billingSvc.NewCompanyService(companyRepo, logger)
@@ -272,51 +320,6 @@ func main() {
 		)
 	} else {
 		logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
-	}
-
-	// Initialize documents module (PDF generation with Gotenberg)
-	var documentsTemplateHandler *documentsHandlers.TemplateHandler
-	var documentsDocumentHandler *documentsHandlers.DocumentHandler
-	documentsEnabled := cfg.Documents.GotenbergURL != ""
-
-	if documentsEnabled {
-		// Create documents config
-		docsConfig := &documentsConfig.Config{
-			GotenbergURL:  cfg.Documents.GotenbergURL,
-			Timeout:       cfg.Documents.Timeout,
-			RetryAttempts: cfg.Documents.RetryAttempts,
-			DefaultMargins: documentsConfig.PDFMargins{
-				Top:    cfg.Documents.DefaultMargins.Top,
-				Bottom: cfg.Documents.DefaultMargins.Bottom,
-				Left:   cfg.Documents.DefaultMargins.Left,
-				Right:  cfg.Documents.DefaultMargins.Right,
-			},
-		}
-
-		// Create repositories
-		templateRepo := documentsRepo.NewTemplateRepository(db)
-		documentRepo := documentsRepo.NewDocumentRepository(db)
-
-		// Create services
-		gotenbergClient := documentsSvc.NewGotenbergClient(docsConfig, logger)
-		templateEngine := documentsSvc.NewTemplateEngine()
-		templateSvc := documentsSvc.NewTemplateService(templateRepo, templateEngine, logger)
-		pdfSvc := documentsSvc.NewPDFService(templateRepo, documentRepo, gotenbergClient, templateEngine, logger)
-
-		// Create handlers
-		documentsTemplateHandler = documentsHandlers.NewTemplateHandler(templateSvc)
-		documentsDocumentHandler = documentsHandlers.NewDocumentHandler(pdfSvc)
-
-		// Seed built-in templates
-		if err := templateSvc.SeedBuiltInTemplates(context.Background()); err != nil {
-			logger.Warn("Failed to seed built-in templates", slog.String("error", err.Error()))
-		}
-
-		logger.Info("Documents module initialized",
-			slog.String("gotenbergURL", cfg.Documents.GotenbergURL),
-		)
-	} else {
-		logger.Warn("Documents module disabled: GOTENBERG_URL not configured")
 	}
 
 	// Initialize auth service with all repositories
