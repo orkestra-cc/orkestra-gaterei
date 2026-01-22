@@ -409,6 +409,12 @@ export interface CreateCompanyInput {
   postalCode: string;
   country: string;
   iscrizioneREA?: IscrizioneREA;
+  // REA fields (flat alternative to iscrizioneREA)
+  reaOffice?: string;
+  reaNumber?: string;
+  capitaleSociale?: number;
+  socioUnico?: string;
+  statoLiquidazione?: string;
   email?: string;
   pec?: string;
   phone?: string;
@@ -699,6 +705,7 @@ export interface CreateInvoiceInput {
   number: string;
   date: string;
   currency?: string;
+  companyId?: string;
   customerId?: string;
   // FatturaPA specific data
   datiRitenuta?: DatiRitenuta[]; // Withholding tax

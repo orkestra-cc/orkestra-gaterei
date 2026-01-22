@@ -23,8 +23,6 @@ import {
   CreateTemplateInput,
   UpdateTemplateInput,
   TemplateType,
-  PageSize,
-  PageOrientation,
   PageMargins,
   TEMPLATE_TYPE_LABELS,
   PAGE_SIZE_LABELS,

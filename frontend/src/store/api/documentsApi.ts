@@ -57,7 +57,7 @@ export const documentsApi = baseApi.injectEndpoints({
         url: `/api/v1/documents/templates/${id}`,
         method: 'GET',
       }),
-      providesTags: (result, error, id) => [{ type: 'DocumentTemplate' as const, id }],
+      providesTags: (_result, _error, id) => [{ type: 'DocumentTemplate' as const, id }],
     }),
 
     // Get template variables for a type
@@ -88,7 +88,7 @@ export const documentsApi = baseApi.injectEndpoints({
         method: 'PATCH',
         body: { template: data },
       }),
-      invalidatesTags: (result, error, { id }) => [
+      invalidatesTags: (_result, _error, { id }) => [
         { type: 'DocumentTemplate', id },
         { type: 'DocumentTemplate', id: 'LIST' },
       ],
@@ -100,7 +100,7 @@ export const documentsApi = baseApi.injectEndpoints({
         url: `/api/v1/documents/templates/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [
+      invalidatesTags: (_result, _error, id) => [
         { type: 'DocumentTemplate', id },
         { type: 'DocumentTemplate', id: 'LIST' },
       ],
@@ -168,7 +168,7 @@ export const documentsApi = baseApi.injectEndpoints({
         url: `/api/v1/documents/${id}`,
         method: 'GET',
       }),
-      providesTags: (result, error, id) => [{ type: 'GeneratedDocument' as const, id }],
+      providesTags: (_result, _error, id) => [{ type: 'GeneratedDocument' as const, id }],
     }),
 
     // Get service status
