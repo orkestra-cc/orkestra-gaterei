@@ -31,5 +31,9 @@
   "enabledMcpjsonServers": [
     "dart",
     "chrome-devtools"
-  ]
+  ],
+  "enabledPlugins": {
+    "greptile@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
+  }
 }
