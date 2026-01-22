@@ -292,10 +292,11 @@ execute_deploy() {
                 # Staging: ask user what to do
                 echo -e "${CYAN}  What would you like to do?${NC}"
                 echo -e "${CYAN}    1) Stash changes and continue${NC}"
-                echo -e "${CYAN}    2) Stop deployment${NC}"
+                echo -e "${CYAN}    2) Proceed anyway (deploy with uncommitted changes)${NC}"
+                echo -e "${CYAN}    3) Stop deployment${NC}"
                 echo ""
                 while true; do
-                    read -p "$(echo -e ${YELLOW}  Select option [1-2]: ${NC})" STASH_CHOICE
+                    read -p "$(echo -e ${YELLOW}  Select option [1-3]: ${NC})" STASH_CHOICE
                     case $STASH_CHOICE in
                         1)
                             echo -e "${YELLOW}  ⟳ Stashing changes...${NC}"
@@ -304,11 +305,15 @@ execute_deploy() {
                             break
                             ;;
                         2)
+                            echo -e "${YELLOW}  ⚠ Proceeding with uncommitted changes${NC}"
+                            break
+                            ;;
+                        3)
                             echo -e "${YELLOW}  Deployment cancelled.${NC}"
                             exit 0
                             ;;
                         *)
-                            echo -e "${RED}  Invalid selection. Please choose 1 or 2.${NC}"
+                            echo -e "${RED}  Invalid selection. Please choose 1, 2, or 3.${NC}"
                             ;;
                     esac
                 done

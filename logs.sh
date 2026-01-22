@@ -116,17 +116,23 @@ if [[ -f "$DOCKER_DIR/docker-compose.dev.yml" ]]; then
     mapfile -t DEV_SERVICES < <(get_services "$DOCKER_DIR/docker-compose.dev.yml")
 fi
 
+# Staging services
+STAGING_SERVICES=()
+if [[ -f "$DOCKER_DIR/docker-compose.staging.yml" ]]; then
+    mapfile -t STAGING_SERVICES < <(get_services "$DOCKER_DIR/docker-compose.staging.yml")
+fi
+
 # Production services
 PROD_SERVICES=()
 if [[ -f "$DOCKER_DIR/docker-compose.prod.yml" ]]; then
     mapfile -t PROD_SERVICES < <(get_services "$DOCKER_DIR/docker-compose.prod.yml")
 fi
 
-# Build complete service list with their source files
+# Build service list based on current environment
 declare -A SERVICE_COMPOSE_FILE
 declare -a ALL_SERVICES
 
-# Add infrastructure services
+# Always add infrastructure services
 for service in "${INFRA_SERVICES[@]}"; do
     if [[ -n "$service" ]]; then
         ALL_SERVICES+=("$service")
@@ -134,21 +140,54 @@ for service in "${INFRA_SERVICES[@]}"; do
     fi
 done
 
-# Add development services
-for service in "${DEV_SERVICES[@]}"; do
-    if [[ -n "$service" ]]; then
-        ALL_SERVICES+=("$service")
-        SERVICE_COMPOSE_FILE["$service"]="docker-compose.dev.yml"
-    fi
-done
-
-# Add production services
-for service in "${PROD_SERVICES[@]}"; do
-    if [[ -n "$service" ]]; then
-        ALL_SERVICES+=("$service")
-        SERVICE_COMPOSE_FILE["$service"]="docker-compose.prod.yml"
-    fi
-done
+# Add services based on current environment
+case "$ENV_NAME" in
+    development)
+        for service in "${DEV_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.dev.yml"
+            fi
+        done
+        ;;
+    staging)
+        for service in "${STAGING_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.staging.yml"
+            fi
+        done
+        ;;
+    production)
+        for service in "${PROD_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.prod.yml"
+            fi
+        done
+        ;;
+    *)
+        # Unknown environment: show all services
+        for service in "${DEV_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.dev.yml"
+            fi
+        done
+        for service in "${STAGING_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.staging.yml"
+            fi
+        done
+        for service in "${PROD_SERVICES[@]}"; do
+            if [[ -n "$service" ]]; then
+                ALL_SERVICES+=("$service")
+                SERVICE_COMPOSE_FILE["$service"]="docker-compose.prod.yml"
+            fi
+        done
+        ;;
+esac
 
 # Remove duplicates while preserving order
 declare -A SEEN

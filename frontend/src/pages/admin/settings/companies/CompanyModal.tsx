@@ -6,8 +6,8 @@ import {
   useLazyGetBusinessRegistryConfigQuery,
   useConfigureBusinessRegistryMutation,
 } from 'store/api/billingApi';
-import type { Company, CreateCompanyInput, UpdateCompanyInput, RegimeFiscale } from 'types/billing';
-import { REGIME_FISCALE_LABELS, REGIME_FISCALE_OPTIONS } from 'types/billing';
+import type { Company, CreateCompanyInput, UpdateCompanyInput } from 'types/billing';
+import { REGIME_FISCALE_OPTIONS } from 'types/billing';
 import FalconCloseButton from 'components/common/FalconCloseButton';
 
 interface CompanyModalProps {

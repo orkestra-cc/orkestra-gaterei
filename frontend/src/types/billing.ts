@@ -378,6 +378,12 @@ export interface Company {
   postalCode: string;
   country: string;
   iscrizioneREA?: IscrizioneREA;
+  // Flat REA fields (alternative to iscrizioneREA)
+  reaOffice?: string;
+  reaNumber?: string;
+  capitaleSociale?: number;
+  socioUnico?: string;
+  statoLiquidazione?: string;
   email?: string;
   pec?: string;
   phone?: string;
@@ -438,6 +444,12 @@ export interface UpdateCompanyInput {
   postalCode?: string;
   country?: string;
   iscrizioneREA?: IscrizioneREA;
+  // Flat REA fields (alternative to iscrizioneREA)
+  reaOffice?: string;
+  reaNumber?: string;
+  capitaleSociale?: number;
+  socioUnico?: string;
+  statoLiquidazione?: string;
   email?: string;
   pec?: string;
   phone?: string;

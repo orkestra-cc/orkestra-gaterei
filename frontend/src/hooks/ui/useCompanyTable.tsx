@@ -74,11 +74,7 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
   const [setDefaultCompany, { isLoading: isSettingDefault }] = useSetDefaultCompanyMutation();
 
   // Fetch companies from backend API
-  const {
-    data: companiesResponse,
-    isLoading,
-    error
-  } = useGetCompaniesQuery({
+  const { data: companiesResponse } = useGetCompaniesQuery({
     pageSize: options?.perPage || 10,
     page: 1
   });
@@ -271,8 +267,6 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
   const table = useAdvanceTable({
     columns,
     data: companies,
-    isLoading,
-    error,
     ...options
   });
 
