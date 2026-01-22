@@ -1,13 +1,11 @@
 #!/bin/bash
 
 # ORKESTRA Environment Validator
-# Validates environment files for required variables and security settings
+# Validates the .env file for required variables and security settings
 #
 # Usage:
-#   ./scripts/env-validate.sh              # Validate all environments
-#   ./scripts/env-validate.sh dev          # Validate development only
-#   ./scripts/env-validate.sh staging      # Validate staging only
-#   ./scripts/env-validate.sh prod         # Validate production only
+#   ./scripts/env-validate.sh              # Validate .env file
+#   ./scripts/env-validate.sh --help       # Show help
 
 set -e
 
@@ -21,11 +19,12 @@ NC=$'\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DOCKER_DIR="$PROJECT_ROOT/docker"
+ENV_FILE="$DOCKER_DIR/.env"
 
-print_info() { printf "${BLUE}ℹ${NC} %s\n" "$1"; }
-print_success() { printf "${GREEN}✓${NC} %s\n" "$1"; }
-print_error() { printf "${RED}✗${NC} %s\n" "$1"; }
-print_warning() { printf "${YELLOW}⚠${NC} %s\n" "$1"; }
+print_info() { printf "${BLUE}i${NC} %s\n" "$1"; }
+print_success() { printf "${GREEN}v${NC} %s\n" "$1"; }
+print_error() { printf "${RED}x${NC} %s\n" "$1"; }
+print_warning() { printf "${YELLOW}!${NC} %s\n" "$1"; }
 
 # Required variables for all environments
 REQUIRED_VARS=(
@@ -48,83 +47,113 @@ PRODUCTION_VARS=(
     "OAUTH_GOOGLE_CLIENT_SECRET"
 )
 
-validate_file() {
-    local file=$1
-    local env_name=$2
+validate_env_file() {
     local errors=0
     local warnings=0
 
-    print_info "Validating $env_name environment ($file)..."
-
-    if [ ! -f "$file" ]; then
-        print_error "File not found: $file"
+    # Check file exists
+    if [ ! -f "$ENV_FILE" ]; then
+        print_error "Environment file not found: $ENV_FILE"
+        print_info "Create one by copying from .env.example:"
+        print_info "  cp $DOCKER_DIR/.env.example $ENV_FILE"
         return 1
     fi
 
+    # Extract ENV value from file
+    local env_name
+    env_name=$(grep -E "^ENV=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+
+    if [ -z "$env_name" ]; then
+        print_error "ENV variable not found in $ENV_FILE"
+        print_info "Add ENV=development|staging|production to the file"
+        return 1
+    fi
+
+    # Validate ENV value
+    case "$env_name" in
+        development|staging|production)
+            print_info "Validating .env file (ENV=$env_name)..."
+            ;;
+        *)
+            print_error "Invalid ENV value: '$env_name'"
+            print_info "Valid values: development, staging, production"
+            return 1
+            ;;
+    esac
+
+    echo ""
+
     # Check required variables
     for var in "${REQUIRED_VARS[@]}"; do
-        if ! grep -q "^${var}=" "$file"; then
+        if ! grep -q "^${var}=" "$ENV_FILE"; then
             print_error "Missing required variable: $var"
             ((errors++))
-        elif grep -q "^${var}=$" "$file" || grep -q "^${var}=GENERATE" "$file" || grep -q "^${var}=your_" "$file"; then
+        elif grep -q "^${var}=$" "$ENV_FILE" || grep -q "^${var}=GENERATE" "$ENV_FILE" || grep -q "^${var}=your_" "$ENV_FILE"; then
             print_warning "Variable needs value: $var"
             ((warnings++))
+        else
+            print_success "$var is set"
         fi
     done
 
+    echo ""
+
     # Check production-specific variables for staging/production
     if [[ "$env_name" == "staging" || "$env_name" == "production" ]]; then
+        print_info "Checking production-specific variables..."
         for var in "${PRODUCTION_VARS[@]}"; do
-            if ! grep -q "^${var}=" "$file" || grep -q "^${var}=$" "$file"; then
+            if ! grep -q "^${var}=" "$ENV_FILE" || grep -q "^${var}=$" "$ENV_FILE"; then
                 print_warning "Production variable missing or empty: $var"
                 ((warnings++))
+            else
+                print_success "$var is set"
             fi
         done
+        echo ""
     fi
 
     # Check for placeholder values in production
     if [[ "$env_name" == "production" ]]; then
-        if grep -q "dev_\|_dev\|localhost\|changeme\|GENERATE" "$file"; then
+        print_info "Checking for development/placeholder values..."
+        if grep -qE "dev_|_dev|localhost|changeme|GENERATE" "$ENV_FILE"; then
             print_warning "Production file may contain development/placeholder values"
             ((warnings++))
+        else
+            print_success "No obvious placeholder values found"
         fi
+        echo ""
     fi
 
     # Check cookie security for production-like environments
     if [[ "$env_name" == "staging" || "$env_name" == "production" ]]; then
-        if grep -q "COOKIE_SECURE=false" "$file"; then
+        print_info "Checking security settings..."
+
+        if grep -q "COOKIE_SECURE=false" "$ENV_FILE"; then
             print_error "COOKIE_SECURE should be true for $env_name"
             ((errors++))
+        else
+            print_success "COOKIE_SECURE is properly configured"
         fi
 
-        if grep -q "COOKIE_SAME_SITE=lax" "$file" && [[ "$env_name" == "production" ]]; then
+        if grep -q "COOKIE_SAME_SITE=lax" "$ENV_FILE" && [[ "$env_name" == "production" ]]; then
             print_warning "COOKIE_SAME_SITE should be 'strict' for production"
             ((warnings++))
+        else
+            print_success "COOKIE_SAME_SITE is properly configured"
         fi
+        echo ""
     fi
 
-    # Check ENV value matches filename
-    local expected_env=""
-    case "$env_name" in
-        development) expected_env="development" ;;
-        staging) expected_env="staging" ;;
-        production) expected_env="production" ;;
-    esac
-
-    if ! grep -q "^ENV=$expected_env" "$file"; then
-        print_error "ENV variable should be '$expected_env' but found different value"
-        ((errors++))
-    fi
-
-    echo ""
+    # Summary
+    echo "================================"
     if [ $errors -eq 0 ] && [ $warnings -eq 0 ]; then
-        print_success "$env_name environment is valid (no issues)"
+        print_success "Validation passed - no issues found"
         return 0
     elif [ $errors -eq 0 ]; then
-        print_warning "$env_name environment has $warnings warning(s)"
+        print_warning "Validation passed with $warnings warning(s)"
         return 0
     else
-        print_error "$env_name environment has $errors error(s) and $warnings warning(s)"
+        print_error "Validation failed: $errors error(s), $warnings warning(s)"
         return 1
     fi
 }
@@ -134,73 +163,50 @@ show_usage() {
 ${GREEN}ORKESTRA Environment Validator${NC}
 
 ${BLUE}Usage:${NC}
-    $(basename "$0") [environment]
+    $(basename "$0")            # Validate .env file
+    $(basename "$0") --help     # Show this help
 
-${BLUE}Arguments:${NC}
-    dev, development    Validate development environment only
-    staging             Validate staging environment only
-    prod, production    Validate production environment only
-    all                 Validate all environments (default)
+${BLUE}Description:${NC}
+    Validates the docker/.env file for required variables and security settings.
+    The ENV variable inside the file determines which validation rules apply:
 
-${BLUE}Examples:${NC}
-    $(basename "$0")            # Validate all environments
-    $(basename "$0") dev        # Validate development only
-    $(basename "$0") staging    # Validate staging only
-    $(basename "$0") prod       # Validate production only
+    - development: Basic checks only
+    - staging: Security checks + production variables warning
+    - production: Strict security checks + no placeholder values
+
+${BLUE}Environment File:${NC}
+    $ENV_FILE
 
 ${BLUE}Checks performed:${NC}
     - Required variables are present and have values
-    - Security settings are appropriate for the environment
+    - ENV value is valid (development|staging|production)
+    - Security settings appropriate for the environment
     - No placeholder/development values in production
-    - ENV variable matches the expected environment
+
+${BLUE}Switching Environments:${NC}
+    Edit the ENV= line in $ENV_FILE:
+        ENV=development   # For local development
+        ENV=staging       # For staging deployment
+        ENV=production    # For production deployment
 
 EOF
 }
 
 main() {
-    local env=${1:-all}
-    local exit_code=0
-
-    case $env in
-        development|dev)
-            validate_file "$DOCKER_DIR/.env.development" "development" || exit_code=1
-            ;;
-        staging)
-            validate_file "$DOCKER_DIR/.env.staging" "staging" || exit_code=1
-            ;;
-        production|prod)
-            validate_file "$DOCKER_DIR/.env.production" "production" || exit_code=1
-            ;;
-        all)
-            echo "================================"
-            echo "Validating all environment files"
-            echo "================================"
-            echo ""
-            validate_file "$DOCKER_DIR/.env.development" "development" || exit_code=1
-            echo ""
-            validate_file "$DOCKER_DIR/.env.staging" "staging" || exit_code=1
-            echo ""
-            validate_file "$DOCKER_DIR/.env.production" "production" || exit_code=1
-            ;;
+    case "${1:-}" in
         -h|--help|help)
             show_usage
             exit 0
             ;;
+        "")
+            validate_env_file
+            ;;
         *)
-            print_error "Unknown environment: $env"
+            print_error "Unknown option: $1"
             show_usage
             exit 1
             ;;
     esac
-
-    echo ""
-    if [ $exit_code -eq 0 ]; then
-        print_success "Validation complete - all checks passed!"
-    else
-        print_error "Validation complete - some checks failed"
-    fi
-
-    exit $exit_code
 }
 
 main "$@"

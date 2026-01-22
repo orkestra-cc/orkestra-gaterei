@@ -1,2 +1,9 @@
-keys
+# Environment files (contains secrets)
+.env
+!.env.example
+
+# Keys and certificates
+keys/
 *.p8
+*.pem
+*.key

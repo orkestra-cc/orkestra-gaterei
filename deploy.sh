@@ -28,69 +28,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
-# ============================================
-# Environment Selection
-# ============================================
+# Source shared environment detection utility
+source "$PROJECT_ROOT/scripts/env-detect.sh"
 
-show_env_menu() {
-    clear
-    echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       Orkestra Deployment Manager                  ║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
-    echo ""
-
-    # Check availability of each environment file
-    if [ -f "$DOCKER_DIR/.env.development" ]; then
-        DEV_STATUS="${GREEN}✓${NC}"
-    else
-        DEV_STATUS="${RED}✗${NC}"
-    fi
-
-    if [ -f "$DOCKER_DIR/.env.staging" ]; then
-        STAGING_STATUS="${GREEN}✓${NC}"
-    else
-        STAGING_STATUS="${RED}✗${NC}"
-    fi
-
-    if [ -f "$DOCKER_DIR/.env.production" ]; then
-        PROD_STATUS="${GREEN}✓${NC}"
-    else
-        PROD_STATUS="${RED}✗${NC}"
-    fi
-
-    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  Select Environment:                               ║${NC}"
-    echo -e "${CYAN}╠════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║                                                    ║${NC}"
-    echo -e "${CYAN}║  1) Development  ${DEV_STATUS}                                 ${CYAN}║${NC}"
-    echo -e "${CYAN}║  2) Staging      ${STAGING_STATUS}                                 ${CYAN}║${NC}"
-    echo -e "${CYAN}║  3) Production   ${PROD_STATUS}                                 ${CYAN}║${NC}"
-    echo -e "${CYAN}║  4) Exit                                           ║${NC}"
-    echo -e "${CYAN}║                                                    ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}"
-    echo ""
-}
-
-select_environment() {
-    show_env_menu
-
-    while true; do
-        read -p "$(echo -e ${YELLOW}Select environment [1-4]: ${NC})" ENV_CHOICE
-        case $ENV_CHOICE in
-            1) ENV="development"; ENV_FILE="$DOCKER_DIR/.env.development"; break ;;
-            2) ENV="staging"; ENV_FILE="$DOCKER_DIR/.env.staging"; break ;;
-            3) ENV="production"; ENV_FILE="$DOCKER_DIR/.env.production"; break ;;
-            4) echo -e "${GREEN}Goodbye!${NC}"; exit 0 ;;
-            *) echo -e "${RED}Invalid selection. Please choose 1-4.${NC}" ;;
-        esac
-    done
-
-    if [ ! -f "$ENV_FILE" ]; then
-        echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
-        echo -e "${YELLOW}   Copy from .env.example: cp $DOCKER_DIR/.env.example $ENV_FILE${NC}"
-        exit 1
-    fi
-}
+# Environment file path (single .env file)
+ENV_FILE="$DOCKER_DIR/.env"
 
 # Set environment-specific colors and configurations
 set_env_config() {
@@ -754,8 +696,13 @@ operation_status() {
 # ============================================
 
 main() {
-    # Select environment before showing operation menu
-    select_environment
+    # Auto-detect environment from ENV variable or .env file
+    if ! detect_environment; then
+        exit 1
+    fi
+
+    # Set ENV from detected environment
+    ENV="$DETECTED_ENV"
     set_env_config
 
     while true; do

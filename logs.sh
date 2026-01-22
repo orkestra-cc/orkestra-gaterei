@@ -18,8 +18,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
+# Source environment detection utility
+source "$PROJECT_ROOT/scripts/env-detect.sh"
+
 echo -e "${BLUE}Orkestra Service Logs Viewer${NC}"
 echo "=================================="
+
+# Display current environment (silent detection)
+ENV_NAME=$(get_environment_silent 2>/dev/null || echo "unknown")
+case "$ENV_NAME" in
+    development) echo -e "Environment: ${GREEN}DEVELOPMENT${NC}" ;;
+    staging)     echo -e "Environment: ${YELLOW}STAGING${NC}" ;;
+    production)  echo -e "Environment: ${RED}PRODUCTION${NC}" ;;
+    *)           echo -e "Environment: ${YELLOW}UNKNOWN${NC}" ;;
+esac
+echo ""
 
 # Function to display usage
 show_usage() {
