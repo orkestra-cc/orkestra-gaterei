@@ -45,6 +45,9 @@ type OpenAPIClient interface {
 	GetSupplierInvoices(ctx context.Context, fromDate time.Time, page, pageSize int) (*SupplierInvoicesResponse, error)
 	ImportInvoice(ctx context.Context, input *ImportInvoiceInput) (*ImportInvoiceResponse, error)
 
+	// All invoices (both sent and received) - for syncing from OpenAPI
+	GetAllInvoices(ctx context.Context, fromDate time.Time, page, pageSize int) (*SupplierInvoicesResponse, error)
+
 	// Notifications
 	GetNotifications(ctx context.Context, fromDate time.Time) ([]OpenAPINotification, error)
 
@@ -698,6 +701,57 @@ func (c *openAPIClient) GetSupplierInvoices(ctx context.Context, fromDate time.T
 	}
 
 	// Try direct parse
+	var result SupplierInvoicesResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetAllInvoices fetches all invoices (both sent and received) from OpenAPI SDI
+// This allows syncing issued invoices that were sent via other means
+func (c *openAPIClient) GetAllInvoices(ctx context.Context, fromDate time.Time, page, pageSize int) (*SupplierInvoicesResponse, error) {
+	// Query without direction filter to get ALL invoices
+	path := fmt.Sprintf("/invoices?from_date=%s&page=%d&page_size=%d",
+		fromDate.Format("2006-01-02"), page, pageSize)
+
+	respBody, statusCode, err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, fmt.Errorf("%w: status %d, response: %s", ErrOpenAPIRequestFailed, statusCode, string(respBody))
+	}
+
+	c.logger.Info("all invoices raw response",
+		"response", string(respBody),
+	)
+
+	// Try to parse wrapped response first: {"data": [...], "success": true}
+	var wrapper struct {
+		Data    json.RawMessage `json:"data"`
+		Success bool            `json:"success"`
+		Message string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBody, &wrapper); err == nil && wrapper.Success {
+		var invoices []OpenAPIInvoice
+		if err := json.Unmarshal(wrapper.Data, &invoices); err == nil {
+			return &SupplierInvoicesResponse{
+				Invoices:   invoices,
+				Total:      len(invoices),
+				Page:       page,
+				PageSize:   pageSize,
+				TotalPages: 1,
+			}, nil
+		}
+		var result SupplierInvoicesResponse
+		if err := json.Unmarshal(wrapper.Data, &result); err == nil {
+			return &result, nil
+		}
+	}
+
 	var result SupplierInvoicesResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)

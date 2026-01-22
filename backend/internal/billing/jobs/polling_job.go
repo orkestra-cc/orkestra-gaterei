@@ -102,24 +102,26 @@ func (j *PollingJob) Poll(ctx context.Context) error {
 	return j.poll(ctx)
 }
 
-// SyncReceivedInvoices syncs received invoices from OpenAPI SDI
+// SyncReceivedInvoices syncs all invoices (issued and received) from OpenAPI SDI
+// The function name is kept for backwards compatibility, but it now syncs both directions
 func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
-	j.logger.Info("syncing received invoices from OpenAPI SDI")
+	j.logger.Info("syncing all invoices from OpenAPI SDI")
 
-	// Fetch received invoices from last 30 days
+	// Fetch all invoices from last 30 days (both sent and received)
 	fromDate := time.Now().AddDate(0, 0, -30)
 	page := 1
 	pageSize := 100
-	totalImported := 0
+	totalImportedIssued := 0
+	totalImportedReceived := 0
 
 	for {
-		invoices, err := j.openAPIClient.GetSupplierInvoices(ctx, fromDate, page, pageSize)
+		invoices, err := j.openAPIClient.GetAllInvoices(ctx, fromDate, page, pageSize)
 		if err != nil {
-			j.logger.Error("failed to fetch supplier invoices from OpenAPI", "error", err)
+			j.logger.Error("failed to fetch invoices from OpenAPI", "error", err)
 			return err
 		}
 
-		j.logger.Info("fetched supplier invoices from OpenAPI",
+		j.logger.Info("fetched all invoices from OpenAPI",
 			"page", page,
 			"count", len(invoices.Invoices),
 			"total", invoices.Total,
@@ -131,6 +133,29 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 			if existing != nil {
 				j.logger.Debug("invoice already exists, skipping",
 					"uuid", inv.UUID,
+					"marking", inv.Marking,
+				)
+				continue
+			}
+
+			// Determine direction based on marking field
+			var direction models.InvoiceDirection
+			var status models.InvoiceStatus
+			var sdiStatus models.SDIStatus
+
+			switch inv.Marking {
+			case "sent":
+				direction = models.DirectionIssued
+				status = models.StatusSent      // Issued invoices were sent to SDI
+				sdiStatus = models.SDIStatusNone // Awaiting delivery notification
+			case "received":
+				direction = models.DirectionReceived
+				status = models.StatusDelivered  // Received invoices are already delivered to us
+				sdiStatus = models.SDIStatusRC   // Ricevuta di Consegna
+			default:
+				j.logger.Warn("unknown invoice marking, skipping",
+					"uuid", inv.UUID,
+					"marking", inv.Marking,
 				)
 				continue
 			}
@@ -145,13 +170,26 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 				continue
 			}
 
-			// Extract supplier info from the Sender field
-			var supplierFiscalID, supplierName string
+			// Extract party info from Sender and Recipient fields
+			var cedenteIsCompany, cessionarioIsCompany bool
+			var cedenteFiscalID, cedenteName string
+			var cessionarioFiscalID, cessionarioName string
+
 			if inv.Sender != nil {
-				supplierFiscalID = inv.Sender.BusinessVATNumberCode
-				supplierName = inv.Sender.BusinessName
-				if supplierName == "" && inv.Sender.Name != "" {
-					supplierName = inv.Sender.Name + " " + inv.Sender.Surname
+				cedenteFiscalID = inv.Sender.BusinessVATNumberCode
+				cedenteName = inv.Sender.BusinessName
+				cedenteIsCompany = cedenteName != "" // If has business name, it's a company
+				if cedenteName == "" && inv.Sender.Name != "" {
+					cedenteName = inv.Sender.Name + " " + inv.Sender.Surname
+				}
+			}
+
+			if inv.Recipient != nil {
+				cessionarioFiscalID = inv.Recipient.BusinessVATNumberCode
+				cessionarioName = inv.Recipient.BusinessName
+				cessionarioIsCompany = cessionarioName != "" // If has business name, it's a company
+				if cessionarioName == "" && inv.Recipient.Name != "" {
+					cessionarioName = inv.Recipient.Name + " " + inv.Recipient.Surname
 				}
 			}
 
@@ -196,45 +234,65 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 				}
 			}
 
-			// Create the received invoice record
-			receivedInvoice := &models.Invoice{
+			// Create the invoice record
+			invoice := &models.Invoice{
 				UUID:          uuid.New().String(),
 				OpenAPIUUID:   inv.UUID,
 				SDIIdentifier: inv.SDIFileID,
-				Direction:     models.DirectionReceived,
+				Direction:     direction,
 				DocumentType:  docType,
 				Number:        invoiceNumber,
 				Date:          invoiceDate,
 				Currency:      "EUR",
 				TotalAmount:   totalAmount,
-				Status:        models.StatusDelivered, // Received invoices are already delivered to us
-				SDIStatus:     models.SDIStatusRC,
+				Status:        status,
+				SDIStatus:     sdiStatus,
 				XMLContent:    string(xmlContent),
 				CedentePrestatore: &models.PartyData{
-					FiscalIDCode: supplierFiscalID,
-					Denomination: supplierName,
+					FiscalIDCode: cedenteFiscalID,
+					Denomination: cedenteName,
+					IsCompany:    cedenteIsCompany,
+				},
+				CessionarioCommittente: &models.PartyData{
+					FiscalIDCode: cessionarioFiscalID,
+					Denomination: cessionarioName,
+					IsCompany:    cessionarioIsCompany,
 				},
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}
 
-			if err := j.invoiceRepo.Create(ctx, receivedInvoice); err != nil {
-				j.logger.Error("failed to create received invoice",
+			if err := j.invoiceRepo.Create(ctx, invoice); err != nil {
+				j.logger.Error("failed to create invoice",
 					"uuid", inv.UUID,
+					"direction", direction,
 					"error", err,
 				)
 				continue
 			}
 
-			totalImported++
-			j.logger.Info("imported received invoice",
-				"uuid", receivedInvoice.UUID,
-				"openApiUUID", inv.UUID,
-				"number", invoiceNumber,
-				"supplier", supplierName,
-				"amount", totalAmount,
-				"docType", docType,
-			)
+			if direction == models.DirectionIssued {
+				totalImportedIssued++
+				j.logger.Info("imported issued invoice",
+					"uuid", invoice.UUID,
+					"openApiUUID", inv.UUID,
+					"number", invoiceNumber,
+					"cedente", cedenteName,
+					"cessionario", cessionarioName,
+					"amount", totalAmount,
+					"docType", docType,
+				)
+			} else {
+				totalImportedReceived++
+				j.logger.Info("imported received invoice",
+					"uuid", invoice.UUID,
+					"openApiUUID", inv.UUID,
+					"number", invoiceNumber,
+					"supplier", cedenteName,
+					"amount", totalAmount,
+					"docType", docType,
+				)
+			}
 		}
 
 		// Check if there are more pages
@@ -244,8 +302,9 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 		page++
 	}
 
-	j.logger.Info("received invoices sync completed",
-		"totalImported", totalImported,
+	j.logger.Info("invoice sync completed",
+		"totalImportedIssued", totalImportedIssued,
+		"totalImportedReceived", totalImportedReceived,
 	)
 
 	return nil
