@@ -108,7 +108,7 @@ services:
     # Note: mongodb and redis are in docker-compose.infra.yml
     # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/3000 && echo 'OK'"]
       interval: 30s
       timeout: 10s
       retries: 5

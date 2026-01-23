@@ -40,6 +40,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
+      ALLOW_LOCALHOST_REDIRECTS: ${ALLOW_LOCALHOST_REDIRECTS:-false}
 
       # OAuth (staging credentials)
       OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
@@ -61,6 +62,9 @@ services:
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-https://staging.orkestra.cc}
       BACKEND_URL: ${BACKEND_URL:-https://staging-api.orkestra.cc}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.orkestra.cc}
 
       # Security (production-like)
       RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
@@ -95,7 +99,7 @@ services:
     # Note: mongodb and redis are in docker-compose.infra.yml
     # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/3000 && echo 'OK'"]
       interval: 30s
       timeout: 10s
       retries: 5
