@@ -9,7 +9,7 @@ services:
       context: ../backend
       dockerfile: Dockerfile
       target: production
-    container_name: orkestra-backend
+    container_name: backend
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
@@ -117,7 +117,7 @@ services:
         VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
         VITE_ENV: staging
         VITE_DEBUG: "false"
-    container_name: orkestra-frontend
+    container_name: frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:80"

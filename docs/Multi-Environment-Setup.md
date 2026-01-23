@@ -475,24 +475,24 @@ orkestra/
 **Google Cloud Console:**
 1. Create OAuth 2.0 Client ID
 2. Add authorized redirect URIs:
-   - `http://localhost:3000/api/v1/auth/oauth/google/callback` (dev)
-   - `https://staging.orkestra.cc/api/v1/auth/oauth/google/callback` (staging)
-   - `https://orkestra.cc/api/v1/auth/oauth/google/callback` (prod)
+   - `http://localhost:3000/v1/auth/oauth/google/callback` (dev)
+   - `https://staging.orkestra.cc/v1/auth/oauth/google/callback` (staging)
+   - `https://orkestra.cc/v1/auth/oauth/google/callback` (prod)
 
 **Configuration:**
 ```bash
 # .env.dev
 OAUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
-OAUTH_GOOGLE_REDIRECT_URL=http://localhost:3000/api/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=http://localhost:3000/v1/auth/oauth/google/callback
 
 # .env.staging
-OAUTH_GOOGLE_REDIRECT_URL=https://staging.orkestra.cc/api/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=https://staging.orkestra.cc/v1/auth/oauth/google/callback
 
 # .env.prod (separate OAuth app recommended)
 OAUTH_GOOGLE_CLIENT_ID=prod-client-id.apps.googleusercontent.com
 OAUTH_GOOGLE_CLIENT_SECRET=prod-secret
-OAUTH_GOOGLE_REDIRECT_URL=https://orkestra.cc/api/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=https://orkestra.cc/v1/auth/oauth/google/callback
 ```
 
 ### Apple Sign-In
@@ -509,7 +509,7 @@ OAUTH_APPLE_TEAM_ID=ABC123DEF4
 OAUTH_APPLE_CLIENT_ID=cc.orkestra.webapp.signin
 OAUTH_APPLE_KEY_ID=XYZ987WVU6
 OAUTH_APPLE_PRIVATE_KEY_PATH=/app/keys/AuthKey_XYZ987WVU6.p8
-OAUTH_APPLE_REDIRECT_URL=https://staging.orkestra.cc/api/v1/auth/oauth/apple/callback
+OAUTH_APPLE_REDIRECT_URL=https://staging.orkestra.cc/v1/auth/oauth/apple/callback
 ```
 
 ### Discord & GitHub

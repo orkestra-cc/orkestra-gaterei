@@ -32,22 +32,40 @@ The docker module provides **containerized infrastructure and deployment configu
 
 ## AI Assistant Critical Rules
 
-**🚨 ALWAYS use `--env-file` when running Docker Compose commands:**
+### 🚨 MANDATORY: Check ENV Variable FIRST
+
+**BEFORE running ANY Docker command, you MUST check the current environment:**
+
+```bash
+# ALWAYS run this FIRST before any docker operations
+grep "^ENV=" /home/tore/orkestra/docker/.env
+```
+
+**This determines which compose file to use:**
+- `ENV=development` → Use `docker-compose.dev.yml`
+- `ENV=staging` → Use `docker-compose.staging.yml`
+- `ENV=production` → Use `docker-compose.prod.yml`
+
+**⛔ NEVER assume the environment. ALWAYS check first.**
+
+---
+
+### 🚨 ALWAYS use `--env-file` when running Docker Compose commands:
 
 ```bash
 # ✅ CORRECT - Always specify the env file
-docker compose -f docker-compose.dev.yml --env-file .env.development up -d
-docker compose -f docker-compose.dev.yml --env-file .env.development restart orkestra-backend
-docker compose -f docker-compose.dev.yml --env-file .env.development logs orkestra-backend
+docker compose -f docker-compose.staging.yml --env-file .env up -d
+docker compose -f docker-compose.staging.yml --env-file .env restart frontend
+docker compose -f docker-compose.staging.yml --env-file .env logs frontend
 
-# ❌ WRONG - Missing env file causes missing variable warnings
+# ❌ WRONG - Using wrong compose file without checking ENV first
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-**Environment file mapping:**
-- `docker-compose.dev.yml` → `--env-file .env.development`
-- `docker-compose.staging.yml` → `--env-file .env.staging`
-- `docker-compose.prod.yml` → `--env-file .env.production`
+**Compose file selection based on ENV variable:**
+- `ENV=development` → `docker-compose.dev.yml` with `--env-file .env`
+- `ENV=staging` → `docker-compose.staging.yml` with `--env-file .env`
+- `ENV=production` → `docker-compose.prod.yml` with `--env-file .env`
 
 ---
 

@@ -72,7 +72,7 @@ export const authApi = baseApi.injectEndpoints({
     getCurrentUser: builder.query<BackendUser | null, void>({
       providesTags: ['Auth', 'User'],
       queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
-        const result = await baseQuery('api/v1/auth/me');
+        const result = await baseQuery('v1/auth/me');
 
         // Handle 401/403 as expected unauthenticated state, not an error
         if (result.error && (result.error.status === 401 || result.error.status === 403)) {
@@ -96,7 +96,7 @@ export const authApi = baseApi.injectEndpoints({
     // User login
     login: builder.mutation<LoginResponse, LoginCredentials>({
       query: (credentials) => ({
-        url: 'api/v1/auth/login',
+        url: 'v1/auth/login',
         method: 'POST',
         body: credentials,
       }),
@@ -107,7 +107,7 @@ export const authApi = baseApi.injectEndpoints({
     // User logout
     logout: builder.mutation<LogoutResponse, void>({
       query: () => ({
-        url: 'api/v1/auth/logout',
+        url: 'v1/auth/logout',
         method: 'POST',
       }),
       // Clear navigation cache on logout
@@ -135,7 +135,7 @@ export const authApi = baseApi.injectEndpoints({
     // OAuth endpoints
     initiateOAuth: builder.mutation<{ redirectUrl: string }, { provider: string }>({
       query: ({ provider }) => ({
-        url: `api/v1/auth/oauth/${provider}`,
+        url: `v1/auth/oauth/${provider}`,
         method: 'POST',
       }),
     }),
@@ -143,7 +143,7 @@ export const authApi = baseApi.injectEndpoints({
     // OAuth callback handling
     handleOAuthCallback: builder.mutation<LoginResponse, { code: string; state?: string; provider: string }>({
       query: ({ code, state, provider }) => ({
-        url: `api/v1/auth/oauth/${provider}/callback`,
+        url: `v1/auth/oauth/${provider}/callback`,
         method: 'POST',
         body: { code, state },
       }),
@@ -155,7 +155,7 @@ export const authApi = baseApi.injectEndpoints({
     getSession: builder.query<SessionResponse | null, void>({
       providesTags: ['Auth'],
       queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
-        const result = await baseQuery('api/v1/auth/session');
+        const result = await baseQuery('v1/auth/session');
 
         // Handle 401/403 as expected unauthenticated state, not an error
         if (result.error && (result.error.status === 401 || result.error.status === 403)) {

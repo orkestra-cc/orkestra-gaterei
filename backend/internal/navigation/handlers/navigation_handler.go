@@ -28,7 +28,7 @@ type GetNavigationResponse struct {
 	Body models.NavigationResponse `json:"navigation" doc:"Navigation data"`
 }
 
-// GetNavigation handles GET /api/v1/navigation
+// GetNavigation handles GET /v1/navigation
 func (h *NavigationHandler) GetNavigation(ctx context.Context, req *GetNavigationRequest) (*GetNavigationResponse, error) {
 	// Get user role from context (set by auth middleware)
 	userRole, ok := middleware.GetUserRole(ctx)

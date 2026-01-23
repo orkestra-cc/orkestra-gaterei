@@ -127,7 +127,7 @@ func (h *DevTokenHandler) GenerateToken(ctx context.Context, req *GenerateTokenR
 	resp.Body.Email = syntheticEmail
 	resp.Body.ExpiresAt = expiresAt
 	resp.Body.ExpiresIn = int64(expiry.Seconds())
-	resp.Body.Curl = fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:3000/api/v1/users", token)
+	resp.Body.Curl = fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:3000/v1/users", token)
 
 	return resp, nil
 }
@@ -260,7 +260,7 @@ func (h *DevTokenHandler) GenerateTokenHTTP(w http.ResponseWriter, r *http.Reque
 		Email:       syntheticEmail,
 		ExpiresAt:   expiresAt,
 		ExpiresIn:   int64(expiry.Seconds()),
-		Curl:        fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:3000/api/v1/users", token),
+		Curl:        fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:3000/v1/users", token),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

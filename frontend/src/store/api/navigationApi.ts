@@ -38,7 +38,7 @@ export const navigationApi = baseApi.injectEndpoints({
     getNavigation: builder.query<NavigationResponse | null, void>({
       providesTags: ['Navigation'],
       queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
-        const result = await baseQuery('api/v1/navigation');
+        const result = await baseQuery('v1/navigation');
 
         // Handle authentication errors - return null instead of error
         if (result.error && (result.error.status === 401 || result.error.status === 403)) {

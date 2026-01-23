@@ -56,7 +56,7 @@ export const reportsApi = baseApi.injectEndpoints({
         if (params?.pageSize !== undefined) searchParams.append('pageSize', String(params.pageSize));
 
         return {
-          url: `/api/v1/reports/deadlines?${searchParams.toString()}`,
+          url: `/v1/reports/deadlines?${searchParams.toString()}`,
           method: 'GET',
         };
       },

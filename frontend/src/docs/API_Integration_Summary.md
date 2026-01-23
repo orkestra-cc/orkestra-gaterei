@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-The role-based navigation system has been successfully integrated with the `api/v1/auth/me` endpoint to extract user roles directly from your authentication API.
+The role-based navigation system has been successfully integrated with the `v1/auth/me` endpoint to extract user roles directly from your authentication API.
 
 ## 🔄 Key Integration Changes
 
@@ -90,7 +90,7 @@ In development, the system logs warnings for:
 ## 🚀 How It Works
 
 1. **User authenticates** via existing auth flow
-2. **API call** to `/api/v1/auth/me` returns user data with `role` field
+2. **API call** to `/v1/auth/me` returns user data with `role` field
 3. **Role extraction** pulls role from API response
 4. **Navigation filtering** shows only accessible routes based on role hierarchy
 5. **Real-time updates** when authentication state changes
@@ -111,7 +111,7 @@ In development, the system logs warnings for:
 4. **Dynamic Roles**: Support for runtime role changes without re-authentication
 
 ### Backend Considerations
-1. Ensure `/api/v1/auth/me` always returns the `role` field
+1. Ensure `/v1/auth/me` always returns the `role` field
 2. Validate role values match the expected hierarchy
 3. Consider adding permission arrays for future granular control
 4. Implement proper CORS and security headers

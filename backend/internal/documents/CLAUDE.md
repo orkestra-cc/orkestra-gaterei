@@ -61,25 +61,25 @@ documents/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/documents/templates` | Create template |
-| GET | `/api/v1/documents/templates` | List templates (with filters) |
-| GET | `/api/v1/documents/templates/{id}` | Get template by UUID |
-| PATCH | `/api/v1/documents/templates/{id}` | Update template |
-| DELETE | `/api/v1/documents/templates/{id}` | Delete template (soft delete) |
-| POST | `/api/v1/documents/templates/{id}/default` | Set as default for type |
-| POST | `/api/v1/documents/templates/{id}/duplicate` | Duplicate template |
-| GET | `/api/v1/documents/templates/variables/{type}` | Get available variables |
+| POST | `/v1/documents/templates` | Create template |
+| GET | `/v1/documents/templates` | List templates (with filters) |
+| GET | `/v1/documents/templates/{id}` | Get template by UUID |
+| PATCH | `/v1/documents/templates/{id}` | Update template |
+| DELETE | `/v1/documents/templates/{id}` | Delete template (soft delete) |
+| POST | `/v1/documents/templates/{id}/default` | Set as default for type |
+| POST | `/v1/documents/templates/{id}/duplicate` | Duplicate template |
+| GET | `/v1/documents/templates/variables/{type}` | Get available variables |
 
 ### PDF Generation
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/documents/generate` | Generate PDF from template + data |
-| POST | `/api/v1/documents/preview` | Preview HTML (no PDF) |
-| POST | `/api/v1/documents/preview/content` | Preview raw HTML/CSS |
-| GET | `/api/v1/documents/{id}` | Get document metadata |
-| GET | `/api/v1/documents/{id}/download` | Download PDF binary |
-| GET | `/api/v1/documents/status` | Check Gotenberg availability |
+| POST | `/v1/documents/generate` | Generate PDF from template + data |
+| POST | `/v1/documents/preview` | Preview HTML (no PDF) |
+| POST | `/v1/documents/preview/content` | Preview raw HTML/CSS |
+| GET | `/v1/documents/{id}` | Get document metadata |
+| GET | `/v1/documents/{id}/download` | Download PDF binary |
+| GET | `/v1/documents/status` | Check Gotenberg availability |
 
 ## Template Types
 

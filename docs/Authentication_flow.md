@@ -45,7 +45,7 @@ This process separates concerns: the social provider authenticates the user, and
 
 11. **Session Endpoint Exchange:** After OAuth redirect, the frontend calls the secure session endpoint:
     ```
-    GET /api/v1/auth/session
+    GET /v1/auth/session
     Cookie: refresh_token=...
 
     Response:
@@ -148,7 +148,7 @@ The Orkestra system implements a dedicated endpoint for secure token delivery af
 
 **Purpose:** Exchange refresh token from HttpOnly cookie for fresh access token
 
-**Method:** `GET /api/v1/auth/session`
+**Method:** `GET /v1/auth/session`
 
 **Authentication:** Requires valid refresh token in HttpOnly cookie
 
@@ -162,7 +162,7 @@ The Orkestra system implements a dedicated endpoint for secure token delivery af
 
 **Request:**
 ```http
-GET /api/v1/auth/session HTTP/1.1
+GET /v1/auth/session HTTP/1.1
 Host: your-backend.com
 Cookie: orkestra_refresh_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -229,7 +229,7 @@ if (sessionResult.data) {
 ```typescript
 // API client automatically uses tokens from Redux
 const baseQuery = fetchBaseQuery({
-  baseUrl: '/api/v1',
+  baseUrl: '/v1',
   credentials: 'include', // Include cookies
   prepareHeaders: (headers, { getState }) => {
     // Add Bearer token from Redux if available
@@ -723,7 +723,7 @@ The system returns appropriate HTTP status codes for authorization failures:
 ```typescript
 // SECURE: Hybrid authentication approach
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
+  baseUrl: `${import.meta.env.VITE_BACKEND_URL}/v1`,
   credentials: 'include', // HttpOnly cookies for refresh tokens
   prepareHeaders: (headers, { getState }) => {
     headers.set('Content-Type', 'application/json');
@@ -818,7 +818,7 @@ The Orkestra system implements a sophisticated dual authentication pattern that 
 **Web Browser (Hybrid):**
 ```typescript
 // Automatic dual authentication
-fetch('/api/v1/protected', {
+fetch('/v1/protected', {
   method: 'GET',
   credentials: 'include',                    // Sends HttpOnly cookies
   headers: {
@@ -830,7 +830,7 @@ fetch('/api/v1/protected', {
 **API Client (Bearer Only):**
 ```typescript
 // Pure Bearer token authentication
-fetch('/api/v1/protected', {
+fetch('/v1/protected', {
   method: 'GET',
   headers: {
     'Authorization': `Bearer ${accessToken}`,
@@ -842,7 +842,7 @@ fetch('/api/v1/protected', {
 **Legacy Browser (Cookie Only):**
 ```typescript
 // Traditional cookie-based authentication
-fetch('/api/v1/protected', {
+fetch('/v1/protected', {
   method: 'GET',
   credentials: 'include'
 });

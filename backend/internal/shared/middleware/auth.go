@@ -222,17 +222,17 @@ func (m *AuthMiddleware) extractToken(r *http.Request) string {
 
 // isLogoutRequest checks if the current request is a logout request
 func isLogoutRequest(r *http.Request) bool {
-	return r.Method == "POST" && (r.URL.Path == "/api/v1/auth/logout" || r.URL.Path == "/auth/logout")
+	return r.Method == "POST" && (r.URL.Path == "/v1/auth/logout" || r.URL.Path == "/auth/logout")
 }
 
 // isOAuthCallbackRequest checks if the current request is an OAuth callback request
 func isOAuthCallbackRequest(r *http.Request) bool {
 	return r.Method == "GET" && (strings.Contains(r.URL.Path, "/auth/callback") ||
 		strings.Contains(r.URL.Path, "/oauth/callback") ||
-		r.URL.Path == "/api/v1/auth/google/callback" ||
-		r.URL.Path == "/api/v1/auth/apple/callback" ||
-		r.URL.Path == "/api/v1/auth/discord/callback" ||
-		r.URL.Path == "/api/v1/auth/github/callback")
+		r.URL.Path == "/v1/auth/google/callback" ||
+		r.URL.Path == "/v1/auth/apple/callback" ||
+		r.URL.Path == "/v1/auth/discord/callback" ||
+		r.URL.Path == "/v1/auth/github/callback")
 }
 
 // GetUserUUID extracts the user UUID from the request context

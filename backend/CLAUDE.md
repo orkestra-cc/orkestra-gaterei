@@ -215,12 +215,12 @@ backend/
 
 ```bash
 # Generate token
-curl -X POST http://localhost:3000/api/v1/dev/token \
+curl -X POST http://localhost:3000/v1/dev/token \
   -H "Content-Type: application/json" \
   -d '{"role": "administrator", "expiry": "1h"}'
 
 # List available roles
-curl http://localhost:3000/api/v1/dev/token/roles
+curl http://localhost:3000/v1/dev/token/roles
 ```
 
 #### Use Token to Test Protected Endpoints
@@ -230,8 +230,8 @@ curl http://localhost:3000/api/v1/dev/token/roles
 TOKEN=$(./scripts/devtoken.sh admin -q)
 
 # Test any protected endpoint
-curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/users
-curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/billing/invoices
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/v1/users
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/v1/billing/invoices
 ```
 
 #### Available Roles

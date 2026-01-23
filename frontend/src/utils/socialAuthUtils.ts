@@ -35,7 +35,7 @@ export const initiateSocialLogin = async (
       provider: provider
     };
 
-    const response = await fetch(`${backendUrl}/api/v1/auth/oauth/login`, {
+    const response = await fetch(`${backendUrl}/v1/auth/oauth/login`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -81,7 +81,7 @@ export const handleSocialCallback = async (
       state,
     });
 
-    const callbackUrl = `${backendUrl}/api/v1/auth/oauth/${provider}/callback?${params.toString()}`;
+    const callbackUrl = `${backendUrl}/v1/auth/oauth/${provider}/callback?${params.toString()}`;
 
     const response = await fetch(callbackUrl, {
       method: 'GET',
@@ -113,7 +113,7 @@ export const logoutSocial = async (
   allDevices: boolean = false
 ): Promise<void> => {
   try {
-    await fetch(`${backendUrl}/api/v1/auth/logout`, {
+    await fetch(`${backendUrl}/v1/auth/logout`, {
       method: 'POST',
       credentials: 'include', // Use HttpOnly cookies for authentication
       headers: {

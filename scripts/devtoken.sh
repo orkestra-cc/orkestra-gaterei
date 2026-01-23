@@ -200,7 +200,7 @@ if [ "$QUIET" = true ]; then
 elif [ "$CURL_OUTPUT" = true ]; then
     echo -e "${GREEN}Curl command:${NC}"
     echo ""
-    echo "curl -H 'Authorization: Bearer $TOKEN' $API_URL/api/v1/users"
+    echo "curl -H 'Authorization: Bearer $TOKEN' $API_URL/v1/users"
 else
     # Extract additional info
     EXPIRES_AT=$(echo "$RESPONSE" | grep -o '"expiresAt":"[^"]*"' | sed 's/"expiresAt":"//;s/"$//')
@@ -218,7 +218,7 @@ else
     echo "$TOKEN"
     echo ""
     echo -e "${BLUE}Example usage:${NC}"
-    echo "  curl -H 'Authorization: Bearer \$TOKEN' $API_URL/api/v1/users"
+    echo "  curl -H 'Authorization: Bearer \$TOKEN' $API_URL/v1/users"
     echo ""
     echo -e "${BLUE}Copy token to clipboard:${NC}"
     echo "  $0 $ROLE --quiet | pbcopy    # macOS"

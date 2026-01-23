@@ -97,47 +97,47 @@ billing/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/billing/invoices` | Create draft invoice |
-| GET | `/api/v1/billing/invoices` | List invoices with filtering |
-| GET | `/api/v1/billing/invoices/{id}` | Get invoice by UUID |
-| PATCH | `/api/v1/billing/invoices/{id}` | Update draft invoice |
-| DELETE | `/api/v1/billing/invoices/{id}` | Delete draft invoice |
-| POST | `/api/v1/billing/invoices/{id}/send` | Send invoice to SDI |
-| GET | `/api/v1/billing/invoices/{id}/xml` | Get FatturaPA XML |
-| GET | `/api/v1/billing/invoices/{id}/html` | Get HTML view of invoice |
-| POST | `/api/v1/billing/invoices/import` | Import supplier invoice (base64 XML) |
+| POST | `/v1/billing/invoices` | Create draft invoice |
+| GET | `/v1/billing/invoices` | List invoices with filtering |
+| GET | `/v1/billing/invoices/{id}` | Get invoice by UUID |
+| PATCH | `/v1/billing/invoices/{id}` | Update draft invoice |
+| DELETE | `/v1/billing/invoices/{id}` | Delete draft invoice |
+| POST | `/v1/billing/invoices/{id}/send` | Send invoice to SDI |
+| GET | `/v1/billing/invoices/{id}/xml` | Get FatturaPA XML |
+| GET | `/v1/billing/invoices/{id}/html` | Get HTML view of invoice |
+| POST | `/v1/billing/invoices/import` | Import supplier invoice (base64 XML) |
 
 ### Received Invoices (Fatture Passive)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/billing/received-invoices` | List received invoices |
-| GET | `/api/v1/billing/received-invoices/{id}` | Get received invoice |
-| POST | `/api/v1/billing/received-invoices/{id}/accept` | Accept invoice |
-| POST | `/api/v1/billing/received-invoices/{id}/reject` | Reject invoice |
+| GET | `/v1/billing/received-invoices` | List received invoices |
+| GET | `/v1/billing/received-invoices/{id}` | Get received invoice |
+| POST | `/v1/billing/received-invoices/{id}/accept` | Accept invoice |
+| POST | `/v1/billing/received-invoices/{id}/reject` | Reject invoice |
 
 ### Customers & Suppliers
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST/GET/PATCH/DELETE | `/api/v1/billing/customers[/{id}]` | Customer CRUD |
-| POST/GET/PATCH/DELETE | `/api/v1/billing/suppliers[/{id}]` | Supplier CRUD |
+| POST/GET/PATCH/DELETE | `/v1/billing/customers[/{id}]` | Customer CRUD |
+| POST/GET/PATCH/DELETE | `/v1/billing/suppliers[/{id}]` | Supplier CRUD |
 
 ### Notifications & Statistics
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/billing/notifications` | List SDI notifications |
-| GET | `/api/v1/billing/notifications/{id}` | Get notification |
-| POST | `/api/v1/billing/notifications/{id}/process` | Mark as processed |
-| GET | `/api/v1/billing/notifications/summary` | Notification summary |
-| GET | `/api/v1/billing/stats` | Billing statistics |
+| GET | `/v1/billing/notifications` | List SDI notifications |
+| GET | `/v1/billing/notifications/{id}` | Get notification |
+| POST | `/v1/billing/notifications/{id}/process` | Mark as processed |
+| GET | `/v1/billing/notifications/summary` | Notification summary |
+| GET | `/v1/billing/stats` | Billing statistics |
 
 ### Preserved Documents (Legal Storage)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/billing/preserved-documents/{id}` | Get preservation status |
+| GET | `/v1/billing/preserved-documents/{id}` | Get preservation status |
 
 ## OpenAPI SDI Integration
 

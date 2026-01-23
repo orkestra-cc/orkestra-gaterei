@@ -47,8 +47,8 @@ const baseQueryWithRetry: BaseQueryFn<
     // Note: No localStorage cleanup needed - using HttpOnly cookies only
 
     // Check if this is a session endpoint specifically
-    const isSessionEndpoint = typeof args === 'string' && args.includes('api/v1/auth/session');
-    const isAuthCheck = typeof args === 'string' && (args.includes('api/v1/auth/v1/me') || args.includes('api/v1/auth/session'));
+    const isSessionEndpoint = typeof args === 'string' && args.includes('v1/auth/session');
+    const isAuthCheck = typeof args === 'string' && (args.includes('v1/auth/me') || args.includes('v1/auth/session'));
 
     // If session endpoint returns 401, redirect to login immediately
     if (isSessionEndpoint && navigateToLogin) {

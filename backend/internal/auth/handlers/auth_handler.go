@@ -184,7 +184,7 @@ type TokenResponse struct {
 
 // 	// Exchange code for tokens - must use same redirect URI as initial auth request
 // 	backendBaseURL := "https://erpb.blacklab.cc" // TODO: Make this configurable
-// 	backendCallbackURL := backendBaseURL + "/api/v1/auth/oauth/google/callback"
+// 	backendCallbackURL := backendBaseURL + "/v1/auth/oauth/google/callback"
 // 	tokenResp, err := provider.ExchangeCodeForToken(ctx, &services.CodeExchangeRequest{
 // 		Code:        req.Code,
 // 		RedirectURI: backendCallbackURL,
@@ -664,7 +664,7 @@ func (h *AuthHandler) HandleAppleCallback(ctx context.Context, req *OAuthCallbac
 
 // 	// Exchange code for tokens - must use same redirect URI as initial auth request
 // 	backendBaseURL := "https://erpb.blacklab.cc" // TODO: Make this configurable
-// 	backendCallbackURL := backendBaseURL + "/api/v1/auth/oauth/discord/callback"
+// 	backendCallbackURL := backendBaseURL + "/v1/auth/oauth/discord/callback"
 // 	tokenResp, err := provider.ExchangeCodeForToken(ctx, &services.CodeExchangeRequest{
 // 		Code:        req.Code,
 // 		RedirectURI: backendCallbackURL,
@@ -1528,7 +1528,7 @@ func (h *AuthHandler) RegisterRoutes(publicAPI huma.API, protectedAPI huma.API, 
 	huma.Register(publicAPI, huma.Operation{
 		OperationID: "initiate-oauth-login",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/oauth/login",
+		Path:        "/v1/auth/oauth/login",
 		Summary:     "Initiate OAuth login",
 		Description: "Start the OAuth authentication flow for a specific provider",
 		Tags:        []string{"Authentication"},
@@ -1538,7 +1538,7 @@ func (h *AuthHandler) RegisterRoutes(publicAPI huma.API, protectedAPI huma.API, 
 	huma.Register(publicAPI, huma.Operation{
 		OperationID: "mobile-google-auth",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/google/mobile",
+		Path:        "/v1/auth/google/mobile",
 		Summary:     "Authenticate with Google from mobile app",
 		Description: "Validate Google ID token from mobile app and return JWT tokens",
 		Tags:        []string{"Authentication", "Mobile"},
@@ -1548,40 +1548,40 @@ func (h *AuthHandler) RegisterRoutes(publicAPI huma.API, protectedAPI huma.API, 
 	huma.Register(publicAPI, huma.Operation{
 		OperationID: "mobile-apple-auth",
 		Method:      http.MethodPost,
-		Path:        "/api/v1/auth/apple/mobile",
+		Path:        "/v1/auth/apple/mobile",
 		Summary:     "Authenticate with Apple from mobile app",
 		Description: "Validate Apple ID token from mobile app and return JWT tokens",
 		Tags:        []string{"Authentication", "Mobile"},
 	}, h.HandleMobileAppleAuth)
 
 	// OAuth callbacks - use raw HTTP handlers for proper redirects
-	router.Get("/api/v1/auth/oauth/google/callback", h.HandleGoogleCallbackHTTP)
-	router.Get("/api/v1/auth/oauth/discord/callback", h.HandleDiscordCallbackHTTP)
-	router.Post("/api/v1/auth/oauth/apple/callback", h.HandleAppleCallbackHTTP)
+	router.Get("/v1/auth/oauth/google/callback", h.HandleGoogleCallbackHTTP)
+	router.Get("/v1/auth/oauth/discord/callback", h.HandleDiscordCallbackHTTP)
+	router.Post("/v1/auth/oauth/apple/callback", h.HandleAppleCallbackHTTP)
 
 	// Token refresh - use raw HTTP handler for cookie support and custom headers
-	router.Post("/api/v1/auth/refresh", h.RefreshTokensWithHeaderHTTP)
-	router.Post("/api/v1/auth/refresh-cookie", h.RefreshTokensHTTP)
+	router.Post("/v1/auth/refresh", h.RefreshTokensWithHeaderHTTP)
+	router.Post("/v1/auth/refresh-cookie", h.RefreshTokensHTTP)
 
 	// Session initialization for web clients after OAuth callback - use raw HTTP handler for cookies
-	router.Get("/api/v1/auth/session", h.GetSessionHTTP)
+	router.Get("/v1/auth/session", h.GetSessionHTTP)
 
 	// OAuth callbacks (public) - GitHub still uses Huma for consistency with existing implementation
 
 	huma.Register(publicAPI, huma.Operation{
 		OperationID: "github-oauth-callback",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/auth/oauth/github/callback",
+		Path:        "/v1/auth/oauth/github/callback",
 		Summary:     "GitHub OAuth callback",
 		Description: "Handle GitHub OAuth callback and exchange code for tokens",
 		Tags:        []string{"Authentication"},
 	}, h.HandleGitHubCallback)
 
-	// Note: /api/v1/auth/refresh is now handled by raw HTTP handler above for custom headers
+	// Note: /v1/auth/refresh is now handled by raw HTTP handler above for custom headers
 
 	// Logout - use raw HTTP handler for proper cookie clearing
 	// Register on public router since logout can work with just refresh token cookie
-	router.Post("/api/v1/auth/logout", h.LogoutHTTP)
+	router.Post("/v1/auth/logout", h.LogoutHTTP)
 
 	// Protected routes (require authentication)
 
@@ -1589,7 +1589,7 @@ func (h *AuthHandler) RegisterRoutes(publicAPI huma.API, protectedAPI huma.API, 
 	huma.Register(protectedAPI, huma.Operation{
 		OperationID: "get-current-user",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/auth/me",
+		Path:        "/v1/auth/me",
 		Summary:     "Get current user",
 		Description: "Get information about the currently authenticated user",
 		Tags:        []string{"Authentication"},

@@ -54,7 +54,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/customers${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/customers${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -68,13 +68,13 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getCustomer: builder.query<Customer, string>({
-      query: (id) => `/api/v1/billing/customers/${id}`,
+      query: (id) => `/v1/billing/customers/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Customer', id }],
     }),
 
     createCustomer: builder.mutation<Customer, CreateCustomerInput>({
       query: (data) => ({
-        url: '/api/v1/billing/customers',
+        url: '/v1/billing/customers',
         method: 'POST',
         body: data,
       }),
@@ -83,7 +83,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     updateCustomer: builder.mutation<Customer, { id: string; data: UpdateCustomerInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/billing/customers/${id}`,
+        url: `/v1/billing/customers/${id}`,
         method: 'PATCH',
         body: data,
       }),
@@ -95,7 +95,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     deleteCustomer: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/api/v1/billing/customers/${id}`,
+        url: `/v1/billing/customers/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -112,7 +112,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/suppliers${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/suppliers${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -126,13 +126,13 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getSupplier: builder.query<Supplier, string>({
-      query: (id) => `/api/v1/billing/suppliers/${id}`,
+      query: (id) => `/v1/billing/suppliers/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Supplier', id }],
     }),
 
     createSupplier: builder.mutation<Supplier, CreateSupplierInput>({
       query: (data) => ({
-        url: '/api/v1/billing/suppliers',
+        url: '/v1/billing/suppliers',
         method: 'POST',
         body: data,
       }),
@@ -141,7 +141,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     updateSupplier: builder.mutation<Supplier, { id: string; data: UpdateSupplierInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/billing/suppliers/${id}`,
+        url: `/v1/billing/suppliers/${id}`,
         method: 'PATCH',
         body: data,
       }),
@@ -153,7 +153,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     deleteSupplier: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/api/v1/billing/suppliers/${id}`,
+        url: `/v1/billing/suppliers/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -170,7 +170,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/companies${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/companies${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -184,18 +184,18 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getCompany: builder.query<Company, string>({
-      query: (id) => `/api/v1/billing/companies/${id}`,
+      query: (id) => `/v1/billing/companies/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Company', id }],
     }),
 
     getDefaultCompany: builder.query<Company, void>({
-      query: () => '/api/v1/billing/companies/default',
+      query: () => '/v1/billing/companies/default',
       providesTags: [{ type: 'Company', id: 'DEFAULT' }],
     }),
 
     createCompany: builder.mutation<Company, CreateCompanyInput>({
       query: (data) => ({
-        url: '/api/v1/billing/companies',
+        url: '/v1/billing/companies',
         method: 'POST',
         body: data,
       }),
@@ -207,7 +207,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     updateCompany: builder.mutation<Company, { id: string; data: UpdateCompanyInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/billing/companies/${id}`,
+        url: `/v1/billing/companies/${id}`,
         method: 'PATCH',
         body: data,
       }),
@@ -220,7 +220,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     deleteCompany: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/api/v1/billing/companies/${id}`,
+        url: `/v1/billing/companies/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -232,7 +232,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     setDefaultCompany: builder.mutation<Company, string>({
       query: (id) => ({
-        url: `/api/v1/billing/companies/${id}/default`,
+        url: `/v1/billing/companies/${id}/default`,
         method: 'POST',
       }),
       invalidatesTags: [
@@ -249,7 +249,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/invoices${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/invoices${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -263,7 +263,7 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getInvoice: builder.query<Invoice, string>({
-      query: (id) => `/api/v1/billing/invoices/${id}`,
+      query: (id) => `/v1/billing/invoices/${id}`,
       transformResponse: (response: { invoice: Invoice } | Invoice) => {
         // Handle both wrapped and unwrapped response formats
         const invoice = 'invoice' in response ? response.invoice : response;
@@ -281,7 +281,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     createInvoice: builder.mutation<Invoice, CreateInvoiceInput>({
       query: (data) => ({
-        url: '/api/v1/billing/invoices',
+        url: '/v1/billing/invoices',
         method: 'POST',
         body: data,
       }),
@@ -293,7 +293,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     updateInvoice: builder.mutation<Invoice, { id: string; data: UpdateInvoiceInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/billing/invoices/${id}`,
+        url: `/v1/billing/invoices/${id}`,
         method: 'PATCH',
         body: data,
       }),
@@ -305,7 +305,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     deleteInvoice: builder.mutation<void, string>({
       query: (id) => ({
-        url: `/api/v1/billing/invoices/${id}`,
+        url: `/v1/billing/invoices/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -317,7 +317,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     sendInvoice: builder.mutation<SendInvoiceResponse, string>({
       query: (id) => ({
-        url: `/api/v1/billing/invoices/${id}/send`,
+        url: `/v1/billing/invoices/${id}/send`,
         method: 'POST',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -329,7 +329,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     getInvoiceXml: builder.query<string, string>({
       query: (id) => ({
-        url: `/api/v1/billing/invoices/${id}/xml`,
+        url: `/v1/billing/invoices/${id}/xml`,
         method: 'GET',
       }),
       transformResponse: (response: { xml: string }) => response.xml,
@@ -337,7 +337,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     getInvoiceHtml: builder.query<string, string>({
       query: (id) => ({
-        url: `/api/v1/billing/invoices/${id}/html`,
+        url: `/v1/billing/invoices/${id}/html`,
         method: 'GET',
       }),
       transformResponse: (response: { html: string }) => response.html,
@@ -356,7 +356,7 @@ export const billingApi = baseApi.injectEndpoints({
           }
 
           // Use raw fetch to completely bypass RTK Query's action dispatch
-          const response = await fetch(`${baseUrl}/api/v1/billing/invoices/${id}/download`, {
+          const response = await fetch(`${baseUrl}/v1/billing/invoices/${id}/download`, {
             method: 'GET',
             credentials: 'include',
             headers,
@@ -389,7 +389,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     importInvoice: builder.mutation<ImportInvoiceResponse, ImportInvoiceInput>({
       query: (data) => ({
-        url: '/api/v1/billing/invoices/import',
+        url: '/v1/billing/invoices/import',
         method: 'POST',
         body: data,
       }),
@@ -407,7 +407,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams({ ...params, direction: 'received' }) : 'direction=received';
         return {
-          url: `/api/v1/billing/received-invoices${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/received-invoices${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -421,13 +421,13 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getReceivedInvoice: builder.query<Invoice, string>({
-      query: (id) => `/api/v1/billing/received-invoices/${id}`,
+      query: (id) => `/v1/billing/received-invoices/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Invoice', id }],
     }),
 
     acceptInvoice: builder.mutation<Invoice, string>({
       query: (id) => ({
-        url: `/api/v1/billing/received-invoices/${id}/accept`,
+        url: `/v1/billing/received-invoices/${id}/accept`,
         method: 'POST',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -439,7 +439,7 @@ export const billingApi = baseApi.injectEndpoints({
 
     rejectInvoice: builder.mutation<Invoice, { id: string; reason: string }>({
       query: ({ id, reason }) => ({
-        url: `/api/v1/billing/received-invoices/${id}/reject`,
+        url: `/v1/billing/received-invoices/${id}/reject`,
         method: 'POST',
         body: { reason },
       }),
@@ -458,7 +458,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/notifications${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/notifications${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -472,13 +472,13 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getNotification: builder.query<SDINotification, string>({
-      query: (id) => `/api/v1/billing/notifications/${id}`,
+      query: (id) => `/v1/billing/notifications/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'Notification', id }],
     }),
 
     markNotificationProcessed: builder.mutation<SDINotification, string>({
       query: (id) => ({
-        url: `/api/v1/billing/notifications/${id}/process`,
+        url: `/v1/billing/notifications/${id}/process`,
         method: 'POST',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -490,7 +490,7 @@ export const billingApi = baseApi.injectEndpoints({
     }),
 
     getNotificationSummary: builder.query<NotificationSummary, void>({
-      query: () => '/api/v1/billing/notifications/summary',
+      query: () => '/v1/billing/notifications/summary',
       providesTags: [{ type: 'Notification', id: 'SUMMARY' }],
     }),
 
@@ -502,7 +502,7 @@ export const billingApi = baseApi.injectEndpoints({
       query: (params) => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/api/v1/billing/stats${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/stats${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -514,7 +514,7 @@ export const billingApi = baseApi.injectEndpoints({
     // ========================================
 
     getPreservedDocument: builder.query<PreservedDocument, string>({
-      query: (id) => `/api/v1/billing/preserved-documents/${id}`,
+      query: (id) => `/v1/billing/preserved-documents/${id}`,
     }),
 
     // ========================================
@@ -522,13 +522,13 @@ export const billingApi = baseApi.injectEndpoints({
     // ========================================
 
     getBusinessRegistryConfig: builder.query<BusinessRegistryConfig, string>({
-      query: (fiscalId) => `/api/v1/billing/business-registry/${fiscalId}`,
+      query: (fiscalId) => `/v1/billing/business-registry/${fiscalId}`,
       providesTags: (_result, _error, fiscalId) => [{ type: 'BusinessRegistry', id: fiscalId }],
     }),
 
     configureBusinessRegistry: builder.mutation<ConfigureBusinessRegistryResponse, ConfigureBusinessRegistryInput>({
       query: (data) => ({
-        url: '/api/v1/billing/business-registry',
+        url: '/v1/billing/business-registry',
         method: 'POST',
         body: data,
       }),

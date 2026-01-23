@@ -9,7 +9,7 @@ The auth/me API response is now properly stored in Redux for consistent state ma
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   API Endpoint  │───▶│  TanStack Query  │───▶│     Redux       │
-│  /api/v1/auth/me│    │   (API Client)   │    │  (State Store)  │
+│  /v1/auth/me│    │   (API Client)   │    │  (State Store)  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
                                 │                        │
@@ -21,7 +21,7 @@ The auth/me API response is now properly stored in Redux for consistent state ma
 ```
 
 ### Data Flow
-1. **TanStack Query** fetches user data from `/api/v1/auth/me`
+1. **TanStack Query** fetches user data from `/v1/auth/me`
 2. **AuthSyncProvider** bridges TanStack Query data to Redux
 3. **Redux** stores the user data for consistent app-wide state
 4. **Navigation & Components** use Redux auth state
@@ -137,7 +137,7 @@ import { useCurrentUser } from 'hooks/auth/useAuth'; // Only use for debugging
 The system automatically extracts roles from the API response:
 
 ```typescript
-// API Response Structure (what you should return from /api/v1/auth/me):
+// API Response Structure (what you should return from /v1/auth/me):
 {
   "isActive": true,
   "id": "user_123",
@@ -172,7 +172,7 @@ The AuthSyncProvider automatically:
 
 ## 📋 API Response Requirements
 
-Your `/api/v1/auth/me` endpoint must return:
+Your `/v1/auth/me` endpoint must return:
 
 ```json
 {
@@ -210,7 +210,7 @@ The AuthSyncProvider logs sync activity in development:
 
 ### **Navigation not updating**
 - Check that AuthSyncProvider is properly wrapped around your app
-- Verify `/api/v1/auth/me` returns the `role` field
+- Verify `/v1/auth/me` returns the `role` field
 - Use Auth Debugger to check sync status
 
 ### **Role extraction failing**

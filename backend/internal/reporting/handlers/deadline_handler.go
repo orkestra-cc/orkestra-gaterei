@@ -37,7 +37,7 @@ type GetDeadlinesResponse struct {
 	Body models.DeadlineReportResponse `json:"report" doc:"Deadline report data"`
 }
 
-// GetDeadlines handles GET /api/v1/reports/deadlines
+// GetDeadlines handles GET /v1/reports/deadlines
 func (h *DeadlineHandler) GetDeadlines(ctx context.Context, req *GetDeadlinesRequest) (*GetDeadlinesResponse, error) {
 	// Build the filters
 	filters := models.DeadlineFilters{

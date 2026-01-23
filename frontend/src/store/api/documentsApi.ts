@@ -37,7 +37,7 @@ export const documentsApi = baseApi.injectEndpoints({
 
         const queryString = queryParams.toString();
         return {
-          url: `/api/v1/documents/templates${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/documents/templates${queryString ? `?${queryString}` : ''}`,
           method: 'GET',
         };
       },
@@ -54,7 +54,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the template directly at root level, not wrapped in {template: ...}
     getTemplate: builder.query<Template, string>({
       query: (id) => ({
-        url: `/api/v1/documents/templates/${id}`,
+        url: `/v1/documents/templates/${id}`,
         method: 'GET',
       }),
       providesTags: (_result, _error, id) => [{ type: 'DocumentTemplate' as const, id }],
@@ -64,7 +64,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the response directly at root level
     getTemplateVariables: builder.query<TemplateVariablesResponse, TemplateType>({
       query: (type) => ({
-        url: `/api/v1/documents/templates/variables/${type}`,
+        url: `/v1/documents/templates/variables/${type}`,
         method: 'GET',
       }),
     }),
@@ -73,7 +73,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the template directly at root level
     createTemplate: builder.mutation<Template, CreateTemplateInput>({
       query: (data) => ({
-        url: '/api/v1/documents/templates',
+        url: '/v1/documents/templates',
         method: 'POST',
         body: { template: data },
       }),
@@ -84,7 +84,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the template directly at root level
     updateTemplate: builder.mutation<Template, { id: string; data: UpdateTemplateInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/documents/templates/${id}`,
+        url: `/v1/documents/templates/${id}`,
         method: 'PATCH',
         body: { template: data },
       }),
@@ -97,7 +97,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Delete a template
     deleteTemplate: builder.mutation<{ success: boolean; message: string }, string>({
       query: (id) => ({
-        url: `/api/v1/documents/templates/${id}`,
+        url: `/v1/documents/templates/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -109,7 +109,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Set a template as default
     setDefaultTemplate: builder.mutation<{ success: boolean; message: string }, string>({
       query: (id) => ({
-        url: `/api/v1/documents/templates/${id}/default`,
+        url: `/v1/documents/templates/${id}/default`,
         method: 'POST',
       }),
       invalidatesTags: [{ type: 'DocumentTemplate', id: 'LIST' }],
@@ -119,7 +119,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the template directly at root level
     duplicateTemplate: builder.mutation<Template, { id: string; data: DuplicateTemplateInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/documents/templates/${id}/duplicate`,
+        url: `/v1/documents/templates/${id}/duplicate`,
         method: 'POST',
         body: data,
       }),
@@ -134,7 +134,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the document metadata directly at root level
     generatePDF: builder.mutation<GeneratedDocumentMeta, GeneratePDFInput>({
       query: (data) => ({
-        url: '/api/v1/documents/generate',
+        url: '/v1/documents/generate',
         method: 'POST',
         body: { input: data },
       }),
@@ -144,7 +144,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Preview HTML from template
     previewHTML: builder.mutation<string, PreviewHTMLInput>({
       query: (data) => ({
-        url: '/api/v1/documents/preview',
+        url: '/v1/documents/preview',
         method: 'POST',
         body: { input: data },
       }),
@@ -154,7 +154,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Preview HTML from raw content
     previewHTMLFromContent: builder.mutation<string, PreviewHTMLFromContentInput>({
       query: (data) => ({
-        url: '/api/v1/documents/preview/content',
+        url: '/v1/documents/preview/content',
         method: 'POST',
         body: { input: data },
       }),
@@ -165,7 +165,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Note: Huma v2 returns the document metadata directly at root level
     getDocument: builder.query<GeneratedDocumentMeta, string>({
       query: (id) => ({
-        url: `/api/v1/documents/${id}`,
+        url: `/v1/documents/${id}`,
         method: 'GET',
       }),
       providesTags: (_result, _error, id) => [{ type: 'GeneratedDocument' as const, id }],
@@ -174,7 +174,7 @@ export const documentsApi = baseApi.injectEndpoints({
     // Get service status
     getDocumentsServiceStatus: builder.query<ServiceStatusResponse, void>({
       query: () => ({
-        url: '/api/v1/documents/status',
+        url: '/v1/documents/status',
         method: 'GET',
       }),
     }),
