@@ -533,11 +533,6 @@ func getDefaultInvoiceHTML() string {
         <span class="label">NETTO A PAGARE:</span>
         <span class="value">{{formatMoneyEUR .netPayable}}</span>
       </div>
-      {{else}}
-      <div class="totals-row total-final">
-        <span class="label">TOTALE:</span>
-        <span class="value">{{formatMoneyEUR .totalAmount}}</span>
-      </div>
       {{end}}
     </div>
   </div>
@@ -600,6 +595,8 @@ func getDefaultInvoiceHTML() string {
     <div class="payment-info">
       <p><strong>Metodo:</strong> {{.paymentTerms}}</p>
       {{if .dueDate}}<p><strong>Scadenza:</strong> {{formatDateIT .dueDate}}</p>{{end}}
+      {{if .payment.beneficiario}}<p><strong>Beneficiario:</strong> {{.payment.beneficiario}}</p>{{end}}
+      {{if .payment.istitutoFinanziario}}<p><strong>Istituto Finanziario:</strong> {{.payment.istitutoFinanziario}}</p>{{end}}
       {{if .payment.iban}}<p><strong>IBAN:</strong> {{.payment.iban}}</p>{{end}}
       {{if .payment.bic}}<p><strong>BIC/SWIFT:</strong> {{.payment.bic}}</p>{{end}}
     </div>

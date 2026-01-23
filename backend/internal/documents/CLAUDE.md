@@ -149,6 +149,33 @@ The template engine provides these built-in functions:
 {{ifelse .condition "yes" "no"}}       // Ternary
 ```
 
+### Comments
+```html
+<!-- HTML comment (visible in HTML source, not in PDF) -->
+
+{{/* Go template comment (completely stripped from output) */}}
+```
+
+**Important:** Go template comments `{{/* */}}` cannot contain template directives like `{{.field}}` or `{{formatMoney .amount}}`. The parser will fail with "unexpected character in command" errors.
+
+```html
+{{/* This is OK */}}
+
+{{/*
+  Multi-line comment without template directives is OK
+  Just plain text here
+*/}}
+
+{{/* This will FAIL: {{.someField}} */}}
+```
+
+If you need to comment out code that contains template directives, use HTML comments instead:
+```html
+<!--
+  <div>{{formatMoneyEUR .amount}}</div>
+-->
+```
+
 ## Example: Invoice Template
 
 ```html

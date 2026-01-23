@@ -122,7 +122,8 @@ export default ({ mode }) => {
         'localhost',
         '127.0.0.1',
         '192.168.88.53',
-        'orkestra.cc'
+        'orkestra.cc',
+        'staging.orkestra.cc'
       ],
       hmr: {
         clientPort: 8087

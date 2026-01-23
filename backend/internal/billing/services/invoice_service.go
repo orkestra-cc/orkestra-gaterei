@@ -1340,10 +1340,12 @@ func (s *invoiceService) invoiceToTemplateData(invoice *models.Invoice) map[stri
 	// Payment terms with installments
 	if invoice.PaymentTerms != nil {
 		payment := map[string]interface{}{
-			"condition": string(invoice.PaymentTerms.Condition),
-			"method":    string(invoice.PaymentTerms.PaymentMethod),
-			"iban":      invoice.PaymentTerms.IBAN,
-			"bic":       invoice.PaymentTerms.BIC,
+			"condition":           string(invoice.PaymentTerms.Condition),
+			"method":              string(invoice.PaymentTerms.PaymentMethod),
+			"iban":                invoice.PaymentTerms.IBAN,
+			"bic":                 invoice.PaymentTerms.BIC,
+			"beneficiario":        invoice.PaymentTerms.Beneficiario,
+			"istitutoFinanziario": invoice.PaymentTerms.IstitutoFinanziario,
 		}
 		if len(invoice.PaymentTerms.Installments) > 0 {
 			installments := make([]map[string]interface{}, len(invoice.PaymentTerms.Installments))

@@ -106,32 +106,33 @@ services:
       start_period: 40s
 
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-      target: production
-      args:
-        VITE_API_URL: ${VITE_API_URL:-https://staging-api.orkestra.cc}
-        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-https://staging-api.orkestra.cc}
-        VITE_WS_URL: ${VITE_WS_URL:-wss://staging-api.orkestra.cc/ws}
-        VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
-        VITE_ENV: staging
-        VITE_DEBUG: "false"
+    image: dhi.io/node:24-dev
     container_name: frontend
+    user: "1000:1000"
+    userns_mode: "host"
+    working_dir: /app
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_PORT:-8080}:5173"
+    environment:
+      NODE_ENV: development
+      VITE_ENV: staging
+      VITE_DEBUG: "false"
+      VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000}
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      npm_config_cache: /app/.npm-cache
     volumes:
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend:/app
+      - ../frontend/.vite-cache:/app/.vite
+      - ../frontend/.npm-cache:/app/.npm-cache
     networks:
       - orkestra-network
     depends_on:
       - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
 
 volumes:
   orkestra-backend-logs-staging:

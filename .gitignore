@@ -75,6 +75,7 @@ pid
 # temp
 temp/
 tmp/
+.npm-cache
 
 # Build artifacts
 bin/
