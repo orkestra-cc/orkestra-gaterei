@@ -17,6 +17,7 @@ type FatturaElettronica struct {
 
 // FatturaElettronicaHeader represents the header section of the invoice
 type FatturaElettronicaHeader struct {
+	Xmlns                  string                 `xml:"xmlns,attr"` // SDI requires xmlns="" on child elements
 	DatiTrasmissione       DatiTrasmissione       `xml:"DatiTrasmissione"`
 	CedentePrestatore      CedentePrestatore      `xml:"CedentePrestatore"`
 	RappresentanteFiscale  *RappresentanteFiscale `xml:"RappresentanteFiscale,omitempty"`
@@ -138,6 +139,7 @@ type TerzoIntermediario struct {
 
 // FatturaElettronicaBody represents the body section of the invoice
 type FatturaElettronicaBody struct {
+	Xmlns           string          `xml:"xmlns,attr"` // SDI requires xmlns="" on child elements
 	DatiGenerali    DatiGenerali    `xml:"DatiGenerali"`
 	DatiBeniServizi DatiBeniServizi `xml:"DatiBeniServizi"`
 	DatiVeicoli     *DatiVeicoli    `xml:"DatiVeicoli,omitempty"`

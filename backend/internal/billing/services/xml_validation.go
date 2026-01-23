@@ -403,7 +403,12 @@ func ValidateInvoiceForXML(invoice *models.Invoice) error {
 	if invoice.CedentePrestatore != nil {
 		errs.Add(validateParty(invoice.CedentePrestatore, "cedente_prestatore"))
 		// Require CodiceFiscale for CedentePrestatore (Italian regulation D.P.R. 605-1973)
-		errs.Add(ValidateCodiceFiscaleRequired(invoice.CedentePrestatore.CodiceFiscale, "cedente_prestatore"))
+		// For Italian companies, CodiceFiscale can default to FiscalIDCode (P.IVA)
+		cedenteCodiceFiscale := invoice.CedentePrestatore.CodiceFiscale
+		if cedenteCodiceFiscale == "" && invoice.CedentePrestatore.FiscalIDCountry == "IT" {
+			cedenteCodiceFiscale = invoice.CedentePrestatore.FiscalIDCode
+		}
+		errs.Add(ValidateCodiceFiscaleRequired(cedenteCodiceFiscale, "cedente_prestatore"))
 	}
 
 	// Validate cessionario committente (buyer)
