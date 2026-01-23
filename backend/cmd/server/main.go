@@ -290,8 +290,8 @@ func main() {
 		openAPIClient := billingSvc.NewOpenAPIClient(openAPIConfig, logger)
 		xmlBuilder := billingSvc.NewXMLBuilder(openAPIConfig)
 
-		// Create services (pdfSvc can be nil if documents module is disabled)
-		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, pdfSvc, logger)
+		// Create services (pdfSvc can be nil if documents module is disabled, xmlParser nil uses default)
+		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, nil, pdfSvc, logger)
 		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
 		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
 		companySvc := billingSvc.NewCompanyService(companyRepo, logger)

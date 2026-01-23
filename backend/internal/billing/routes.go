@@ -121,6 +121,16 @@ func RegisterRoutes(
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, invoiceHandler.ImportInvoice)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "import-xml-invoice",
+		Method:      http.MethodPost,
+		Path:        "/v1/billing/invoices/import-xml",
+		Summary:     "Import invoice via native XML parsing",
+		Description: "Imports received invoices (fatture passive) via native FatturaPA XML parsing. Supports raw XML or base64-encoded XML. Creates supplier if not exists. Handles batch invoices (multiple bodies in single XML).",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.ImportXMLInvoice)
+
 	// ========================================
 	// Received Invoice Routes (Fatture Passive)
 	// ========================================

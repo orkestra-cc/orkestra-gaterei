@@ -30,6 +30,8 @@ import type {
   PreservedDocument,
   ImportInvoiceInput,
   ImportInvoiceResponse,
+  ImportXMLInvoiceInput,
+  ImportXMLInvoiceResponse,
 } from '../../types/billing';
 
 // Helper to build query params
@@ -399,6 +401,20 @@ export const billingApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Import XML Invoice - Native FatturaPA parsing
+    importXMLInvoice: builder.mutation<ImportXMLInvoiceResponse, ImportXMLInvoiceInput>({
+      query: (data) => ({
+        url: '/v1/billing/invoices/import-xml',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [
+        { type: 'Invoice', id: 'RECEIVED_LIST' },
+        { type: 'Supplier', id: 'LIST' },
+        { type: 'BillingStats', id: 'STATS' },
+      ],
+    }),
+
     // ========================================
     // Received Invoice Endpoints (Fatture Passive)
     // ========================================
@@ -593,6 +609,7 @@ export const {
   useLazyGetInvoiceHtmlQuery,
   useLazyGetInvoicePdfQuery,
   useImportInvoiceMutation,
+  useImportXMLInvoiceMutation,
   // Received Invoice hooks
   useGetReceivedInvoicesQuery,
   useGetReceivedInvoiceQuery,

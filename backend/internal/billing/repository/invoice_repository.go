@@ -31,6 +31,9 @@ type InvoiceRepository interface {
 	GetByOpenAPIUUID(ctx context.Context, openAPIUUID string) (*models.Invoice, error)
 	GetByNumber(ctx context.Context, number string, direction models.InvoiceDirection) (*models.Invoice, error)
 	List(ctx context.Context, filters *models.InvoiceFilters, pagination models.PaginationParams) ([]models.Invoice, int64, error)
+	// FindByNumberAndSupplierFiscalID finds a received invoice by number and supplier fiscal ID
+	// Used to detect duplicate imports
+	FindByNumberAndSupplierFiscalID(ctx context.Context, number string, fiscalIDCode string) (*models.Invoice, error)
 
 	// Update operations
 	Update(ctx context.Context, invoice *models.Invoice) error
@@ -183,6 +186,25 @@ func (r *invoiceRepository) GetByNumber(ctx context.Context, number string, dire
 		"number":    number,
 		"direction": direction,
 		"deletedAt": nil,
+	}).Decode(&invoice)
+
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	return &invoice, nil
+}
+
+func (r *invoiceRepository) FindByNumberAndSupplierFiscalID(ctx context.Context, number string, fiscalIDCode string) (*models.Invoice, error) {
+	var invoice models.Invoice
+	err := r.collection.FindOne(ctx, bson.M{
+		"number":                          number,
+		"direction":                       models.DirectionReceived,
+		"cedentePrestatore.fiscalIdCode":  fiscalIDCode,
+		"deletedAt":                       nil,
 	}).Decode(&invoice)
 
 	if err != nil {

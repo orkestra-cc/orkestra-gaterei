@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -191,6 +193,16 @@ type GetPreservedDocumentRequest struct {
 // GetPreservedDocumentResponse represents the response with preserved document status
 type GetPreservedDocumentResponse struct {
 	Body models.PreservedDocument `json:"document" doc:"Preserved document status"`
+}
+
+// ImportXMLInvoiceRequest represents the request to import invoices via native XML parsing
+type ImportXMLInvoiceRequest struct {
+	Body models.ImportXMLInput `json:"input" doc:"Import XML data"`
+}
+
+// ImportXMLInvoiceResponse represents the response after importing invoices via XML
+type ImportXMLInvoiceResponse struct {
+	Body models.ImportXMLResponse `json:"result" doc:"Import result"`
 }
 
 // ========================================
@@ -488,6 +500,25 @@ func (h *InvoiceHandler) GetPreservedDocument(ctx context.Context, req *GetPrese
 	}
 
 	return &GetPreservedDocumentResponse{Body: *document}, nil
+}
+
+// ImportXMLInvoice imports received invoices via native FatturaPA XML parsing
+func (h *InvoiceHandler) ImportXMLInvoice(ctx context.Context, req *ImportXMLInvoiceRequest) (*ImportXMLInvoiceResponse, error) {
+	userID := getUserIDFromContext(ctx)
+
+	result, err := h.invoiceService.ImportXMLInvoice(ctx, &req.Body, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrXMLParseError) || strings.Contains(err.Error(), "parse"):
+			return nil, huma.Error400BadRequest("Invalid XML content", err)
+		case errors.Is(err, services.ErrInvoiceDuplicate) || strings.Contains(err.Error(), "duplicate"):
+			return nil, huma.Error409Conflict("Invoice already exists", err)
+		default:
+			return nil, huma.Error500InternalServerError("Failed to import invoice", err)
+		}
+	}
+
+	return &ImportXMLInvoiceResponse{Body: *result}, nil
 }
 
 // Helper function to get user ID from context

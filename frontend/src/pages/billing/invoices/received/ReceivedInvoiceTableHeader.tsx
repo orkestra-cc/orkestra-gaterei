@@ -7,10 +7,12 @@ import { useState } from 'react';
 import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
 import type { InvoiceSummary, InvoiceStatus } from 'types/billing';
 import { INVOICE_STATUS_LABELS, DOCUMENT_TYPE_LABELS, formatCurrency } from 'types/billing';
+import ImportXMLModal from './ImportXMLModal';
 
 const ReceivedInvoiceTableHeader = () => {
   const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
   const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const statusFilters: { label: string; value: InvoiceStatus | 'all' }[] = [
     { label: 'Tutti', value: 'all' },
@@ -149,13 +151,21 @@ const ReceivedInvoiceTableHeader = () => {
                   <Dropdown.Item>Visualizza Tutti</Dropdown.Item>
                   <Dropdown.Item>Esporta XML</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item>Importa da SDI</Dropdown.Item>
+                  <Dropdown.Item onClick={() => setShowImportModal(true)}>
+                    <FontAwesomeIcon icon="file-import" className="me-2 text-primary" />
+                    Importa XML
+                  </Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>
           </div>
         )}
       </div>
+
+      <ImportXMLModal
+        show={showImportModal}
+        onHide={() => setShowImportModal(false)}
+      />
     </div>
   );
 };

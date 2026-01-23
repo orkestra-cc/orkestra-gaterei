@@ -900,6 +900,46 @@ export interface ImportInvoiceResponse {
 }
 
 // ========================================
+// Import XML Invoice (Native FatturaPA Parsing)
+// ========================================
+
+export interface ImportXMLInvoiceInput {
+  xml: string; // Raw XML or Base64-encoded FatturaPA XML content
+  fileName?: string;
+  isBase64?: boolean;
+  skipDuplicates?: boolean;
+}
+
+export interface ImportedInvoiceSummary {
+  id: string;
+  number: string;
+  date: string;
+  totalAmount: number;
+  documentType: DocumentType;
+}
+
+export interface SkippedInvoice {
+  number: string;
+  reason: string;
+  existingId?: string;
+}
+
+export interface SupplierSummary {
+  id: string;
+  name: string;
+  fiscalId: string;
+  isNew: boolean;
+}
+
+export interface ImportXMLInvoiceResponse {
+  invoices: ImportedInvoiceSummary[];
+  count: number;
+  skipped?: SkippedInvoice[];
+  supplier?: SupplierSummary;
+  message: string;
+}
+
+// ========================================
 // Helper Types for UI
 // ========================================
 

@@ -440,3 +440,48 @@ type PreservedDocument struct {
 	ObjectID         string     `json:"object_id,omitempty" doc:"Storage object identifier"`
 	ObjectType       string     `json:"object_type,omitempty" doc:"Type of stored object"`
 }
+
+// ========================================
+// XML Import DTOs (Native FatturaPA Import)
+// ========================================
+
+// ImportXMLInput represents the input for importing invoices via native XML parsing
+type ImportXMLInput struct {
+	XML            string `json:"xml" validate:"required" doc:"FatturaPA XML content (raw or base64 encoded)"`
+	FileName       string `json:"fileName,omitempty" doc:"Optional original filename for reference"`
+	IsBase64       bool   `json:"isBase64,omitempty" doc:"Set to true if XML content is base64 encoded"`
+	SkipDuplicates bool   `json:"skipDuplicates,omitempty" doc:"Skip invoices that already exist instead of returning error"`
+}
+
+// ImportXMLResponse represents the response after importing invoices via XML
+type ImportXMLResponse struct {
+	Invoices []ImportedInvoiceSummary `json:"invoices" doc:"List of successfully imported invoices"`
+	Count    int                      `json:"count" doc:"Number of invoices imported"`
+	Skipped  []SkippedInvoice         `json:"skipped,omitempty" doc:"List of invoices that were skipped"`
+	Supplier *SupplierSummary         `json:"supplier,omitempty" doc:"Supplier information from the XML"`
+	Message  string                   `json:"message" doc:"Status message"`
+}
+
+// ImportedInvoiceSummary represents summary information for an imported invoice
+type ImportedInvoiceSummary struct {
+	UUID         string    `json:"id" doc:"Invoice UUID"`
+	Number       string    `json:"number" doc:"Invoice number"`
+	Date         time.Time `json:"date" doc:"Invoice date"`
+	TotalAmount  float64   `json:"totalAmount" doc:"Total invoice amount"`
+	DocumentType string    `json:"documentType" doc:"Document type code (TD01, TD04, etc.)"`
+}
+
+// SkippedInvoice represents an invoice that was skipped during import
+type SkippedInvoice struct {
+	Number     string `json:"number" doc:"Invoice number that was skipped"`
+	Reason     string `json:"reason" doc:"Reason for skipping"`
+	ExistingID string `json:"existingId,omitempty" doc:"UUID of existing invoice if duplicate"`
+}
+
+// SupplierSummary represents supplier information extracted from imported XML
+type SupplierSummary struct {
+	UUID     string `json:"id" doc:"Supplier UUID"`
+	Name     string `json:"name" doc:"Supplier display name"`
+	FiscalID string `json:"fiscalId" doc:"Supplier fiscal ID (P.IVA)"`
+	IsNew    bool   `json:"isNew" doc:"True if supplier was newly created during import"`
+}

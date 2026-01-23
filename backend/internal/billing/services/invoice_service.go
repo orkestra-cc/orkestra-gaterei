@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,8 @@ var (
 	ErrCustomerNotFound      = errors.New("customer not found")
 	ErrSupplierNotFound      = errors.New("supplier not found")
 	ErrInvalidInvoiceData    = errors.New("invalid invoice data")
+	ErrInvoiceDuplicate      = errors.New("invoice already exists")
+	ErrXMLParseError         = errors.New("failed to parse XML")
 )
 
 // InvoiceService defines the interface for invoice business logic
@@ -45,6 +49,8 @@ type InvoiceService interface {
 	AcceptReceivedInvoice(ctx context.Context, uuid string, acceptedBy string) error
 	RejectReceivedInvoice(ctx context.Context, uuid string, reason string, rejectedBy string) error
 	ImportInvoice(ctx context.Context, input *models.ImportInvoiceInput) (*models.ImportInvoiceResponse, error)
+	// ImportXMLInvoice imports received invoices via native FatturaPA XML parsing
+	ImportXMLInvoice(ctx context.Context, input *models.ImportXMLInput, importedBy string) (*models.ImportXMLResponse, error)
 
 	// Legal storage / preserved documents
 	GetPreservedDocument(ctx context.Context, uuid string) (*models.PreservedDocument, error)
@@ -60,6 +66,7 @@ type invoiceService struct {
 	companyRepo   repository.CompanyRepository
 	openAPIClient OpenAPIClient
 	xmlBuilder    XMLBuilder
+	xmlParser     XMLParser
 	pdfService    documentsSvc.PDFService // Optional: nil if documents module disabled
 	logger        *slog.Logger
 }
@@ -72,9 +79,13 @@ func NewInvoiceService(
 	companyRepo repository.CompanyRepository,
 	openAPIClient OpenAPIClient,
 	xmlBuilder XMLBuilder,
+	xmlParser XMLParser, // Can be nil, will be created if not provided
 	pdfService documentsSvc.PDFService, // Can be nil if documents module is disabled
 	logger *slog.Logger,
 ) InvoiceService {
+	if xmlParser == nil {
+		xmlParser = NewXMLParser()
+	}
 	return &invoiceService{
 		invoiceRepo:   invoiceRepo,
 		customerRepo:  customerRepo,
@@ -82,6 +93,7 @@ func NewInvoiceService(
 		companyRepo:   companyRepo,
 		openAPIClient: openAPIClient,
 		xmlBuilder:    xmlBuilder,
+		xmlParser:     xmlParser,
 		pdfService:    pdfService,
 		logger:        logger,
 	}
@@ -675,6 +687,541 @@ func (s *invoiceService) GetPreservedDocument(ctx context.Context, uuid string) 
 		ObjectID:         result.ObjectID,
 		ObjectType:       result.ObjectType,
 	}, nil
+}
+
+// ImportXMLInvoice imports received invoices via native FatturaPA XML parsing
+func (s *invoiceService) ImportXMLInvoice(ctx context.Context, input *models.ImportXMLInput, importedBy string) (*models.ImportXMLResponse, error) {
+	// Decode XML content if base64 encoded
+	var xmlContent []byte
+	var err error
+
+	if input.IsBase64 {
+		xmlContent, err = base64.StdEncoding.DecodeString(input.XML)
+		if err != nil {
+			s.logger.Error("failed to decode base64 XML",
+				"error", err,
+			)
+			return nil, fmt.Errorf("%w: invalid base64 encoding", ErrXMLParseError)
+		}
+	} else {
+		xmlContent = []byte(input.XML)
+	}
+
+	// Parse the XML
+	fattura, err := s.xmlParser.Parse(xmlContent)
+	if err != nil {
+		s.logger.Error("failed to parse FatturaPA XML",
+			"error", err,
+		)
+		return nil, fmt.Errorf("%w: %v", ErrXMLParseError, err)
+	}
+
+	// Get or create supplier from CedentePrestatore
+	supplier, isNewSupplier, err := s.getOrCreateSupplierFromXML(ctx, &fattura.FatturaElettronicaHeader.CedentePrestatore, importedBy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process supplier: %w", err)
+	}
+
+	// Process each invoice body
+	var importedInvoices []models.ImportedInvoiceSummary
+	var skippedInvoices []models.SkippedInvoice
+
+	for _, body := range fattura.FatturaElettronicaBody {
+		invoiceNumber := body.DatiGenerali.DatiGeneraliDocumento.Numero
+
+		// Check for duplicates
+		existingInvoice, err := s.invoiceRepo.FindByNumberAndSupplierFiscalID(ctx, invoiceNumber, supplier.FiscalIDCode)
+		if err == nil && existingInvoice != nil {
+			// Invoice already exists
+			if input.SkipDuplicates {
+				skippedInvoices = append(skippedInvoices, models.SkippedInvoice{
+					Number:     invoiceNumber,
+					Reason:     "duplicate",
+					ExistingID: existingInvoice.UUID,
+				})
+				continue
+			}
+			return nil, fmt.Errorf("%w: invoice %s from supplier %s", ErrInvoiceDuplicate, invoiceNumber, supplier.FiscalIDCode)
+		}
+
+		// Map FatturaPA to Invoice model
+		invoice, err := s.mapFatturaToInvoice(ctx, &fattura.FatturaElettronicaHeader, &body, string(xmlContent), supplier.UUID)
+		if err != nil {
+			s.logger.Error("failed to map fattura to invoice",
+				"invoiceNumber", invoiceNumber,
+				"error", err,
+			)
+			return nil, fmt.Errorf("failed to map invoice %s: %w", invoiceNumber, err)
+		}
+
+		invoice.CreatedBy = importedBy
+
+		// Save the invoice
+		if err := s.invoiceRepo.Create(ctx, invoice); err != nil {
+			s.logger.Error("failed to save imported invoice",
+				"invoiceNumber", invoiceNumber,
+				"error", err,
+			)
+			return nil, fmt.Errorf("failed to save invoice %s: %w", invoiceNumber, err)
+		}
+
+		importedInvoices = append(importedInvoices, models.ImportedInvoiceSummary{
+			UUID:         invoice.UUID,
+			Number:       invoice.Number,
+			Date:         invoice.Date,
+			TotalAmount:  invoice.TotalAmount,
+			DocumentType: string(invoice.DocumentType),
+		})
+
+		s.logger.Info("imported invoice from XML",
+			"invoiceUUID", invoice.UUID,
+			"invoiceNumber", invoice.Number,
+			"supplierID", supplier.UUID,
+			"importedBy", importedBy,
+		)
+	}
+
+	// Build response
+	response := &models.ImportXMLResponse{
+		Invoices: importedInvoices,
+		Count:    len(importedInvoices),
+		Skipped:  skippedInvoices,
+		Supplier: &models.SupplierSummary{
+			UUID:     supplier.UUID,
+			Name:     s.getSupplierDisplayName(supplier),
+			FiscalID: supplier.FiscalIDCode,
+			IsNew:    isNewSupplier,
+		},
+		Message: fmt.Sprintf("Successfully imported %d invoice(s)", len(importedInvoices)),
+	}
+
+	if len(skippedInvoices) > 0 {
+		response.Message = fmt.Sprintf("Successfully imported %d invoice(s), skipped %d duplicate(s)", len(importedInvoices), len(skippedInvoices))
+	}
+
+	return response, nil
+}
+
+// getOrCreateSupplierFromXML gets or creates a supplier from CedentePrestatore XML data
+func (s *invoiceService) getOrCreateSupplierFromXML(ctx context.Context, cedente *models.CedentePrestatore, createdBy string) (*models.Supplier, bool, error) {
+	fiscalIDCode := cedente.DatiAnagrafici.IdFiscaleIVA.IdCodice
+	fiscalIDCountry := cedente.DatiAnagrafici.IdFiscaleIVA.IdPaese
+
+	// Default to IT if not specified
+	if fiscalIDCountry == "" {
+		fiscalIDCountry = "IT"
+	}
+
+	// Try to find existing supplier
+	existing, err := s.supplierRepo.GetByFiscalID(ctx, fiscalIDCode)
+	if err == nil && existing != nil {
+		return existing, false, nil
+	}
+
+	// Create new supplier
+	supplier := &models.Supplier{
+		UUID:            uuid.New().String(),
+		FiscalIDCountry: fiscalIDCountry,
+		FiscalIDCode:    fiscalIDCode,
+		CodiceFiscale:   cedente.DatiAnagrafici.CodiceFiscale,
+		RegimeFiscale:   cedente.DatiAnagrafici.RegimeFiscale,
+		IsActive:        true,
+		CreatedBy:       createdBy,
+	}
+
+	// Set name/denomination
+	anagrafica := cedente.DatiAnagrafici.Anagrafica
+	if anagrafica.Denominazione != "" {
+		supplier.IsCompany = true
+		supplier.Denomination = anagrafica.Denominazione
+	} else {
+		supplier.IsCompany = false
+		supplier.Name = anagrafica.Nome
+		supplier.Surname = anagrafica.Cognome
+	}
+
+	// Set address from Sede
+	sede := cedente.Sede
+	supplier.Address = sede.Indirizzo
+	supplier.NumeroCivico = sede.NumeroCivico
+	supplier.PostalCode = sede.CAP
+	supplier.City = sede.Comune
+	supplier.Province = sede.Provincia
+	supplier.Country = sede.Nazione
+
+	// Set contacts if available
+	if cedente.Contatti != nil {
+		supplier.Email = cedente.Contatti.Email
+		supplier.Phone = cedente.Contatti.Telefono
+	}
+
+	if err := s.supplierRepo.Create(ctx, supplier); err != nil {
+		// If duplicate key error, try to fetch again (race condition)
+		if errors.Is(err, repository.ErrSupplierAlreadyExists) {
+			existing, fetchErr := s.supplierRepo.GetByFiscalID(ctx, fiscalIDCode)
+			if fetchErr == nil && existing != nil {
+				return existing, false, nil
+			}
+		}
+		return nil, false, err
+	}
+
+	s.logger.Info("created new supplier from XML import",
+		"supplierUUID", supplier.UUID,
+		"fiscalID", fiscalIDCode,
+	)
+
+	return supplier, true, nil
+}
+
+// mapFatturaToInvoice maps FatturaPA XML structures to an Invoice model
+func (s *invoiceService) mapFatturaToInvoice(ctx context.Context, header *models.FatturaElettronicaHeader, body *models.FatturaElettronicaBody, xmlContent string, supplierID string) (*models.Invoice, error) {
+	datiDoc := body.DatiGenerali.DatiGeneraliDocumento
+
+	// Parse invoice date
+	invoiceDate, err := time.Parse("2006-01-02", datiDoc.Data)
+	if err != nil {
+		return nil, fmt.Errorf("invalid invoice date format: %s", datiDoc.Data)
+	}
+
+	// Build invoice
+	invoice := &models.Invoice{
+		UUID:             uuid.New().String(),
+		Direction:        models.DirectionReceived,
+		DocumentType:     datiDoc.TipoDocumento,
+		Number:           datiDoc.Numero,
+		Date:             invoiceDate,
+		Currency:         datiDoc.Divisa,
+		SupplierID:       supplierID,
+		Status:           models.StatusPending,
+		XMLContent:       xmlContent,
+		ProgressivoInvio: header.DatiTrasmissione.ProgressivoInvio,
+	}
+
+	// Default currency to EUR if not specified
+	if invoice.Currency == "" {
+		invoice.Currency = "EUR"
+	}
+
+	// Map CedentePrestatore (supplier)
+	invoice.CedentePrestatore = s.mapCedenteToPartyData(&header.CedentePrestatore)
+
+	// Map CessionarioCommittente (buyer/us)
+	invoice.CessionarioCommittente = s.mapCessionarioToPartyData(&header.CessionarioCommittente)
+
+	// Map Causale
+	invoice.Causale = datiDoc.Causale
+
+	// Map invoice lines
+	invoice.Lines = s.mapDettaglioLineeToInvoiceLines(body.DatiBeniServizi.DettaglioLinee)
+
+	// Map VAT summary
+	invoice.VATSummary = s.mapDatiRiepilogoToVATSummary(body.DatiBeniServizi.DatiRiepilogo)
+
+	// Parse and set totals
+	if datiDoc.ImportoTotaleDocumento != "" {
+		if total, err := strconv.ParseFloat(datiDoc.ImportoTotaleDocumento, 64); err == nil {
+			invoice.TotalAmount = total
+		}
+	}
+
+	// Calculate totals from lines if not set
+	if invoice.TotalAmount == 0 {
+		invoice.CalculateTotals()
+	} else {
+		// Calculate taxable and VAT amounts from VAT summary
+		var taxableTotal, vatTotal float64
+		for _, vs := range invoice.VATSummary {
+			taxableTotal += vs.TaxableAmount
+			vatTotal += vs.VATAmount
+		}
+		invoice.TotalTaxableAmount = taxableTotal
+		invoice.TotalVATAmount = vatTotal
+	}
+
+	// Map payment terms if present
+	if body.DatiPagamento != nil {
+		invoice.PaymentTerms = s.mapDatiPagamentoToPaymentTerms(body.DatiPagamento)
+	}
+
+	// Map withholding tax (ritenuta d'acconto)
+	if datiDoc.DatiRitenuta != nil {
+		invoice.DatiRitenuta = []models.DatiRitenutaInput{{
+			TipoRitenuta:     datiDoc.DatiRitenuta.TipoRitenuta,
+			ImportoRitenuta:  parseFloat(datiDoc.DatiRitenuta.ImportoRitenuta),
+			AliquotaRitenuta: parseFloat(datiDoc.DatiRitenuta.AliquotaRitenuta),
+			CausalePagamento: datiDoc.DatiRitenuta.CausalePagamento,
+		}}
+	}
+
+	// Map stamp duty (bollo)
+	if datiDoc.DatiBollo != nil && datiDoc.DatiBollo.ImportoBollo != "" {
+		invoice.DatiBollo = &models.DatiBolloInput{
+			ImportoBollo: parseFloat(datiDoc.DatiBollo.ImportoBollo),
+		}
+	}
+
+	// Map social security contributions (cassa previdenziale)
+	if len(datiDoc.DatiCassaPrevidenziale) > 0 {
+		invoice.DatiCassaPrevidenziale = make([]models.DatiCassaInput, len(datiDoc.DatiCassaPrevidenziale))
+		for i, cassa := range datiDoc.DatiCassaPrevidenziale {
+			invoice.DatiCassaPrevidenziale[i] = models.DatiCassaInput{
+				TipoCassa:              cassa.TipoCassa,
+				AlCassa:                parseFloat(cassa.AlCassa),
+				ImportoContributoCassa: parseFloat(cassa.ImportoContributoCassa),
+				ImponibileCassa:        parseFloat(cassa.ImponibileCassa),
+				AliquotaIVA:            parseFloat(cassa.AliquotaIVA),
+				Ritenuta:               cassa.Ritenuta == "SI",
+				Natura:                 cassa.Natura,
+				RiferimentoAmm:         cassa.RiferimentoAmm,
+			}
+		}
+	}
+
+	return invoice, nil
+}
+
+// mapCedenteToPartyData maps CedentePrestatore to PartyData
+func (s *invoiceService) mapCedenteToPartyData(cedente *models.CedentePrestatore) *models.PartyData {
+	party := &models.PartyData{
+		FiscalIDCountry: cedente.DatiAnagrafici.IdFiscaleIVA.IdPaese,
+		FiscalIDCode:    cedente.DatiAnagrafici.IdFiscaleIVA.IdCodice,
+		CodiceFiscale:   cedente.DatiAnagrafici.CodiceFiscale,
+		RegimeFiscale:   cedente.DatiAnagrafici.RegimeFiscale,
+	}
+
+	if party.FiscalIDCountry == "" {
+		party.FiscalIDCountry = "IT"
+	}
+
+	// Name/denomination
+	anagrafica := cedente.DatiAnagrafici.Anagrafica
+	if anagrafica.Denominazione != "" {
+		party.IsCompany = true
+		party.Denomination = anagrafica.Denominazione
+	} else {
+		party.IsCompany = false
+		party.Name = anagrafica.Nome
+		party.Surname = anagrafica.Cognome
+	}
+
+	// Address
+	party.Address = cedente.Sede.Indirizzo
+	party.NumeroCivico = cedente.Sede.NumeroCivico
+	party.PostalCode = cedente.Sede.CAP
+	party.City = cedente.Sede.Comune
+	party.Province = cedente.Sede.Provincia
+	party.Country = cedente.Sede.Nazione
+
+	// Contacts
+	if cedente.Contatti != nil {
+		party.Email = cedente.Contatti.Email
+		party.Phone = cedente.Contatti.Telefono
+	}
+
+	// REA registration
+	if cedente.IscrizioneREA != nil {
+		party.IscrizioneREA = &models.IscrizioneREAInput{
+			Ufficio:           cedente.IscrizioneREA.Ufficio,
+			NumeroREA:         cedente.IscrizioneREA.NumeroREA,
+			CapitaleSociale:   parseFloat(cedente.IscrizioneREA.CapitaleSociale),
+			SocioUnico:        cedente.IscrizioneREA.SocioUnico,
+			StatoLiquidazione: cedente.IscrizioneREA.StatoLiquidazione,
+		}
+	}
+
+	return party
+}
+
+// mapCessionarioToPartyData maps CessionarioCommittente to PartyData
+func (s *invoiceService) mapCessionarioToPartyData(cessionario *models.CessionarioCommittente) *models.PartyData {
+	party := &models.PartyData{}
+
+	// Fiscal ID
+	if cessionario.DatiAnagrafici.IdFiscaleIVA != nil {
+		party.FiscalIDCountry = cessionario.DatiAnagrafici.IdFiscaleIVA.IdPaese
+		party.FiscalIDCode = cessionario.DatiAnagrafici.IdFiscaleIVA.IdCodice
+	}
+	party.CodiceFiscale = cessionario.DatiAnagrafici.CodiceFiscale
+
+	if party.FiscalIDCountry == "" {
+		party.FiscalIDCountry = "IT"
+	}
+
+	// Name/denomination
+	anagrafica := cessionario.DatiAnagrafici.Anagrafica
+	if anagrafica.Denominazione != "" {
+		party.IsCompany = true
+		party.Denomination = anagrafica.Denominazione
+	} else {
+		party.IsCompany = false
+		party.Name = anagrafica.Nome
+		party.Surname = anagrafica.Cognome
+	}
+
+	// Address
+	party.Address = cessionario.Sede.Indirizzo
+	party.NumeroCivico = cessionario.Sede.NumeroCivico
+	party.PostalCode = cessionario.Sede.CAP
+	party.City = cessionario.Sede.Comune
+	party.Province = cessionario.Sede.Provincia
+	party.Country = cessionario.Sede.Nazione
+
+	return party
+}
+
+// mapDettaglioLineeToInvoiceLines maps FatturaPA line items to InvoiceLine
+func (s *invoiceService) mapDettaglioLineeToInvoiceLines(dettagli []models.DettaglioLinea) []models.InvoiceLine {
+	lines := make([]models.InvoiceLine, len(dettagli))
+	for i, det := range dettagli {
+		line := models.InvoiceLine{
+			LineNumber:  det.NumeroLinea,
+			Description: det.Descrizione,
+			Quantity:    parseFloat(det.Quantita),
+			UnitPrice:   parseFloat(det.PrezzoUnitario),
+			TotalPrice:  parseFloat(det.PrezzoTotale),
+			VATRate:     parseFloat(det.AliquotaIVA),
+			Ritenuta:    det.Ritenuta == "SI",
+		}
+
+		// Unit of measure
+		if det.UnitaMisura != "" {
+			line.UnitOfMeasure = models.UnitOfMeasure(det.UnitaMisura)
+		}
+
+		// VAT nature for zero-rate VAT
+		if det.Natura != "" {
+			line.VATNature = models.VATNature(det.Natura)
+		}
+
+		// Date period
+		if det.DataInizioPeriodo != "" {
+			if startDate, err := time.Parse("2006-01-02", det.DataInizioPeriodo); err == nil {
+				line.StartDate = &startDate
+			}
+		}
+		if det.DataFinePeriodo != "" {
+			if endDate, err := time.Parse("2006-01-02", det.DataFinePeriodo); err == nil {
+				line.EndDate = &endDate
+			}
+		}
+
+		// Product codes
+		if len(det.CodiceArticolo) > 0 {
+			line.CodiciArticolo = make([]models.ProductCode, len(det.CodiceArticolo))
+			for j, cod := range det.CodiceArticolo {
+				line.CodiciArticolo[j] = models.ProductCode{
+					CodiceTipo:   cod.CodiceTipo,
+					CodiceValore: cod.CodiceValore,
+				}
+			}
+		}
+
+		// Discounts/surcharges
+		if len(det.ScontoMaggiorazione) > 0 {
+			line.Discounts = make([]models.LineDiscount, len(det.ScontoMaggiorazione))
+			for j, sc := range det.ScontoMaggiorazione {
+				line.Discounts[j] = models.LineDiscount{
+					Type:       sc.Tipo,
+					Percentage: parseFloat(sc.Percentuale),
+					Amount:     parseFloat(sc.Importo),
+				}
+			}
+		}
+
+		// Calculate VAT amount
+		line.VATAmount = line.TotalPrice * (line.VATRate / 100)
+
+		lines[i] = line
+	}
+	return lines
+}
+
+// mapDatiRiepilogoToVATSummary maps FatturaPA VAT summary to VATSummaryLine
+func (s *invoiceService) mapDatiRiepilogoToVATSummary(riepilogo []models.DatiRiepilogo) []models.VATSummaryLine {
+	summary := make([]models.VATSummaryLine, len(riepilogo))
+	for i, r := range riepilogo {
+		summary[i] = models.VATSummaryLine{
+			VATRate:        parseFloat(r.AliquotaIVA),
+			TaxableAmount:  parseFloat(r.ImponibileImporto),
+			VATAmount:      parseFloat(r.Imposta),
+			VATExigibility: r.EsigibilitaIVA,
+			NormativeRef:   r.RiferimentoNormativo,
+		}
+		if r.Natura != "" {
+			summary[i].VATNature = models.VATNature(r.Natura)
+		}
+	}
+	return summary
+}
+
+// mapDatiPagamentoToPaymentTerms maps FatturaPA payment data to PaymentTerms
+func (s *invoiceService) mapDatiPagamentoToPaymentTerms(datiPag *models.DatiPagamento) *models.PaymentTerms {
+	terms := &models.PaymentTerms{
+		Condition: models.PaymentCondition(datiPag.CondizioniPagamento),
+	}
+
+	if len(datiPag.DettaglioPagamento) > 0 {
+		firstDetail := datiPag.DettaglioPagamento[0]
+		terms.PaymentMethod = models.PaymentMethod(firstDetail.ModalitaPagamento)
+		terms.IBAN = firstDetail.IBAN
+		terms.BIC = firstDetail.BIC
+		terms.ABI = firstDetail.ABI
+		terms.CAB = firstDetail.CAB
+		terms.Beneficiario = firstDetail.Beneficiario
+		terms.IstitutoFinanziario = firstDetail.IstitutoFinanziario
+
+		// Parse due date
+		if firstDetail.DataScadenzaPagamento != "" {
+			if dueDate, err := time.Parse("2006-01-02", firstDetail.DataScadenzaPagamento); err == nil {
+				terms.DueDate = &dueDate
+			}
+		}
+
+		// Map installments if multiple payment details
+		if len(datiPag.DettaglioPagamento) > 1 || terms.Condition == "TP01" {
+			terms.Installments = make([]models.PaymentInstallment, len(datiPag.DettaglioPagamento))
+			for i, det := range datiPag.DettaglioPagamento {
+				inst := models.PaymentInstallment{
+					Amount: parseFloat(det.ImportoPagamento),
+				}
+				if det.DataScadenzaPagamento != "" {
+					if dueDate, err := time.Parse("2006-01-02", det.DataScadenzaPagamento); err == nil {
+						inst.DueDate = dueDate
+					}
+				}
+				terms.Installments[i] = inst
+			}
+		}
+	}
+
+	return terms
+}
+
+// getSupplierDisplayName returns the display name for a supplier
+func (s *invoiceService) getSupplierDisplayName(supplier *models.Supplier) string {
+	if supplier.IsCompany && supplier.Denomination != "" {
+		return supplier.Denomination
+	}
+	name := strings.TrimSpace(supplier.Name + " " + supplier.Surname)
+	if name != "" {
+		return name
+	}
+	return supplier.FiscalIDCode
+}
+
+// parseFloat safely parses a string to float64, returning 0 on error
+func parseFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	// Handle Italian number format (comma as decimal separator)
+	s = strings.ReplaceAll(s, ",", ".")
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return f
 }
 
 func (s *invoiceService) validateCreateInput(input *models.CreateInvoiceInput) error {
