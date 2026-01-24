@@ -919,9 +919,19 @@ func registerNavigationRoutes(api huma.API, navigationHandler *navigationHandler
 	}, navigationHandler.GetNavigation)
 }
 
-// printDevelopmentWarning prints a prominent warning when running in development mode
+// printDevelopmentWarning prints a prominent warning when running in non-production mode
 // This helps ensure developers are aware of relaxed security settings
 func printDevelopmentWarning(environment string) {
+	// Staging has production-like security (HSTS enabled), but still has dev features
+	isStaging := environment == "staging"
+
+	var hstsLine string
+	if isStaging {
+		hstsLine = "║   • HSTS header is ENABLED (production-like security)                        ║"
+	} else {
+		hstsLine = "║   • HSTS header is disabled                                                   ║"
+	}
+
 	warning := `
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -940,12 +950,12 @@ func printDevelopmentWarning(environment string) {
 ║   • Dev token endpoints are enabled (/dev/token)                              ║
 ║   • Verbose error messages are shown                                          ║
 ║   • Localhost OAuth redirects are allowed                                     ║
-║   • HSTS header is disabled                                                   ║
+%s
 ║                                                                               ║
 ║   DO NOT deploy to production with these settings!                            ║
 ║   Set APP_ENV=production for production deployments.                          ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 `
-	fmt.Printf(warning, environment)
+	fmt.Printf(warning, environment, hstsLine)
 }
