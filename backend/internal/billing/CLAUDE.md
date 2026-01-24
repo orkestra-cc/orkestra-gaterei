@@ -265,12 +265,24 @@ SDI errors are mapped to appropriate HTTP responses:
 
 | Error Code | Message | Cause | Solution |
 |------------|---------|-------|----------|
+| 00300 | `<IdCodice>` non valido (in 1.1.1.2) | IdTrasmittente uses P.IVA instead of CodiceFiscale | For **ditte individuali**, the company must have `codiceFiscale` set to the owner's 16-char personal CF (not P.IVA). Update the company record in the database. |
 | 389 | Missing configuration for fiscal Id | Business Registry not configured in OpenAPI console | Configure your Fiscal ID in OpenAPI SDI Console → Business Registry Configurations |
 | 401 | Wrong Token / Expired Token | Invalid or expired API token | Refresh token in OpenAPI console; use `docker compose up --force-recreate` to reload env vars |
 | 802 | Parsing error: malformed XML | XML format issue | Verify XML is sent with `Content-Type: application/xml` (not base64 JSON) |
 | 00471 | CedentePrestatore = CessionarioCommittente | Self-invoicing not allowed for this document type | Use autofatture document types (TD16-TD20) for self-invoicing |
 | 422 | unexpected property | Frontend sending field not in backend DTO | Add missing field to DTO in `models/dto.go` |
 | Warning | Non sono stati specificati i valori nei discendenti di `<IscrizioneREA>` | Company has partial REA data (e.g., only StatoLiquidazione but missing Ufficio/NumeroREA) | Update company with ALL REA fields (Ufficio, NumeroREA, StatoLiquidazione) or remove all REA data. Per Article 2250 Civil Code, companies must provide complete REA data or omit entirely. |
+
+### CodiceFiscale vs P.IVA for Ditte Individuali
+
+**Important distinction for sole proprietorships (ditte individuali):**
+
+| Field | Società (SRL, SPA) | Ditta Individuale |
+|-------|-------------------|-------------------|
+| P.IVA (FiscalIDCode) | 11 digits | 11 digits |
+| CodiceFiscale | Same as P.IVA | Owner's personal CF (16 chars) |
+
+For **IdTrasmittente** (XML element 1.1.1), SDI requires the **CodiceFiscale**, not P.IVA. For ditte individuali, these differ, so the company record MUST have the `codiceFiscale` field explicitly set to the owner's personal codice fiscale.
 
 **Debugging Tips**:
 - XML files are written to `/tmp/invoice_<number>.xml` inside the container for debugging
