@@ -181,7 +181,7 @@ const InvoiceTrendChart = () => {
             focus: 'series',
           },
           itemStyle: {
-            color: '#3b82f6',
+            color: '#10b981',
             borderRadius: [2, 2, 0, 0],
           },
           data: issuedAmounts,
@@ -193,7 +193,7 @@ const InvoiceTrendChart = () => {
             focus: 'series',
           },
           itemStyle: {
-            color: '#10b981',
+            color: '#3b82f6',
             borderRadius: [2, 2, 0, 0],
           },
           data: receivedAmounts,
@@ -237,11 +237,11 @@ const InvoiceTrendChart = () => {
           <div className="d-flex gap-3 fs-10">
             <div>
               <span className="text-body-tertiary">Emesse: </span>
-              <span className="fw-medium text-primary">{formatCurrency(stats.issuedAmount)}</span>
+              <span className="fw-medium text-success">{formatCurrency(stats.issuedAmount)}</span>
             </div>
             <div>
               <span className="text-body-tertiary">Ricevute: </span>
-              <span className="fw-medium text-success">{formatCurrency(stats.receivedAmount)}</span>
+              <span className="fw-medium text-primary">{formatCurrency(stats.receivedAmount)}</span>
             </div>
           </div>
         }
