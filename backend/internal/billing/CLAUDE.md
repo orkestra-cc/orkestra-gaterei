@@ -181,8 +181,35 @@ The `polling_job.go` runs a background goroutine that periodically fetches new n
 | `OPENAPI_APPLY_STORAGE` | Enable legal storage | `true` |
 | `OPENAPI_TIMEOUT` | HTTP request timeout | `30s` |
 | `OPENAPI_RETRY_ATTEMPTS` | Retry count on failure | `3` |
-| `OPENAPI_POLLING_INTERVAL` | Notification poll interval | `5m` |
+| `OPENAPI_POLLING_INTERVAL` | Notification poll interval | `12h` |
+| `OPENAPI_POLLING_ENABLED` | Enable automatic polling | `true` |
 | `OPENAPI_SANDBOX_MODE` | Use sandbox environment | `true` |
+
+### API Usage Optimization
+
+The OpenAPI SDI free tier allows 1000 requests/month. The default configuration stays well under this limit:
+
+1. **Automatic polling runs every 12 hours** (2x/day = ~60 requests/month)
+2. **Invoice status queries are cached** in Redis with 15-minute TTL
+3. **Manual sync endpoints available** for on-demand synchronization
+
+#### Estimated Monthly API Usage
+
+| Usage Type | Requests/Month |
+|------------|----------------|
+| Automatic polling (12h interval) | ~60 |
+| Invoice sends/receives | ~200-400 |
+| Cached status queries | Minimal |
+| **Total** | **~300-600** (well under 1000 limit) |
+
+#### Manual Sync Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v1/billing/sync` | Full sync (invoices + notifications) |
+| POST | `/v1/billing/sync/invoices` | Invoice sync only |
+
+**To disable automatic polling:** Set `OPENAPI_POLLING_ENABLED=false` and use manual sync endpoints instead.
 
 ### Production vs Sandbox
 
