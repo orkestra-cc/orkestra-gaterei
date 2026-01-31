@@ -25,6 +25,7 @@ import {
   faFileCode,
   faDownload,
   faFilePdf,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   useGetInvoiceQuery,
@@ -786,6 +787,19 @@ const IssuedInvoiceDetail: React.FC = () => {
               <FontAwesomeIcon icon={faFilePdf} className="me-1" />
               PDF
             </Button>
+            {invoice.status !== 'draft' && invoice.status !== 'cancelled' &&
+              ['TD01','TD02','TD03','TD06','TD24','TD25'].includes(invoice.documentType) && (
+              <Button
+                variant="falcon-warning"
+                size="sm"
+                className="me-2"
+                onClick={() => navigate(`/billing/invoices/issued/new?fromInvoice=${invoiceId}`)}
+                title="Crea Nota di Credito"
+              >
+                <FontAwesomeIcon icon={faRotateLeft} className="me-1" />
+                Nota di Credito
+              </Button>
+            )}
             {canEdit && (
               <Button
                 variant="falcon-primary"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Card,
   Form,
@@ -25,7 +25,8 @@ import {
   useSendInvoiceMutation,
   useGetCustomersQuery,
   useGetCompaniesQuery,
-  useGetDefaultCompanyQuery
+  useGetDefaultCompanyQuery,
+  useGetInvoiceQuery
 } from 'store/api/billingApi';
 import type {
   CreateInvoiceInput,
@@ -41,8 +42,10 @@ import type {
   DatiCassa,
   TipoRitenuta,
   TipoCassa,
-  AltriDatiGestionali
+  AltriDatiGestionali,
+  RelatedDocument
 } from 'types/billing';
+import { formatItalianDate, DOCUMENT_TYPE_LABELS } from 'types/billing';
 import PageHeader from 'components/common/PageHeader';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 
@@ -172,11 +175,19 @@ const TIPO_CASSA_OPTIONS: { value: TipoCassa; label: string }[] = [
 
 const NewIssuedInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromInvoiceId = searchParams.get('fromInvoice');
+
   const [createInvoice, { isLoading: isCreating }] = useCreateInvoiceMutation();
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
   const { data: customersData } = useGetCustomersQuery({ pageSize: 100 });
   const { data: companiesData } = useGetCompaniesQuery({ pageSize: 100 });
   const { data: defaultCompany } = useGetDefaultCompanyQuery();
+
+  // Fetch source invoice for credit note pre-population
+  const { data: sourceInvoice } = useGetInvoiceQuery(fromInvoiceId!, {
+    skip: !fromInvoiceId
+  });
 
   const [activeTab, setActiveTab] = useState('document');
   const [error, setError] = useState<string>('');
@@ -195,6 +206,7 @@ const NewIssuedInvoice: React.FC = () => {
   const [internalNotes, setInternalNotes] = useState('');
   const [legalStorageEnabled, setLegalStorageEnabled] = useState(true);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
+  const [relatedDocuments, setRelatedDocuments] = useState<RelatedDocument[]>([]);
 
   // Payment terms
   const [paymentCondition, setPaymentCondition] =
@@ -233,6 +245,7 @@ const NewIssuedInvoice: React.FC = () => {
   });
 
   const isLoading = isCreating || isSending;
+  const isCreditNote = !!fromInvoiceId;
 
   // Set default company when loaded
   useEffect(() => {
@@ -240,6 +253,88 @@ const NewIssuedInvoice: React.FC = () => {
       setCompanyId(defaultCompany.id);
     }
   }, [defaultCompany, companyId]);
+
+  // Pre-populate form from source invoice (credit note)
+  useEffect(() => {
+    if (!sourceInvoice) return;
+
+    setDocumentType('TD04');
+    setDate(new Date().toISOString().split('T')[0]);
+    setNumber('');
+
+    if (sourceInvoice.customerId) {
+      setCustomerId(sourceInvoice.customerId);
+    }
+
+    // Copy lines
+    if (sourceInvoice.lines?.length) {
+      setLines(
+        sourceInvoice.lines.map(line => ({
+          description: line.description,
+          quantity: line.quantity,
+          unitOfMeasure: line.unitOfMeasure,
+          unitPrice: -Math.abs(line.unitPrice),
+          vatRate: line.vatRate,
+          vatNature: line.vatNature,
+          discounts: line.discounts || [],
+          productCode: line.productCode,
+          startDate: line.startDate,
+          endDate: line.endDate,
+          altriDatiGestionali: line.altriDatiGestionali || []
+        }))
+      );
+    }
+
+    // Set causale with reference to original invoice
+    const sourceDate = formatItalianDate(sourceInvoice.date);
+    setCausale([`Nota di credito rif. fattura n. ${sourceInvoice.number} del ${sourceDate}`]);
+
+    // Copy payment terms
+    if (sourceInvoice.paymentTerms) {
+      setPaymentCondition(sourceInvoice.paymentTerms.condition);
+      setPaymentMethod(sourceInvoice.paymentTerms.paymentMethod);
+      setPaymentIban(sourceInvoice.paymentTerms.iban || '');
+      setPaymentDueDate('');
+      setPaymentBeneficiario(sourceInvoice.paymentTerms.beneficiario || '');
+      setPaymentIstituto(sourceInvoice.paymentTerms.istitutoFinanziario || '');
+      setPaymentBic(sourceInvoice.paymentTerms.bic || '');
+      setPaymentAbi(sourceInvoice.paymentTerms.abi || '');
+      setPaymentCab(sourceInvoice.paymentTerms.cab || '');
+    }
+
+    // Copy ritenuta
+    if (sourceInvoice.datiRitenuta?.length) {
+      setEnableRitenuta(true);
+      setDatiRitenuta(sourceInvoice.datiRitenuta[0]);
+    }
+
+    // Copy bollo
+    if (sourceInvoice.datiBollo) {
+      setEnableBollo(true);
+      setDatiBollo(sourceInvoice.datiBollo);
+    }
+
+    // Copy cassa previdenziale
+    if (sourceInvoice.datiCassaPrevidenziale?.length) {
+      setEnableCassa(true);
+      setDatiCassa(sourceInvoice.datiCassaPrevidenziale[0]);
+    }
+
+    // Copy options
+    setLegalStorageEnabled(sourceInvoice.legalStorageEnabled);
+    setSignatureEnabled(sourceInvoice.signatureEnabled);
+
+    // Set related document reference
+    setRelatedDocuments([{
+      type: 'fattura',
+      number: sourceInvoice.number,
+      date: sourceInvoice.date
+    }]);
+
+    // Set company from source invoice (find by cedentePrestatore)
+    // The companyId is not directly on the invoice, but we can match by fiscal code
+    // For simplicity, keep the default company (it should be the same)
+  }, [sourceInvoice]);
 
   // Calculate totals
   const calculateLineTotals = (line: CreateInvoiceLineInput) => {
@@ -425,6 +520,7 @@ const NewIssuedInvoice: React.FC = () => {
         vatNature: line.vatRate === 0 ? line.vatNature : undefined
       })),
       paymentTerms,
+      relatedDocuments: relatedDocuments.length > 0 ? relatedDocuments : undefined,
       causale: causale.filter(c => c.trim()),
       internalNotes: internalNotes || undefined,
       legalStorageEnabled,
@@ -486,8 +582,8 @@ const NewIssuedInvoice: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="Nuova Fattura"
-        description="Crea una nuova fattura elettronica"
+        title={isCreditNote ? 'Nuova Nota di Credito' : 'Nuova Fattura'}
+        description={isCreditNote ? `${DOCUMENT_TYPE_LABELS['TD04']} - da fattura n. ${sourceInvoice?.number || '...'}` : 'Crea una nuova fattura elettronica'}
         className="mb-3"
       >
         <Button
@@ -513,8 +609,15 @@ const NewIssuedInvoice: React.FC = () => {
         </Alert>
       )}
 
+      {isCreditNote && sourceInvoice && (
+        <Alert variant="info">
+          Stai creando una <strong>Nota di Credito (TD04)</strong> per la fattura n. <strong>{sourceInvoice.number}</strong> del {formatItalianDate(sourceInvoice.date)}.
+          Il tipo documento è impostato su TD04 e il riferimento alla fattura originale verrà incluso automaticamente.
+        </Alert>
+      )}
+
       <Card className="mb-3">
-        <FalconCardHeader title="Dati Fattura" light={false} />
+        <FalconCardHeader title={isCreditNote ? 'Dati Nota di Credito' : 'Dati Fattura'} light={false} />
         <Card.Body>
           <Tab.Container
             activeKey={activeTab}
@@ -584,6 +687,7 @@ const NewIssuedInvoice: React.FC = () => {
                         onChange={e =>
                           setDocumentType(e.target.value as DocumentType)
                         }
+                        disabled={isCreditNote}
                       >
                         {DOCUMENT_TYPES.map(dt => (
                           <option key={dt.value} value={dt.value}>
@@ -591,6 +695,11 @@ const NewIssuedInvoice: React.FC = () => {
                           </option>
                         ))}
                       </Form.Select>
+                      {isCreditNote && (
+                        <Form.Text className="text-muted">
+                          Tipo documento fissato a TD04 per la nota di credito
+                        </Form.Text>
+                      )}
                     </Form.Group>
                   </Col>
                   <Col md={4}>
