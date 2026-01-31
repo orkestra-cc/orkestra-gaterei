@@ -97,6 +97,7 @@ func (s *companyService) CreateCompany(ctx context.Context, input *models.Create
 		IstitutoFinanziario: input.IstitutoFinanziario,
 		IsDefault:           isDefault,
 		Notes:               input.Notes,
+		IsProfessional:      input.IsProfessional,
 		IsActive:            true,
 		CreatedBy:           createdBy,
 		CreatedAt:           time.Now(),
@@ -265,6 +266,9 @@ func (s *companyService) UpdateCompany(ctx context.Context, uuid string, input *
 	}
 	if input.Notes != nil {
 		company.Notes = *input.Notes
+	}
+	if input.IsProfessional != nil {
+		company.IsProfessional = *input.IsProfessional
 	}
 
 	company.UpdatedAt = time.Now()

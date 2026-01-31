@@ -59,6 +59,9 @@ type Company struct {
 	// Notes
 	Notes string `bson:"notes,omitempty" json:"notes,omitempty"`
 
+	// Professional flag (for forfettario regime: no withholding, with social security fund)
+	IsProfessional bool `bson:"isProfessional,omitempty" json:"isProfessional,omitempty"`
+
 	// Status
 	IsActive bool `bson:"isActive" json:"isActive"`
 

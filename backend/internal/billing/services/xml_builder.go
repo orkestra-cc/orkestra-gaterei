@@ -519,23 +519,11 @@ func (b *xmlBuilder) buildDatiBeniServizi(invoice *models.Invoice) models.DatiBe
 		// Add natura if rate is 0
 		if vs.VATRate == 0 && vs.VATNature != "" {
 			dr.Natura = string(vs.VATNature)
-			// RiferimentoNormativo is REQUIRED when AliquotaIVA is 0
-			if vs.NormativeRef != "" {
-				dr.RiferimentoNormativo = vs.NormativeRef
-			} else {
-				// Provide a default normative reference based on Natura
-				dr.RiferimentoNormativo = getDefaultNormativeRef(string(vs.VATNature))
-			}
 		}
 
 		// Add esigibilità if present
 		if vs.VATExigibility != "" {
 			dr.EsigibilitaIVA = vs.VATExigibility
-		}
-
-		// Add normative reference if present (for non-zero rates with specific references)
-		if vs.VATRate != 0 && vs.NormativeRef != "" {
-			dr.RiferimentoNormativo = vs.NormativeRef
 		}
 
 		dbs.DatiRiepilogo = append(dbs.DatiRiepilogo, dr)
@@ -705,55 +693,6 @@ func shouldApplyStampDuty(invoice *models.Invoice) bool {
 	return false
 }
 
-// getDefaultNormativeRef returns a default normative reference based on VAT Nature code
-func getDefaultNormativeRef(natura string) string {
-	switch natura {
-	case "N1":
-		return "Art. 15 DPR 633/72"
-	case "N2.1":
-		return "Artt. 7-7 septies DPR 633/72"
-	case "N2.2":
-		return "Art. 7 DPR 633/72"
-	case "N3.1":
-		return "Art. 8 c.1 lett.a DPR 633/72"
-	case "N3.2":
-		return "Art. 8 c.1 lett.b DPR 633/72"
-	case "N3.3":
-		return "Art. 8-bis DPR 633/72"
-	case "N3.4":
-		return "Art. 41 DL 331/93"
-	case "N3.5":
-		return "Art. 8 c.1 lett.c DPR 633/72"
-	case "N3.6":
-		return "Art. 9 DPR 633/72"
-	case "N4":
-		return "Art. 10 DPR 633/72"
-	case "N5":
-		return "Art. 36 DL 41/95"
-	case "N6.1":
-		return "Art. 74-ter DPR 633/72"
-	case "N6.2":
-		return "Art. 17 c.6 DPR 633/72"
-	case "N6.3":
-		return "Art. 17 c.6 lett.a-bis DPR 633/72"
-	case "N6.4":
-		return "Art. 17 c.6 lett.b DPR 633/72"
-	case "N6.5":
-		return "Art. 17 c.6 lett.c DPR 633/72"
-	case "N6.6":
-		return "Art. 17 c.5 DPR 633/72"
-	case "N6.7":
-		return "Art. 17 c.6 lett.d-bis/d-ter/d-quater DPR 633/72"
-	case "N6.8":
-		return "Art. 17 c.6 lett.d DPR 633/72"
-	case "N6.9":
-		return "Art. 17 DPR 633/72"
-	case "N7":
-		return "Art. 7-bis DPR 633/72"
-	default:
-		return "Operazione non soggetta ad IVA"
-	}
-}
 
 // GenerateProgressivoInvio generates a unique progressivo invio
 // Max 10 characters alphanumeric as per FatturaPA spec

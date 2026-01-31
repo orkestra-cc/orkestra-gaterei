@@ -121,6 +121,9 @@ type CreateCompanyInput struct {
 
 	// Notes
 	Notes string `json:"notes,omitempty" doc:"Internal notes"`
+
+	// Professional flag
+	IsProfessional bool `json:"isProfessional,omitempty" doc:"Professional (no withholding, with social security fund)"`
 }
 
 // UpdateCompanyInput represents the input for updating a company
@@ -152,6 +155,7 @@ type UpdateCompanyInput struct {
 	Beneficiario        *string `json:"beneficiario,omitempty"`
 	IstitutoFinanziario *string `json:"istitutoFinanziario,omitempty"`
 	Notes               *string `json:"notes,omitempty"`
+	IsProfessional      *bool   `json:"isProfessional,omitempty"`
 }
 
 // CompanyListResponse represents a paginated list of companies

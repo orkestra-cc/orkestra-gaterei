@@ -73,6 +73,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
     beneficiario: '',
     istitutoFinanziario: '',
     notes: '',
+    isProfessional: false,
   };
 
   const [formData, setFormData] = useState<CreateCompanyInput>(initialFormData);
@@ -110,6 +111,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
         beneficiario: company.beneficiario || '',
         istitutoFinanziario: company.istitutoFinanziario || '',
         notes: company.notes || '',
+        isProfessional: company.isProfessional || false,
       });
     }
   }, [company, show]);
@@ -243,6 +245,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
           beneficiario: formData.beneficiario,
           istitutoFinanziario: formData.istitutoFinanziario,
           notes: formData.notes,
+          isProfessional: formData.isProfessional,
         };
         await updateCompany({ id: company.id, data: updateData }).unwrap();
       } else {
@@ -390,6 +393,23 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                     ))}
                   </Form.Select>
                 </Form.Group>
+
+                {formData.regimeFiscale === 'RF19' && (
+                  <Form.Group className="mb-3 mt-3">
+                    <Form.Check
+                      type="switch"
+                      id="isProfessional"
+                      name="isProfessional"
+                      label="Professionista"
+                      checked={formData.isProfessional || false}
+                      onChange={handleChange}
+                    />
+                    <Form.Text className="text-muted">
+                      Attiva per professionisti in regime forfettario: disabilita ritenuta d'acconto
+                      e pre-compila la cassa previdenziale in fattura
+                    </Form.Text>
+                  </Form.Group>
+                )}
               </Tab.Pane>
 
               {/* Address Tab */}

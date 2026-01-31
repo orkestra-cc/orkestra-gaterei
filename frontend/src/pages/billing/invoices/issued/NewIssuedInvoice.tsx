@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Card,
@@ -18,7 +18,8 @@ import {
   faTrash,
   faSave,
   faPaperPlane,
-  faArrowLeft
+  faArrowLeft,
+  faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
   useCreateInvoiceMutation,
@@ -48,6 +49,15 @@ import type {
 import { formatItalianDate, DOCUMENT_TYPE_LABELS } from 'types/billing';
 import PageHeader from 'components/common/PageHeader';
 import FalconCardHeader from 'components/common/FalconCardHeader';
+
+// Forfettario (RF19) mandatory causale texts
+const FORFETTARIO_CAUSALE =
+  "Operazione effettuata in regime forfettario ai sensi dell'articolo 1, commi da 54 a 89, della Legge n. 190/2014 e successive modificazioni";
+const PROFESSIONISTA_CAUSALE =
+  'Operazione non soggetta a ritenuta alla fonte a titolo di acconto ai sensi dell\'articolo 1, comma 67, Legge n. 190 del 2014 e successive modificazioni';
+
+// Bollo threshold per DPR 642/1972
+const BOLLO_THRESHOLD = 77.47;
 
 // Default empty line
 const createEmptyLine = (): CreateInvoiceLineInput => ({
@@ -206,12 +216,30 @@ const NewIssuedInvoice: React.FC = () => {
   const [internalNotes, setInternalNotes] = useState('');
   const [legalStorageEnabled, setLegalStorageEnabled] = useState(true);
   const [signatureEnabled, setSignatureEnabled] = useState(true);
-  const [relatedDocuments, setRelatedDocuments] = useState<RelatedDocument[]>([]);
+  const [relatedDocuments, setRelatedDocuments] = useState<RelatedDocument[]>(
+    []
+  );
+
+  // Forfettario (RF19) detection
+  const selectedCompany = companiesData?.companies?.find(
+    c => c.id === companyId
+  );
+  const isForfettario = selectedCompany?.regimeFiscale === 'RF19';
+  const isProfessional =
+    isForfettario && (selectedCompany?.isProfessional ?? false);
+
+  // Track whether bollo was auto-activated by forfettario logic
+  const bolloAutoActivated = useRef(false);
+  // Track number of auto-causale lines for forfettario
+  const autoCausaleCount = useMemo(() => {
+    if (!isForfettario) return 0;
+    return isProfessional ? 2 : 1;
+  }, [isForfettario, isProfessional]);
 
   // Payment terms
   const [paymentCondition, setPaymentCondition] =
-    useState<PaymentCondition>('TP02');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MP05');
+    useState<PaymentCondition | ''>('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
   const [paymentBeneficiario, setPaymentBeneficiario] = useState('');
   const [paymentIstituto, setPaymentIstituto] = useState('');
   const [paymentIban, setPaymentIban] = useState('');
@@ -273,7 +301,7 @@ const NewIssuedInvoice: React.FC = () => {
           description: line.description,
           quantity: line.quantity,
           unitOfMeasure: line.unitOfMeasure,
-          unitPrice: -Math.abs(line.unitPrice),
+          unitPrice: line.unitPrice,
           vatRate: line.vatRate,
           vatNature: line.vatNature,
           discounts: line.discounts || [],
@@ -287,7 +315,9 @@ const NewIssuedInvoice: React.FC = () => {
 
     // Set causale with reference to original invoice
     const sourceDate = formatItalianDate(sourceInvoice.date);
-    setCausale([`Nota di credito rif. fattura n. ${sourceInvoice.number} del ${sourceDate}`]);
+    setCausale([
+      `Nota di credito rif. fattura n. ${sourceInvoice.number} del ${sourceDate}`
+    ]);
 
     // Copy payment terms
     if (sourceInvoice.paymentTerms) {
@@ -325,16 +355,78 @@ const NewIssuedInvoice: React.FC = () => {
     setSignatureEnabled(sourceInvoice.signatureEnabled);
 
     // Set related document reference
-    setRelatedDocuments([{
-      type: 'fattura',
-      number: sourceInvoice.number,
-      date: sourceInvoice.date
-    }]);
+    setRelatedDocuments([
+      {
+        type: 'fattura',
+        number: sourceInvoice.number,
+        date: sourceInvoice.date
+      }
+    ]);
 
     // Set company from source invoice (find by cedentePrestatore)
     // The companyId is not directly on the invoice, but we can match by fiscal code
     // For simplicity, keep the default company (it should be the same)
   }, [sourceInvoice]);
+
+  // Forfettario: force lines to IVA 0% / N2.2
+  useEffect(() => {
+    if (isForfettario) {
+      setLines(prev =>
+        prev.map(line => ({
+          ...line,
+          vatRate: 0,
+          vatNature: 'N2.2' as VATNature
+        }))
+      );
+    } else {
+      // Restore defaults when switching away from forfettario
+      setLines(prev =>
+        prev.map(line =>
+          line.vatRate === 0 && line.vatNature === 'N2.2'
+            ? { ...line, vatRate: 22, vatNature: undefined }
+            : line
+        )
+      );
+    }
+  }, [isForfettario]);
+
+  // Forfettario: manage automatic causale lines
+  useEffect(() => {
+    if (isForfettario) {
+      const autoCausali = isProfessional
+        ? [FORFETTARIO_CAUSALE, PROFESSIONISTA_CAUSALE]
+        : [FORFETTARIO_CAUSALE];
+      setCausale(prev => {
+        // Remove any existing auto-causale, then prepend fresh ones
+        const userCausali = prev.filter(
+          c => c !== FORFETTARIO_CAUSALE && c !== PROFESSIONISTA_CAUSALE
+        );
+        return [...autoCausali, ...userCausali];
+      });
+    } else {
+      // Remove auto-causale when disabling forfettario
+      setCausale(prev =>
+        prev.filter(
+          c => c !== FORFETTARIO_CAUSALE && c !== PROFESSIONISTA_CAUSALE
+        )
+      );
+    }
+  }, [isForfettario, isProfessional]);
+
+  // Forfettario professional: auto-enable cassa previdenziale with IVA 0%
+  useEffect(() => {
+    if (isProfessional) {
+      setEnableCassa(true);
+      setDatiCassa(prev => ({
+        ...prev,
+        aliquotaIVA: 0,
+        natura: 'N2.2' as VATNature
+      }));
+    } else if (!isProfessional && isForfettario === false) {
+      // Only reset cassa if we're fully leaving forfettario mode
+      setEnableCassa(false);
+    }
+  }, [isProfessional, isForfettario]);
 
   // Calculate totals
   const calculateLineTotals = (line: CreateInvoiceLineInput) => {
@@ -343,7 +435,7 @@ const NewIssuedInvoice: React.FC = () => {
     return { totalPrice, vatAmount };
   };
 
-  const totals = lines.reduce(
+  const totalsBeforeBollo = lines.reduce(
     (acc, line) => {
       const { totalPrice, vatAmount } = calculateLineTotals(line);
       return {
@@ -355,9 +447,36 @@ const NewIssuedInvoice: React.FC = () => {
     { taxable: 0, vat: 0, total: 0 }
   );
 
+  // Include bollo in display total (per FatturaPA spec)
+  const bolloAmount = enableBollo ? datiBollo.importoBollo || 2 : 0;
+  const totals = {
+    ...totalsBeforeBollo,
+    total: totalsBeforeBollo.total + bolloAmount
+  };
+
+  // Forfettario: auto-enable bollo when total exceeds threshold
+  useEffect(() => {
+    if (isForfettario && totalsBeforeBollo.total > BOLLO_THRESHOLD) {
+      if (!enableBollo) {
+        setEnableBollo(true);
+        setDatiBollo({ importoBollo: 2.0 });
+        bolloAutoActivated.current = true;
+      }
+    } else if (bolloAutoActivated.current) {
+      // Auto-disable only if it was auto-activated
+      setEnableBollo(false);
+      bolloAutoActivated.current = false;
+    }
+  }, [isForfettario, totalsBeforeBollo.total, enableBollo]);
+
   // Line handlers
   const handleAddLine = () => {
-    setLines([...lines, createEmptyLine()]);
+    const newLine = createEmptyLine();
+    if (isForfettario) {
+      newLine.vatRate = 0;
+      newLine.vatNature = 'N2.2' as VATNature;
+    }
+    setLines([...lines, newLine]);
   };
 
   const handleRemoveLine = (index: number) => {
@@ -377,17 +496,24 @@ const NewIssuedInvoice: React.FC = () => {
   };
 
   // Causale handlers
+  const isAutoCausale = (index: number) => {
+    if (!isForfettario) return false;
+    return index < autoCausaleCount;
+  };
+
   const handleAddCausale = () => {
     setCausale([...causale, '']);
   };
 
   const handleRemoveCausale = (index: number) => {
+    if (isAutoCausale(index)) return; // Cannot remove auto-causale
     if (causale.length > 1) {
       setCausale(causale.filter((_, i) => i !== index));
     }
   };
 
   const handleCausaleChange = (index: number, value: string) => {
+    if (isAutoCausale(index)) return; // Cannot edit auto-causale
     const newCausale = [...causale];
     newCausale[index] = value;
     setCausale(newCausale);
@@ -490,19 +616,20 @@ const NewIssuedInvoice: React.FC = () => {
 
   // Build invoice input
   const buildInvoiceInput = (): CreateInvoiceInput => {
-    const paymentTerms: CreatePaymentTermsInput | undefined = paymentMethod
-      ? {
-          condition: paymentCondition,
-          paymentMethod: paymentMethod,
-          beneficiario: paymentBeneficiario || undefined,
-          istitutoFinanziario: paymentIstituto || undefined,
-          iban: paymentIban || undefined,
-          abi: paymentAbi || undefined,
-          cab: paymentCab || undefined,
-          bic: paymentBic || undefined,
-          dueDate: paymentDueDate ? toRFC3339(paymentDueDate) : undefined
-        }
-      : undefined;
+    const paymentTerms: CreatePaymentTermsInput | undefined =
+      paymentMethod && paymentCondition
+        ? {
+            condition: paymentCondition,
+            paymentMethod: paymentMethod,
+            beneficiario: paymentBeneficiario || undefined,
+            istitutoFinanziario: paymentIstituto || undefined,
+            iban: paymentIban || undefined,
+            abi: paymentAbi || undefined,
+            cab: paymentCab || undefined,
+            bic: paymentBic || undefined,
+            dueDate: paymentDueDate ? toRFC3339(paymentDueDate) : undefined
+          }
+        : undefined;
 
     return {
       documentType,
@@ -520,7 +647,8 @@ const NewIssuedInvoice: React.FC = () => {
         vatNature: line.vatRate === 0 ? line.vatNature : undefined
       })),
       paymentTerms,
-      relatedDocuments: relatedDocuments.length > 0 ? relatedDocuments : undefined,
+      relatedDocuments:
+        relatedDocuments.length > 0 ? relatedDocuments : undefined,
       causale: causale.filter(c => c.trim()),
       internalNotes: internalNotes || undefined,
       legalStorageEnabled,
@@ -583,7 +711,11 @@ const NewIssuedInvoice: React.FC = () => {
     <>
       <PageHeader
         title={isCreditNote ? 'Nuova Nota di Credito' : 'Nuova Fattura'}
-        description={isCreditNote ? `${DOCUMENT_TYPE_LABELS['TD04']} - da fattura n. ${sourceInvoice?.number || '...'}` : 'Crea una nuova fattura elettronica'}
+        description={
+          isCreditNote
+            ? `${DOCUMENT_TYPE_LABELS['TD04']} - da fattura n. ${sourceInvoice?.number || '...'}`
+            : 'Crea una nuova fattura elettronica'
+        }
         className="mb-3"
       >
         <Button
@@ -611,13 +743,30 @@ const NewIssuedInvoice: React.FC = () => {
 
       {isCreditNote && sourceInvoice && (
         <Alert variant="info">
-          Stai creando una <strong>Nota di Credito (TD04)</strong> per la fattura n. <strong>{sourceInvoice.number}</strong> del {formatItalianDate(sourceInvoice.date)}.
-          Il tipo documento è impostato su TD04 e il riferimento alla fattura originale verrà incluso automaticamente.
+          Stai creando una <strong>Nota di Credito (TD04)</strong> per la
+          fattura n. <strong>{sourceInvoice.number}</strong> del{' '}
+          {formatItalianDate(sourceInvoice.date)}. Il tipo documento è impostato
+          su TD04 e il riferimento alla fattura originale verrà incluso
+          automaticamente.
+        </Alert>
+      )}
+
+      {isForfettario && (
+        <Alert variant="info">
+          <FontAwesomeIcon icon={faInfoCircle} className="me-2" />
+          <strong>Regime forfettario (RF19)</strong> — Le righe sono impostate
+          automaticamente a IVA 0% con natura N2.2. La causale normativa è
+          inserita automaticamente.
+          {isProfessional &&
+            ' Il soggetto è un professionista: causale ritenuta e cassa previdenziale pre-compilate.'}
         </Alert>
       )}
 
       <Card className="mb-3">
-        <FalconCardHeader title={isCreditNote ? 'Dati Nota di Credito' : 'Dati Fattura'} light={false} />
+        <FalconCardHeader
+          title={isCreditNote ? 'Dati Nota di Credito' : 'Dati Fattura'}
+          light={false}
+        />
         <Card.Body>
           <Tab.Container
             activeKey={activeTab}
@@ -781,8 +930,12 @@ const NewIssuedInvoice: React.FC = () => {
                         }
                         placeholder="es. Consulenza informatica mese di gennaio 2026"
                         maxLength={200}
+                        readOnly={isAutoCausale(index)}
+                        className={
+                          isAutoCausale(index) ? 'bg-light text-muted' : ''
+                        }
                       />
-                      {causale.length > 1 && (
+                      {causale.length > 1 && !isAutoCausale(index) && (
                         <Button
                           variant="outline-danger"
                           onClick={() => handleRemoveCausale(index)}
@@ -916,6 +1069,7 @@ const NewIssuedInvoice: React.FC = () => {
                                       parseFloat(e.target.value)
                                     )
                                   }
+                                  disabled={isForfettario}
                                 >
                                   {VAT_RATES.map(rate => (
                                     <option key={rate} value={rate}>
@@ -937,6 +1091,7 @@ const NewIssuedInvoice: React.FC = () => {
                                           undefined
                                       )
                                     }
+                                    disabled={isForfettario}
                                   >
                                     <option value="">Seleziona...</option>
                                     {VAT_NATURES.map(n => (
@@ -1131,6 +1286,24 @@ const NewIssuedInvoice: React.FC = () => {
                             })}
                           </td>
                         </tr>
+                        {enableBollo && bolloAmount > 0 && (
+                          <tr>
+                            <td>
+                              Bollo virtuale
+                              {isForfettario && (
+                                <small className="text-muted d-block">
+                                  DPR 642/1972
+                                </small>
+                              )}
+                            </td>
+                            <td className="text-end">
+                              {bolloAmount.toLocaleString('it-IT', {
+                                style: 'currency',
+                                currency: 'EUR'
+                              })}
+                            </td>
+                          </tr>
+                        )}
                         <tr className="fw-bold">
                           <td>Totale</td>
                           <td className="text-end">
@@ -1365,6 +1538,7 @@ const NewIssuedInvoice: React.FC = () => {
                                   aliquotaIVA: parseFloat(e.target.value)
                                 })
                               }
+                              disabled={isForfettario}
                             >
                               {VAT_RATES.map(rate => (
                                 <option key={rate} value={rate}>
@@ -1375,6 +1549,33 @@ const NewIssuedInvoice: React.FC = () => {
                           </Form.Group>
                         </Col>
                       </Row>
+                      {datiCassa.aliquotaIVA === 0 && (
+                        <Row>
+                          <Col md={4}>
+                            <Form.Group className="mb-3">
+                              <Form.Label>Natura IVA</Form.Label>
+                              <Form.Select
+                                value={datiCassa.natura || ''}
+                                onChange={e =>
+                                  setDatiCassa({
+                                    ...datiCassa,
+                                    natura:
+                                      (e.target.value as VATNature) || undefined
+                                  })
+                                }
+                                disabled={isForfettario}
+                              >
+                                <option value="">Seleziona...</option>
+                                {VAT_NATURES.map(n => (
+                                  <option key={n.value} value={n.value}>
+                                    {n.label}
+                                  </option>
+                                ))}
+                              </Form.Select>
+                            </Form.Group>
+                          </Col>
+                        </Row>
+                      )}
                     </Card.Body>
                   )}
                 </Card>
@@ -1390,10 +1591,11 @@ const NewIssuedInvoice: React.FC = () => {
                         value={paymentCondition}
                         onChange={e =>
                           setPaymentCondition(
-                            e.target.value as PaymentCondition
+                            e.target.value as PaymentCondition | ''
                           )
                         }
                       >
+                        <option value="">Seleziona...</option>
                         {PAYMENT_CONDITIONS.map(pc => (
                           <option key={pc.value} value={pc.value}>
                             {pc.label}
@@ -1408,9 +1610,12 @@ const NewIssuedInvoice: React.FC = () => {
                       <Form.Select
                         value={paymentMethod}
                         onChange={e =>
-                          setPaymentMethod(e.target.value as PaymentMethod)
+                          setPaymentMethod(
+                            e.target.value as PaymentMethod | ''
+                          )
                         }
                       >
+                        <option value="">Seleziona...</option>
                         {PAYMENT_METHODS.map(pm => (
                           <option key={pm.value} value={pm.value}>
                             {pm.label}

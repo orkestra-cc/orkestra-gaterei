@@ -394,6 +394,7 @@ export interface Company {
   beneficiario?: string;
   istitutoFinanziario?: string;
   isDefault: boolean;
+  isProfessional?: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: string;
@@ -431,6 +432,7 @@ export interface CreateCompanyInput {
   beneficiario?: string;
   istitutoFinanziario?: string;
   isDefault?: boolean;
+  isProfessional?: boolean;
   notes?: string;
 }
 
@@ -459,6 +461,7 @@ export interface UpdateCompanyInput {
   cab?: string;
   beneficiario?: string;
   istitutoFinanziario?: string;
+  isProfessional?: boolean;
   notes?: string;
 }
 
