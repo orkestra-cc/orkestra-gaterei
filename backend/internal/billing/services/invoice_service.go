@@ -43,6 +43,7 @@ type InvoiceService interface {
 	GetInvoicePDF(ctx context.Context, uuid string) ([]byte, error)
 	GetInvoiceXML(ctx context.Context, uuid string) (string, error)
 	GetInvoiceHTML(ctx context.Context, uuid string) ([]byte, error)
+	DuplicateInvoice(ctx context.Context, uuid string, input *models.DuplicateInvoiceInput, createdBy string) (*models.Invoice, error)
 
 	// Received invoices (fatture passive)
 	ListReceivedInvoices(ctx context.Context, filters *models.InvoiceFilters, pagination models.PaginationParams) (*models.InvoiceListResponse, error)
@@ -635,6 +636,241 @@ func (s *invoiceService) GetInvoiceHTML(ctx context.Context, uuid string) ([]byt
 	}
 
 	return s.openAPIClient.DownloadInvoiceHTML(ctx, invoice.OpenAPIUUID)
+}
+
+// DuplicateInvoice creates a copy of an existing invoice as a draft
+func (s *invoiceService) DuplicateInvoice(ctx context.Context, invoiceUUID string, input *models.DuplicateInvoiceInput, createdBy string) (*models.Invoice, error) {
+	// Get the original invoice
+	original, err := s.invoiceRepo.GetByUUID(ctx, invoiceUUID)
+	if err != nil {
+		if errors.Is(err, repository.ErrInvoiceNotFound) {
+			return nil, ErrInvoiceNotFound
+		}
+		return nil, err
+	}
+
+	// Determine the date for the duplicate
+	invoiceDate := time.Now()
+	if input != nil && input.Date != nil {
+		invoiceDate = *input.Date
+	}
+
+	// Create the duplicated invoice
+	duplicate := &models.Invoice{
+		// New identifiers
+		UUID:             uuid.New().String(),
+		ProgressivoInvio: GenerateProgressivoInvio(),
+
+		// Copy document type and direction
+		Direction:    original.Direction,
+		DocumentType: original.DocumentType,
+		Currency:     original.Currency,
+
+		// Empty number - user will set before sending
+		Number: "",
+		Date:   invoiceDate,
+
+		// Copy party references
+		CompanyID:  original.CompanyID,
+		CustomerID: original.CustomerID,
+		SupplierID: original.SupplierID,
+
+		// Deep copy party data snapshots
+		CedentePrestatore:      deepCopyPartyData(original.CedentePrestatore),
+		CessionarioCommittente: deepCopyPartyData(original.CessionarioCommittente),
+
+		// Deep copy lines
+		Lines: deepCopyInvoiceLines(original.Lines),
+
+		// Deep copy VAT summary
+		VATSummary: deepCopyVATSummary(original.VATSummary),
+
+		// Copy totals
+		TotalTaxableAmount: original.TotalTaxableAmount,
+		TotalVATAmount:     original.TotalVATAmount,
+		TotalAmount:        original.TotalAmount,
+		Rounding:           original.Rounding,
+
+		// Deep copy payment terms
+		PaymentTerms: deepCopyPaymentTerms(original.PaymentTerms),
+
+		// Status is always draft for duplicates
+		Status:    models.StatusDraft,
+		SDIStatus: "", // Reset SDI status
+
+		// Copy storage/signature settings
+		LegalStorageEnabled: original.LegalStorageEnabled,
+		SignatureEnabled:    original.SignatureEnabled,
+
+		// Deep copy related documents
+		RelatedDocuments: deepCopyRelatedDocuments(original.RelatedDocuments),
+
+		// Deep copy withholding tax data
+		DatiRitenuta: deepCopyDatiRitenuta(original.DatiRitenuta),
+
+		// Deep copy stamp duty
+		DatiBollo: deepCopyDatiBollo(original.DatiBollo),
+
+		// Deep copy social security fund contributions
+		DatiCassaPrevidenziale: deepCopyDatiCassa(original.DatiCassaPrevidenziale),
+
+		// Copy causale
+		Causale: append([]string(nil), original.Causale...),
+
+		// Set internal notes to indicate this is a duplicate
+		InternalNotes: fmt.Sprintf("Duplicata da fattura %s", original.Number),
+
+		// Audit fields
+		CreatedBy: createdBy,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+
+		// Reset SDI-related fields
+		SDIIdentifier: "",
+		OpenAPIUUID:   "",
+		XMLContent:    "",
+		PDFPath:       "",
+		SentAt:        nil,
+		SentBy:        "",
+	}
+
+	// Save to database
+	if err := s.invoiceRepo.Create(ctx, duplicate); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("invoice duplicated",
+		"originalUUID", original.UUID,
+		"originalNumber", original.Number,
+		"duplicateUUID", duplicate.UUID,
+		"createdBy", createdBy,
+	)
+
+	return duplicate, nil
+}
+
+// Deep copy helper functions
+
+func deepCopyPartyData(original *models.PartyData) *models.PartyData {
+	if original == nil {
+		return nil
+	}
+	result := *original
+	// Deep copy nested IscrizioneREA
+	if original.IscrizioneREA != nil {
+		reaCopy := *original.IscrizioneREA
+		result.IscrizioneREA = &reaCopy
+	}
+	return &result
+}
+
+func deepCopyInvoiceLines(original []models.InvoiceLine) []models.InvoiceLine {
+	if original == nil {
+		return nil
+	}
+	lines := make([]models.InvoiceLine, len(original))
+	for i, line := range original {
+		lines[i] = line
+		// Deep copy slices within each line
+		if line.Discounts != nil {
+			lines[i].Discounts = make([]models.LineDiscount, len(line.Discounts))
+			copy(lines[i].Discounts, line.Discounts)
+		}
+		if line.CodiciArticolo != nil {
+			lines[i].CodiciArticolo = make([]models.ProductCode, len(line.CodiciArticolo))
+			copy(lines[i].CodiciArticolo, line.CodiciArticolo)
+		}
+		if line.AltriDatiGestionali != nil {
+			lines[i].AltriDatiGestionali = make([]models.AltriDatiInput, len(line.AltriDatiGestionali))
+			copy(lines[i].AltriDatiGestionali, line.AltriDatiGestionali)
+		}
+		// Deep copy time pointers
+		if line.StartDate != nil {
+			startCopy := *line.StartDate
+			lines[i].StartDate = &startCopy
+		}
+		if line.EndDate != nil {
+			endCopy := *line.EndDate
+			lines[i].EndDate = &endCopy
+		}
+	}
+	return lines
+}
+
+func deepCopyVATSummary(original []models.VATSummaryLine) []models.VATSummaryLine {
+	if original == nil {
+		return nil
+	}
+	summary := make([]models.VATSummaryLine, len(original))
+	copy(summary, original)
+	return summary
+}
+
+func deepCopyPaymentTerms(original *models.PaymentTerms) *models.PaymentTerms {
+	if original == nil {
+		return nil
+	}
+	result := *original
+	// Deep copy DueDate pointer
+	if original.DueDate != nil {
+		dueCopy := *original.DueDate
+		result.DueDate = &dueCopy
+	}
+	// Deep copy installments
+	if original.Installments != nil {
+		result.Installments = make([]models.PaymentInstallment, len(original.Installments))
+		for i, inst := range original.Installments {
+			result.Installments[i] = inst
+			// Deep copy PaidAt pointer
+			if inst.PaidAt != nil {
+				paidAtCopy := *inst.PaidAt
+				result.Installments[i].PaidAt = &paidAtCopy
+			}
+		}
+	}
+	return &result
+}
+
+func deepCopyRelatedDocuments(original []models.RelatedDocument) []models.RelatedDocument {
+	if original == nil {
+		return nil
+	}
+	docs := make([]models.RelatedDocument, len(original))
+	for i, doc := range original {
+		docs[i] = doc
+		// Deep copy Date pointer
+		if doc.Date != nil {
+			dateCopy := *doc.Date
+			docs[i].Date = &dateCopy
+		}
+	}
+	return docs
+}
+
+func deepCopyDatiRitenuta(original []models.DatiRitenutaInput) []models.DatiRitenutaInput {
+	if original == nil {
+		return nil
+	}
+	ritenute := make([]models.DatiRitenutaInput, len(original))
+	copy(ritenute, original)
+	return ritenute
+}
+
+func deepCopyDatiBollo(original *models.DatiBolloInput) *models.DatiBolloInput {
+	if original == nil {
+		return nil
+	}
+	result := *original
+	return &result
+}
+
+func deepCopyDatiCassa(original []models.DatiCassaInput) []models.DatiCassaInput {
+	if original == nil {
+		return nil
+	}
+	casse := make([]models.DatiCassaInput, len(original))
+	copy(casse, original)
+	return casse
 }
 
 // ImportInvoice imports a supplier invoice via base64-encoded XML

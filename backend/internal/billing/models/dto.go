@@ -502,3 +502,12 @@ type SupplierSummary struct {
 	FiscalID string `json:"fiscalId" doc:"Supplier fiscal ID (P.IVA)"`
 	IsNew    bool   `json:"isNew" doc:"True if supplier was newly created during import"`
 }
+
+// ========================================
+// Invoice Duplication DTOs
+// ========================================
+
+// DuplicateInvoiceInput represents the input for duplicating an invoice
+type DuplicateInvoiceInput struct {
+	Date *time.Time `json:"date,omitempty" doc:"Invoice date for the duplicate (default: today)"`
+}

@@ -3,8 +3,9 @@ import { ColumnDef, createColumnHelper } from '@tanstack/react-table';
 import { Link } from 'react-router';
 import { Badge, Button, Modal, Dropdown, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoice, faPaperPlane, faEye, faTrash, faFilePdf, faFileCode } from '@fortawesome/free-solid-svg-icons';
-import { useGetInvoicesQuery, useDeleteInvoiceMutation, useSendInvoiceMutation, useLazyGetInvoiceXmlQuery, useLazyGetInvoicePdfQuery } from 'store/api/billingApi';
+import { faFileInvoice, faPaperPlane, faEye, faTrash, faFilePdf, faFileCode, faCopy } from '@fortawesome/free-solid-svg-icons';
+import { useGetInvoicesQuery, useDeleteInvoiceMutation, useSendInvoiceMutation, useDuplicateInvoiceMutation, useLazyGetInvoiceXmlQuery, useLazyGetInvoicePdfQuery } from 'store/api/billingApi';
+import { useNavigate } from 'react-router';
 import useAdvanceTable from './useAdvanceTable';
 import type { InvoiceSummary, InvoiceStatus, DocumentType } from 'types/billing';
 import {
@@ -43,8 +44,10 @@ const useIssuedInvoiceTable = ({
   perPage = 10,
   selectionColumnWidth = 52
 }: UseIssuedInvoiceTableOptions = {}) => {
+  const navigate = useNavigate();
   const [invoiceToSend, setInvoiceToSend] = useState<InvoiceSummary | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceSummary | null>(null);
+  const [invoiceToDuplicate, setInvoiceToDuplicate] = useState<InvoiceSummary | null>(null);
 
   const { data, isLoading, error } = useGetInvoicesQuery({
     direction: 'issued',
@@ -53,6 +56,7 @@ const useIssuedInvoiceTable = ({
 
   const [deleteInvoice, { isLoading: isDeleting }] = useDeleteInvoiceMutation();
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
+  const [duplicateInvoice, { isLoading: isDuplicating }] = useDuplicateInvoiceMutation();
   const [getInvoiceXml] = useLazyGetInvoiceXmlQuery();
   const [getInvoicePdf] = useLazyGetInvoicePdfQuery();
 
@@ -104,6 +108,18 @@ const useIssuedInvoiceTable = ({
       console.error('Failed to send invoice:', err);
     }
   }, [invoiceToSend, sendInvoice]);
+
+  const handleDuplicate = useCallback(async () => {
+    if (!invoiceToDuplicate) return;
+    try {
+      const result = await duplicateInvoice({ id: invoiceToDuplicate.id }).unwrap();
+      setInvoiceToDuplicate(null);
+      // Navigate to the new duplicated invoice
+      navigate(`/billing/invoices/issued/${result.id}`);
+    } catch (err) {
+      console.error('Failed to duplicate invoice:', err);
+    }
+  }, [invoiceToDuplicate, duplicateInvoice, navigate]);
 
   const columnHelper = createColumnHelper<InvoiceSummary>();
 
@@ -223,17 +239,19 @@ const useIssuedInvoiceTable = ({
                   <FontAwesomeIcon icon={faFileCode} className="me-2" fixedWidth />
                   Scarica XML
                 </Dropdown.Item>
+                <Dropdown.Divider />
+                <Dropdown.Item onClick={() => setInvoiceToDuplicate(invoice)}>
+                  <FontAwesomeIcon icon={faCopy} className="me-2" fixedWidth />
+                  Duplica
+                </Dropdown.Item>
                 {canDelete && (
-                  <>
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      className="text-danger"
-                      onClick={() => setInvoiceToDelete(invoice)}
-                    >
-                      <FontAwesomeIcon icon={faTrash} className="me-2" fixedWidth />
-                      Elimina
-                    </Dropdown.Item>
-                  </>
+                  <Dropdown.Item
+                    className="text-danger"
+                    onClick={() => setInvoiceToDelete(invoice)}
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="me-2" fixedWidth />
+                    Elimina
+                  </Dropdown.Item>
                 )}
               </Dropdown.Menu>
             </Dropdown>
@@ -339,6 +357,57 @@ const useIssuedInvoiceTable = ({
     </Modal>
   ), [invoiceToSend, isSending, handleSend]);
 
+  // Duplicate confirmation modal component
+  const DuplicateModal = useCallback(() => (
+    <Modal
+      show={!!invoiceToDuplicate}
+      onHide={() => setInvoiceToDuplicate(null)}
+      centered
+    >
+      <Modal.Header closeButton>
+        <Modal.Title>Duplica Fattura</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {invoiceToDuplicate && (
+          <div>
+            <p className="mb-2">
+              Stai per creare una copia della fattura <strong>{invoiceToDuplicate.number}</strong>.
+            </p>
+            <div className="bg-info-subtle p-3 rounded">
+              <small className="text-info">
+                <FontAwesomeIcon icon="info-circle" className="me-2" />
+                La nuova fattura sarà in stato bozza senza numero.
+                Dovrai impostare il numero prima dell'invio.
+              </small>
+            </div>
+          </div>
+        )}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button
+          variant="secondary"
+          onClick={() => setInvoiceToDuplicate(null)}
+          disabled={isDuplicating}
+        >
+          Annulla
+        </Button>
+        <Button variant="primary" onClick={handleDuplicate} disabled={isDuplicating}>
+          {isDuplicating ? (
+            <>
+              <Spinner size="sm" className="me-2" />
+              Duplicazione...
+            </>
+          ) : (
+            <>
+              <FontAwesomeIcon icon={faCopy} className="me-2" />
+              Duplica
+            </>
+          )}
+        </Button>
+      </Modal.Footer>
+    </Modal>
+  ), [invoiceToDuplicate, isDuplicating, handleDuplicate]);
+
   const table = useAdvanceTable({
     columns,
     data: data?.invoices || [],
@@ -355,6 +424,7 @@ const useIssuedInvoiceTable = ({
     error,
     DeleteModal,
     SendModal,
+    DuplicateModal,
   };
 };
 

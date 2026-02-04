@@ -205,6 +205,17 @@ type ImportXMLInvoiceResponse struct {
 	Body models.ImportXMLResponse `json:"result" doc:"Import result"`
 }
 
+// DuplicateInvoiceRequest represents the request to duplicate an invoice
+type DuplicateInvoiceRequest struct {
+	ID   string                      `path:"id" doc:"Invoice UUID"`
+	Body models.DuplicateInvoiceInput `json:"input" doc:"Duplicate options"`
+}
+
+// DuplicateInvoiceResponse represents the response after duplicating an invoice
+type DuplicateInvoiceResponse struct {
+	Body models.Invoice `json:"invoice" doc:"Duplicated invoice (draft)"`
+}
+
 // ========================================
 // Handler Methods
 // ========================================
@@ -519,6 +530,21 @@ func (h *InvoiceHandler) ImportXMLInvoice(ctx context.Context, req *ImportXMLInv
 	}
 
 	return &ImportXMLInvoiceResponse{Body: *result}, nil
+}
+
+// DuplicateInvoice creates a copy of an existing invoice as a draft
+func (h *InvoiceHandler) DuplicateInvoice(ctx context.Context, req *DuplicateInvoiceRequest) (*DuplicateInvoiceResponse, error) {
+	userID := getUserIDFromContext(ctx)
+
+	invoice, err := h.invoiceService.DuplicateInvoice(ctx, req.ID, &req.Body, userID)
+	if err != nil {
+		if err == services.ErrInvoiceNotFound {
+			return nil, huma.Error404NotFound("Invoice not found", err)
+		}
+		return nil, huma.Error500InternalServerError("Failed to duplicate invoice", err)
+	}
+
+	return &DuplicateInvoiceResponse{Body: *invoice}, nil
 }
 
 // Helper function to get user ID from context

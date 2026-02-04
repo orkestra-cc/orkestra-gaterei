@@ -6,7 +6,7 @@ import AdvanceTableFooter from 'components/common/advance-table/AdvanceTableFoot
 import useIssuedInvoiceTable from 'hooks/ui/useIssuedInvoiceTable';
 
 const IssuedInvoiceTable = () => {
-  const { SendModal, DeleteModal, ...table } = useIssuedInvoiceTable({
+  const { SendModal, DeleteModal, DuplicateModal, ...table } = useIssuedInvoiceTable({
     selection: true,
     sortable: true,
     pagination: true,
@@ -45,6 +45,7 @@ const IssuedInvoiceTable = () => {
       </AdvanceTableProvider>
       <SendModal />
       <DeleteModal />
+      <DuplicateModal />
     </>
   );
 };

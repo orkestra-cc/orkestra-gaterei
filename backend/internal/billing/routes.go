@@ -83,6 +83,16 @@ func RegisterRoutes(
 	}, invoiceHandler.SendInvoice)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "duplicate-invoice",
+		Method:      http.MethodPost,
+		Path:        "/v1/billing/invoices/{id}/duplicate",
+		Summary:     "Duplicate invoice",
+		Description: "Creates a copy of an existing invoice as a draft without invoice number. The duplicated invoice will have status 'draft' with all fields copied except SDI-related data.",
+		Tags:        []string{"Billing - Invoices"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, invoiceHandler.DuplicateInvoice)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-invoice-xml",
 		Method:      http.MethodGet,
 		Path:        "/v1/billing/invoices/{id}/xml",

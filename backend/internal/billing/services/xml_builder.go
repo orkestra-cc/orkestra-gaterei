@@ -587,7 +587,7 @@ func (b *xmlBuilder) buildDatiPagamento(invoice *models.Invoice) *models.DatiPag
 			dp.DettaglioPagamento = append(dp.DettaglioPagamento, detail)
 		}
 	} else {
-		// Single payment
+		// Single payment - TotalAmount already excludes stamp duty
 		detail := models.DettaglioPagamento{
 			ModalitaPagamento: string(pt.PaymentMethod),
 			ImportoPagamento:  formatAmount(invoice.TotalAmount),

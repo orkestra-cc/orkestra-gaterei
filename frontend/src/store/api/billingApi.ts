@@ -427,6 +427,19 @@ export const billingApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Duplicate invoice
+    duplicateInvoice: builder.mutation<Invoice, { id: string; date?: string }>({
+      query: ({ id, date }) => ({
+        url: `/v1/billing/invoices/${id}/duplicate`,
+        method: 'POST',
+        body: date ? { date } : {},
+      }),
+      invalidatesTags: [
+        { type: 'Invoice', id: 'LIST' },
+        { type: 'BillingStats', id: 'STATS' },
+      ],
+    }),
+
     // ========================================
     // Received Invoice Endpoints (Fatture Passive)
     // ========================================
@@ -623,6 +636,7 @@ export const {
   useImportInvoiceMutation,
   useImportXMLInvoiceMutation,
   useSyncInvoicesMutation,
+  useDuplicateInvoiceMutation,
   // Received Invoice hooks
   useGetReceivedInvoicesQuery,
   useGetReceivedInvoiceQuery,

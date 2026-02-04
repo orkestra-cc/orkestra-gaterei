@@ -300,14 +300,10 @@ func (inv *Invoice) CalculateTotals() {
 	}
 
 	// Set totals
+	// TotalAmount = Imponibile + IVA + Arrotondamento (bollo NON incluso)
 	inv.TotalTaxableAmount = roundTo2Decimals(totalTaxable)
 	inv.TotalVATAmount = roundTo2Decimals(totalVAT)
 	inv.TotalAmount = roundTo2Decimals(totalTaxable + totalVAT + inv.Rounding)
-
-	// Include stamp duty in total (per FatturaPA spec, ImportoTotaleDocumento includes bollo)
-	if inv.DatiBollo != nil && inv.DatiBollo.ImportoBollo > 0 {
-		inv.TotalAmount = roundTo2Decimals(inv.TotalAmount + inv.DatiBollo.ImportoBollo)
-	}
 }
 
 // CanBeEdited returns true if the invoice can be modified
