@@ -136,16 +136,22 @@ type SendInvoiceResponse struct {
 	SDIIdentifier string `json:"sdi_identifier,omitempty"`
 	Status        string `json:"status"`
 	Message       string `json:"message,omitempty"`
+	// Applied settings (populated by SendInvoice based on business registry config)
+	SignatureApplied    bool `json:"-"` // Whether digital signature was applied
+	LegalStorageApplied bool `json:"-"` // Whether legal storage (conservazione) was applied
 }
 
 // InvoiceStatusResponse represents the status of an invoice
 type InvoiceStatusResponse struct {
-	UUID           string    `json:"uuid"`
-	SDIIdentifier  string    `json:"sdi_identifier,omitempty"`
-	Status         string    `json:"status"`
-	LastNotification string  `json:"last_notification,omitempty"`
-	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
-	ReceivedAt     *time.Time `json:"received_at,omitempty"`
+	UUID              string                     `json:"uuid"`
+	SDIIdentifier     string                     `json:"sdi_identifier,omitempty"`
+	Status            string                     `json:"status"`
+	LastNotification  string                     `json:"last_notification,omitempty"`
+	DeliveredAt       *time.Time                 `json:"delivered_at,omitempty"`
+	ReceivedAt        *time.Time                 `json:"received_at,omitempty"`
+	// Legal storage (conservazione digitale) fields
+	LegallyStored     bool                       `json:"legally_stored,omitempty"`
+	PreservedDocument *PreservedDocumentResponse `json:"preserved_document,omitempty"`
 }
 
 // SupplierInvoicesResponse represents paginated supplier invoices
@@ -593,9 +599,15 @@ func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Populate the applied settings based on the business registry config
+	result.SignatureApplied = applySignature
+	result.LegalStorageApplied = applyStorage
+
 	c.logger.Info("invoice sent successfully",
 		"invoiceNumber", invoice.Number,
 		"openApiUUID", result.UUID,
+		"signatureApplied", applySignature,
+		"legalStorageApplied", applyStorage,
 	)
 
 	return &result, nil

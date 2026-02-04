@@ -467,6 +467,31 @@ func (j *PollingJob) processNotification(ctx context.Context, n *services.OpenAP
 			"invoiceUUID", invoice.UUID,
 			"number", invoice.Number,
 		)
+
+		// Fetch invoice status to get preserved document info for legal storage
+		status, err := j.openAPIClient.GetInvoiceStatus(ctx, n.InvoiceUUID)
+		if err != nil {
+			j.logger.Warn("failed to get invoice status for preserved document",
+				"invoiceUUID", invoice.UUID,
+				"openAPIUUID", n.InvoiceUUID,
+				"error", err,
+			)
+		} else if status.PreservedDocument != nil && status.PreservedDocument.UUID != "" {
+			invoice.PreservedDocumentID = status.PreservedDocument.UUID
+			j.logger.Info("captured preserved document ID",
+				"invoiceUUID", invoice.UUID,
+				"preservedDocumentID", status.PreservedDocument.UUID,
+				"preservationStatus", status.PreservedDocument.Status,
+			)
+			// Save the PreservedDocumentID to the database
+			if err := j.invoiceRepo.Update(ctx, invoice); err != nil {
+				j.logger.Error("failed to update invoice with preserved document ID",
+					"invoiceUUID", invoice.UUID,
+					"preservedDocumentID", invoice.PreservedDocumentID,
+					"error", err,
+				)
+			}
+		}
 	}
 
 	// Update invoice status

@@ -436,6 +436,10 @@ func (s *invoiceService) SendInvoice(ctx context.Context, uuid string, sentBy st
 	invoice.SentAt = &now
 	invoice.SentBy = sentBy
 
+	// Store legal storage and signature settings that were actually applied
+	invoice.LegalStorageEnabled = response.LegalStorageApplied
+	invoice.SignatureEnabled = response.SignatureApplied
+
 	if err := s.invoiceRepo.Update(ctx, invoice); err != nil {
 		s.logger.Error("failed to update invoice after sending",
 			"invoiceUUID", uuid,
@@ -448,6 +452,8 @@ func (s *invoiceService) SendInvoice(ctx context.Context, uuid string, sentBy st
 		"invoiceUUID", uuid,
 		"openAPIUUID", response.UUID,
 		"sentBy", sentBy,
+		"legalStorageEnabled", invoice.LegalStorageEnabled,
+		"signatureEnabled", invoice.SignatureEnabled,
 	)
 
 	return &models.SendInvoiceResponse{
