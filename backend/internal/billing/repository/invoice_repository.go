@@ -487,12 +487,20 @@ func (r *invoiceRepository) GetStats(ctx context.Context, fromDate, toDate time.
 	}
 	stats.IssuedRejected, _ = r.collection.CountDocuments(ctx, rejectedFilter)
 
-	// Sum issued amounts
+	// Sum issued amounts (net of credit notes)
 	issuedAmountPipeline := mongo.Pipeline{
 		{{Key: "$match", Value: issuedFilter}},
 		{{Key: "$group", Value: bson.M{
-			"_id":   nil,
-			"total": bson.M{"$sum": "$totalAmount"},
+			"_id": nil,
+			"total": bson.M{
+				"$sum": bson.M{
+					"$cond": bson.A{
+						bson.M{"$in": bson.A{"$documentType", bson.A{"TD04", "TD08"}}},
+						bson.M{"$multiply": bson.A{"$totalAmount", -1}},
+						"$totalAmount",
+					},
+				},
+			},
 		}}},
 	}
 	cursor, err := r.collection.Aggregate(ctx, issuedAmountPipeline)
@@ -531,12 +539,20 @@ func (r *invoiceRepository) GetStats(ctx context.Context, fromDate, toDate time.
 	}
 	stats.ReceivedRejected, _ = r.collection.CountDocuments(ctx, rejectedRecFilter)
 
-	// Sum received amounts
+	// Sum received amounts (net of credit notes)
 	receivedAmountPipeline := mongo.Pipeline{
 		{{Key: "$match", Value: receivedFilter}},
 		{{Key: "$group", Value: bson.M{
-			"_id":   nil,
-			"total": bson.M{"$sum": "$totalAmount"},
+			"_id": nil,
+			"total": bson.M{
+				"$sum": bson.M{
+					"$cond": bson.A{
+						bson.M{"$in": bson.A{"$documentType", bson.A{"TD04", "TD08"}}},
+						bson.M{"$multiply": bson.A{"$totalAmount", -1}},
+						"$totalAmount",
+					},
+				},
+			},
 		}}},
 	}
 	cursor, err = r.collection.Aggregate(ctx, receivedAmountPipeline)
@@ -549,9 +565,18 @@ func (r *invoiceRepository) GetStats(ctx context.Context, fromDate, toDate time.
 		}
 	}
 
-	// Weekly breakdown aggregation using ISO week
+	// Weekly breakdown aggregation using ISO week (net of credit notes)
 	weeklyPipeline := mongo.Pipeline{
 		{{Key: "$match", Value: dateFilter}},
+		{{Key: "$addFields", Value: bson.M{
+			"signedAmount": bson.M{
+				"$cond": bson.A{
+					bson.M{"$in": bson.A{"$documentType", bson.A{"TD04", "TD08"}}},
+					bson.M{"$multiply": bson.A{"$totalAmount", -1}},
+					"$totalAmount",
+				},
+			},
+		}}},
 		{{Key: "$group", Value: bson.M{
 			"_id": bson.M{
 				"year":      bson.M{"$isoWeekYear": "$date"},
@@ -559,7 +584,7 @@ func (r *invoiceRepository) GetStats(ctx context.Context, fromDate, toDate time.
 				"direction": "$direction",
 			},
 			"count":  bson.M{"$sum": 1},
-			"amount": bson.M{"$sum": "$totalAmount"},
+			"amount": bson.M{"$sum": "$signedAmount"},
 		}}},
 		{{Key: "$sort", Value: bson.D{
 			{Key: "_id.year", Value: 1},
