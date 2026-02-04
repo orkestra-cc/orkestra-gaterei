@@ -295,7 +295,7 @@ func main() {
 		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, nil, pdfSvc, logger)
 		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
 		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
-		companySvc := billingSvc.NewCompanyService(companyRepo, logger)
+		companySvc := billingSvc.NewCompanyService(companyRepo, openAPIClient, logger)
 		notificationSvc := billingSvc.NewNotificationService(notificationRepo, logger)
 
 		// Create handlers

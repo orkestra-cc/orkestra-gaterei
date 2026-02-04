@@ -44,6 +44,7 @@ const CompanyDeactivationModal: React.FC<CompanyDeactivationModalProps> = ({
         </p>
         <p className="text-warning mb-0">
           L'azienda non sarà più disponibile per nuove fatture.
+          {company.isDefault && " Questa è l'azienda default - dopo l'eliminazione dovrai impostarne un'altra."}
         </p>
       </Modal.Body>
       <Modal.Footer>
@@ -248,7 +249,7 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
                   </Dropdown.Item>
                 )}
                 <Dropdown.Divider />
-                {original.isActive && !original.isDefault && (
+                {original.isActive && (
                   <Dropdown.Item
                     className="text-warning"
                     onClick={() => handleDeactivate(original)}

@@ -31,15 +31,17 @@ type CompanyService interface {
 }
 
 type companyService struct {
-	companyRepo repository.CompanyRepository
-	logger      *slog.Logger
+	companyRepo   repository.CompanyRepository
+	openAPIClient OpenAPIClient
+	logger        *slog.Logger
 }
 
 // NewCompanyService creates a new CompanyService
-func NewCompanyService(companyRepo repository.CompanyRepository, logger *slog.Logger) CompanyService {
+func NewCompanyService(companyRepo repository.CompanyRepository, openAPIClient OpenAPIClient, logger *slog.Logger) CompanyService {
 	return &companyService{
-		companyRepo: companyRepo,
-		logger:      logger,
+		companyRepo:   companyRepo,
+		openAPIClient: openAPIClient,
+		logger:        logger,
 	}
 }
 
@@ -281,6 +283,26 @@ func (s *companyService) UpdateCompany(ctx context.Context, uuid string, input *
 }
 
 func (s *companyService) DeleteCompany(ctx context.Context, uuid string) error {
+	// Get company to retrieve fiscal ID before deletion
+	company, err := s.companyRepo.GetByUUID(ctx, uuid)
+	if err != nil {
+		if errors.Is(err, repository.ErrCompanyNotFound) {
+			return ErrCompanyNotFound
+		}
+		return err
+	}
+
+	// Delete business registry config from OpenAPI SDI if configured
+	if s.openAPIClient != nil && company.FiscalIDCode != "" {
+		if err := s.openAPIClient.DeleteBusinessRegistry(ctx, company.FiscalIDCode); err != nil {
+			s.logger.Warn("failed to delete business registry from OpenAPI SDI",
+				"fiscalID", company.FiscalIDCode,
+				"error", err,
+			)
+			// Continue with local deletion even if SDI fails
+		}
+	}
+
 	return s.companyRepo.SoftDelete(ctx, uuid)
 }
 

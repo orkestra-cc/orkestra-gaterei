@@ -89,6 +89,7 @@ type OpenAPIClient interface {
 	// Configuration
 	ConfigureBusinessRegistry(ctx context.Context, cfg BusinessRegistryConfig) error
 	GetBusinessRegistryConfig(ctx context.Context, fiscalID string) (*BusinessRegistryConfig, error)
+	DeleteBusinessRegistry(ctx context.Context, fiscalID string) error
 
 	// Issued invoices (fatture attive)
 	SendInvoice(ctx context.Context, invoice *models.Invoice, xmlContent string) (*SendInvoiceResponse, error)
@@ -490,6 +491,32 @@ func (c *openAPIClient) GetBusinessRegistryConfig(ctx context.Context, fiscalID 
 	)
 
 	return &wrapper.Data, nil
+}
+
+func (c *openAPIClient) DeleteBusinessRegistry(ctx context.Context, fiscalID string) error {
+	path := fmt.Sprintf("/business_registry_configurations/%s", fiscalID)
+
+	respBody, statusCode, err := c.doRequestWithRetry(ctx, http.MethodDelete, path, nil)
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusNotFound {
+		c.logger.Info("business registry config not found, nothing to delete",
+			"fiscalID", fiscalID,
+		)
+		return nil
+	}
+
+	if statusCode != http.StatusOK {
+		if apiErr := parseOpenAPIError(respBody, statusCode); apiErr != nil {
+			return apiErr
+		}
+		return fmt.Errorf("%w: status %d, body: %s", ErrOpenAPIRequestFailed, statusCode, string(respBody))
+	}
+
+	c.logger.Info("business registry config deleted", "fiscalID", fiscalID)
+	return nil
 }
 
 func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice, xmlContent string) (*SendInvoiceResponse, error) {
