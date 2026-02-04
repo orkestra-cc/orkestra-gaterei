@@ -20,13 +20,56 @@ import (
 
 // Common errors
 var (
-	ErrOpenAPIRequestFailed  = errors.New("OpenAPI request failed")
-	ErrOpenAPIUnauthorized   = errors.New("OpenAPI authentication failed")
-	ErrOpenAPINotFound       = errors.New("resource not found")
-	ErrOpenAPIRateLimited    = errors.New("rate limit exceeded")
-	ErrCircuitBreakerOpen    = errors.New("circuit breaker is open")
-	ErrInvoiceSendFailed     = errors.New("failed to send invoice to SDI")
+	ErrOpenAPIRequestFailed      = errors.New("OpenAPI request failed")
+	ErrOpenAPIUnauthorized       = errors.New("OpenAPI authentication failed")
+	ErrOpenAPINotFound           = errors.New("resource not found")
+	ErrOpenAPIRateLimited        = errors.New("rate limit exceeded")
+	ErrCircuitBreakerOpen        = errors.New("circuit breaker is open")
+	ErrInvoiceSendFailed         = errors.New("failed to send invoice to SDI")
+	ErrOpenAPIEmailAlreadyExists = errors.New("email already registered for another fiscal ID")
 )
+
+// OpenAPIErrorResponse represents JSON error from OpenAPI SDI
+type OpenAPIErrorResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Error   int         `json:"error"`
+	Data    interface{} `json:"data"`
+}
+
+// OpenAPIError wraps an OpenAPI SDI error
+type OpenAPIError struct {
+	Code       int
+	Message    string
+	StatusCode int
+}
+
+func (e *OpenAPIError) Error() string {
+	return fmt.Sprintf("OpenAPI error %d: %s", e.Code, e.Message)
+}
+
+func (e *OpenAPIError) Is(target error) bool {
+	if e.Code == 612 {
+		return target == ErrOpenAPIEmailAlreadyExists
+	}
+	return false
+}
+
+// parseOpenAPIError parses an OpenAPI SDI JSON error response
+func parseOpenAPIError(respBody []byte, httpStatusCode int) *OpenAPIError {
+	var errResp OpenAPIErrorResponse
+	if err := json.Unmarshal(respBody, &errResp); err != nil {
+		return nil
+	}
+	if errResp.Success || errResp.Error == 0 {
+		return nil
+	}
+	return &OpenAPIError{
+		Code:       errResp.Error,
+		Message:    errResp.Message,
+		StatusCode: httpStatusCode,
+	}
+}
 
 // Cache configuration constants
 const (
@@ -404,6 +447,9 @@ func (c *openAPIClient) ConfigureBusinessRegistry(ctx context.Context, cfg Busin
 	}
 
 	if statusCode != http.StatusOK && statusCode != http.StatusCreated {
+		if apiErr := parseOpenAPIError(respBody, statusCode); apiErr != nil {
+			return apiErr
+		}
 		return fmt.Errorf("%w: status %d, body: %s", ErrOpenAPIRequestFailed, statusCode, string(respBody))
 	}
 

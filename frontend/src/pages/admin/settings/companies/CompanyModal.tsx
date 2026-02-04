@@ -184,11 +184,22 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
         setOpenApiError(result.message || 'Errore durante la registrazione');
       }
     } catch (err: unknown) {
+      const apiError = err as {
+        data?: {
+          detail?: string;
+          title?: string;
+          message?: string;
+        };
+        status?: number;
+      };
+
       const errorMessage =
-        err instanceof Error
-          ? err.message
-          : (err as { data?: { detail?: string } })?.data?.detail ||
-            'Errore durante la registrazione su OpenAPI SDI';
+        apiError?.data?.detail ||
+        apiError?.data?.title ||
+        apiError?.data?.message ||
+        (err instanceof Error ? err.message : null) ||
+        'Errore durante la registrazione su OpenAPI SDI';
+
       setOpenApiError(errorMessage);
     }
   };

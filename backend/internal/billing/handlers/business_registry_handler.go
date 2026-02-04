@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -100,12 +102,36 @@ func (h *BusinessRegistryHandler) Configure(ctx context.Context, req *ConfigureB
 
 	err := h.openAPIClient.ConfigureBusinessRegistry(ctx, config)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to configure business registry: "+err.Error(), err)
+		// Check for specific OpenAPI SDI errors
+		if errors.Is(err, services.ErrOpenAPIEmailAlreadyExists) {
+			return nil, huma.Error409Conflict(
+				"Questa email è già registrata per un'altra Partita IVA su OpenAPI SDI. Utilizzare un'email diversa.",
+				err,
+			)
+		}
+
+		var apiErr *services.OpenAPIError
+		if errors.As(err, &apiErr) {
+			if apiErr.Code == 389 {
+				return nil, huma.Error400BadRequest(
+					"Configurazione mancante per questa Partita IVA su OpenAPI SDI. Verificare le credenziali.",
+					err,
+				)
+			}
+			if apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 {
+				return nil, huma.Error409Conflict(
+					fmt.Sprintf("Errore OpenAPI SDI (codice %d): %s", apiErr.Code, apiErr.Message),
+					err,
+				)
+			}
+		}
+
+		return nil, huma.Error500InternalServerError("Errore durante la configurazione del Business Registry: "+err.Error(), err)
 	}
 
 	resp := &ConfigureBusinessRegistryResponse{}
 	resp.Body.Success = true
-	resp.Body.Message = "Business registry configured successfully for fiscal ID: " + req.Body.FiscalID
+	resp.Body.Message = "Business registry configurato con successo per Partita IVA: " + req.Body.FiscalID
 
 	return resp, nil
 }
