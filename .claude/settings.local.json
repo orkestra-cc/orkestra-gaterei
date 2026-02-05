@@ -25,7 +25,9 @@
       "Bash(npm run build:*)",
       "Bash(npm install:*)",
       "Bash(docker logs:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:github.com)",
+      "Bash(docker ps:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
