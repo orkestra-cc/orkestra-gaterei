@@ -153,6 +153,10 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 				direction = models.DirectionReceived
 				status = models.StatusDelivered  // Received invoices are already delivered to us
 				sdiStatus = models.SDIStatusRC   // Ricevuta di Consegna
+			case "delivered":
+				direction = models.DirectionIssued
+				status = models.StatusDelivered  // Issued invoice was delivered to recipient
+				sdiStatus = models.SDIStatusRC   // Ricevuta di Consegna (delivery receipt)
 			default:
 				j.logger.Warn("unknown invoice marking, skipping",
 					"uuid", inv.UUID,
@@ -221,8 +225,8 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 			if invoiceNumber != "" {
 				var existingByNumber *models.Invoice
 
-				if inv.Marking == "sent" {
-					// For issued invoices, find by number + direction
+				if inv.Marking == "sent" || inv.Marking == "delivered" {
+					// For issued invoices (sent or delivered), find by number + direction
 					existingByNumber, _ = j.invoiceRepo.GetByNumber(ctx, invoiceNumber, models.DirectionIssued)
 				} else if inv.Marking == "received" && cedenteFiscalID != "" {
 					// For received invoices, find by number + supplier fiscal ID
@@ -230,16 +234,26 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 				}
 
 				if existingByNumber != nil {
-					// Found existing invoice by number - UPDATE it with OpenAPIUUID instead of creating duplicate
-					j.logger.Info("found existing invoice by number, updating OpenAPIUUID",
+					// Found existing invoice by number - UPDATE it with OpenAPIUUID and status instead of creating duplicate
+					j.logger.Info("found existing invoice by number, updating OpenAPIUUID and status",
 						"uuid", existingByNumber.UUID,
 						"invoiceNumber", invoiceNumber,
 						"oldOpenAPIUUID", existingByNumber.OpenAPIUUID,
 						"newOpenAPIUUID", inv.UUID,
+						"oldStatus", existingByNumber.Status,
+						"newStatus", status,
+						"marking", inv.Marking,
 						"direction", direction,
 					)
 					if err := j.invoiceRepo.UpdateOpenAPIData(ctx, existingByNumber.UUID, inv.UUID, inv.SDIFileID); err != nil {
 						j.logger.Error("failed to update invoice OpenAPI data",
+							"uuid", existingByNumber.UUID,
+							"error", err,
+						)
+					}
+					// Also update status to reflect the new marking state (e.g., sent -> delivered)
+					if err := j.invoiceRepo.UpdateStatus(ctx, existingByNumber.UUID, status, sdiStatus); err != nil {
+						j.logger.Error("failed to update invoice status",
 							"uuid", existingByNumber.UUID,
 							"error", err,
 						)
