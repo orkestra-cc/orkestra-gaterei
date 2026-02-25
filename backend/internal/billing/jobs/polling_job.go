@@ -132,11 +132,44 @@ func (j *PollingJob) SyncReceivedInvoices(ctx context.Context) error {
 			// Check if we already have this invoice by OpenAPIUUID
 			existing, _ := j.invoiceRepo.GetByOpenAPIUUID(ctx, inv.UUID)
 			if existing != nil {
-				j.logger.Info("invoice already exists by OpenAPIUUID, skipping",
-					"uuid", inv.UUID,
-					"openAPIUUID", inv.UUID,
-					"marking", inv.Marking,
-				)
+				// Check if the marking-derived status differs from existing status
+				// and update if the invoice has progressed (e.g., sent -> delivered)
+				var newStatus models.InvoiceStatus
+				var newSDIStatus models.SDIStatus
+
+				switch inv.Marking {
+				case "sent":
+					newStatus = models.StatusSent
+					newSDIStatus = models.SDIStatusNone
+				case "delivered":
+					newStatus = models.StatusDelivered
+					newSDIStatus = models.SDIStatusRC
+				case "received":
+					newStatus = models.StatusDelivered
+					newSDIStatus = models.SDIStatusRC
+				}
+
+				if newStatus != "" && newStatus != existing.Status {
+					j.logger.Info("updating invoice status from OpenAPI marking",
+						"uuid", existing.UUID,
+						"openAPIUUID", inv.UUID,
+						"oldStatus", existing.Status,
+						"newStatus", newStatus,
+						"marking", inv.Marking,
+					)
+					if err := j.invoiceRepo.UpdateStatus(ctx, existing.UUID, newStatus, newSDIStatus); err != nil {
+						j.logger.Error("failed to update invoice status from marking",
+							"uuid", existing.UUID,
+							"error", err,
+						)
+					}
+				} else {
+					j.logger.Debug("invoice already exists by OpenAPIUUID, no status change",
+						"uuid", inv.UUID,
+						"marking", inv.Marking,
+						"currentStatus", existing.Status,
+					)
+				}
 				totalSkipped++
 				continue
 			}
