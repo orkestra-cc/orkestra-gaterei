@@ -29,6 +29,11 @@ import (
 	billingJobs "github.com/orkestra/backend/internal/billing/jobs"
 	billingRepo "github.com/orkestra/backend/internal/billing/repository"
 	billingSvc "github.com/orkestra/backend/internal/billing/services"
+	"github.com/orkestra/backend/internal/company"
+	companyConfig "github.com/orkestra/backend/internal/company/config"
+	companyHandlers "github.com/orkestra/backend/internal/company/handlers"
+	companyRepo "github.com/orkestra/backend/internal/company/repository"
+	companySvc "github.com/orkestra/backend/internal/company/services"
 	"github.com/orkestra/backend/internal/documents"
 	documentsConfig "github.com/orkestra/backend/internal/documents/config"
 	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
@@ -338,6 +343,31 @@ func main() {
 		logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
 	}
 
+	// Initialize company lookup module (OpenAPI Company API)
+	var companyLookupHandler *companyHandlers.CompanyHandler
+	companyEnabled := cfg.Billing.OpenAPIBearerToken != "" // Same token gates both
+
+	if companyEnabled {
+		companyCfg := &companyConfig.CompanyAPIConfig{
+			BaseURL:       cfg.Company.BaseURL,
+			BearerToken:   cfg.Billing.OpenAPIBearerToken,
+			Timeout:       cfg.Company.Timeout,
+			RetryAttempts: cfg.Company.RetryAttempts,
+			CacheTTL:      cfg.Company.CacheTTL,
+		}
+
+		companyRepository := companyRepo.NewCompanyRepository(db)
+		companyClient := companySvc.NewCompanyAPIClientWithCache(companyCfg, logger, redisClientAdapter)
+		companyService := companySvc.NewCompanyService(companyRepository, companyClient, logger)
+		companyLookupHandler = companyHandlers.NewCompanyHandler(companyService)
+
+		logger.Info("Company lookup module initialized",
+			slog.String("baseURL", cfg.Company.BaseURL),
+		)
+	} else {
+		logger.Warn("Company lookup module disabled: OPENAPI_BEARER_TOKEN not configured")
+	}
+
 	// Initialize auth service with all repositories
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
@@ -547,6 +577,16 @@ func main() {
 				documentsTemplateHandler,
 				documentsDocumentHandler,
 			)
+		})
+	}
+
+	// Company lookup routes - manager role and above
+	// Only register if company module is enabled (same token as billing)
+	if companyEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
+			companyAPI := humachi.New(r, apiConfig)
+			company.RegisterRoutes(companyAPI, companyLookupHandler)
 		})
 	}
 

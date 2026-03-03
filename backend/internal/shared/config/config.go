@@ -22,6 +22,15 @@ type Config struct {
 	Rate      RateLimitConfig
 	Billing   BillingConfig
 	Documents DocumentsConfig
+	Company   CompanyConfig
+}
+
+// CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
+type CompanyConfig struct {
+	BaseURL       string        // Base URL: https://company.openapi.com (prod) or https://test.company.openapi.com (sandbox)
+	Timeout       time.Duration // HTTP client timeout
+	RetryAttempts int           // Number of retry attempts for failed requests
+	CacheTTL      time.Duration // Redis cache TTL for company lookups
 }
 
 // BillingConfig holds configuration for the billing/invoicing module (OpenAPI SDI integration)
@@ -273,6 +282,20 @@ func Load() (*Config, error) {
 		SandboxMode:          sandboxMode,
 		WebhookURL:           getEnv("OPENAPI_WEBHOOK_URL", ""),
 		WebhookSecret:        getEnv("OPENAPI_WEBHOOK_SECRET", ""),
+	}
+
+	// Company lookup configuration (OpenAPI Company API)
+	// Reuses sandboxMode from billing config
+	defaultCompanyBaseURL := "https://test.company.openapi.com"
+	if !sandboxMode {
+		defaultCompanyBaseURL = "https://company.openapi.com"
+	}
+
+	config.Company = CompanyConfig{
+		BaseURL:       getEnv("COMPANY_API_BASE_URL", defaultCompanyBaseURL),
+		Timeout:       getEnvAsDuration("COMPANY_API_TIMEOUT", "15s"),
+		RetryAttempts: getEnvAsInt("COMPANY_API_RETRY_ATTEMPTS", 3),
+		CacheTTL:      getEnvAsDuration("COMPANY_API_CACHE_TTL", "24h"),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)
