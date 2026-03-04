@@ -69,6 +69,17 @@ type SearchCompanyLookupsResponse struct {
 	Body models.CompanyLookupListResponse `json:"result" doc:"Search results"`
 }
 
+// EnrichCompanyRequest represents the request to enrich a company lookup
+type EnrichCompanyRequest struct {
+	TaxCode    string `path:"taxCode" doc:"Italian tax code (Codice Fiscale) or VAT number (Partita IVA)" minLength:"11" maxLength:"16"`
+	LookupType string `path:"type" doc:"Enrichment type" enum:"advanced,marketing,stakeholders,aml,full"`
+}
+
+// EnrichCompanyResponse represents the response with enriched company data
+type EnrichCompanyResponse struct {
+	Body models.CompanyLookup `json:"lookup" doc:"Enriched company lookup result"`
+}
+
 // ========================================
 // Handler Methods
 // ========================================
@@ -161,4 +172,26 @@ func (h *CompanyHandler) SearchCompanyLookups(ctx context.Context, req *SearchCo
 			TotalPages: totalPages,
 		},
 	}, nil
+}
+
+// EnrichCompany enriches a company lookup with additional data from a paid endpoint
+func (h *CompanyHandler) EnrichCompany(ctx context.Context, req *EnrichCompanyRequest) (*EnrichCompanyResponse, error) {
+	lookup, err := h.service.EnrichCompany(ctx, req.TaxCode, req.LookupType)
+	if err != nil {
+		if errors.Is(err, services.ErrCompanyNotFound) {
+			return nil, huma.Error404NotFound("Company not found for the given tax code", err)
+		}
+		if errors.Is(err, services.ErrInvalidTaxCode) {
+			return nil, huma.Error400BadRequest("Invalid tax code", err)
+		}
+		if errors.Is(err, services.ErrInvalidLookupType) {
+			return nil, huma.Error400BadRequest("Invalid enrichment type", err)
+		}
+		if errors.Is(err, services.ErrCircuitBreakerOpen) {
+			return nil, huma.Error503ServiceUnavailable("Company lookup service temporarily unavailable", err)
+		}
+		return nil, huma.Error500InternalServerError("Failed to enrich company", err)
+	}
+
+	return &EnrichCompanyResponse{Body: *lookup}, nil
 }

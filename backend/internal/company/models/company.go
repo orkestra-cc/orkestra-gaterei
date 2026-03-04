@@ -20,6 +20,15 @@ type CompanyLookup struct {
 	SourceID         string             `bson:"sourceId" json:"sourceId"`
 	CreatedAt        time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt        time.Time          `bson:"updatedAt" json:"updatedAt"`
+
+	// Tracking: which enrichment types have been fetched and when
+	FetchedTypes map[string]time.Time `bson:"fetchedTypes,omitempty" json:"fetchedTypes,omitempty"`
+
+	// Enrichment data (nil = not yet fetched)
+	Advanced     *AdvancedData     `bson:"advanced,omitempty" json:"advanced,omitempty"`
+	Marketing    *MarketingData    `bson:"marketing,omitempty" json:"marketing,omitempty"`
+	Stakeholders *StakeholdersData `bson:"stakeholders,omitempty" json:"stakeholders,omitempty"`
+	AML          *AMLData          `bson:"aml,omitempty" json:"aml,omitempty"`
 }
 
 // Address represents a company's registered office address

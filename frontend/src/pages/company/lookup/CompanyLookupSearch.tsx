@@ -4,17 +4,27 @@ import { useLazyLookupCompanyQuery } from 'store/api/companyApi';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
 import { ACTIVITY_STATUS_COLORS, ACTIVITY_STATUS_LABELS } from 'types/company';
+import type { CompanyLookup } from 'types/company';
 import { formatItalianDate } from 'types/billing';
+import { EnrichmentPanel } from './CompanyEnrichment';
 
 const CompanyLookupSearch = () => {
   const [taxCode, setTaxCode] = useState('');
-  const [trigger, { data: result, isFetching, error, isSuccess }] = useLazyLookupCompanyQuery();
+  const [displayResult, setDisplayResult] = useState<CompanyLookup | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [triggerLookup, { isFetching, error, isSuccess }] = useLazyLookupCompanyQuery();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = taxCode.trim();
     if (trimmed.length >= 11 && trimmed.length <= 16) {
-      trigger(trimmed);
+      setDisplayResult(null);
+      try {
+        const result = await triggerLookup(trimmed).unwrap();
+        setDisplayResult(result);
+      } catch {
+        // Error handled by RTK Query state
+      }
     }
   };
 
@@ -27,6 +37,8 @@ const CompanyLookupSearch = () => {
     }
     return 'Errore durante la ricerca. Riprova più tardi.';
   };
+
+  const result = displayResult;
 
   return (
     <Card>
@@ -77,6 +89,7 @@ const CompanyLookupSearch = () => {
         {isSuccess && result && (
           <Card className="mt-3 border">
             <Card.Body>
+              {/* Base result fields */}
               <Row>
                 <Col md={8}>
                   <div className="d-flex align-items-center mb-3">
@@ -139,6 +152,13 @@ const CompanyLookupSearch = () => {
                   </div>
                 </Col>
               </Row>
+
+              {/* Enrichment */}
+              <hr className="my-3" />
+              <EnrichmentPanel
+                company={result}
+                onEnriched={setDisplayResult}
+              />
             </Card.Body>
           </Card>
         )}

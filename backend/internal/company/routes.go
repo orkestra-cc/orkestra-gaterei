@@ -53,4 +53,18 @@ func RegisterRoutes(api huma.API, handler *handlers.CompanyHandler) {
 		Tags:        []string{"Company Lookup"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.GetCompanyLookup)
+
+	// ========================================
+	// Company Enrichment Routes
+	// ========================================
+
+	huma.Register(api, huma.Operation{
+		OperationID: "enrich-company-lookup",
+		Method:      http.MethodGet,
+		Path:        "/v1/company/lookup/{taxCode}/enrich/{type}",
+		Summary:     "Enrich company lookup",
+		Description: "Fetches additional enrichment data (advanced, marketing, stakeholders, aml, or full) for a company and stores it on the existing lookup document.",
+		Tags:        []string{"Company Lookup"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.EnrichCompany)
 }

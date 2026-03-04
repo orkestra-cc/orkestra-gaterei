@@ -33,6 +33,7 @@ type RedisClient interface {
 // CompanyAPIClient defines the interface for OpenAPI Company API operations
 type CompanyAPIClient interface {
 	LookupByTaxCode(ctx context.Context, taxCode string) (*models.OpenAPIBaseResponse, error)
+	LookupByType(ctx context.Context, taxCode string, lookupType string) (*models.OpenAPIBaseResponse, error)
 	Ping(ctx context.Context) error
 }
 
@@ -138,6 +139,89 @@ func (c *companyAPIClient) LookupByTaxCode(ctx context.Context, taxCode string) 
 		if err := c.redis.Set(ctx, cacheKey, string(cacheData), c.config.CacheTTL); err != nil {
 			c.logger.Warn("failed to cache company lookup",
 				"taxCode", taxCode,
+				"error", err,
+			)
+		}
+	}
+
+	return &response, nil
+}
+
+// LookupByType calls the OpenAPI Company API with a specific endpoint type
+func (c *companyAPIClient) LookupByType(ctx context.Context, taxCode string, lookupType string) (*models.OpenAPIBaseResponse, error) {
+	if taxCode == "" {
+		return nil, ErrInvalidTaxCode
+	}
+
+	path, err := models.EndpointForType(lookupType, taxCode)
+	if err != nil {
+		return nil, fmt.Errorf("invalid lookup type: %w", err)
+	}
+
+	// Check Redis cache first (key includes type)
+	if c.redis != nil {
+		cacheKey := fmt.Sprintf("company:%s:%s", lookupType, taxCode)
+		cached, err := c.redis.Get(ctx, cacheKey)
+		if err == nil && cached != "" {
+			var response models.OpenAPIBaseResponse
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				c.logger.Debug("company lookup cache hit",
+					"taxCode", taxCode,
+					"type", lookupType,
+				)
+				return &response, nil
+			}
+		}
+	}
+
+	// Call external API
+	respBody, statusCode, err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	c.logger.Debug("company API raw response",
+		"taxCode", taxCode,
+		"type", lookupType,
+		"statusCode", statusCode,
+		"body", string(respBody),
+	)
+
+	var response models.OpenAPIBaseResponse
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse company API response: %w", err)
+	}
+
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		c.logger.Error("company API authentication failed",
+			"taxCode", taxCode,
+			"type", lookupType,
+			"statusCode", statusCode,
+			"message", response.Message,
+		)
+		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, response.Message)
+	}
+
+	if statusCode == http.StatusNotFound || !response.Success {
+		c.logger.Debug("company API lookup not found",
+			"taxCode", taxCode,
+			"type", lookupType,
+			"statusCode", statusCode,
+			"success", response.Success,
+			"message", response.Message,
+			"error", response.Error,
+		)
+		return nil, ErrCompanyNotFound
+	}
+
+	// Cache successful response in Redis
+	if c.redis != nil {
+		cacheKey := fmt.Sprintf("company:%s:%s", lookupType, taxCode)
+		cacheData, _ := json.Marshal(response)
+		if err := c.redis.Set(ctx, cacheKey, string(cacheData), c.config.CacheTTL); err != nil {
+			c.logger.Warn("failed to cache company lookup",
+				"taxCode", taxCode,
+				"type", lookupType,
 				"error", err,
 			)
 		}

@@ -1,27 +1,102 @@
 package models
 
-// OpenAPIBaseResponse represents the raw response from the OpenAPI Company API
-// GET /IT-start/{vatCode_taxCode_or_id}
+import "encoding/json"
+
+// OpenAPIBaseResponse represents the raw response from the OpenAPI Company API.
+// GET /IT-start/{vatCode_taxCode_or_id} (and all enrichment endpoints).
+// The "data" field can be either an array or a single object depending on the
+// endpoint (e.g. IT-start returns an array, IT-marketing returns an object).
 type OpenAPIBaseResponse struct {
-	Success bool                `json:"success"`
-	Data    *OpenAPICompanyData `json:"data"`
-	Message string              `json:"message,omitempty"`
-	Error   float64             `json:"error,omitempty"`
+	Success bool                 `json:"success"`
+	Data    []OpenAPICompanyData `json:"data"`
+	Message string               `json:"message,omitempty"`
+	Error   interface{}          `json:"error,omitempty"`
 }
 
-// OpenAPICompanyData represents the company data from the API response
+// UnmarshalJSON handles the "data" field being either an array or a single object.
+func (r *OpenAPIBaseResponse) UnmarshalJSON(b []byte) error {
+	// Use an alias to avoid infinite recursion.
+	type Alias struct {
+		Success bool            `json:"success"`
+		Data    json.RawMessage `json:"data"`
+		Message string          `json:"message,omitempty"`
+		Error   interface{}     `json:"error,omitempty"`
+	}
+	var raw Alias
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	r.Success = raw.Success
+	r.Message = raw.Message
+	r.Error = raw.Error
+
+	if len(raw.Data) == 0 || string(raw.Data) == "null" {
+		r.Data = nil
+		return nil
+	}
+
+	// Try array first (most common), then single object.
+	if raw.Data[0] == '[' {
+		return json.Unmarshal(raw.Data, &r.Data)
+	}
+	var single OpenAPICompanyData
+	if err := json.Unmarshal(raw.Data, &single); err != nil {
+		return err
+	}
+	r.Data = []OpenAPICompanyData{single}
+	return nil
+}
+
+// OpenAPICompanyData represents a single company entry from the API response.
+// The API may return multiple entries (e.g. one by VAT code, one by tax code).
+// Enrichment endpoints add extra fields; base fields are always present.
 type OpenAPICompanyData struct {
-	ID                  string              `json:"id"`
-	TaxCode             string              `json:"taxCode"`
-	CompanyName         string              `json:"companyName"`
-	VATCode             string              `json:"vatCode"`
-	ActivityStatus      string              `json:"activityStatus"`
-	SDICode             string              `json:"sdiCode"`
-	SDICodeTimestamp     string              `json:"sdiCodeTimestamp"`
-	RegistrationDate    string              `json:"registrationDate"`
-	Address             OpenAPIAddressData  `json:"address"`
-	CreationTimestamp    string              `json:"creationTimestamp"`
-	LastUpdateTimestamp  string              `json:"lastUpdateTimestamp"`
+	// Base fields (IT-start)
+	ID                 string             `json:"id"`
+	TaxCode            string             `json:"taxCode"`
+	CompanyName        string             `json:"companyName"`
+	VATCode            string             `json:"vatCode"`
+	ActivityStatus     string             `json:"activityStatus"`
+	SDICode            string             `json:"sdiCode"`
+	SDICodeTimestamp    interface{}        `json:"sdiCodeTimestamp"`
+	RegistrationDate   string             `json:"registrationDate"`
+	Address            OpenAPIAddressData `json:"address"`
+	CreationTimestamp   interface{}        `json:"creationTimestamp"`
+	LastUpdateTimestamp interface{}        `json:"lastUpdateTimestamp"`
+
+	// Advanced enrichment fields (IT-advanced)
+	REACode             string               `json:"reaCode,omitempty"`
+	CCIAA               string               `json:"cciaa,omitempty"`
+	AtecoClassification *AtecoClassification `json:"atecoClassification,omitempty"`
+	DetailedLegalForm   *LegalFormDetail     `json:"detailedLegalForm,omitempty"`
+	PEC                 string               `json:"pec,omitempty"`
+	StartDate           string               `json:"startDate,omitempty"`
+	EndDate             string               `json:"endDate,omitempty"`
+	TaxCodeCeased       *bool                `json:"taxCodeCeased,omitempty"`
+
+	// Marketing enrichment fields (IT-marketing)
+	Contacts    json.RawMessage `json:"contacts,omitempty"`
+	WebAndSocial json.RawMessage `json:"webAndSocial,omitempty"`
+	Mail        json.RawMessage `json:"mail,omitempty"`
+	Employees   json.RawMessage `json:"employees,omitempty"`
+	Ecofin      json.RawMessage `json:"ecofin,omitempty"`
+	Branches    json.RawMessage `json:"branches,omitempty"`
+	AllOffices  json.RawMessage `json:"allOffices,omitempty"`
+
+	// Stakeholders enrichment fields (IT-stakeholders)
+	Managers           json.RawMessage `json:"managers,omitempty"`
+	Shareholders       json.RawMessage `json:"shareholders,omitempty"`
+	CorporateGroups    json.RawMessage `json:"corporateGroups,omitempty"`
+	Subsidiaries       json.RawMessage `json:"subsidiaries,omitempty"`
+	AffiliateCompanies json.RawMessage `json:"affiliateCompanies,omitempty"`
+
+	// AML enrichment fields (IT-aml)
+	ForeignTrade     json.RawMessage  `json:"foreignTrade,omitempty"`
+	PublicTenders    json.RawMessage  `json:"publicTenders,omitempty"`
+	OperatingResults json.RawMessage  `json:"operatingResults,omitempty"`
+	Debts            json.RawMessage  `json:"debts,omitempty"`
+	RAE              *CodeDescription `json:"rae,omitempty"`
+	SAE              *CodeDescription `json:"sae,omitempty"`
 }
 
 // OpenAPIAddressData represents the address data from the API response
@@ -31,15 +106,29 @@ type OpenAPIAddressData struct {
 
 // OpenAPIRegisteredOffice represents the registered office address
 type OpenAPIRegisteredOffice struct {
-	StreetName   string  `json:"streetName"`
-	StreetNumber string  `json:"streetNumber"`
-	Town         string  `json:"town"`
-	Province     string  `json:"province"`
-	ZipCode      string  `json:"zipCode"`
-	Region       string  `json:"region"`
-	RegionCode   string  `json:"regionCode"`
-	Longitude    float64 `json:"longitude"`
-	Latitude     float64 `json:"latitude"`
+	Toponym      string          `json:"toponym"`
+	Street       string          `json:"street"`
+	StreetNumber string          `json:"streetNumber"`
+	StreetName   string          `json:"streetName"`
+	Town         string          `json:"town"`
+	Hamlet       string          `json:"hamlet"`
+	Province     string          `json:"province"`
+	ZipCode      string          `json:"zipCode"`
+	Region       *OpenAPIRegion  `json:"region"`
+	TownCode     string          `json:"townCode"`
+	GPS          *OpenAPIGPS     `json:"gps"`
+}
+
+// OpenAPIRegion represents the region in the API response
+type OpenAPIRegion struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
+
+// OpenAPIGPS represents GPS coordinates (nullable in API response)
+type OpenAPIGPS struct {
+	Longitude float64 `json:"longitude"`
+	Latitude  float64 `json:"latitude"`
 }
 
 // CompanyLookupListResponse represents a paginated list of company lookups

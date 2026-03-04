@@ -26,6 +26,7 @@ type CompanyRepository interface {
 	GetByID(ctx context.Context, uuid string) (*models.CompanyLookup, error)
 	List(ctx context.Context, page, pageSize int) ([]models.CompanyLookup, int64, error)
 	Search(ctx context.Context, query string, page, pageSize int) ([]models.CompanyLookup, int64, error)
+	UpdateEnrichment(ctx context.Context, taxCode string, enrichmentField string, data interface{}, fetchedType string, fetchedAt time.Time) error
 }
 
 type companyRepository struct {
@@ -212,4 +213,25 @@ func (r *companyRepository) Search(ctx context.Context, query string, page, page
 	}
 
 	return lookups, total, nil
+}
+
+// UpdateEnrichment performs a partial update to set a specific enrichment field and update fetchedTypes
+func (r *companyRepository) UpdateEnrichment(ctx context.Context, taxCode string, enrichmentField string, data interface{}, fetchedType string, fetchedAt time.Time) error {
+	filter := bson.M{"taxCode": taxCode}
+	update := bson.M{
+		"$set": bson.M{
+			enrichmentField:               data,
+			"fetchedTypes." + fetchedType:  fetchedAt,
+			"updatedAt":                    fetchedAt,
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrLookupNotFound
+	}
+	return nil
 }

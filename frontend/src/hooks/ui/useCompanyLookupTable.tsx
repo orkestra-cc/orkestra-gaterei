@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import useAdvanceTable from './useAdvanceTable';
 import SubtleBadge from 'components/common/SubtleBadge';
 import { useGetCompanyLookupsQuery } from 'store/api/companyApi';
@@ -25,7 +26,9 @@ const useCompanyLookupTable = (options?: any) => {
       },
       cell: ({ row: { original } }: { row: { original: CompanyLookup } }) => (
         <div>
-          <h6 className="mb-0 text-900">{original.companyName}</h6>
+          <Link to={`/company/lookup/${original.uuid}`} className="fw-semibold text-900">
+            <h6 className="mb-0 text-primary">{original.companyName}</h6>
+          </Link>
           <small className="text-muted font-monospace">{original.vatCode}</small>
         </div>
       ),
