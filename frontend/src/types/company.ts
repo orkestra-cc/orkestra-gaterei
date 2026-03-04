@@ -192,7 +192,7 @@ export interface DebtsData {
 }
 
 export interface AtecoClassification {
-  ateco2007?: CodeDescription;
+  ateco?: CodeDescription;
   nace?: CodeDescription;
   sector?: CodeDescription;
   category?: CodeDescription;
@@ -204,6 +204,37 @@ export interface LegalFormDetail {
   description: string;
 }
 
+export interface VATGroupData {
+  vatGroupParticipation?: boolean;
+  isVatGroupLeader?: boolean;
+  registryOk?: boolean;
+}
+
+export interface BalanceSheetEntry {
+  year?: number;
+  employees?: number;
+  balanceSheetDate?: string;
+  turnover?: number;
+  netWorth?: number;
+  shareCapital?: number;
+  totalStaffCost?: number;
+  totalAssets?: number;
+  avgGrossSalary?: number;
+}
+
+export interface BalanceSheetsData {
+  last?: BalanceSheetEntry;
+  all?: BalanceSheetEntry[];
+}
+
+export interface AdvancedShareholder {
+  companyName?: string;
+  name?: string;
+  surname?: string;
+  taxCode?: string;
+  percentShare?: number;
+}
+
 export interface AdvancedData {
   reaCode?: string;
   cciaa?: string;
@@ -213,6 +244,9 @@ export interface AdvancedData {
   startDate?: string;
   endDate?: string;
   taxCodeCeased?: boolean;
+  vatGroup?: VATGroupData;
+  balanceSheets?: BalanceSheetsData;
+  shareHolders?: AdvancedShareholder[];
 }
 
 export interface MarketingData {

@@ -74,6 +74,33 @@ const useCompanyLookupTable = (options?: any) => {
       },
     },
     {
+      accessorKey: 'fetchedTypes',
+      header: 'Dati',
+      meta: {
+        headerProps: { className: 'text-900' },
+        cellProps: { className: 'py-2 pe-4' },
+      },
+      cell: ({ row: { original } }: { row: { original: CompanyLookup } }) => {
+        const typeLabels: Record<string, string> = {
+          advanced: 'Avanzata',
+          marketing: 'Marketing',
+          stakeholders: 'Stakeholders',
+          aml: 'AML',
+        };
+        const types = Object.keys(original.fetchedTypes || {}).filter((t) => t !== 'full');
+        if (types.length === 0) return <span className="text-muted">-</span>;
+        return (
+          <div className="d-flex gap-1 flex-wrap">
+            {types.map((t) => (
+              <SubtleBadge key={t} bg="primary" className="fs-10">
+                {typeLabels[t] || t}
+              </SubtleBadge>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: 'sdiCode',
       header: 'Codice SDI',
       meta: {

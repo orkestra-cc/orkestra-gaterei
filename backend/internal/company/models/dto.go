@@ -65,14 +65,17 @@ type OpenAPICompanyData struct {
 	LastUpdateTimestamp interface{}        `json:"lastUpdateTimestamp"`
 
 	// Advanced enrichment fields (IT-advanced)
-	REACode             string               `json:"reaCode,omitempty"`
-	CCIAA               string               `json:"cciaa,omitempty"`
-	AtecoClassification *AtecoClassification `json:"atecoClassification,omitempty"`
-	DetailedLegalForm   *LegalFormDetail     `json:"detailedLegalForm,omitempty"`
-	PEC                 string               `json:"pec,omitempty"`
-	StartDate           string               `json:"startDate,omitempty"`
-	EndDate             string               `json:"endDate,omitempty"`
-	TaxCodeCeased       *bool                `json:"taxCodeCeased,omitempty"`
+	REACode             string                `json:"reaCode,omitempty"`
+	CCIAA               string                `json:"cciaa,omitempty"`
+	AtecoClassification *AtecoClassification  `json:"atecoClassification,omitempty"`
+	DetailedLegalForm   *LegalFormDetail      `json:"detailedLegalForm,omitempty"`
+	PEC                 string                `json:"pec,omitempty"`
+	StartDate           string                `json:"startDate,omitempty"`
+	EndDate             string                `json:"endDate,omitempty"`
+	TaxCodeCeased       *bool                 `json:"taxCodeCeased,omitempty"`
+	VATGroup            *VATGroupData         `json:"vatGroup,omitempty"`
+	BalanceSheets       *BalanceSheetsData    `json:"balanceSheets,omitempty"`
+	ShareHolders        []AdvancedShareholder `json:"shareHolders,omitempty"`
 
 	// Marketing enrichment fields (IT-marketing)
 	Contacts     *ContactsData     `json:"contacts,omitempty"`

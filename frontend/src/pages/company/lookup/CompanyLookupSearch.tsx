@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { Card, Form, Button, Row, Col, Alert, Spinner } from 'react-bootstrap';
+import {
+  Card,
+  Form,
+  Button,
+  Row,
+  Col,
+  Alert,
+  Spinner,
+  CloseButton
+} from 'react-bootstrap';
 import { useLazyLookupCompanyQuery } from 'store/api/companyApi';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
@@ -90,8 +99,8 @@ const CompanyLookupSearch = () => {
           <Card className="mt-3 border">
             <Card.Body>
               {/* Base result fields */}
-              <Row>
-                <Col md={8}>
+              <Row className="align-items-start">
+                <Col>
                   <div className="d-flex align-items-center mb-3">
                     <h5 className="mb-0 me-2">{result.companyName}</h5>
                     <SubtleBadge
@@ -100,6 +109,9 @@ const CompanyLookupSearch = () => {
                       {ACTIVITY_STATUS_LABELS[result.activityStatus] || result.activityStatus}
                     </SubtleBadge>
                   </div>
+                </Col>
+                <Col xs="auto">
+                  <CloseButton onClick={() => setDisplayResult(null)} />
                 </Col>
               </Row>
               <Row className="g-3">

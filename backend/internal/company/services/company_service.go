@@ -43,14 +43,20 @@ func NewCompanyService(repo repository.CompanyRepository, apiClient CompanyAPICl
 	}
 }
 
-// LookupCompany looks up a company by tax code from the external API,
-// persists the result in MongoDB, and returns it
+// LookupCompany looks up a company by tax code.
+// Resolution order: Redis cache → MongoDB → external OpenAPI call.
 func (s *companyService) LookupCompany(ctx context.Context, taxCode string) (*models.CompanyLookup, error) {
 	if taxCode == "" {
 		return nil, ErrInvalidTaxCode
 	}
 
-	// Call external API (client handles Redis caching internally)
+	// Check MongoDB for an existing lookup (Redis is checked inside the API client)
+	existing, err := s.repo.GetByTaxCode(ctx, taxCode)
+	if err == nil {
+		return existing, nil
+	}
+
+	// Call external API (client checks Redis cache first)
 	response, err := s.apiClient.LookupByTaxCode(ctx, taxCode)
 	if err != nil {
 		if errors.Is(err, ErrCompanyNotFound) {
@@ -72,16 +78,9 @@ func (s *companyService) LookupCompany(ctx context.Context, taxCode string) (*mo
 
 	// Map API response to domain model
 	lookup := mapResponseToLookup(&best)
+	lookup.UUID = uuid.New().String()
 
-	// Check if we already have this lookup
-	existing, err := s.repo.GetByTaxCode(ctx, lookup.TaxCode)
-	if err == nil {
-		lookup.UUID = existing.UUID
-	} else {
-		lookup.UUID = uuid.New().String()
-	}
-
-	// Upsert into MongoDB
+	// Persist into MongoDB
 	if err := s.repo.Upsert(ctx, lookup); err != nil {
 		s.logger.Error("failed to upsert company lookup",
 			"taxCode", taxCode,
@@ -222,6 +221,9 @@ func mapEnrichmentData(lookupType string, data *models.OpenAPICompanyData) (stri
 			StartDate:           data.StartDate,
 			EndDate:             data.EndDate,
 			TaxCodeCeased:       data.TaxCodeCeased,
+			VATGroup:            data.VATGroup,
+			BalanceSheets:       data.BalanceSheets,
+			ShareHolders:        data.ShareHolders,
 		}
 	case models.LookupTypeMarketing:
 		return "marketing", &models.MarketingData{

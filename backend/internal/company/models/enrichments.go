@@ -10,15 +10,53 @@ type AdvancedData struct {
 	StartDate           string               `bson:"startDate,omitempty" json:"startDate,omitempty"`
 	EndDate             string               `bson:"endDate,omitempty" json:"endDate,omitempty"`
 	TaxCodeCeased       *bool                `bson:"taxCodeCeased,omitempty" json:"taxCodeCeased,omitempty"`
+	VATGroup            *VATGroupData        `bson:"vatGroup,omitempty" json:"vatGroup,omitempty"`
+	BalanceSheets       *BalanceSheetsData   `bson:"balanceSheets,omitempty" json:"balanceSheets,omitempty"`
+	ShareHolders        []AdvancedShareholder `bson:"shareHolders,omitempty" json:"shareHolders,omitempty"`
 }
 
 // AtecoClassification represents ATECO industry classification codes
 type AtecoClassification struct {
-	Ateco2007   *CodeDescription `bson:"ateco2007,omitempty" json:"ateco2007,omitempty"`
+	Ateco       *CodeDescription `bson:"ateco,omitempty" json:"ateco,omitempty"`
 	Nace        *CodeDescription `bson:"nace,omitempty" json:"nace,omitempty"`
 	Sector      *CodeDescription `bson:"sector,omitempty" json:"sector,omitempty"`
 	Category    *CodeDescription `bson:"category,omitempty" json:"category,omitempty"`
 	SubCategory *CodeDescription `bson:"subCategory,omitempty" json:"subCategory,omitempty"`
+}
+
+// VATGroupData holds VAT group participation info
+type VATGroupData struct {
+	VATGroupParticipation *bool `bson:"vatGroupParticipation,omitempty" json:"vatGroupParticipation,omitempty"`
+	IsVATGroupLeader      *bool `bson:"isVatGroupLeader,omitempty" json:"isVatGroupLeader,omitempty"`
+	RegistryOk            *bool `bson:"registryOk,omitempty" json:"registryOk,omitempty"`
+}
+
+// BalanceSheetsData holds balance sheet information
+type BalanceSheetsData struct {
+	Last *BalanceSheetEntry   `bson:"last,omitempty" json:"last,omitempty"`
+	All  []BalanceSheetEntry  `bson:"all,omitempty" json:"all,omitempty"`
+}
+
+// BalanceSheetEntry represents a single balance sheet year
+type BalanceSheetEntry struct {
+	Year           *int     `bson:"year,omitempty" json:"year,omitempty"`
+	Employees      *int     `bson:"employees,omitempty" json:"employees,omitempty"`
+	BalanceSheetDate string `bson:"balanceSheetDate,omitempty" json:"balanceSheetDate,omitempty"`
+	Turnover       *float64 `bson:"turnover,omitempty" json:"turnover,omitempty"`
+	NetWorth       *float64 `bson:"netWorth,omitempty" json:"netWorth,omitempty"`
+	ShareCapital   *float64 `bson:"shareCapital,omitempty" json:"shareCapital,omitempty"`
+	TotalStaffCost *float64 `bson:"totalStaffCost,omitempty" json:"totalStaffCost,omitempty"`
+	TotalAssets    *float64 `bson:"totalAssets,omitempty" json:"totalAssets,omitempty"`
+	AvgGrossSalary *float64 `bson:"avgGrossSalary,omitempty" json:"avgGrossSalary,omitempty"`
+}
+
+// AdvancedShareholder represents a shareholder from the advanced endpoint
+type AdvancedShareholder struct {
+	CompanyName  string   `bson:"companyName,omitempty" json:"companyName,omitempty"`
+	Name         string   `bson:"name,omitempty" json:"name,omitempty"`
+	Surname      string   `bson:"surname,omitempty" json:"surname,omitempty"`
+	TaxCode      string   `bson:"taxCode,omitempty" json:"taxCode,omitempty"`
+	PercentShare *float64 `bson:"percentShare,omitempty" json:"percentShare,omitempty"`
 }
 
 // CodeDescription is a reusable code + description pair

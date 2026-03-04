@@ -266,26 +266,115 @@ const SOCIAL_ICONS = [
 ] as const;
 
 export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['advanced']> }) => (
-  <Row className="g-2">
-    <FieldRow label="PEC" value={data.pec} />
-    <FieldRow label="Codice REA" value={data.reaCode} />
-    <FieldRow label="CCIAA" value={data.cciaa} />
-    {data.atecoClassification?.ateco2007 && (
-      <FieldRow
-        label="ATECO 2007"
-        value={`${data.atecoClassification.ateco2007.code} - ${data.atecoClassification.ateco2007.description}`}
-      />
+  <div>
+    <Row className="g-2">
+      <FieldRow label="PEC" value={data.pec} />
+      <FieldRow label="Codice REA" value={data.reaCode} />
+      <FieldRow label="CCIAA" value={data.cciaa} />
+      {data.atecoClassification?.ateco && (
+        <FieldRow
+          label="ATECO"
+          value={`${data.atecoClassification.ateco.code} - ${data.atecoClassification.ateco.description}`}
+        />
+      )}
+      {data.detailedLegalForm && (
+        <FieldRow
+          label="Forma Giuridica"
+          value={`${data.detailedLegalForm.code} - ${data.detailedLegalForm.description}`}
+        />
+      )}
+      <FieldRow label="Data Inizio" value={data.startDate ? formatItalianDate(data.startDate) : undefined} />
+      <FieldRow label="Data Fine" value={data.endDate ? formatItalianDate(data.endDate) : undefined} />
+      <FieldRow label="CF Cessato" value={data.taxCodeCeased} />
+    </Row>
+
+    {/* VAT Group */}
+    {data.vatGroup && (
+      <>
+        <SectionLabel>Gruppo IVA</SectionLabel>
+        <Row className="g-2">
+          <FieldRow label="Partecipazione" value={data.vatGroup.vatGroupParticipation} />
+          <FieldRow label="Capogruppo IVA" value={data.vatGroup.isVatGroupLeader} />
+          <FieldRow label="Registro OK" value={data.vatGroup.registryOk} />
+        </Row>
+      </>
     )}
-    {data.detailedLegalForm && (
-      <FieldRow
-        label="Forma Giuridica"
-        value={`${data.detailedLegalForm.code} - ${data.detailedLegalForm.description}`}
-      />
+
+    {/* Last Balance Sheet */}
+    {data.balanceSheets?.last && (
+      <>
+        <SectionLabel>Ultimo Bilancio ({data.balanceSheets.last.year})</SectionLabel>
+        <Row className="g-2">
+          <FieldRow label="Data Bilancio" value={data.balanceSheets.last.balanceSheetDate ? formatItalianDate(data.balanceSheets.last.balanceSheetDate) : undefined} />
+          <FieldRow label="Fatturato" value={data.balanceSheets.last.turnover != null ? formatCurrency(data.balanceSheets.last.turnover) : undefined} />
+          <FieldRow label="Patrimonio Netto" value={data.balanceSheets.last.netWorth != null ? formatCurrency(data.balanceSheets.last.netWorth) : undefined} />
+          <FieldRow label="Capitale Sociale" value={data.balanceSheets.last.shareCapital != null ? formatCurrency(data.balanceSheets.last.shareCapital) : undefined} />
+          <FieldRow label="Dipendenti" value={data.balanceSheets.last.employees} />
+          <FieldRow label="Totale Attivo" value={data.balanceSheets.last.totalAssets != null ? formatCurrency(data.balanceSheets.last.totalAssets) : undefined} />
+          <FieldRow label="Costo Personale" value={data.balanceSheets.last.totalStaffCost != null ? formatCurrency(data.balanceSheets.last.totalStaffCost) : undefined} />
+          <FieldRow label="Retribuzione Media" value={data.balanceSheets.last.avgGrossSalary != null ? formatCurrency(data.balanceSheets.last.avgGrossSalary) : undefined} />
+        </Row>
+      </>
     )}
-    <FieldRow label="Data Inizio" value={data.startDate ? formatItalianDate(data.startDate) : undefined} />
-    <FieldRow label="Data Fine" value={data.endDate ? formatItalianDate(data.endDate) : undefined} />
-    <FieldRow label="CF Cessato" value={data.taxCodeCeased} />
-  </Row>
+
+    {/* Historical Balance Sheets */}
+    {data.balanceSheets?.all && data.balanceSheets.all.length > 1 && (
+      <>
+        <SectionLabel>Storico Bilanci</SectionLabel>
+        <div className="table-responsive">
+          <Table bordered hover size="sm">
+            <thead className="bg-body-tertiary">
+              <tr>
+                <th>Anno</th>
+                <th>Fatturato</th>
+                <th>Patrimonio Netto</th>
+                <th>Capitale Sociale</th>
+                <th>Dipendenti</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.balanceSheets.all.map((bs, i) => (
+                <tr key={i}>
+                  <td>{bs.year ?? '-'}</td>
+                  <td>{bs.turnover != null ? formatCurrency(bs.turnover) : '-'}</td>
+                  <td>{bs.netWorth != null ? formatCurrency(bs.netWorth) : '-'}</td>
+                  <td>{bs.shareCapital != null ? formatCurrency(bs.shareCapital) : '-'}</td>
+                  <td>{bs.employees ?? '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </>
+    )}
+
+    {/* Shareholders */}
+    {data.shareHolders && data.shareHolders.length > 0 && (
+      <>
+        <SectionLabel>Soci</SectionLabel>
+        <div className="table-responsive">
+          <Table bordered hover size="sm">
+            <thead className="bg-body-tertiary">
+              <tr>
+                <th>Nome</th>
+                <th>Codice Fiscale</th>
+                <th>Quota %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.shareHolders.map((s, i) => (
+                <tr key={i}>
+                  <td>{s.companyName || [s.name, s.surname].filter(Boolean).join(' ') || '-'}</td>
+                  <td className="font-monospace">{s.taxCode || '-'}</td>
+                  <td>{s.percentShare != null ? `${s.percentShare}%` : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </>
+    )}
+  </div>
 );
 
 export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['marketing']> }) => (

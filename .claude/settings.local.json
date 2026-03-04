@@ -31,7 +31,8 @@
       "WebFetch(domain:console.openapi.com)",
       "WebFetch(domain:www.openapi.it)",
       "Bash(curl:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npx tsc:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
