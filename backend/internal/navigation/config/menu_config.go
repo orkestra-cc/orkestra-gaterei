@@ -122,7 +122,14 @@ func buildAdminRoutes() models.RouteGroup {
 						Active: true,
 						Roles:  []string{"administrator"},
 					},
-				},
+					},
+			},
+			{
+				Name:   "Ricerca Aziende",
+				Icon:   "building",
+				To:     "/company/lookup",
+				Active: true,
+				Roles:  []string{"administrator"},
 			},
 			{
 				Name:   "Deadlines",

@@ -230,6 +230,11 @@ const ReceivedInvoiceDetail = lazy(
   () => import('pages/billing/invoices/received/ReceivedInvoiceDetail')
 );
 
+// Company pages
+const CompanyLookup = lazy(
+  () => import('pages/company/lookup')
+);
+
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
 import Contacts from 'reference/app-examples/support-desk/contacts/Contacts';
@@ -817,6 +822,23 @@ const routes: RouteObject[] = [
                   fallback={<FalconLoader />}
                 >
                   <SDINotifications />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'company/lookup',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[
+                  ['developer', 'ceo', 'administrator', 'manager']
+                ]}
+              >
+                <Suspense
+                  key="company-lookup"
+                  fallback={<FalconLoader />}
+                >
+                  <CompanyLookup />
                 </Suspense>
               </ProtectedRoute>
             )

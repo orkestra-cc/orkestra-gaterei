@@ -56,6 +56,6 @@ func (e ConfigError) Error() string {
 }
 
 const (
-	ErrMissingBaseURL     ConfigError = "COMPANY_API_BASE_URL is required"
-	ErrMissingBearerToken ConfigError = "OPENAPI_BEARER_TOKEN is required for Company API"
+	ErrMissingBaseURL     ConfigError = "OPENAPI_COMPANY_BASE_URL is required"
+	ErrMissingBearerToken ConfigError = "OPENAPI_COMPANY_BEARER_TOKEN is required"
 )

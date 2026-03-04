@@ -340,17 +340,17 @@ func main() {
 			slog.Bool("sandbox", cfg.Billing.SandboxMode),
 		)
 	} else {
-		logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
+		logger.Warn("Billing module disabled: OPENAPI_BILLING_BEARER_TOKEN not configured")
 	}
 
 	// Initialize company lookup module (OpenAPI Company API)
 	var companyLookupHandler *companyHandlers.CompanyHandler
-	companyEnabled := cfg.Billing.OpenAPIBearerToken != "" // Same token gates both
+	companyEnabled := cfg.Company.BearerToken != ""
 
 	if companyEnabled {
 		companyCfg := &companyConfig.CompanyAPIConfig{
 			BaseURL:       cfg.Company.BaseURL,
-			BearerToken:   cfg.Billing.OpenAPIBearerToken,
+			BearerToken:   cfg.Company.BearerToken,
 			Timeout:       cfg.Company.Timeout,
 			RetryAttempts: cfg.Company.RetryAttempts,
 			CacheTTL:      cfg.Company.CacheTTL,
@@ -365,7 +365,7 @@ func main() {
 			slog.String("baseURL", cfg.Company.BaseURL),
 		)
 	} else {
-		logger.Warn("Company lookup module disabled: OPENAPI_BEARER_TOKEN not configured")
+		logger.Warn("Company lookup module disabled: OPENAPI_COMPANY_BEARER_TOKEN not configured")
 	}
 
 	// Initialize auth service with all repositories

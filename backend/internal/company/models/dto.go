@@ -6,7 +6,7 @@ type OpenAPIBaseResponse struct {
 	Success bool                `json:"success"`
 	Data    *OpenAPICompanyData `json:"data"`
 	Message string              `json:"message,omitempty"`
-	Error   int                 `json:"error,omitempty"`
+	Error   float64             `json:"error,omitempty"`
 }
 
 // OpenAPICompanyData represents the company data from the API response

@@ -28,6 +28,7 @@ type Config struct {
 // CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
 type CompanyConfig struct {
 	BaseURL       string        // Base URL: https://company.openapi.com (prod) or https://test.company.openapi.com (sandbox)
+	BearerToken   string        // Dedicated token for Company API (falls back to OPENAPI_BILLING_BEARER_TOKEN)
 	Timeout       time.Duration // HTTP client timeout
 	RetryAttempts int           // Number of retry attempts for failed requests
 	CacheTTL      time.Duration // Redis cache TTL for company lookups
@@ -269,19 +270,19 @@ func Load() (*Config, error) {
 	}
 
 	config.Billing = BillingConfig{
-		OpenAPIBaseURL:       getEnv("OPENAPI_BASE_URL", defaultBaseURL),
-		OpenAPIBearerToken:   getEnv("OPENAPI_BEARER_TOKEN", ""),
-		OpenAPIFiscalID:      getEnv("OPENAPI_FISCAL_ID", ""),
-		OpenAPIRecipientCode: getEnv("OPENAPI_RECIPIENT_CODE", "JKKZDGR"),
-		ApplySignature:       getEnvAsBool("OPENAPI_APPLY_SIGNATURE", true),
-		ApplyStorage:         getEnvAsBool("OPENAPI_APPLY_STORAGE", true),
-		Timeout:              getEnvAsDuration("OPENAPI_TIMEOUT", "30s"),
-		RetryAttempts:        getEnvAsInt("OPENAPI_RETRY_ATTEMPTS", 3),
-		PollingInterval:      getEnvAsDuration("OPENAPI_POLLING_INTERVAL", "12h"),
-		PollingEnabled:       getEnvAsBool("OPENAPI_POLLING_ENABLED", true),
+		OpenAPIBaseURL:       getEnv("OPENAPI_BILLING_BASE_URL", defaultBaseURL),
+		OpenAPIBearerToken:   getEnv("OPENAPI_BILLING_BEARER_TOKEN", ""),
+		OpenAPIFiscalID:      getEnv("OPENAPI_BILLING_FISCAL_ID", ""),
+		OpenAPIRecipientCode: getEnv("OPENAPI_BILLING_RECIPIENT_CODE", "JKKZDGR"),
+		ApplySignature:       getEnvAsBool("OPENAPI_BILLING_APPLY_SIGNATURE", true),
+		ApplyStorage:         getEnvAsBool("OPENAPI_BILLING_APPLY_STORAGE", true),
+		Timeout:              getEnvAsDuration("OPENAPI_BILLING_TIMEOUT", "30s"),
+		RetryAttempts:        getEnvAsInt("OPENAPI_BILLING_RETRY_ATTEMPTS", 3),
+		PollingInterval:      getEnvAsDuration("OPENAPI_BILLING_POLLING_INTERVAL", "12h"),
+		PollingEnabled:       getEnvAsBool("OPENAPI_BILLING_POLLING_ENABLED", true),
 		SandboxMode:          sandboxMode,
-		WebhookURL:           getEnv("OPENAPI_WEBHOOK_URL", ""),
-		WebhookSecret:        getEnv("OPENAPI_WEBHOOK_SECRET", ""),
+		WebhookURL:           getEnv("OPENAPI_BILLING_WEBHOOK_URL", ""),
+		WebhookSecret:        getEnv("OPENAPI_BILLING_WEBHOOK_SECRET", ""),
 	}
 
 	// Company lookup configuration (OpenAPI Company API)
@@ -291,11 +292,18 @@ func Load() (*Config, error) {
 		defaultCompanyBaseURL = "https://company.openapi.com"
 	}
 
+	// Company API token: use dedicated token if set, otherwise fall back to billing token
+	companyToken := getEnv("OPENAPI_COMPANY_BEARER_TOKEN", "")
+	if companyToken == "" {
+		companyToken = config.Billing.OpenAPIBearerToken
+	}
+
 	config.Company = CompanyConfig{
-		BaseURL:       getEnv("COMPANY_API_BASE_URL", defaultCompanyBaseURL),
-		Timeout:       getEnvAsDuration("COMPANY_API_TIMEOUT", "15s"),
-		RetryAttempts: getEnvAsInt("COMPANY_API_RETRY_ATTEMPTS", 3),
-		CacheTTL:      getEnvAsDuration("COMPANY_API_CACHE_TTL", "24h"),
+		BaseURL:       getEnv("OPENAPI_COMPANY_BASE_URL", defaultCompanyBaseURL),
+		BearerToken:   companyToken,
+		Timeout:       getEnvAsDuration("OPENAPI_COMPANY_TIMEOUT", "15s"),
+		RetryAttempts: getEnvAsInt("OPENAPI_COMPANY_RETRY_ATTEMPTS", 3),
+		CacheTTL:      getEnvAsDuration("OPENAPI_COMPANY_CACHE_TTL", "24h"),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)

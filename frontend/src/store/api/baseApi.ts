@@ -116,6 +116,8 @@ export const baseApi = createApi({
     'Notification',
     'BillingStats',
     'BusinessRegistry',
+    // Company lookup module tags
+    'CompanyLookup',
     // Documents module tags
     'DocumentTemplate',
     'GeneratedDocument',
@@ -135,7 +137,7 @@ export const {
 } = baseApi;
 
 // Helper function to invalidate multiple tags
-export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry" | "DocumentTemplate" | "GeneratedDocument">) => {
+export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry" | "CompanyLookup" | "DocumentTemplate" | "GeneratedDocument">) => {
   return baseApi.util.invalidateTags(tags);
 };
 

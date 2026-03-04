@@ -15,7 +15,7 @@ The billing module handles **Italian electronic invoicing** (Fatturazione Elettr
 
 - **Primary Role**: Create, send, and receive electronic invoices compliant with FatturaPA format
 - **External Integration**: OpenAPI SDI for invoice transmission and notification retrieval
-- **Conditional Activation**: Module activates only when `OPENAPI_BEARER_TOKEN` is configured
+- **Conditional Activation**: Module activates only when `OPENAPI_BILLING_BEARER_TOKEN` is configured
 
 **IMPORTANT**: This module is disabled by default. Configure the OpenAPI SDI credentials to enable billing functionality.
 
@@ -39,8 +39,8 @@ When modifying or adding billing endpoints:
 ### Implementation Notes
 
 1. **Notification Strategy**: This module uses **polling + webhooks**
-   - **Webhooks**: OpenAPI.it sends callbacks to `/v1/billing/webhooks/sdi` for real-time events (supplier-invoice, customer-notification, legal-storage-receipt). Configured automatically via `ConfigureAPICallbacks` on startup when `OPENAPI_WEBHOOK_URL` is set.
-   - **Polling**: Background job periodically syncs invoices and notifications as a safety net. Configurable interval via `OPENAPI_POLLING_INTERVAL`.
+   - **Webhooks**: OpenAPI.it sends callbacks to `/v1/billing/webhooks/sdi` for real-time events (supplier-invoice, customer-notification, legal-storage-receipt). Configured automatically via `ConfigureAPICallbacks` on startup when `OPENAPI_BILLING_WEBHOOK_URL` is set.
+   - **Polling**: Background job periodically syncs invoices and notifications as a safety net. Configurable interval via `OPENAPI_BILLING_POLLING_INTERVAL`.
    - Both mechanisms trigger the same `SyncReceivedInvoices` flow, which is idempotent (deduplicates by OpenAPIUUID and invoice number).
 
 2. **Invoice Submission Variants** (per OpenAPI SDI spec):
@@ -165,7 +165,7 @@ Draft → Sent → [SDI Processing] → Delivered/Rejected
 
 The `polling_job.go` runs a background goroutine that periodically syncs invoices and fetches notifications from OpenAPI SDI:
 
-- Polls at configurable intervals (`OPENAPI_POLLING_INTERVAL`)
+- Polls at configurable intervals (`OPENAPI_BILLING_POLLING_INTERVAL`)
 - `SyncReceivedInvoices` fetches **both** sent (`type=0`) and received (`type=1`) invoices from the API, deduplicates by OpenAPIUUID and invoice number, and imports new ones
 - Updates invoice status based on notification type
 - Stores notifications for audit trail
@@ -191,19 +191,19 @@ The `GET /invoices` endpoint uses these parameters (per the [OAS spec](https://c
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAPI_BASE_URL` | OpenAPI SDI API URL | `https://test.sdi.openapi.it` |
-| `OPENAPI_BEARER_TOKEN` | Authentication token | _(required to enable)_ |
-| `OPENAPI_FISCAL_ID` | Company fiscal code (P.IVA) | _(required)_ |
-| `OPENAPI_RECIPIENT_CODE` | Default recipient code | `JKKZDGR` |
-| `OPENAPI_APPLY_SIGNATURE` | Enable digital signature | `true` |
-| `OPENAPI_APPLY_STORAGE` | Enable legal storage | `true` |
-| `OPENAPI_TIMEOUT` | HTTP request timeout | `30s` |
-| `OPENAPI_RETRY_ATTEMPTS` | Retry count on failure | `3` |
-| `OPENAPI_POLLING_INTERVAL` | Notification poll interval | `12h` |
-| `OPENAPI_POLLING_ENABLED` | Enable automatic polling | `true` |
-| `OPENAPI_SANDBOX_MODE` | Use sandbox environment | `true` |
-| `OPENAPI_WEBHOOK_URL` | Public URL for SDI webhook callbacks | _(optional)_ |
-| `OPENAPI_WEBHOOK_SECRET` | Bearer token for webhook authentication | _(optional)_ |
+| `OPENAPI_BILLING_BASE_URL` | OpenAPI SDI API URL | `https://test.sdi.openapi.it` |
+| `OPENAPI_BILLING_BEARER_TOKEN` | Authentication token | _(required to enable)_ |
+| `OPENAPI_BILLING_FISCAL_ID` | Company fiscal code (P.IVA) | _(required)_ |
+| `OPENAPI_BILLING_RECIPIENT_CODE` | Default recipient code | `JKKZDGR` |
+| `OPENAPI_BILLING_APPLY_SIGNATURE` | Enable digital signature | `true` |
+| `OPENAPI_BILLING_APPLY_STORAGE` | Enable legal storage | `true` |
+| `OPENAPI_BILLING_TIMEOUT` | HTTP request timeout | `30s` |
+| `OPENAPI_BILLING_RETRY_ATTEMPTS` | Retry count on failure | `3` |
+| `OPENAPI_BILLING_POLLING_INTERVAL` | Notification poll interval | `12h` |
+| `OPENAPI_BILLING_POLLING_ENABLED` | Enable automatic polling | `true` |
+| `OPENAPI_SANDBOX_MODE` | Use sandbox environment (shared) | `true` |
+| `OPENAPI_BILLING_WEBHOOK_URL` | Public URL for SDI webhook callbacks | _(optional)_ |
+| `OPENAPI_BILLING_WEBHOOK_SECRET` | Bearer token for webhook authentication | _(optional)_ |
 
 ### API Usage Optimization
 
@@ -229,7 +229,7 @@ The OpenAPI SDI free tier allows 1000 requests/month. The default configuration 
 | POST | `/v1/billing/sync` | Full sync (invoices + notifications) |
 | POST | `/v1/billing/sync/invoices` | Invoice sync only |
 
-**To disable automatic polling:** Set `OPENAPI_POLLING_ENABLED=false` and use manual sync endpoints instead.
+**To disable automatic polling:** Set `OPENAPI_BILLING_POLLING_ENABLED=false` and use manual sync endpoints instead.
 
 ### Production vs Sandbox
 
@@ -250,7 +250,7 @@ if cfg.OpenAPI.BearerToken != "" {
     billing.RegisterRoutes(api, ...)
     go pollingJob.Start(ctx)
 } else {
-    logger.Warn("Billing module disabled: OPENAPI_BEARER_TOKEN not configured")
+    logger.Warn("Billing module disabled: OPENAPI_BILLING_BEARER_TOKEN not configured")
 }
 ```
 
@@ -271,13 +271,13 @@ if cfg.OpenAPI.BearerToken != "" {
 
 3. **Configure environment variables** in `.env.development`:
    ```bash
-   OPENAPI_BASE_URL=https://test.sdi.openapi.it
-   OPENAPI_BEARER_TOKEN=your_sandbox_token
-   OPENAPI_FISCAL_ID=02081880490
-   OPENAPI_RECIPIENT_CODE=JKKZDGR
-   OPENAPI_APPLY_SIGNATURE=false  # Set to true if configured in console
-   OPENAPI_APPLY_STORAGE=false    # Set to true if configured in console
    OPENAPI_SANDBOX_MODE=true
+   OPENAPI_BILLING_BASE_URL=https://test.sdi.openapi.it
+   OPENAPI_BILLING_BEARER_TOKEN=your_sandbox_token
+   OPENAPI_BILLING_FISCAL_ID=02081880490
+   OPENAPI_BILLING_RECIPIENT_CODE=JKKZDGR
+   OPENAPI_BILLING_APPLY_SIGNATURE=false  # Set to true if configured in console
+   OPENAPI_BILLING_APPLY_STORAGE=false    # Set to true if configured in console
    ```
 
 4. **Test invoice flow**:
@@ -355,7 +355,7 @@ Ensure these indexes exist for performance:
 
 ## Security Considerations
 
-- Store `OPENAPI_BEARER_TOKEN` securely (never in code)
+- Store `OPENAPI_BILLING_BEARER_TOKEN` securely (never in code)
 - Validate all fiscal codes and VAT numbers
 - Sanitize XML content to prevent injection
 - Audit log all invoice operations

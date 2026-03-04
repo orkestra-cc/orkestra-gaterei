@@ -98,13 +98,36 @@ func (c *companyAPIClient) LookupByTaxCode(ctx context.Context, taxCode string) 
 	}
 
 	// Parse response
+	c.logger.Debug("company API raw response",
+		"taxCode", taxCode,
+		"statusCode", statusCode,
+		"body", string(respBody),
+	)
+
 	var response models.OpenAPIBaseResponse
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse company API response: %w", err)
 	}
 
+	// Handle authentication errors
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		c.logger.Error("company API authentication failed",
+			"taxCode", taxCode,
+			"statusCode", statusCode,
+			"message", response.Message,
+		)
+		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, response.Message)
+	}
+
 	// Handle API-level errors
 	if statusCode == http.StatusNotFound || !response.Success {
+		c.logger.Debug("company API lookup not found",
+			"taxCode", taxCode,
+			"statusCode", statusCode,
+			"success", response.Success,
+			"message", response.Message,
+			"error", response.Error,
+		)
 		return nil, ErrCompanyNotFound
 	}
 

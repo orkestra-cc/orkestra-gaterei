@@ -78,7 +78,7 @@ func (e ConfigError) Error() string {
 }
 
 const (
-	ErrMissingBaseURL     ConfigError = "OPENAPI_BASE_URL is required"
-	ErrMissingBearerToken ConfigError = "OPENAPI_BEARER_TOKEN is required"
-	ErrMissingFiscalID    ConfigError = "OPENAPI_FISCAL_ID is required"
+	ErrMissingBaseURL     ConfigError = "OPENAPI_BILLING_BASE_URL is required"
+	ErrMissingBearerToken ConfigError = "OPENAPI_BILLING_BEARER_TOKEN is required"
+	ErrMissingFiscalID    ConfigError = "OPENAPI_BILLING_FISCAL_ID is required"
 )

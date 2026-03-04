@@ -15,7 +15,7 @@ The company module provides **Italian company data lookup** by tax code (Codice 
 
 - **Primary Role**: Look up external company data for auto-filling customer/supplier details and company verification
 - **External Integration**: OpenAPI Company API for real-time company information
-- **Conditional Activation**: Module activates only when `OPENAPI_BEARER_TOKEN` is configured (shared with billing)
+- **Conditional Activation**: Module activates only when `OPENAPI_COMPANY_BEARER_TOKEN` (or `OPENAPI_BILLING_BEARER_TOKEN` as fallback) is configured
 - **Scope**: Italy only (`/IT-start/{taxCode}` endpoint)
 
 ## Module Structure
@@ -65,7 +65,7 @@ Request → Redis Cache Check → External API Call → MongoDB Upsert → Redis
 
 - **Production**: `https://company.openapi.com`
 - **Sandbox**: `https://test.company.openapi.com`
-- **Authentication**: Bearer token (shared with billing module's `OPENAPI_BEARER_TOKEN`)
+- **Authentication**: Bearer token (`OPENAPI_COMPANY_BEARER_TOKEN`, falls back to `OPENAPI_BILLING_BEARER_TOKEN`)
 - **Endpoint used**: `GET /IT-start/{vatCode_taxCode_or_id}`
 - **Free tier**: 30 requests/month
 
@@ -73,12 +73,12 @@ Request → Redis Cache Check → External API Call → MongoDB Upsert → Redis
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `COMPANY_API_BASE_URL` | Override base URL | Derived from `OPENAPI_SANDBOX_MODE` |
-| `COMPANY_API_TIMEOUT` | HTTP request timeout | `15s` |
-| `COMPANY_API_RETRY_ATTEMPTS` | Retry count on failure | `3` |
-| `COMPANY_API_CACHE_TTL` | Redis cache TTL | `24h` |
-| `OPENAPI_BEARER_TOKEN` | Authentication token (shared with billing) | _(required to enable)_ |
-| `OPENAPI_SANDBOX_MODE` | Use sandbox environment | `true` |
+| `OPENAPI_COMPANY_BASE_URL` | Override base URL | Derived from `OPENAPI_SANDBOX_MODE` |
+| `OPENAPI_COMPANY_BEARER_TOKEN` | Authentication token (falls back to `OPENAPI_BILLING_BEARER_TOKEN`) | _(required to enable)_ |
+| `OPENAPI_COMPANY_TIMEOUT` | HTTP request timeout | `15s` |
+| `OPENAPI_COMPANY_RETRY_ATTEMPTS` | Retry count on failure | `3` |
+| `OPENAPI_COMPANY_CACHE_TTL` | Redis cache TTL | `24h` |
+| `OPENAPI_SANDBOX_MODE` | Use sandbox environment (shared) | `true` |
 
 ## MongoDB Collection
 
