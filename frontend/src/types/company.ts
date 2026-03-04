@@ -307,6 +307,44 @@ export interface CompanyLookupSearchParams {
 }
 
 // ========================================
+// Company Search (IT-search API) Types
+// ========================================
+
+export interface CompanySearchApiParams {
+  companyName?: string;
+  autocomplete?: string;
+  province?: string;
+  townCode?: string;
+  atecoCode?: string;
+  cciaa?: string;
+  reaCode?: string;
+  minTurnover?: number;
+  maxTurnover?: number;
+  minEmployees?: number;
+  maxEmployees?: number;
+  sdiCode?: string;
+  legalFormCode?: string;
+  pec?: string;
+  shareHolderTaxCode?: string;
+  lat?: number;
+  long?: number;
+  radius?: number;
+  activityStatus?: string;
+  dataEnrichment?: string;
+  dryRun?: number;
+  limit?: number;
+  skip?: number;
+}
+
+export interface CompanySearchResult {
+  companies: CompanyLookup[];
+  totalResults?: number;
+  limit: number;
+  skip: number;
+  dryRun: boolean;
+}
+
+// ========================================
 // Constants for UI
 // ========================================
 

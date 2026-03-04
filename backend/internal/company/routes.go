@@ -15,6 +15,16 @@ func RegisterRoutes(api huma.API, handler *handlers.CompanyHandler) {
 	// ========================================
 
 	huma.Register(api, huma.Operation{
+		OperationID: "search-companies",
+		Method:      http.MethodGet,
+		Path:        "/v1/company/search",
+		Summary:     "Search Italian companies",
+		Description: "Search Italian companies by name, province, ATECO code, revenue, employees, and more via the OpenAPI IT-search endpoint. Results are auto-persisted.",
+		Tags:        []string{"Company Lookup"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.SearchCompanies)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "lookup-company",
 		Method:      http.MethodGet,
 		Path:        "/v1/company/lookup/{taxCode}",

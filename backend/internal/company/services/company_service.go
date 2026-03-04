@@ -23,6 +23,7 @@ var (
 type CompanyService interface {
 	LookupCompany(ctx context.Context, taxCode string) (*models.CompanyLookup, error)
 	EnrichCompany(ctx context.Context, taxCode string, lookupType string) (*models.CompanyLookup, error)
+	SearchCompanies(ctx context.Context, params *models.CompanySearchParams) (*models.CompanySearchResult, error)
 	GetLookup(ctx context.Context, uuid string) (*models.CompanyLookup, error)
 	ListLookups(ctx context.Context, page, pageSize int) ([]models.CompanyLookup, int64, error)
 	SearchLookups(ctx context.Context, query string, page, pageSize int) ([]models.CompanyLookup, int64, error)
@@ -259,6 +260,66 @@ func mapEnrichmentData(lookupType string, data *models.OpenAPICompanyData) (stri
 	default:
 		return "", nil
 	}
+}
+
+// SearchCompanies searches Italian companies via the external IT-search API.
+// Results are auto-persisted to MongoDB unless dryRun is enabled.
+func (s *companyService) SearchCompanies(ctx context.Context, params *models.CompanySearchParams) (*models.CompanySearchResult, error) {
+	response, err := s.apiClient.SearchCompanies(ctx, params)
+	if err != nil {
+		s.logger.Error("company search API call failed", "error", err)
+		return nil, err
+	}
+
+	isDryRun := params.DryRun != nil && *params.DryRun == 1
+
+	result := &models.CompanySearchResult{
+		TotalResults: response.TotalResults,
+		Limit:        params.Limit,
+		Skip:         params.Skip,
+		DryRun:       isDryRun,
+	}
+
+	if isDryRun || len(response.Data) == 0 {
+		result.Companies = []models.CompanyLookup{}
+		return result, nil
+	}
+
+	// Map API response entries to domain models
+	lookups := make([]*models.CompanyLookup, 0, len(response.Data))
+	for i := range response.Data {
+		lookup := mapResponseToLookup(&response.Data[i])
+		lookup.UUID = uuid.New().String()
+		lookups = append(lookups, lookup)
+	}
+
+	// Bulk upsert to MongoDB
+	if err := s.repo.BulkUpsert(ctx, lookups); err != nil {
+		s.logger.Error("failed to bulk upsert search results", "error", err, "count", len(lookups))
+		// Don't fail the request — return results even if persistence fails
+	}
+
+	// Re-read from MongoDB to get the actual stored UUIDs.
+	// BulkUpsert uses $setOnInsert for uuid, so existing records keep their
+	// original UUID which may differ from the freshly generated one above.
+	companies := make([]models.CompanyLookup, 0, len(lookups))
+	for _, l := range lookups {
+		stored, err := s.repo.GetByTaxCode(ctx, l.TaxCode)
+		if err != nil {
+			// Fallback to the in-memory version if lookup fails
+			companies = append(companies, *l)
+			continue
+		}
+		companies = append(companies, *stored)
+	}
+	result.Companies = companies
+
+	s.logger.Info("company search completed",
+		"resultsReturned", len(companies),
+		"totalResults", response.TotalResults,
+	)
+
+	return result, nil
 }
 
 // GetLookup retrieves a previously stored company lookup by UUID

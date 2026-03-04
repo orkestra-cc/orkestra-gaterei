@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ type RedisClient interface {
 type CompanyAPIClient interface {
 	LookupByTaxCode(ctx context.Context, taxCode string) (*models.OpenAPIBaseResponse, error)
 	LookupByType(ctx context.Context, taxCode string, lookupType string) (*models.OpenAPIBaseResponse, error)
+	SearchCompanies(ctx context.Context, params *models.CompanySearchParams) (*models.OpenAPISearchResponse, error)
 	Ping(ctx context.Context) error
 }
 
@@ -228,6 +230,130 @@ func (c *companyAPIClient) LookupByType(ctx context.Context, taxCode string, loo
 	}
 
 	return &response, nil
+}
+
+// SearchCompanies calls the OpenAPI IT-search endpoint with the given search parameters
+func (c *companyAPIClient) SearchCompanies(ctx context.Context, params *models.CompanySearchParams) (*models.OpenAPISearchResponse, error) {
+	// Build query string
+	query := buildSearchQuery(params)
+	path := "/IT-search"
+	if query != "" {
+		path += "?" + query
+	}
+
+	// Check Redis cache
+	if c.redis != nil {
+		cacheKey := fmt.Sprintf("company:search:%s", query)
+		cached, err := c.redis.Get(ctx, cacheKey)
+		if err == nil && cached != "" {
+			var response models.OpenAPISearchResponse
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				c.logger.Debug("company search cache hit", "query", query)
+				return &response, nil
+			}
+		}
+	}
+
+	// Call external API
+	respBody, statusCode, err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	c.logger.Debug("company search API raw response",
+		"statusCode", statusCode,
+		"bodyLen", len(respBody),
+	)
+
+	var response models.OpenAPISearchResponse
+	if err := json.Unmarshal(respBody, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse company search response: %w", err)
+	}
+
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		c.logger.Error("company API authentication failed",
+			"statusCode", statusCode,
+			"message", response.Message,
+		)
+		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, response.Message)
+	}
+
+	if !response.Success {
+		c.logger.Debug("company search API unsuccessful",
+			"statusCode", statusCode,
+			"message", response.Message,
+			"error", response.Error,
+		)
+		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, response.Message)
+	}
+
+	// Cache with short TTL (5 min) — search results are more volatile
+	if c.redis != nil {
+		cacheKey := fmt.Sprintf("company:search:%s", query)
+		cacheData, _ := json.Marshal(response)
+		if err := c.redis.Set(ctx, cacheKey, string(cacheData), 5*time.Minute); err != nil {
+			c.logger.Warn("failed to cache company search", "error", err)
+		}
+	}
+
+	return &response, nil
+}
+
+// buildSearchQuery constructs a URL query string from non-zero CompanySearchParams fields
+func buildSearchQuery(params *models.CompanySearchParams) string {
+	q := make([]string, 0, 16)
+	add := func(key, val string) {
+		if val != "" {
+			q = append(q, key+"="+val)
+		}
+	}
+	addInt := func(key string, val *int) {
+		if val != nil {
+			q = append(q, fmt.Sprintf("%s=%d", key, *val))
+		}
+	}
+	addInt64 := func(key string, val *int64) {
+		if val != nil {
+			q = append(q, fmt.Sprintf("%s=%d", key, *val))
+		}
+	}
+	addFloat := func(key string, val *float64) {
+		if val != nil {
+			q = append(q, fmt.Sprintf("%s=%f", key, *val))
+		}
+	}
+
+	add("companyName", params.CompanyName)
+	add("autocomplete", params.Autocomplete)
+	add("province", params.Province)
+	add("townCode", params.TownCode)
+	add("atecoCode", params.AtecoCode)
+	add("cciaa", params.CCIAA)
+	add("reaCode", params.REACode)
+	addInt64("minTurnover", params.MinTurnover)
+	addInt64("maxTurnover", params.MaxTurnover)
+	addInt("minEmployees", params.MinEmployees)
+	addInt("maxEmployees", params.MaxEmployees)
+	add("sdiCode", params.SDICode)
+	add("legalFormCode", params.LegalFormCode)
+	add("pec", params.PEC)
+	add("shareHolderTaxCode", params.ShareHolderTaxCode)
+	addFloat("lat", params.Latitude)
+	addFloat("long", params.Longitude)
+	addInt("radius", params.Radius)
+	add("activityStatus", params.ActivityStatus)
+	add("dataEnrichment", params.DataEnrichment)
+	addInt64("creationTimestamp", params.CreationTimestamp)
+	addInt64("lastUpdateTimestamp", params.LastUpdateTimestamp)
+	addInt("dryRun", params.DryRun)
+	if params.Limit > 0 {
+		q = append(q, fmt.Sprintf("limit=%d", params.Limit))
+	}
+	if params.Skip > 0 {
+		q = append(q, fmt.Sprintf("skip=%d", params.Skip))
+	}
+
+	return strings.Join(q, "&")
 }
 
 // Ping checks connectivity to the Company API

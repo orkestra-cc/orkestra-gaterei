@@ -237,6 +237,9 @@ const CompanyLookup = lazy(
 const CompanyDetail = lazy(
   () => import('pages/company/lookup/CompanyDetail')
 );
+const CompanySearch = lazy(
+  () => import('pages/company/search')
+);
 
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
@@ -859,6 +862,23 @@ const routes: RouteObject[] = [
                   fallback={<FalconLoader />}
                 >
                   <CompanyDetail />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'company/search',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[
+                  ['developer', 'ceo', 'administrator', 'manager']
+                ]}
+              >
+                <Suspense
+                  key="company-search"
+                  fallback={<FalconLoader />}
+                >
+                  <CompanySearch />
                 </Suspense>
               </ProtectedRoute>
             )

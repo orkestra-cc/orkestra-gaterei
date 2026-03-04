@@ -142,3 +142,85 @@ type CompanyLookupListResponse struct {
 	PageSize   int             `json:"pageSize" doc:"Items per page"`
 	TotalPages int             `json:"totalPages" doc:"Total number of pages"`
 }
+
+// OpenAPISearchResponse represents the response from the IT-search endpoint.
+// Same structure as OpenAPIBaseResponse but includes totalResults for pagination.
+type OpenAPISearchResponse struct {
+	Success      bool                 `json:"success"`
+	Data         []OpenAPICompanyData `json:"data"`
+	Message      string               `json:"message,omitempty"`
+	Error        interface{}          `json:"error,omitempty"`
+	TotalResults *int                 `json:"totalResults,omitempty"`
+}
+
+// UnmarshalJSON handles the "data" field being either an array or a single object.
+func (r *OpenAPISearchResponse) UnmarshalJSON(b []byte) error {
+	type Alias struct {
+		Success      bool            `json:"success"`
+		Data         json.RawMessage `json:"data"`
+		Message      string          `json:"message,omitempty"`
+		Error        interface{}     `json:"error,omitempty"`
+		TotalResults *int            `json:"totalResults,omitempty"`
+	}
+	var raw Alias
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	r.Success = raw.Success
+	r.Message = raw.Message
+	r.Error = raw.Error
+	r.TotalResults = raw.TotalResults
+
+	if len(raw.Data) == 0 || string(raw.Data) == "null" {
+		r.Data = nil
+		return nil
+	}
+
+	if raw.Data[0] == '[' {
+		return json.Unmarshal(raw.Data, &r.Data)
+	}
+	var single OpenAPICompanyData
+	if err := json.Unmarshal(raw.Data, &single); err != nil {
+		return err
+	}
+	r.Data = []OpenAPICompanyData{single}
+	return nil
+}
+
+// CompanySearchParams holds all IT-search query parameters
+type CompanySearchParams struct {
+	CompanyName          string   `json:"companyName,omitempty"`
+	Autocomplete         string   `json:"autocomplete,omitempty"`
+	Province             string   `json:"province,omitempty"`
+	TownCode             string   `json:"townCode,omitempty"`
+	AtecoCode            string   `json:"atecoCode,omitempty"`
+	CCIAA                string   `json:"cciaa,omitempty"`
+	REACode              string   `json:"reaCode,omitempty"`
+	MinTurnover          *int64   `json:"minTurnover,omitempty"`
+	MaxTurnover          *int64   `json:"maxTurnover,omitempty"`
+	MinEmployees         *int     `json:"minEmployees,omitempty"`
+	MaxEmployees         *int     `json:"maxEmployees,omitempty"`
+	SDICode              string   `json:"sdiCode,omitempty"`
+	LegalFormCode        string   `json:"legalFormCode,omitempty"`
+	PEC                  string   `json:"pec,omitempty"`
+	ShareHolderTaxCode   string   `json:"shareHolderTaxCode,omitempty"`
+	Latitude             *float64 `json:"lat,omitempty"`
+	Longitude            *float64 `json:"long,omitempty"`
+	Radius               *int     `json:"radius,omitempty"`
+	ActivityStatus       string   `json:"activityStatus,omitempty"`
+	DataEnrichment       string   `json:"dataEnrichment,omitempty"`
+	CreationTimestamp    *int64   `json:"creationTimestamp,omitempty"`
+	LastUpdateTimestamp  *int64   `json:"lastUpdateTimestamp,omitempty"`
+	DryRun               *int     `json:"dryRun,omitempty"`
+	Limit                int      `json:"limit,omitempty"`
+	Skip                 int      `json:"skip,omitempty"`
+}
+
+// CompanySearchResult represents the search response
+type CompanySearchResult struct {
+	Companies    []CompanyLookup `json:"companies"`
+	TotalResults *int            `json:"totalResults,omitempty"`
+	Limit        int             `json:"limit"`
+	Skip         int             `json:"skip"`
+	DryRun       bool            `json:"dryRun"`
+}

@@ -125,11 +125,24 @@ func buildAdminRoutes() models.RouteGroup {
 					},
 			},
 			{
-				Name:   "Ricerca Aziende",
+				Name:   "Aziende",
 				Icon:   "building",
-				To:     "/company/lookup",
 				Active: true,
 				Roles:  []string{"administrator"},
+				Children: []models.NavItem{
+					{
+						Name:   "Ricerca per CF/P.IVA",
+						To:     "/company/lookup",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+					{
+						Name:   "Ricerca Avanzata",
+						To:     "/company/search",
+						Active: true,
+						Roles:  []string{"administrator"},
+					},
+				},
 			},
 			{
 				Name:   "Deadlines",

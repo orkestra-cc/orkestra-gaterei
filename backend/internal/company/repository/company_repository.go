@@ -22,6 +22,7 @@ var (
 // CompanyRepository defines the interface for company lookup data access
 type CompanyRepository interface {
 	Upsert(ctx context.Context, lookup *models.CompanyLookup) error
+	BulkUpsert(ctx context.Context, lookups []*models.CompanyLookup) error
 	GetByTaxCode(ctx context.Context, taxCode string) (*models.CompanyLookup, error)
 	GetByID(ctx context.Context, uuid string) (*models.CompanyLookup, error)
 	List(ctx context.Context, page, pageSize int) ([]models.CompanyLookup, int64, error)
@@ -99,6 +100,49 @@ func (r *companyRepository) Upsert(ctx context.Context, lookup *models.CompanyLo
 
 	lookup.ID = result.InsertedID.(primitive.ObjectID)
 	return nil
+}
+
+// BulkUpsert creates or updates multiple company lookups by tax code using MongoDB BulkWrite
+func (r *companyRepository) BulkUpsert(ctx context.Context, lookups []*models.CompanyLookup) error {
+	if len(lookups) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	writeModels := make([]mongo.WriteModel, 0, len(lookups))
+
+	for _, lookup := range lookups {
+		lookup.UpdatedAt = now
+		filter := bson.M{"taxCode": lookup.TaxCode}
+
+		update := bson.M{
+			"$set": bson.M{
+				"companyName":      lookup.CompanyName,
+				"vatCode":          lookup.VATCode,
+				"activityStatus":   lookup.ActivityStatus,
+				"sdiCode":          lookup.SDICode,
+				"registrationDate": lookup.RegistrationDate,
+				"address":          lookup.Address,
+				"sourceId":         lookup.SourceID,
+				"updatedAt":        now,
+			},
+			"$setOnInsert": bson.M{
+				"uuid":      lookup.UUID,
+				"taxCode":   lookup.TaxCode,
+				"createdAt": now,
+			},
+		}
+
+		model := mongo.NewUpdateOneModel().
+			SetFilter(filter).
+			SetUpdate(update).
+			SetUpsert(true)
+		writeModels = append(writeModels, model)
+	}
+
+	opts := options.BulkWrite().SetOrdered(false)
+	_, err := r.collection.BulkWrite(ctx, writeModels, opts)
+	return err
 }
 
 // GetByTaxCode retrieves a company lookup by tax code

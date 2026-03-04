@@ -5,6 +5,8 @@ import type {
   CompanyLookupListParams,
   CompanyLookupSearchParams,
   EnrichCompanyParams,
+  CompanySearchApiParams,
+  CompanySearchResult,
 } from '../../types/company';
 
 // Helper to build query params
@@ -79,6 +81,20 @@ export const companyApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, id) => [{ type: 'CompanyLookup', id }],
     }),
 
+    // Search companies via IT-search API
+    searchCompanies: builder.query<CompanySearchResult, CompanySearchApiParams>({
+      query: (params) => {
+        const queryString = buildQueryParams(params as Record<string, unknown>);
+        return `/v1/company/search${queryString ? `?${queryString}` : ''}`;
+      },
+      async onQueryStarted(_params, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(baseApi.util.invalidateTags([{ type: 'CompanyLookup', id: 'LIST' }]));
+        } catch { /* noop */ }
+      },
+    }),
+
     // Enrich a company lookup with additional data
     enrichCompanyLookup: builder.query<CompanyLookup, EnrichCompanyParams>({
       query: ({ taxCode, type }) => `/v1/company/lookup/${taxCode}/enrich/${type}`,
@@ -102,5 +118,6 @@ export const {
   useGetCompanyLookupsQuery,
   useSearchCompanyLookupsQuery,
   useGetCompanyLookupQuery,
+  useLazySearchCompaniesQuery,
   useLazyEnrichCompanyLookupQuery,
 } = companyApi;
