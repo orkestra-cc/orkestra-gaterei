@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -265,6 +266,16 @@ func (c *companyAPIClient) SearchCompanies(ctx context.Context, params *models.C
 		"bodyLen", len(respBody),
 	)
 
+	// 204 No Content = no results found, return empty success response
+	if statusCode == http.StatusNoContent || len(respBody) == 0 {
+		zero := 0
+		return &models.OpenAPISearchResponse{
+			Success:      true,
+			Data:         []models.OpenAPICompanyData{},
+			TotalResults: &zero,
+		}, nil
+	}
+
 	var response models.OpenAPISearchResponse
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse company search response: %w", err)
@@ -434,6 +445,11 @@ func (c *companyAPIClient) doRequestWithRetry(ctx context.Context, method, path 
 		// Don't retry on 4xx client errors
 		if statusCode >= 400 && statusCode < 500 {
 			return respBody, statusCode, nil
+		}
+
+		// Don't retry on timeout errors — API is slow, retrying just adds more wait time
+		if errors.Is(err, context.DeadlineExceeded) || os.IsTimeout(err) {
+			return nil, 0, fmt.Errorf("%w: request timed out", ErrAPIRequestFailed)
 		}
 
 		lastErr = err

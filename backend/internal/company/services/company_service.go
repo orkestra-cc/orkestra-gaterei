@@ -273,6 +273,21 @@ func (s *companyService) SearchCompanies(ctx context.Context, params *models.Com
 
 	isDryRun := params.DryRun != nil && *params.DryRun == 1
 
+	// Without dataEnrichment the IT-search API returns only IDs (no taxCode/name).
+	// Detect this and retry with dataEnrichment=name to get usable data.
+	if !isDryRun && len(response.Data) > 0 && params.DataEnrichment == "" && response.Data[0].TaxCode == "" {
+		s.logger.Warn("search returned entries without taxCode, retrying with dataEnrichment=name",
+			"entries", len(response.Data),
+		)
+		retryParams := *params
+		retryParams.DataEnrichment = "name"
+		response, err = s.apiClient.SearchCompanies(ctx, &retryParams)
+		if err != nil {
+			s.logger.Error("company search retry failed", "error", err)
+			return nil, err
+		}
+	}
+
 	result := &models.CompanySearchResult{
 		TotalResults: response.TotalResults,
 		Limit:        params.Limit,
@@ -280,14 +295,24 @@ func (s *companyService) SearchCompanies(ctx context.Context, params *models.Com
 		DryRun:       isDryRun,
 	}
 
+	// Ensure totalResults is never nil for dryRun (external API may omit it)
+	if isDryRun && result.TotalResults == nil {
+		zero := 0
+		result.TotalResults = &zero
+	}
+
 	if isDryRun || len(response.Data) == 0 {
 		result.Companies = []models.CompanyLookup{}
 		return result, nil
 	}
 
-	// Map API response entries to domain models
+	// Map API response entries to domain models, skipping entries without taxCode
+	// (can't upsert without a unique key)
 	lookups := make([]*models.CompanyLookup, 0, len(response.Data))
 	for i := range response.Data {
+		if response.Data[i].TaxCode == "" {
+			continue
+		}
 		lookup := mapResponseToLookup(&response.Data[i])
 		lookup.UUID = uuid.New().String()
 		lookups = append(lookups, lookup)

@@ -92,7 +92,7 @@ type SearchCompaniesRequest struct {
 	Longitude          float64 `query:"long" doc:"GPS longitude"`
 	Radius             int     `query:"radius" doc:"Search radius in meters"`
 	ActivityStatus     string  `query:"activityStatus" doc:"Business status filter" enum:"ATTIVA,CESSATA,REGISTRATA,INATTIVA,SOSPESA,IN_ISCRIZIONE"`
-	DataEnrichment     string  `query:"dataEnrichment" doc:"Response detail level" enum:"name,start,advanced,pec,address,shareholders" default:"start"`
+	DataEnrichment     string  `query:"dataEnrichment" doc:"Response detail level (omit for basic results)" enum:"name,start,advanced,pec,address,shareholders"`
 	CreationTimestamp  int64   `query:"creationTimestamp" doc:"Companies created after this Unix timestamp"`
 	LastUpdateTimestamp int64  `query:"lastUpdateTimestamp" doc:"Companies updated after this Unix timestamp"`
 	DryRun             int     `query:"dryRun" doc:"Set to 1 to count results without consuming quota" minimum:"0" maximum:"1"`

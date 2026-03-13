@@ -744,7 +744,7 @@ func main() {
 		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:        router,
 		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
+		WriteTimeout:   60 * time.Second, // external APIs (company, billing) can take 25s+
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB max header size
 	}

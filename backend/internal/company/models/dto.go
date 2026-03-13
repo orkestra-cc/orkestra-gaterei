@@ -154,6 +154,8 @@ type OpenAPISearchResponse struct {
 }
 
 // UnmarshalJSON handles the "data" field being either an array or a single object.
+// The external API returns "count" for total results; we also accept "totalResults"
+// for backwards compatibility with cached responses.
 func (r *OpenAPISearchResponse) UnmarshalJSON(b []byte) error {
 	type Alias struct {
 		Success      bool            `json:"success"`
@@ -161,6 +163,7 @@ func (r *OpenAPISearchResponse) UnmarshalJSON(b []byte) error {
 		Message      string          `json:"message,omitempty"`
 		Error        interface{}     `json:"error,omitempty"`
 		TotalResults *int            `json:"totalResults,omitempty"`
+		Count        *int            `json:"count,omitempty"`
 	}
 	var raw Alias
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -169,7 +172,12 @@ func (r *OpenAPISearchResponse) UnmarshalJSON(b []byte) error {
 	r.Success = raw.Success
 	r.Message = raw.Message
 	r.Error = raw.Error
-	r.TotalResults = raw.TotalResults
+	// Prefer "count" (external API field), fall back to "totalResults" (cached responses)
+	if raw.Count != nil {
+		r.TotalResults = raw.Count
+	} else {
+		r.TotalResults = raw.TotalResults
+	}
 
 	if len(raw.Data) == 0 || string(raw.Data) == "null" {
 		r.Data = nil
