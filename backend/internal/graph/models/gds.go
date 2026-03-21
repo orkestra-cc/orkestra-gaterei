@@ -1,47 +1,26 @@
 package models
 
-// GDSProjection represents a graph projection in the GDS library
-type GDSProjection struct {
-	Name              string `json:"name" doc:"Projection name"`
-	NodeCount         int64  `json:"nodeCount" doc:"Number of nodes in projection"`
-	RelationshipCount int64  `json:"relationshipCount" doc:"Number of relationships in projection"`
-	NodeProjection    string `json:"nodeProjection" doc:"Node projection specification"`
-	RelProjection     string `json:"relationshipProjection" doc:"Relationship projection specification"`
-	MemoryUsage       string `json:"memoryUsage" doc:"Memory usage of the projection"`
-}
-
-// AlgorithmRequest represents a request to run a GDS algorithm
+// AlgorithmRequest represents a request to run a graph algorithm
 type AlgorithmRequest struct {
-	Algorithm      string                 `json:"algorithm" doc:"Algorithm name (e.g., pageRank, louvain, nodeSimilarity)"`
-	Mode           string                 `json:"mode" doc:"Execution mode: stream, stats, mutate, write" enum:"stream,stats,mutate,write"`
-	ProjectionName string                 `json:"projectionName" doc:"Name of the graph projection to use"`
-	Config         map[string]interface{} `json:"config,omitempty" doc:"Algorithm-specific configuration"`
+	Algorithm string                 `json:"algorithm" doc:"Algorithm name (e.g., pageRank, louvain, wcc)"`
+	Config    map[string]interface{} `json:"config,omitempty" doc:"Algorithm-specific configuration"`
 }
 
-// AlgorithmInfo describes a GDS algorithm
+// AlgorithmInfo describes a graph algorithm available via MAGE
 type AlgorithmInfo struct {
-	Name        string   `json:"name" doc:"Algorithm name"`
-	Category    string   `json:"category" doc:"Category: centrality, community, similarity, pathfinding, embedding"`
-	Modes       []string `json:"modes" doc:"Supported execution modes"`
-	Description string   `json:"description" doc:"Brief description"`
+	Name        string `json:"name" doc:"Algorithm name"`
+	Category    string `json:"category" doc:"Category: centrality, community, similarity, pathfinding, embedding"`
+	Procedure   string `json:"procedure" doc:"MAGE procedure name"`
+	Description string `json:"description" doc:"Brief description"`
 }
 
-// CreateProjectionRequest contains parameters for creating a graph projection
-type CreateProjectionRequest struct {
-	Name               string      `json:"name" doc:"Projection name"`
-	NodeProjection     interface{} `json:"nodeProjection" doc:"Node projection (string or object)"`
-	RelProjection      interface{} `json:"relationshipProjection" doc:"Relationship projection (string or object)"`
-	NodeProperties     interface{} `json:"nodeProperties,omitempty" doc:"Node properties to include"`
-	RelProperties      interface{} `json:"relationshipProperties,omitempty" doc:"Relationship properties to include"`
-}
-
-// VectorIndex represents a vector index in Neo4j
+// VectorIndex represents a vector index in the graph database
 type VectorIndex struct {
 	Name       string `json:"name" doc:"Index name"`
 	Label      string `json:"label" doc:"Node label"`
 	Property   string `json:"property" doc:"Indexed property"`
 	Dimensions int    `json:"dimensions" doc:"Vector dimensions"`
-	Similarity string `json:"similarity" doc:"Similarity function (cosine, euclidean)"`
+	Similarity string `json:"similarity" doc:"Similarity metric"`
 	State      string `json:"state" doc:"Index state"`
 }
 
@@ -59,5 +38,6 @@ type CreateVectorIndexRequest struct {
 	Label      string `json:"label" doc:"Node label to index"`
 	Property   string `json:"property" doc:"Property containing vectors"`
 	Dimensions int    `json:"dimensions" doc:"Vector dimensions"`
-	Similarity string `json:"similarity" doc:"Similarity function: cosine or euclidean" enum:"cosine,euclidean" default:"cosine"`
+	Capacity   int    `json:"capacity,omitempty" doc:"Maximum number of vectors (default: 10000)" default:"10000"`
+	Similarity string `json:"similarity" doc:"Similarity metric: cos, l2sq, ip" enum:"cos,l2sq,ip" default:"cos"`
 }

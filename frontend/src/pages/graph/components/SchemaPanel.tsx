@@ -183,7 +183,7 @@ const SchemaPanel = ({
   if (error) {
     return (
       <Alert variant="danger" className="m-2 fs-10">
-        Failed to load schema. Check the Neo4j connection.
+        Failed to load schema. Check the graph database connection.
       </Alert>
     );
   }

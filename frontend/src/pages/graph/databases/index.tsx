@@ -95,7 +95,7 @@ const GraphDatabases: React.FC = () => {
       </Row>
 
       {/* Schema Overview for each online database */}
-      {dbData?.databases?.filter(d => d.currentStatus === 'online' && d.name !== 'system').map(db => (
+      {dbData?.databases?.filter(d => d.currentStatus === 'online').map(db => (
         <Row key={db.name} className="g-3 mb-3">
           <Col>
             <DatabaseSchemaCard database={db.name} />

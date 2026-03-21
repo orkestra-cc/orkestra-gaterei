@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/orkestra/backend/internal/graph/models"
 	"github.com/orkestra/backend/internal/graph/repository"
@@ -46,7 +47,8 @@ func (s *vectorService) VectorSearch(ctx context.Context, database string, req m
 		topK = 1000
 	}
 
-	cypher := "CALL db.index.vector.queryNodes($indexName, $topK, $queryVector) YIELD node, score RETURN node, score"
+	// Memgraph vector search syntax
+	cypher := "CALL vector_search.search($indexName, $topK, $queryVector) YIELD node, similarity RETURN node, similarity"
 	params := map[string]interface{}{
 		"indexName":   req.IndexName,
 		"topK":       topK,
@@ -68,7 +70,7 @@ func (s *vectorService) VectorSearch(ctx context.Context, database string, req m
 	if req.MinScore > 0 && result.Rows != nil {
 		filtered := make([]map[string]interface{}, 0)
 		for _, row := range result.Rows {
-			if score, ok := row["score"].(float64); ok && score >= req.MinScore {
+			if score, ok := row["similarity"].(float64); ok && score >= req.MinScore {
 				filtered = append(filtered, row)
 			}
 		}
@@ -80,39 +82,35 @@ func (s *vectorService) VectorSearch(ctx context.Context, database string, req m
 }
 
 func (s *vectorService) ListVectorIndexes(ctx context.Context, database string) ([]models.VectorIndex, error) {
-	cypher := `SHOW INDEXES WHERE type = 'VECTOR'`
-	result, err := s.repo.ExecuteRead(ctx, database, cypher, nil)
+	// Memgraph uses SHOW INDEX INFO; filter for vector indexes in Go
+	result, err := s.repo.ExecuteRead(ctx, database, "SHOW INDEX INFO", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list vector indexes: %w", err)
+		return nil, fmt.Errorf("failed to list indexes: %w", err)
 	}
 
 	var indexes []models.VectorIndex
 	for _, row := range result.Rows {
-		idx := models.VectorIndex{}
-		if v, ok := row["name"].(string); ok {
-			idx.Name = v
+		// Only include vector indexes
+		indexType := ""
+		if v, ok := row["index type"].(string); ok {
+			indexType = v
 		}
-		if v, ok := row["state"].(string); ok {
-			idx.State = v
+		if !strings.Contains(strings.ToLower(indexType), "vector") {
+			continue
 		}
-		if v, ok := row["labelsOrTypes"]; ok {
-			if labels, ok := v.([]interface{}); ok && len(labels) > 0 {
-				idx.Label, _ = labels[0].(string)
-			}
+
+		idx := models.VectorIndex{
+			State: "ONLINE",
 		}
-		if v, ok := row["properties"]; ok {
-			if props, ok := v.([]interface{}); ok && len(props) > 0 {
-				idx.Property, _ = props[0].(string)
-			}
+		if v, ok := row["label"].(string); ok {
+			idx.Label = v
 		}
-		// Extract dimensions and similarity from indexConfig if available
-		if v, ok := row["indexConfig"].(map[string]interface{}); ok {
-			if dim, ok := v["vector.dimensions"].(int64); ok {
-				idx.Dimensions = int(dim)
-			}
-			if sim, ok := v["vector.similarity_function"].(string); ok {
-				idx.Similarity = sim
-			}
+		if v, ok := row["property"].(string); ok {
+			idx.Property = v
+		}
+		// Generate a name from label + property
+		if idx.Label != "" && idx.Property != "" {
+			idx.Name = fmt.Sprintf("%s_%s", idx.Label, idx.Property)
 		}
 		indexes = append(indexes, idx)
 	}
@@ -127,12 +125,18 @@ func (s *vectorService) CreateVectorIndex(ctx context.Context, database string, 
 
 	similarity := req.Similarity
 	if similarity == "" {
-		similarity = "cosine"
+		similarity = "cos"
 	}
 
+	capacity := req.Capacity
+	if capacity <= 0 {
+		capacity = 10000
+	}
+
+	// Memgraph vector index syntax
 	cypher := fmt.Sprintf(
-		"CREATE VECTOR INDEX `%s` FOR (n:`%s`) ON (n.`%s`) OPTIONS {indexConfig: {`vector.dimensions`: %d, `vector.similarity_function`: '%s'}}",
-		req.Name, req.Label, req.Property, req.Dimensions, similarity,
+		`CREATE VECTOR INDEX %s ON :%s(%s) WITH CONFIG {"dimension": %d, "capacity": %d, "metric": "%s"}`,
+		req.Name, req.Label, req.Property, req.Dimensions, capacity, similarity,
 	)
 
 	s.logger.Info("creating vector index",
@@ -140,7 +144,8 @@ func (s *vectorService) CreateVectorIndex(ctx context.Context, database string, 
 		slog.String("label", req.Label),
 		slog.String("property", req.Property),
 		slog.Int("dimensions", req.Dimensions),
-		slog.String("similarity", similarity),
+		slog.Int("capacity", capacity),
+		slog.String("metric", similarity),
 	)
 
 	_, err := s.repo.ExecuteWrite(ctx, database, cypher, nil)
@@ -155,7 +160,7 @@ func (s *vectorService) DropVectorIndex(ctx context.Context, database, name stri
 		return fmt.Errorf("index name is required")
 	}
 
-	cypher := fmt.Sprintf("DROP INDEX `%s`", name)
+	cypher := fmt.Sprintf("DROP INDEX %s", name)
 
 	s.logger.Info("dropping vector index", slog.String("name", name))
 

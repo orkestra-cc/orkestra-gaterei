@@ -10,36 +10,39 @@ import (
 	"github.com/orkestra/backend/internal/graph/models"
 )
 
-// GraphRepository defines the interface for Neo4j operations
+// GraphRepository defines the interface for graph database operations
 type GraphRepository interface {
 	ExecuteRead(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error)
 	ExecuteWrite(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error)
+	// ExecuteAutoCommit runs a query as an implicit/auto-commit transaction.
+	// Required for Memgraph storage commands (CREATE INDEX, SHOW INDEX INFO, etc.)
+	ExecuteAutoCommit(ctx context.Context, database string, cypher string, params map[string]interface{}) error
 	ListDatabases(ctx context.Context) ([]models.DatabaseInfo, error)
 	GetSchema(ctx context.Context, database string) (*models.SchemaInfo, error)
 	VerifyConnectivity(ctx context.Context) error
 }
 
-type neo4jRepository struct {
+type graphRepository struct {
 	driver          neo4j.DriverWithContext
 	defaultDatabase string
 }
 
-// NewGraphRepository creates a new GraphRepository backed by Neo4j
+// NewGraphRepository creates a new GraphRepository
 func NewGraphRepository(driver neo4j.DriverWithContext, defaultDatabase string) GraphRepository {
-	return &neo4jRepository{
+	return &graphRepository{
 		driver:          driver,
 		defaultDatabase: defaultDatabase,
 	}
 }
 
-func (r *neo4jRepository) resolveDatabase(database string) string {
+func (r *graphRepository) resolveDatabase(database string) string {
 	if database != "" {
 		return database
 	}
 	return r.defaultDatabase
 }
 
-func (r *neo4jRepository) ExecuteRead(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error) {
+func (r *graphRepository) ExecuteRead(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error) {
 	db := r.resolveDatabase(database)
 	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
@@ -61,7 +64,7 @@ func (r *neo4jRepository) ExecuteRead(ctx context.Context, database string, cyph
 	return qr, nil
 }
 
-func (r *neo4jRepository) ExecuteWrite(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error) {
+func (r *graphRepository) ExecuteWrite(ctx context.Context, database string, cypher string, params map[string]interface{}) (*models.QueryResult, error) {
 	db := r.resolveDatabase(database)
 	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
@@ -83,61 +86,42 @@ func (r *neo4jRepository) ExecuteWrite(ctx context.Context, database string, cyp
 	return qr, nil
 }
 
-func (r *neo4jRepository) ListDatabases(ctx context.Context) ([]models.DatabaseInfo, error) {
-	// SHOW DATABASES must run against the system database
-	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "system", AccessMode: neo4j.AccessModeRead})
+func (r *graphRepository) ExecuteAutoCommit(ctx context.Context, database string, cypher string, params map[string]interface{}) error {
+	db := r.resolveDatabase(database)
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
-	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		res, err := tx.Run(ctx, "SHOW DATABASES", nil)
-		if err != nil {
-			return nil, err
-		}
-
-		var databases []models.DatabaseInfo
-		for res.Next(ctx) {
-			record := res.Record()
-			db := models.DatabaseInfo{}
-
-			if v, ok := record.Get("name"); ok {
-				db.Name, _ = v.(string)
-			}
-			if v, ok := record.Get("address"); ok {
-				db.Address, _ = v.(string)
-			}
-			if v, ok := record.Get("currentStatus"); ok {
-				db.CurrentStatus, _ = v.(string)
-			}
-			if v, ok := record.Get("default"); ok {
-				db.Default, _ = v.(bool)
-			}
-			if v, ok := record.Get("home"); ok {
-				db.Home, _ = v.(bool)
-			}
-			databases = append(databases, db)
-		}
-		if err := res.Err(); err != nil {
-			return nil, err
-		}
-		return databases, nil
-	})
+	_, err := session.Run(ctx, cypher, params)
 	if err != nil {
-		return nil, fmt.Errorf("list databases failed: %w", err)
+		return fmt.Errorf("auto-commit query failed: %w", err)
 	}
-
-	return result.([]models.DatabaseInfo), nil
+	return nil
 }
 
-func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*models.SchemaInfo, error) {
-	db := r.resolveDatabase(database)
-	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
-	defer session.Close(ctx)
+func (r *graphRepository) ListDatabases(ctx context.Context) ([]models.DatabaseInfo, error) {
+	// Memgraph is a single-database system — return a synthetic entry
+	db := r.defaultDatabase
+	if db == "" {
+		db = "memgraph"
+	}
+	return []models.DatabaseInfo{{
+		Name:          db,
+		Address:       "local",
+		CurrentStatus: "online",
+		Default:       true,
+		Home:          true,
+	}}, nil
+}
 
+func (r *graphRepository) GetSchema(ctx context.Context, database string) (*models.SchemaInfo, error) {
+	db := r.resolveDatabase(database)
 	schema := &models.SchemaInfo{}
 
+	// Use a managed transaction for standard Cypher queries (labels, relationships, counts)
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
 	_, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		// Get labels with counts
-		res, err := tx.Run(ctx, "CALL db.labels() YIELD label RETURN label", nil)
+		// Get labels
+		res, err := tx.Run(ctx, "MATCH (n) UNWIND labels(n) AS label RETURN DISTINCT label", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +129,6 @@ func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*mode
 			name, _ := res.Record().Get("label")
 			label := models.LabelInfo{Name: name.(string)}
 
-			// Get count for this label
 			countRes, err := tx.Run(ctx, fmt.Sprintf("MATCH (n:`%s`) RETURN count(n) AS cnt", name.(string)), nil)
 			if err == nil && countRes.Next(ctx) {
 				if cnt, ok := countRes.Record().Get("cnt"); ok {
@@ -153,7 +136,6 @@ func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*mode
 				}
 			}
 
-			// Get properties for this label
 			propRes, err := tx.Run(ctx, fmt.Sprintf("MATCH (n:`%s`) UNWIND keys(n) AS key RETURN DISTINCT key", name.(string)), nil)
 			if err == nil {
 				for propRes.Next(ctx) {
@@ -165,8 +147,8 @@ func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*mode
 			schema.Labels = append(schema.Labels, label)
 		}
 
-		// Get relationship types with counts
-		res, err = tx.Run(ctx, "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", nil)
+		// Get relationship types
+		res, err = tx.Run(ctx, "MATCH ()-[r]->() RETURN DISTINCT type(r) AS relationshipType", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -192,59 +174,6 @@ func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*mode
 			schema.RelationshipTypes = append(schema.RelationshipTypes, relType)
 		}
 
-		// Get indexes
-		res, err = tx.Run(ctx, "SHOW INDEXES", nil)
-		if err == nil {
-			for res.Next(ctx) {
-				record := res.Record()
-				idx := models.IndexInfo{}
-				if v, ok := record.Get("name"); ok {
-					idx.Name, _ = v.(string)
-				}
-				if v, ok := record.Get("type"); ok {
-					idx.Type, _ = v.(string)
-				}
-				if v, ok := record.Get("entityType"); ok {
-					idx.EntityType, _ = v.(string)
-				}
-				if v, ok := record.Get("labelsOrTypes"); ok {
-					idx.Labels = toStringSlice(v)
-				}
-				if v, ok := record.Get("properties"); ok {
-					idx.Properties = toStringSlice(v)
-				}
-				if v, ok := record.Get("state"); ok {
-					idx.State, _ = v.(string)
-				}
-				schema.Indexes = append(schema.Indexes, idx)
-			}
-		}
-
-		// Get constraints
-		res, err = tx.Run(ctx, "SHOW CONSTRAINTS", nil)
-		if err == nil {
-			for res.Next(ctx) {
-				record := res.Record()
-				c := models.ConstraintInfo{}
-				if v, ok := record.Get("name"); ok {
-					c.Name, _ = v.(string)
-				}
-				if v, ok := record.Get("type"); ok {
-					c.Type, _ = v.(string)
-				}
-				if v, ok := record.Get("entityType"); ok {
-					c.EntityType, _ = v.(string)
-				}
-				if v, ok := record.Get("labelsOrTypes"); ok {
-					c.Labels = toStringSlice(v)
-				}
-				if v, ok := record.Get("properties"); ok {
-					c.Properties = toStringSlice(v)
-				}
-				schema.Constraints = append(schema.Constraints, c)
-			}
-		}
-
 		// Get total counts
 		countRes, err := tx.Run(ctx, "MATCH (n) RETURN count(n) AS nodeCount", nil)
 		if err == nil && countRes.Next(ctx) {
@@ -262,15 +191,88 @@ func (r *neo4jRepository) GetSchema(ctx context.Context, database string) (*mode
 
 		return nil, nil
 	})
+	session.Close(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return schema, err
+	// Memgraph requires SHOW INDEX INFO / SHOW CONSTRAINT INFO to run as auto-commit
+	// transactions (implicit transactions), not inside managed transactions.
+	r.getSchemaIndexes(ctx, db, schema)
+	r.getSchemaConstraints(ctx, db, schema)
+
+	return schema, nil
 }
 
-func (r *neo4jRepository) VerifyConnectivity(ctx context.Context) error {
+// getSchemaIndexes fetches index info using an auto-commit transaction
+func (r *graphRepository) getSchemaIndexes(ctx context.Context, db string, schema *models.SchemaInfo) {
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
+	defer session.Close(ctx)
+
+	res, err := session.Run(ctx, "SHOW INDEX INFO", nil)
+	if err != nil {
+		return
+	}
+	for res.Next(ctx) {
+		record := res.Record()
+		idx := models.IndexInfo{State: "ONLINE"}
+		if v, ok := record.Get("index type"); ok {
+			idx.Type, _ = v.(string)
+		}
+		if v, ok := record.Get("label"); ok {
+			if label, ok := v.(string); ok {
+				idx.Labels = []string{label}
+			}
+		}
+		if v, ok := record.Get("property"); ok {
+			if prop, ok := v.(string); ok {
+				idx.Properties = []string{prop}
+			}
+		}
+		if len(idx.Labels) > 0 && len(idx.Properties) > 0 {
+			idx.Name = fmt.Sprintf("%s_%s", idx.Labels[0], idx.Properties[0])
+		} else if len(idx.Labels) > 0 {
+			idx.Name = idx.Labels[0]
+		}
+		schema.Indexes = append(schema.Indexes, idx)
+	}
+}
+
+// getSchemaConstraints fetches constraint info using an auto-commit transaction
+func (r *graphRepository) getSchemaConstraints(ctx context.Context, db string, schema *models.SchemaInfo) {
+	session := r.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
+	defer session.Close(ctx)
+
+	res, err := session.Run(ctx, "SHOW CONSTRAINT INFO", nil)
+	if err != nil {
+		return
+	}
+	for res.Next(ctx) {
+		record := res.Record()
+		c := models.ConstraintInfo{}
+		if v, ok := record.Get("constraint type"); ok {
+			c.Type, _ = v.(string)
+		}
+		if v, ok := record.Get("label"); ok {
+			if label, ok := v.(string); ok {
+				c.Labels = []string{label}
+			}
+		}
+		if v, ok := record.Get("properties"); ok {
+			c.Properties = toStringSlice(v)
+		}
+		if len(c.Labels) > 0 {
+			c.Name = fmt.Sprintf("%s_%s", c.Type, c.Labels[0])
+		}
+		schema.Constraints = append(schema.Constraints, c)
+	}
+}
+
+func (r *graphRepository) VerifyConnectivity(ctx context.Context) error {
 	return r.driver.VerifyConnectivity(ctx)
 }
 
-// collectResults processes a Neo4j result set into a QueryResult
+// collectResults processes a result set into a QueryResult
 func collectResults(ctx context.Context, res neo4j.ResultWithContext) (*models.QueryResult, error) {
 	qr := &models.QueryResult{
 		Graph: &models.GraphData{},
@@ -325,7 +327,7 @@ func collectResults(ctx context.Context, res neo4j.ResultWithContext) (*models.Q
 	return qr, nil
 }
 
-// marshalValue converts Neo4j driver types to JSON-serializable values
+// marshalValue converts Bolt driver types to JSON-serializable values
 // and extracts graph elements for visualization
 func marshalValue(val interface{}, graph *models.GraphData, seenNodes map[int64]bool, seenRels map[int64]bool) interface{} {
 	if val == nil {
@@ -381,23 +383,6 @@ func marshalValue(val interface{}, graph *models.GraphData, seenNodes map[int64]
 		pathData["relationships"] = rels
 		return pathData
 
-	case dbtype.Point2D:
-		return map[string]interface{}{
-			"_type": "point2d",
-			"srid":  v.SpatialRefId,
-			"x":     v.X,
-			"y":     v.Y,
-		}
-
-	case dbtype.Point3D:
-		return map[string]interface{}{
-			"_type": "point3d",
-			"srid":  v.SpatialRefId,
-			"x":     v.X,
-			"y":     v.Y,
-			"z":     v.Z,
-		}
-
 	case []interface{}:
 		result := make([]interface{}, len(v))
 		for i, item := range v {
@@ -417,7 +402,7 @@ func marshalValue(val interface{}, graph *models.GraphData, seenNodes map[int64]
 	}
 }
 
-// sanitizeProps converts Neo4j property maps to clean maps, handling special types
+// sanitizeProps converts property maps to clean maps, handling special types
 func sanitizeProps(props map[string]interface{}) map[string]interface{} {
 	if props == nil {
 		return make(map[string]interface{})

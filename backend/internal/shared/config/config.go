@@ -24,17 +24,29 @@ type Config struct {
 	Documents DocumentsConfig
 	Company   CompanyConfig
 	Graph     GraphConfig
+	RAG       RAGConfig
 }
 
-// GraphConfig holds configuration for the Neo4j graph database module
+// GraphConfig holds configuration for the graph database module (Memgraph)
 type GraphConfig struct {
+	Enabled     bool          // Module enabled flag (GRAPH_ENABLED)
 	URI         string        // Bolt URI: bolt://host:7687
-	Username    string        // Neo4j username
-	Password    string        // Neo4j password (module disabled if empty)
+	Username    string        // Database username (empty for no auth)
+	Password    string        // Database password (empty for no auth)
 	Database    string        // Default database name
 	MaxConnPool int           // Connection pool size
 	Encrypted   bool          // TLS/encryption
 	Timeout     time.Duration // Query timeout
+}
+
+// RAGConfig holds configuration for the RAG (Retrieval-Augmented Generation) module
+type RAGConfig struct {
+	Enabled       bool   // Module enabled flag (RAG_ENABLED)
+	OllamaBaseURL string // Ollama API base URL
+	OpenAIAPIKey  string // OpenAI API key
+	ChunkSize     int    // Default text chunk size in characters
+	ChunkOverlap  int    // Overlap between chunks in characters
+	DefaultTopK   int    // Default number of results for vector search
 }
 
 // CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
@@ -318,15 +330,26 @@ func Load() (*Config, error) {
 		CacheTTL:      getEnvAsDuration("OPENAPI_COMPANY_CACHE_TTL", "24h"),
 	}
 
-	// Graph database configuration (Neo4j)
+	// Graph database configuration (Memgraph)
 	config.Graph = GraphConfig{
-		URI:         getEnv("NEO4J_URI", "bolt://localhost:7687"),
-		Username:    getEnv("NEO4J_USERNAME", "neo4j"),
-		Password:    getEnv("NEO4J_PASSWORD", ""),
-		Database:    getEnv("NEO4J_DATABASE", "neo4j"),
-		MaxConnPool: getEnvAsInt("NEO4J_MAX_CONN_POOL", 25),
-		Encrypted:   getEnvAsBool("NEO4J_ENCRYPTED", false),
-		Timeout:     getEnvAsDuration("NEO4J_TIMEOUT", "30s"),
+		Enabled:     getEnvAsBool("GRAPH_ENABLED", false),
+		URI:         getEnv("GRAPH_URI", "bolt://localhost:7687"),
+		Username:    getEnv("GRAPH_USERNAME", ""),
+		Password:    getEnv("GRAPH_PASSWORD", ""),
+		Database:    getEnv("GRAPH_DATABASE", "memgraph"),
+		MaxConnPool: getEnvAsInt("GRAPH_MAX_CONN_POOL", 25),
+		Encrypted:   getEnvAsBool("GRAPH_ENCRYPTED", false),
+		Timeout:     getEnvAsDuration("GRAPH_TIMEOUT", "30s"),
+	}
+
+	// RAG (Retrieval-Augmented Generation) configuration
+	config.RAG = RAGConfig{
+		Enabled:       getEnvAsBool("RAG_ENABLED", false),
+		OllamaBaseURL: getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
+		ChunkSize:     getEnvAsInt("RAG_CHUNK_SIZE", 512),
+		ChunkOverlap:  getEnvAsInt("RAG_CHUNK_OVERLAP", 50),
+		DefaultTopK:   getEnvAsInt("RAG_DEFAULT_TOP_K", 10),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)

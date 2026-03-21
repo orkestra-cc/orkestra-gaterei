@@ -93,38 +93,18 @@ export interface SchemaInfo {
   relationshipCount: number;
 }
 
-// --- GDS Types ---
-
-export interface GDSProjection {
-  name: string;
-  nodeCount: number;
-  relationshipCount: number;
-  nodeProjection: string;
-  relationshipProjection: string;
-  memoryUsage: string;
-}
+// --- Algorithm Types (MAGE) ---
 
 export interface AlgorithmInfo {
   name: string;
   category: string;
-  modes: string[];
+  procedure: string;
   description: string;
 }
 
 export interface AlgorithmRequest {
   algorithm: string;
-  mode: 'stream' | 'stats' | 'mutate' | 'write';
-  projectionName: string;
   config?: Record<string, unknown>;
-  database?: string;
-}
-
-export interface CreateProjectionRequest {
-  name: string;
-  nodeProjection: unknown;
-  relationshipProjection: unknown;
-  nodeProperties?: unknown;
-  relationshipProperties?: unknown;
   database?: string;
 }
 
@@ -152,7 +132,8 @@ export interface CreateVectorIndexRequest {
   label: string;
   property: string;
   dimensions: number;
-  similarity: 'cosine' | 'euclidean';
+  capacity?: number;
+  similarity: 'cos' | 'l2sq' | 'ip';
   database?: string;
 }
 

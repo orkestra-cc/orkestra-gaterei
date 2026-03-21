@@ -18,8 +18,8 @@ func RegisterRoutes(api huma.API, handler *handlers.GraphHandler) {
 		OperationID: "graph-health",
 		Method:      http.MethodGet,
 		Path:        "/v1/graph/health",
-		Summary:     "Check Neo4j connectivity",
-		Description: "Verifies that the Neo4j database is reachable and responsive.",
+		Summary:     "Check graph database connectivity",
+		Description: "Verifies that the graph database is reachable and responsive.",
 		Tags:        []string{"Graph"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.HealthCheck)
@@ -29,7 +29,7 @@ func RegisterRoutes(api huma.API, handler *handlers.GraphHandler) {
 		Method:      http.MethodGet,
 		Path:        "/v1/graph/databases",
 		Summary:     "List available databases",
-		Description: "Lists all Neo4j databases with their status information.",
+		Description: "Lists graph databases with their status information.",
 		Tags:        []string{"Graph"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.ListDatabases)
@@ -39,7 +39,7 @@ func RegisterRoutes(api huma.API, handler *handlers.GraphHandler) {
 		Method:      http.MethodGet,
 		Path:        "/v1/graph/schema",
 		Summary:     "Get database schema",
-		Description: "Returns the schema of a Neo4j database including labels, relationship types, indexes, and constraints.",
+		Description: "Returns the schema including labels, relationship types, indexes, and constraints.",
 		Tags:        []string{"Graph"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.GetSchema)
@@ -93,56 +93,26 @@ func RegisterRoutes(api huma.API, handler *handlers.GraphHandler) {
 	}, handler.GetNodeNeighbors)
 
 	// ========================================
-	// GDS (Graph Data Science)
+	// Graph Algorithms (MAGE)
 	// ========================================
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-gds-projections",
-		Method:      http.MethodGet,
-		Path:        "/v1/graph/gds/projections",
-		Summary:     "List graph projections",
-		Description: "Lists all in-memory graph projections created by GDS.",
-		Tags:        []string{"Graph GDS"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, handler.ListProjections)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "create-gds-projection",
+		OperationID: "run-graph-algorithm",
 		Method:      http.MethodPost,
-		Path:        "/v1/graph/gds/projections",
-		Summary:     "Create graph projection",
-		Description: "Creates a new in-memory graph projection for GDS algorithm execution.",
-		Tags:        []string{"Graph GDS"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, handler.CreateProjection)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "drop-gds-projection",
-		Method:      http.MethodDelete,
-		Path:        "/v1/graph/gds/projections/{name}",
-		Summary:     "Drop graph projection",
-		Description: "Drops an in-memory graph projection, freeing its resources.",
-		Tags:        []string{"Graph GDS"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, handler.DropProjection)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "run-gds-algorithm",
-		Method:      http.MethodPost,
-		Path:        "/v1/graph/gds/algorithms",
-		Summary:     "Run GDS algorithm",
-		Description: "Runs a GDS algorithm (e.g., PageRank, Louvain, Node Similarity) on a graph projection.",
-		Tags:        []string{"Graph GDS"},
+		Path:        "/v1/graph/algorithms",
+		Summary:     "Run graph algorithm",
+		Description: "Runs a MAGE graph algorithm (e.g., PageRank, Louvain, WCC) directly on the stored graph.",
+		Tags:        []string{"Graph Algorithms"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.RunAlgorithm)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-gds-algorithms",
+		OperationID: "list-graph-algorithms",
 		Method:      http.MethodGet,
-		Path:        "/v1/graph/gds/algorithms",
+		Path:        "/v1/graph/algorithms",
 		Summary:     "List available algorithms",
-		Description: "Returns a curated list of supported GDS algorithms with their categories and modes.",
-		Tags:        []string{"Graph GDS"},
+		Description: "Returns a list of supported MAGE graph algorithms with their categories and procedure names.",
+		Tags:        []string{"Graph Algorithms"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.ListAlgorithms)
 
@@ -155,7 +125,7 @@ func RegisterRoutes(api huma.API, handler *handlers.GraphHandler) {
 		Method:      http.MethodPost,
 		Path:        "/v1/graph/vector/search",
 		Summary:     "Vector similarity search",
-		Description: "Performs vector similarity search using a Neo4j vector index.",
+		Description: "Performs vector similarity search using a vector index.",
 		Tags:        []string{"Graph Vector"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.VectorSearch)

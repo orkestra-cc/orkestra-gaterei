@@ -39,6 +39,10 @@ import (
 	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	graphSvc "github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/documents"
+	"github.com/orkestra/backend/internal/rag"
+	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
+	ragRepo "github.com/orkestra/backend/internal/rag/repository"
+	ragSvc "github.com/orkestra/backend/internal/rag/services"
 	documentsConfig "github.com/orkestra/backend/internal/documents/config"
 	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
 	documentsRepo "github.com/orkestra/backend/internal/documents/repository"
@@ -372,12 +376,13 @@ func main() {
 		logger.Warn("Company lookup module disabled: OPENAPI_COMPANY_BEARER_TOKEN not configured")
 	}
 
-	// Initialize graph database module (Neo4j)
+	// Initialize graph database module (Memgraph)
 	var graphHandler *graphHandlers.GraphHandler
-	graphEnabled := cfg.Graph.Password != ""
+	var graphRepository graphRepo.GraphRepository
+	graphEnabled := cfg.Graph.Enabled
 
 	if graphEnabled {
-		neo4jDriver, err := database.NewNeo4jConnection(ctx, database.Neo4jConfig{
+		graphDriver, err := database.NewGraphConnection(ctx, database.GraphDBConfig{
 			URI:         cfg.Graph.URI,
 			Username:    cfg.Graph.Username,
 			Password:    cfg.Graph.Password,
@@ -385,22 +390,61 @@ func main() {
 			MaxConnPool: cfg.Graph.MaxConnPool,
 		})
 		if err != nil {
-			log.Fatalf("Failed to connect to Neo4j: %v", err)
+			log.Fatalf("Failed to connect to graph database: %v", err)
 		}
-		defer database.DisconnectNeo4j(ctx, neo4jDriver)
+		defer database.DisconnectGraph(ctx, graphDriver)
 
-		graphRepository := graphRepo.NewGraphRepository(neo4jDriver, cfg.Graph.Database)
+		graphRepository = graphRepo.NewGraphRepository(graphDriver, cfg.Graph.Database)
 		graphService := graphSvc.NewGraphService(graphRepository, logger)
-		gdsService := graphSvc.NewGDSService(graphRepository, logger)
+		algorithmService := graphSvc.NewAlgorithmService(graphRepository, logger)
 		vectorService := graphSvc.NewVectorService(graphRepository, logger)
-		graphHandler = graphHandlers.NewGraphHandler(graphService, gdsService, vectorService, cfg.Graph.URI)
+		graphHandler = graphHandlers.NewGraphHandler(graphService, algorithmService, vectorService, cfg.Graph.URI)
 
 		logger.Info("Graph database module initialized",
 			slog.String("uri", cfg.Graph.URI),
 			slog.String("database", cfg.Graph.Database),
 		)
 	} else {
-		logger.Warn("Graph database module disabled: NEO4J_PASSWORD not configured")
+		logger.Warn("Graph database module disabled: GRAPH_ENABLED not set")
+	}
+
+	// Initialize RAG module
+	var ragModelHandler *ragHandlers.ModelHandler
+	var ragDocumentHandler *ragHandlers.DocumentHandler
+	var ragQueryHandler *ragHandlers.QueryHandler
+	ragEnabled := cfg.RAG.Enabled
+
+	if ragEnabled {
+		modelRepository := ragRepo.NewModelRepository(db)
+		documentRepository := ragRepo.NewDocumentRepository(db)
+		modelService := ragSvc.NewModelService(modelRepository, cfg.RAG, logger)
+
+		// Text extractor using Gotenberg
+		textExtractor := ragSvc.NewTextExtractor(cfg.Documents.GotenbergURL)
+
+		// Ingestion service (depends on graph repo if graph module is enabled)
+		if graphEnabled {
+			ingestionService := ragSvc.NewIngestionService(
+				documentRepository, graphRepository, modelService, textExtractor,
+				cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, logger,
+			)
+			ragDocumentHandler = ragHandlers.NewDocumentHandler(ingestionService)
+
+			// Query service
+			queryService := ragSvc.NewQueryService(graphRepository, modelService, cfg.RAG.DefaultTopK, logger)
+			ragQueryHandler = ragHandlers.NewQueryHandler(queryService)
+		}
+
+		ragModelHandler = ragHandlers.NewModelHandler(modelService)
+
+		// Seed default models on first startup
+		if err := modelService.SeedDefaults(ctx); err != nil {
+			logger.Warn("Failed to seed default RAG models", slog.String("error", err.Error()))
+		}
+
+		logger.Info("RAG module initialized")
+	} else {
+		logger.Warn("RAG module disabled: RAG_ENABLED not set")
 	}
 
 	// Initialize auth service with all repositories
@@ -635,6 +679,21 @@ func main() {
 		})
 	}
 
+	// RAG routes - administrator role and above
+	if ragEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
+			ragAPI := humachi.New(r, apiConfig)
+			rag.RegisterModelRoutes(ragAPI, ragModelHandler)
+			if ragDocumentHandler != nil {
+				rag.RegisterDocumentRoutes(ragAPI, ragDocumentHandler)
+			}
+			if ragQueryHandler != nil {
+				rag.RegisterQueryRoutes(ragAPI, ragQueryHandler)
+			}
+		})
+	}
+
 	// Mount the protected routes
 	router.Mount("/", protectedRouter)
 
@@ -789,7 +848,7 @@ func main() {
 		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:        router,
 		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   60 * time.Second, // external APIs (company, billing) can take 25s+
+		WriteTimeout:   5 * time.Minute, // RAG queries with local LLM can take 2-3 minutes
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB max header size
 	}

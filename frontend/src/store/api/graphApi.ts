@@ -4,10 +4,8 @@ import type {
   GraphData,
   DatabaseInfo,
   SchemaInfo,
-  GDSProjection,
   AlgorithmInfo,
   AlgorithmRequest,
-  CreateProjectionRequest,
   VectorIndex,
   VectorSearchRequest,
   CreateVectorIndexRequest,
@@ -91,46 +89,18 @@ export const graphApi = baseApi.injectEndpoints({
       },
     }),
 
-    // --- GDS ---
-
-    listProjections: builder.query<{ projections: GDSProjection[] }, { database?: string } | void>({
-      query: (params) => {
-        const qs = params ? buildQueryParams(params) : '';
-        return `/v1/graph/gds/projections${qs ? `?${qs}` : ''}`;
-      },
-      providesTags: ['GDSProjection'],
-    }),
-
-    createProjection: builder.mutation<GDSProjection, CreateProjectionRequest>({
-      query: (body) => ({
-        url: '/v1/graph/gds/projections',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['GDSProjection'],
-    }),
-
-    dropProjection: builder.mutation<{ message: string }, { name: string; database?: string }>({
-      query: ({ name, database }) => {
-        const qs = database ? `?database=${database}` : '';
-        return {
-          url: `/v1/graph/gds/projections/${name}${qs}`,
-          method: 'DELETE',
-        };
-      },
-      invalidatesTags: ['GDSProjection'],
-    }),
+    // --- Algorithms (MAGE) ---
 
     runAlgorithm: builder.mutation<QueryResult, AlgorithmRequest>({
       query: (body) => ({
-        url: '/v1/graph/gds/algorithms',
+        url: '/v1/graph/algorithms',
         method: 'POST',
         body,
       }),
     }),
 
     listAlgorithms: builder.query<{ algorithms: AlgorithmInfo[] }, void>({
-      query: () => '/v1/graph/gds/algorithms',
+      query: () => '/v1/graph/algorithms',
     }),
 
     // --- Vector ---
@@ -185,9 +155,6 @@ export const {
   useLazyBrowseRelationshipsQuery,
   useGetNodeNeighborsQuery,
   useLazyGetNodeNeighborsQuery,
-  useListProjectionsQuery,
-  useCreateProjectionMutation,
-  useDropProjectionMutation,
   useRunAlgorithmMutation,
   useListAlgorithmsQuery,
   useVectorSearchMutation,

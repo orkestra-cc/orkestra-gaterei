@@ -68,39 +68,7 @@ type GetNodeNeighborsResponse struct {
 	Body GraphData
 }
 
-// --- GDS DTOs ---
-
-type ListProjectionsRequest struct {
-	Database string `query:"database" doc:"Target database"`
-}
-
-type ListProjectionsResponse struct {
-	Body struct {
-		Projections []GDSProjection `json:"projections" doc:"Graph projections"`
-	}
-}
-
-type CreateProjectionRequestDTO struct {
-	Body struct {
-		CreateProjectionRequest
-		Database string `json:"database,omitempty" doc:"Target database"`
-	}
-}
-
-type CreateProjectionResponse struct {
-	Body GDSProjection
-}
-
-type DropProjectionRequest struct {
-	Name     string `path:"name" doc:"Projection name"`
-	Database string `query:"database" doc:"Target database"`
-}
-
-type DropProjectionResponse struct {
-	Body struct {
-		Message string `json:"message" doc:"Confirmation message"`
-	}
-}
+// --- Algorithm DTOs ---
 
 type RunAlgorithmRequestDTO struct {
 	Body struct {
@@ -115,7 +83,7 @@ type RunAlgorithmResponse struct {
 
 type ListAlgorithmsResponse struct {
 	Body struct {
-		Algorithms []AlgorithmInfo `json:"algorithms" doc:"Available GDS algorithms"`
+		Algorithms []AlgorithmInfo `json:"algorithms" doc:"Available graph algorithms"`
 	}
 }
 
@@ -171,6 +139,6 @@ type DropVectorIndexResponse struct {
 type HealthCheckResponse struct {
 	Body struct {
 		Status string `json:"status" doc:"Connection status"`
-		URI    string `json:"uri" doc:"Neo4j URI"`
+		URI    string `json:"uri" doc:"Graph database URI"`
 	}
 }

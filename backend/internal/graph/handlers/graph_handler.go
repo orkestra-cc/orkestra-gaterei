@@ -10,19 +10,19 @@ import (
 
 // GraphHandler handles all graph-related HTTP requests
 type GraphHandler struct {
-	graphService  services.GraphService
-	gdsService    services.GDSService
-	vectorService services.VectorService
-	neo4jURI      string
+	graphService     services.GraphService
+	algorithmService services.AlgorithmService
+	vectorService    services.VectorService
+	graphURI         string
 }
 
 // NewGraphHandler creates a new GraphHandler
-func NewGraphHandler(graphSvc services.GraphService, gdsSvc services.GDSService, vectorSvc services.VectorService, neo4jURI string) *GraphHandler {
+func NewGraphHandler(graphSvc services.GraphService, algoSvc services.AlgorithmService, vectorSvc services.VectorService, graphURI string) *GraphHandler {
 	return &GraphHandler{
-		graphService:  graphSvc,
-		gdsService:    gdsSvc,
-		vectorService: vectorSvc,
-		neo4jURI:      neo4jURI,
+		graphService:     graphSvc,
+		algorithmService: algoSvc,
+		vectorService:    vectorSvc,
+		graphURI:         graphURI,
 	}
 }
 
@@ -30,11 +30,11 @@ func NewGraphHandler(graphSvc services.GraphService, gdsSvc services.GDSService,
 
 func (h *GraphHandler) HealthCheck(ctx context.Context, req *struct{}) (*models.HealthCheckResponse, error) {
 	if err := h.graphService.HealthCheck(ctx); err != nil {
-		return nil, huma.Error503ServiceUnavailable("Neo4j is not reachable", err)
+		return nil, huma.Error503ServiceUnavailable("Graph database is not reachable", err)
 	}
 	resp := &models.HealthCheckResponse{}
 	resp.Body.Status = "connected"
-	resp.Body.URI = h.neo4jURI
+	resp.Body.URI = h.graphURI
 	return resp, nil
 }
 
@@ -88,37 +88,10 @@ func (h *GraphHandler) GetNodeNeighbors(ctx context.Context, req *models.GetNode
 	return &models.GetNodeNeighborsResponse{Body: *graphData}, nil
 }
 
-// --- GDS Endpoints ---
-
-func (h *GraphHandler) ListProjections(ctx context.Context, req *models.ListProjectionsRequest) (*models.ListProjectionsResponse, error) {
-	projections, err := h.gdsService.ListProjections(ctx, req.Database)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("Failed to list projections", err)
-	}
-	resp := &models.ListProjectionsResponse{}
-	resp.Body.Projections = projections
-	return resp, nil
-}
-
-func (h *GraphHandler) CreateProjection(ctx context.Context, req *models.CreateProjectionRequestDTO) (*models.CreateProjectionResponse, error) {
-	projection, err := h.gdsService.CreateProjection(ctx, req.Body.Database, req.Body.CreateProjectionRequest)
-	if err != nil {
-		return nil, huma.Error400BadRequest("Failed to create projection", err)
-	}
-	return &models.CreateProjectionResponse{Body: *projection}, nil
-}
-
-func (h *GraphHandler) DropProjection(ctx context.Context, req *models.DropProjectionRequest) (*models.DropProjectionResponse, error) {
-	if err := h.gdsService.DropProjection(ctx, req.Database, req.Name); err != nil {
-		return nil, huma.Error400BadRequest("Failed to drop projection", err)
-	}
-	resp := &models.DropProjectionResponse{}
-	resp.Body.Message = "Projection dropped successfully"
-	return resp, nil
-}
+// --- Algorithm Endpoints ---
 
 func (h *GraphHandler) RunAlgorithm(ctx context.Context, req *models.RunAlgorithmRequestDTO) (*models.RunAlgorithmResponse, error) {
-	result, err := h.gdsService.RunAlgorithm(ctx, req.Body.Database, req.Body.AlgorithmRequest)
+	result, err := h.algorithmService.RunAlgorithm(ctx, req.Body.Database, req.Body.AlgorithmRequest)
 	if err != nil {
 		return nil, huma.Error400BadRequest("Algorithm execution failed", err)
 	}
@@ -126,7 +99,7 @@ func (h *GraphHandler) RunAlgorithm(ctx context.Context, req *models.RunAlgorith
 }
 
 func (h *GraphHandler) ListAlgorithms(ctx context.Context, req *struct{}) (*models.ListAlgorithmsResponse, error) {
-	algorithms := h.gdsService.ListAlgorithms(ctx)
+	algorithms := h.algorithmService.ListAlgorithms(ctx)
 	resp := &models.ListAlgorithmsResponse{}
 	resp.Body.Algorithms = algorithms
 	return resp, nil

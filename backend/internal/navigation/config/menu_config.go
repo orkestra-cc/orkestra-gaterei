@@ -190,9 +190,12 @@ func buildSuperAdminRoutes() models.RouteGroup {
 				Roles:  []string{"administrator"},
 				Children: []models.NavItem{
 					{Name: "Explorer", To: "/graph/explorer", Active: true, Roles: []string{"administrator"}},
-					{Name: "GDS Playground", To: "/graph/gds", Active: true, Roles: []string{"administrator"}},
+					{Name: "Algorithms", To: "/graph/algorithms", Active: true, Roles: []string{"administrator"}},
 					{Name: "Databases", To: "/graph/databases", Active: true, Roles: []string{"administrator"}},
 					{Name: "Vector Search", To: "/graph/vector", Active: true, Roles: []string{"administrator"}},
+					{Name: "AI Models", To: "/graph/models", Active: true, Roles: []string{"administrator"}},
+					{Name: "Documents", To: "/graph/documents", Active: true, Roles: []string{"administrator"}},
+					{Name: "RAG Query", To: "/graph/rag", Active: true, Roles: []string{"administrator"}},
 				},
 			},
 		},

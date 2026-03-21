@@ -30,7 +30,7 @@ const VectorSearch: React.FC = () => {
   const [newLabel, setNewLabel] = useState('');
   const [newProperty, setNewProperty] = useState('');
   const [newDimensions, setNewDimensions] = useState(256);
-  const [newSimilarity, setNewSimilarity] = useState<'cosine' | 'euclidean'>('cosine');
+  const [newSimilarity, setNewSimilarity] = useState<'cos' | 'l2sq' | 'ip'>('cos');
 
   const handleSearch = useCallback(async () => {
     if (!searchIndex || !vectorInput) return;
@@ -170,9 +170,10 @@ const VectorSearch: React.FC = () => {
                     <Form.Control size="sm" type="number" placeholder="Dims" value={newDimensions} onChange={e => setNewDimensions(Number(e.target.value))} />
                   </Col>
                   <Col xs={3}>
-                    <Form.Select size="sm" value={newSimilarity} onChange={e => setNewSimilarity(e.target.value as 'cosine' | 'euclidean')}>
-                      <option value="cosine">cosine</option>
-                      <option value="euclidean">euclidean</option>
+                    <Form.Select size="sm" value={newSimilarity} onChange={e => setNewSimilarity(e.target.value as 'cos' | 'l2sq' | 'ip')}>
+                      <option value="cos">Cosine</option>
+                      <option value="l2sq">Euclidean (L2)</option>
+                      <option value="ip">Inner Product</option>
                     </Form.Select>
                   </Col>
                 </Row>
