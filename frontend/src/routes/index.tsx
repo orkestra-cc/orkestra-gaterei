@@ -241,6 +241,12 @@ const CompanySearch = lazy(
   () => import('pages/company/search')
 );
 
+// Graph module lazy imports
+const GraphExplorer = lazy(() => import('pages/graph/explorer'));
+const GraphGDS = lazy(() => import('pages/graph/gds'));
+const GraphDatabases = lazy(() => import('pages/graph/databases'));
+const GraphVector = lazy(() => import('pages/graph/vector'));
+
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
 import Contacts from 'reference/app-examples/support-desk/contacts/Contacts';
@@ -879,6 +885,55 @@ const routes: RouteObject[] = [
                   fallback={<FalconLoader />}
                 >
                   <CompanySearch />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          // Graph Database routes
+          {
+            path: 'graph/explorer',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="graph-explorer" fallback={<FalconLoader />}>
+                  <GraphExplorer />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'graph/gds',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="graph-gds" fallback={<FalconLoader />}>
+                  <GraphGDS />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'graph/databases',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="graph-databases" fallback={<FalconLoader />}>
+                  <GraphDatabases />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'graph/vector',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="graph-vector" fallback={<FalconLoader />}>
+                  <GraphVector />
                 </Suspense>
               </ProtectedRoute>
             )

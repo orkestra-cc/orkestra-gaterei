@@ -121,6 +121,11 @@ export const baseApi = createApi({
     // Documents module tags
     'DocumentTemplate',
     'GeneratedDocument',
+    // Graph database module tags
+    'GraphQuery',
+    'GraphSchema',
+    'GDSProjection',
+    'VectorIndex',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,
@@ -137,7 +142,7 @@ export const {
 } = baseApi;
 
 // Helper function to invalidate multiple tags
-export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry" | "CompanyLookup" | "DocumentTemplate" | "GeneratedDocument">) => {
+export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Reports" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry" | "CompanyLookup" | "DocumentTemplate" | "GeneratedDocument" | "GraphQuery" | "GraphSchema" | "GDSProjection" | "VectorIndex">) => {
   return baseApi.util.invalidateTags(tags);
 };
 

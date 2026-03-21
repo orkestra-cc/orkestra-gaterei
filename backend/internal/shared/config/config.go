@@ -23,6 +23,18 @@ type Config struct {
 	Billing   BillingConfig
 	Documents DocumentsConfig
 	Company   CompanyConfig
+	Graph     GraphConfig
+}
+
+// GraphConfig holds configuration for the Neo4j graph database module
+type GraphConfig struct {
+	URI         string        // Bolt URI: bolt://host:7687
+	Username    string        // Neo4j username
+	Password    string        // Neo4j password (module disabled if empty)
+	Database    string        // Default database name
+	MaxConnPool int           // Connection pool size
+	Encrypted   bool          // TLS/encryption
+	Timeout     time.Duration // Query timeout
 }
 
 // CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
@@ -304,6 +316,17 @@ func Load() (*Config, error) {
 		Timeout:       getEnvAsDuration("OPENAPI_COMPANY_TIMEOUT", "15s"),
 		RetryAttempts: getEnvAsInt("OPENAPI_COMPANY_RETRY_ATTEMPTS", 3),
 		CacheTTL:      getEnvAsDuration("OPENAPI_COMPANY_CACHE_TTL", "24h"),
+	}
+
+	// Graph database configuration (Neo4j)
+	config.Graph = GraphConfig{
+		URI:         getEnv("NEO4J_URI", "bolt://localhost:7687"),
+		Username:    getEnv("NEO4J_USERNAME", "neo4j"),
+		Password:    getEnv("NEO4J_PASSWORD", ""),
+		Database:    getEnv("NEO4J_DATABASE", "neo4j"),
+		MaxConnPool: getEnvAsInt("NEO4J_MAX_CONN_POOL", 25),
+		Encrypted:   getEnvAsBool("NEO4J_ENCRYPTED", false),
+		Timeout:     getEnvAsDuration("NEO4J_TIMEOUT", "30s"),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)

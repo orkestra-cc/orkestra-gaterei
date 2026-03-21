@@ -34,6 +34,10 @@ import (
 	companyHandlers "github.com/orkestra/backend/internal/company/handlers"
 	companyRepo "github.com/orkestra/backend/internal/company/repository"
 	companySvc "github.com/orkestra/backend/internal/company/services"
+	"github.com/orkestra/backend/internal/graph"
+	graphHandlers "github.com/orkestra/backend/internal/graph/handlers"
+	graphRepo "github.com/orkestra/backend/internal/graph/repository"
+	graphSvc "github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/documents"
 	documentsConfig "github.com/orkestra/backend/internal/documents/config"
 	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
@@ -368,6 +372,37 @@ func main() {
 		logger.Warn("Company lookup module disabled: OPENAPI_COMPANY_BEARER_TOKEN not configured")
 	}
 
+	// Initialize graph database module (Neo4j)
+	var graphHandler *graphHandlers.GraphHandler
+	graphEnabled := cfg.Graph.Password != ""
+
+	if graphEnabled {
+		neo4jDriver, err := database.NewNeo4jConnection(ctx, database.Neo4jConfig{
+			URI:         cfg.Graph.URI,
+			Username:    cfg.Graph.Username,
+			Password:    cfg.Graph.Password,
+			Database:    cfg.Graph.Database,
+			MaxConnPool: cfg.Graph.MaxConnPool,
+		})
+		if err != nil {
+			log.Fatalf("Failed to connect to Neo4j: %v", err)
+		}
+		defer database.DisconnectNeo4j(ctx, neo4jDriver)
+
+		graphRepository := graphRepo.NewGraphRepository(neo4jDriver, cfg.Graph.Database)
+		graphService := graphSvc.NewGraphService(graphRepository, logger)
+		gdsService := graphSvc.NewGDSService(graphRepository, logger)
+		vectorService := graphSvc.NewVectorService(graphRepository, logger)
+		graphHandler = graphHandlers.NewGraphHandler(graphService, gdsService, vectorService, cfg.Graph.URI)
+
+		logger.Info("Graph database module initialized",
+			slog.String("uri", cfg.Graph.URI),
+			slog.String("database", cfg.Graph.Database),
+		)
+	} else {
+		logger.Warn("Graph database module disabled: NEO4J_PASSWORD not configured")
+	}
+
 	// Initialize auth service with all repositories
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
@@ -587,6 +622,16 @@ func main() {
 			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
 			companyAPI := humachi.New(r, apiConfig)
 			company.RegisterRoutes(companyAPI, companyLookupHandler)
+		})
+	}
+
+	// Graph database routes - administrator role and above
+	// Provides raw Cypher execution, restricted to trusted roles
+	if graphEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
+			graphAPI := humachi.New(r, apiConfig)
+			graph.RegisterRoutes(graphAPI, graphHandler)
 		})
 	}
 
