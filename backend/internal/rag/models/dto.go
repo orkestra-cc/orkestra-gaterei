@@ -248,3 +248,51 @@ type RAGQueryResponse struct {
 		Metadata QueryMeta   `json:"metadata" doc:"Query timing metadata"`
 	}
 }
+
+// --- Relationship Type DTOs ---
+
+type ListRelationshipTypesRequest struct{}
+
+type ListRelationshipTypesResponse struct {
+	Body struct {
+		RelationshipTypes []RelationshipTypeConfig `json:"relationshipTypes" doc:"Configured relationship types"`
+	}
+}
+
+type CreateRelationshipTypeRequest struct {
+	Body struct {
+		Name        string          `json:"name" doc:"Relationship type name (e.g. REFERENCES)" required:"true"`
+		Description string          `json:"description,omitempty" doc:"Human-readable description"`
+		FromNode    string          `json:"fromNode" doc:"Source node label" required:"true"`
+		ToNode      string          `json:"toNode" doc:"Target node label" required:"true"`
+		Properties  []string        `json:"properties,omitempty" doc:"Edge property names"`
+		Categories  map[string]bool `json:"categories" doc:"Category toggles" required:"true"`
+	}
+}
+
+type CreateRelationshipTypeResponse struct {
+	Body RelationshipTypeConfig
+}
+
+type UpdateRelationshipTypeRequest struct {
+	UUID string `path:"uuid" doc:"Relationship type UUID"`
+	Body struct {
+		Description *string          `json:"description,omitempty" doc:"Human-readable description"`
+		Properties  *[]string        `json:"properties,omitempty" doc:"Edge property names"`
+		Categories  *map[string]bool `json:"categories,omitempty" doc:"Category toggles"`
+	}
+}
+
+type UpdateRelationshipTypeResponse struct {
+	Body RelationshipTypeConfig
+}
+
+type DeleteRelationshipTypeRequest struct {
+	UUID string `path:"uuid" doc:"Relationship type UUID"`
+}
+
+type DeleteRelationshipTypeResponse struct {
+	Body struct {
+		Message string `json:"message" doc:"Confirmation message"`
+	}
+}

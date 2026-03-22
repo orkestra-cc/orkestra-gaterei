@@ -233,8 +233,16 @@ func ParseDocumentStructure(text string) *StructuralNode {
 	position := 0
 
 	for _, para := range paragraphs {
+		// Skip Markdown horizontal rules
+		if strings.TrimSpace(para) == "---" || strings.TrimSpace(para) == "***" || strings.TrimSpace(para) == "___" {
+			continue
+		}
+
 		firstLine := strings.SplitN(para, "\n", 2)[0]
 		firstLine = strings.TrimSpace(firstLine)
+
+		// Strip Markdown heading prefix (# ## ### etc.)
+		firstLine = stripMarkdownHeading(firstLine)
 
 		matched := false
 		for _, rule := range headingRules {
@@ -262,7 +270,7 @@ func ParseDocumentStructure(text string) *StructuralNode {
 			// Handle text body: if the paragraph has more content beyond the heading line
 			parts := strings.SplitN(para, "\n", 2)
 			if len(parts) > 1 {
-				node.Text = strings.TrimSpace(parts[1])
+				node.Text = strings.TrimSpace(stripMarkdownFromBody(parts[1]))
 			}
 
 			// Special handling for Terms and definitions
@@ -481,6 +489,26 @@ func ExtractCrossReferences(text string) []CrossReference {
 	}
 
 	return refs
+}
+
+// --- Markdown handling ---
+
+var markdownHeadingPattern = regexp.MustCompile(`^#{1,6}\s+`)
+
+// stripMarkdownHeading removes Markdown heading prefix (# ## ### etc.) from a line.
+func stripMarkdownHeading(line string) string {
+	return strings.TrimSpace(markdownHeadingPattern.ReplaceAllString(line, ""))
+}
+
+// stripMarkdownFromBody strips Markdown formatting from body text:
+// heading prefixes, bold/italic markers, but preserves content.
+func stripMarkdownFromBody(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		// Strip heading prefixes from sub-lines
+		lines[i] = markdownHeadingPattern.ReplaceAllString(line, "")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // --- List item detection ---

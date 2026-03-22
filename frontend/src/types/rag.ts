@@ -87,6 +87,36 @@ export interface SourceRef {
   position: number;
 }
 
+// --- Relationship Type Config ---
+
+export interface RelationshipTypeConfig {
+  uuid: string;
+  name: string;
+  description: string;
+  fromNode: string;
+  toNode: string;
+  properties: string[] | null;
+  categories: Record<string, boolean>;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRelationshipTypeRequest {
+  name: string;
+  description?: string;
+  fromNode: string;
+  toNode: string;
+  properties?: string[];
+  categories: Record<string, boolean>;
+}
+
+export interface UpdateRelationshipTypeRequest {
+  description?: string;
+  properties?: string[];
+  categories?: Record<string, boolean>;
+}
+
 export interface QueryMeta {
   embeddingTimeMs: number;
   searchTimeMs: number;

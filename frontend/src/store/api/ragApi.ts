@@ -5,6 +5,9 @@ import type {
   UpdateDocumentRequest,
   RagQueryRequest,
   RagQueryResponse,
+  RelationshipTypeConfig,
+  CreateRelationshipTypeRequest,
+  UpdateRelationshipTypeRequest,
 } from '../../types/rag';
 
 export const ragApi = baseApi.injectEndpoints({
@@ -59,6 +62,39 @@ export const ragApi = baseApi.injectEndpoints({
       invalidatesTags: ['RagDocument', 'GraphSchema'],
     }),
 
+    // --- Relationship Types ---
+
+    listRelationshipTypes: builder.query<{ relationshipTypes: RelationshipTypeConfig[] }, void>({
+      query: () => '/v1/rag/relationships',
+      providesTags: ['RagRelationship'],
+    }),
+
+    createRelationshipType: builder.mutation<RelationshipTypeConfig, CreateRelationshipTypeRequest>({
+      query: (body) => ({
+        url: '/v1/rag/relationships',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['RagRelationship'],
+    }),
+
+    updateRelationshipType: builder.mutation<RelationshipTypeConfig, { uuid: string; data: UpdateRelationshipTypeRequest }>({
+      query: ({ uuid, data }) => ({
+        url: `/v1/rag/relationships/${uuid}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: ['RagRelationship'],
+    }),
+
+    deleteRelationshipType: builder.mutation<{ message: string }, string>({
+      query: (uuid) => ({
+        url: `/v1/rag/relationships/${uuid}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['RagRelationship'],
+    }),
+
     // --- RAG Query ---
 
     ragQuery: builder.mutation<RagQueryResponse, RagQueryRequest>({
@@ -78,5 +114,9 @@ export const {
   useUpdateDocumentMutation,
   useGetDocumentChunksQuery,
   useDeleteDocumentMutation,
+  useListRelationshipTypesQuery,
+  useCreateRelationshipTypeMutation,
+  useUpdateRelationshipTypeMutation,
+  useDeleteRelationshipTypeMutation,
   useRagQueryMutation,
 } = ragApi;

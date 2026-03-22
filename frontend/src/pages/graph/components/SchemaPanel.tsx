@@ -292,8 +292,8 @@ const SchemaPanel = ({
             <Accordion.Body className="p-0">
               {(schema.indexes?.length ?? 0) > 0 ? (
                 <ListGroup variant="flush">
-                  {schema.indexes.map((index) => (
-                    <IndexItem key={index.name} index={index} />
+                  {schema.indexes.map((index, i) => (
+                    <IndexItem key={`${index.name}-${i}`} index={index} />
                   ))}
                 </ListGroup>
               ) : (
@@ -311,8 +311,8 @@ const SchemaPanel = ({
             <Accordion.Body className="p-0">
               {(schema.constraints?.length ?? 0) > 0 ? (
                 <ListGroup variant="flush">
-                  {schema.constraints.map((constraint) => (
-                    <ConstraintItem key={constraint.name} constraint={constraint} />
+                  {schema.constraints.map((constraint, i) => (
+                    <ConstraintItem key={`${constraint.name}-${i}`} constraint={constraint} />
                   ))}
                 </ListGroup>
               ) : (

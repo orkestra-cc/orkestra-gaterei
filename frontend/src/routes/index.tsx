@@ -247,6 +247,7 @@ const GraphAlgorithms = lazy(() => import('pages/graph/algorithms'));
 const GraphDatabases = lazy(() => import('pages/graph/databases'));
 const GraphVector = lazy(() => import('pages/graph/vector'));
 const GraphDocuments = lazy(() => import('pages/graph/documents'));
+const GraphRelationships = lazy(() => import('pages/graph/relationships'));
 const GraphRAG = lazy(() => import('pages/graph/rag'));
 
 // AI module lazy imports
@@ -955,6 +956,18 @@ const routes: RouteObject[] = [
               >
                 <Suspense key="graph-documents" fallback={<FalconLoader />}>
                   <GraphDocuments />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'graph/relationships',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="graph-relationships" fallback={<FalconLoader />}>
+                  <GraphRelationships />
                 </Suspense>
               </ProtectedRoute>
             )

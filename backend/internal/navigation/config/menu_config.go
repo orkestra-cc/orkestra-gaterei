@@ -222,6 +222,13 @@ func buildAIRoutes() models.RouteGroup {
 				Roles:  []string{"administrator"},
 			},
 			{
+				Name:   "Relationships",
+				Icon:   "project-diagram",
+				To:     "/graph/relationships",
+				Active: true,
+				Roles:  []string{"administrator"},
+			},
+			{
 				Name:   "RAG Query",
 				Icon:   "comments",
 				To:     "/graph/rag",

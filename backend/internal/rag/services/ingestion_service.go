@@ -29,6 +29,7 @@ type IngestionService interface {
 
 type ingestionService struct {
 	docRepo             repository.DocumentRepository
+	relTypeRepo         repository.RelationshipTypeRepository
 	graphRepo           graphRepo.GraphRepository
 	modelProvider       AIModelProvider
 	extractor           TextExtractor
@@ -41,6 +42,7 @@ type ingestionService struct {
 // NewIngestionService creates a new IngestionService
 func NewIngestionService(
 	docRepo repository.DocumentRepository,
+	relTypeRepo repository.RelationshipTypeRepository,
 	gr graphRepo.GraphRepository,
 	modelProvider AIModelProvider,
 	extractor TextExtractor,
@@ -49,6 +51,7 @@ func NewIngestionService(
 ) IngestionService {
 	return &ingestionService{
 		docRepo:             docRepo,
+		relTypeRepo:         relTypeRepo,
 		graphRepo:           gr,
 		modelProvider:       modelProvider,
 		extractor:           extractor,
@@ -345,49 +348,70 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		}
 	}
 
+	// Load active relationship types for this document's category
+	activeRels := make(map[string]bool)
+	if s.relTypeRepo != nil {
+		category := doc.DocumentCategory
+		if category == "" {
+			category = "generic"
+		}
+		if rels, err := s.relTypeRepo.ListActiveForCategory(ctx, category); err == nil {
+			for _, r := range rels {
+				activeRels[r.Name] = true
+			}
+			s.logger.Info("loaded active relationship types",
+				slog.String("category", category),
+				slog.Int("count", len(activeRels)),
+			)
+		}
+	}
+
 	// Step 13: Extract and create definitions from terms sections
-	for _, sec := range sections {
-		if sec.NodeType == "terms_section" {
-			defs := ExtractDefinitions(sec)
-			for _, def := range defs {
-				defUUID := uuid.New().String()
-				defEmb, embErr := embProvider.Embed(ctx, def.Term+": "+def.Definition)
-				if embErr != nil {
-					s.logger.Warn("failed to embed definition", slog.String("term", def.Term), slog.String("error", embErr.Error()))
-					continue
-				}
+	if activeRels["HAS_DEFINITION"] || activeRels["DEFINES"] {
+		for _, sec := range sections {
+			if sec.NodeType == "terms_section" {
+				defs := ExtractDefinitions(sec)
+				for _, def := range defs {
+					defUUID := uuid.New().String()
+					defEmb, embErr := embProvider.Embed(ctx, def.Term+": "+def.Definition)
+					if embErr != nil {
+						s.logger.Warn("failed to embed definition", slog.String("term", def.Term), slog.String("error", embErr.Error()))
+						continue
+					}
 
-				_, err := s.graphRepo.ExecuteWrite(ctx, "", `
-					MATCH (d:RagDocument {uuid: $docUuid})
-					CREATE (def:RagDefinition {
-						uuid: $defUuid,
-						documentUuid: $docUuid,
-						term: $term,
-						definition: $definition,
-						embedding: $embedding
+					_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+						MATCH (d:RagDocument {uuid: $docUuid})
+						CREATE (def:RagDefinition {
+							uuid: $defUuid,
+							documentUuid: $docUuid,
+							term: $term,
+							definition: $definition,
+							embedding: $embedding
+						})
+						CREATE (d)-[:HAS_DEFINITION]->(def)
+					`, map[string]interface{}{
+						"docUuid":    docUUID,
+						"defUuid":    defUUID,
+						"term":       def.Term,
+						"definition": def.Definition,
+						"embedding":  defEmb,
 					})
-					CREATE (d)-[:HAS_DEFINITION]->(def)
-				`, map[string]interface{}{
-					"docUuid":    docUUID,
-					"defUuid":    defUUID,
-					"term":       def.Term,
-					"definition": def.Definition,
-					"embedding":  defEmb,
-				})
-				if err != nil {
-					s.logger.Warn("failed to create definition node", slog.String("term", def.Term), slog.String("error", err.Error()))
-					continue
-				}
+					if err != nil {
+						s.logger.Warn("failed to create definition node", slog.String("term", def.Term), slog.String("error", err.Error()))
+						continue
+					}
 
-				// Create DEFINES edges: scan all chunks for usage of this term
-				termLower := strings.ToLower(def.Term)
-				for j, chunk := range chunks {
-					if strings.Contains(strings.ToLower(chunk.Text), termLower) {
-						_, _ = s.graphRepo.ExecuteWrite(ctx, "", `
-							MATCH (def:RagDefinition {uuid: $defUuid})
-							MATCH (c:RagChunk {uuid: $chunkUuid})
-							CREATE (def)-[:DEFINES]->(c)
-						`, map[string]interface{}{"defUuid": defUUID, "chunkUuid": chunkUUIDs[j]})
+					if activeRels["DEFINES"] {
+						termLower := strings.ToLower(def.Term)
+						for j, chunk := range chunks {
+							if strings.Contains(strings.ToLower(chunk.Text), termLower) {
+								_, _ = s.graphRepo.ExecuteWrite(ctx, "", `
+									MATCH (def:RagDefinition {uuid: $defUuid})
+									MATCH (c:RagChunk {uuid: $chunkUuid})
+									CREATE (def)-[:DEFINES]->(c)
+								`, map[string]interface{}{"defUuid": defUUID, "chunkUuid": chunkUUIDs[j]})
+							}
+						}
 					}
 				}
 			}
@@ -395,37 +419,41 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 	}
 
 	// Step 14: Create REFERENCES edges from cross-references
-	refEdges := ResolveInternalReferences(chunks, sections)
-	for _, edge := range refEdges {
-		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
-			MATCH (src:RagChunk {uuid: $srcUuid})
-			MATCH (tgt:RagSection {documentUuid: $docUuid, numbering: $numbering})
-			CREATE (src)-[:REFERENCES {referenceText: $refText}]->(tgt)
-		`, map[string]interface{}{
-			"srcUuid":   chunkUUIDs[edge.SourceChunkIdx],
-			"docUuid":   docUUID,
-			"numbering": edge.TargetNumber,
-			"refText":   edge.ReferenceText,
-		})
-		if err != nil {
-			s.logger.Warn("failed to create REFERENCES edge", slog.String("error", err.Error()))
+	if activeRels["REFERENCES"] {
+		refEdges := ResolveInternalReferences(chunks, sections)
+		for _, edge := range refEdges {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (src:RagChunk {uuid: $srcUuid})
+				MATCH (tgt:RagSection {documentUuid: $docUuid, numbering: $numbering})
+				CREATE (src)-[:REFERENCES {referenceText: $refText}]->(tgt)
+			`, map[string]interface{}{
+				"srcUuid":   chunkUUIDs[edge.SourceChunkIdx],
+				"docUuid":   docUUID,
+				"numbering": edge.TargetNumber,
+				"refText":   edge.ReferenceText,
+			})
+			if err != nil {
+				s.logger.Warn("failed to create REFERENCES edge", slog.String("error", err.Error()))
+			}
 		}
 	}
 
 	// Step 15: Compute SIMILAR_TO edges
-	simEdges := ComputeSimilarityEdges(embeddings, s.similarityThreshold)
-	for _, edge := range simEdges {
-		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
-			MATCH (a:RagChunk {uuid: $aUuid})
-			MATCH (b:RagChunk {uuid: $bUuid})
-			CREATE (a)-[:SIMILAR_TO {similarity: $sim}]->(b)
-		`, map[string]interface{}{
-			"aUuid": chunkUUIDs[edge.ChunkIdxA],
-			"bUuid": chunkUUIDs[edge.ChunkIdxB],
-			"sim":   edge.Similarity,
-		})
-		if err != nil {
-			s.logger.Warn("failed to create SIMILAR_TO edge", slog.String("error", err.Error()))
+	if activeRels["SIMILAR_TO"] {
+		simEdges := ComputeSimilarityEdges(embeddings, s.similarityThreshold)
+		for _, edge := range simEdges {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (a:RagChunk {uuid: $aUuid})
+				MATCH (b:RagChunk {uuid: $bUuid})
+				CREATE (a)-[:SIMILAR_TO {similarity: $sim}]->(b)
+			`, map[string]interface{}{
+				"aUuid": chunkUUIDs[edge.ChunkIdxA],
+				"bUuid": chunkUUIDs[edge.ChunkIdxB],
+				"sim":   edge.Similarity,
+			})
+			if err != nil {
+				s.logger.Warn("failed to create SIMILAR_TO edge", slog.String("error", err.Error()))
+			}
 		}
 	}
 
@@ -469,8 +497,7 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		slog.String("uuid", docUUID),
 		slog.Int("chunks", len(chunks)),
 		slog.Int("sections", len(sections)),
-		slog.Int("references", len(refEdges)),
-		slog.Int("similarEdges", len(simEdges)),
+		slog.Int("activeRels", len(activeRels)),
 		slog.Int("dimensions", dims),
 	)
 }

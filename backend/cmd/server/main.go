@@ -442,10 +442,14 @@ func main() {
 	var ragDocumentHandler *ragHandlers.DocumentHandler
 	var ragQueryHandler *ragHandlers.QueryHandler
 	var ragStreamHandler *ragHandlers.StreamHandler
+	var ragRelationshipHandler *ragHandlers.RelationshipHandler
 	ragEnabled := cfg.RAG.Enabled
 
 	if ragEnabled {
 		documentRepository := ragRepo.NewDocumentRepository(db)
+		relTypeRepo := ragRepo.NewRelationshipTypeRepository(db)
+		relTypeService := ragSvc.NewRelationshipTypeService(relTypeRepo, logger)
+		ragRelationshipHandler = ragHandlers.NewRelationshipHandler(relTypeService)
 
 		// Use aimodels service if available, otherwise create a standalone model service for RAG
 		var ragModelProvider ragSvc.AIModelProvider
@@ -467,7 +471,7 @@ func main() {
 		// Ingestion service (depends on graph repo if graph module is enabled)
 		if graphEnabled {
 			ingestionService := ragSvc.NewIngestionService(
-				documentRepository, graphRepository, ragModelProvider, textExtractor,
+				documentRepository, relTypeRepo, graphRepository, ragModelProvider, textExtractor,
 				cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, logger,
 			)
 			ragDocumentHandler = ragHandlers.NewDocumentHandler(ingestionService)
@@ -747,6 +751,9 @@ func main() {
 			}
 			if ragStreamHandler != nil {
 				rag.RegisterStreamRoute(r, ragStreamHandler)
+			}
+			if ragRelationshipHandler != nil {
+				rag.RegisterRelationshipTypeRoutes(ragAPI, ragRelationshipHandler)
 			}
 		})
 	}

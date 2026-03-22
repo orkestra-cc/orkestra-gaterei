@@ -189,6 +189,49 @@ func RegisterQueryRoutes(api huma.API, handler *handlers.QueryHandler) {
 	}, handler.Query)
 }
 
+// RegisterRelationshipTypeRoutes registers relationship type config routes
+func RegisterRelationshipTypeRoutes(api huma.API, handler *handlers.RelationshipHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-rag-relationship-types",
+		Method:      http.MethodGet,
+		Path:        "/v1/rag/relationships",
+		Summary:     "List relationship types",
+		Description: "Lists all configured graph relationship types with category toggles.",
+		Tags:        []string{"RAG Relationships"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.List)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-rag-relationship-type",
+		Method:      http.MethodPost,
+		Path:        "/v1/rag/relationships",
+		Summary:     "Create relationship type",
+		Description: "Creates a new graph relationship type configuration.",
+		Tags:        []string{"RAG Relationships"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.Create)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-rag-relationship-type",
+		Method:      http.MethodPatch,
+		Path:        "/v1/rag/relationships/{uuid}",
+		Summary:     "Update relationship type",
+		Description: "Updates a relationship type's description, properties, or category toggles.",
+		Tags:        []string{"RAG Relationships"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.Update)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-rag-relationship-type",
+		Method:      http.MethodDelete,
+		Path:        "/v1/rag/relationships/{uuid}",
+		Summary:     "Delete relationship type",
+		Description: "Deletes a non-system relationship type configuration.",
+		Tags:        []string{"RAG Relationships"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.Delete)
+}
+
 // RegisterStreamRoute registers the SSE streaming query route on the Chi router directly
 func RegisterStreamRoute(r chi.Router, handler *handlers.StreamHandler) {
 	r.Post("/v1/rag/query/stream", handler.HandleQueryStream)
