@@ -289,6 +289,12 @@ func (w *responseWrapper) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
+// Unwrap returns the underlying ResponseWriter, enabling http.ResponseController
+// to access features like Flush through wrapped writers (required for SSE streaming).
+func (w *responseWrapper) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 // Utility functions
 
 // GetCorrelationID extracts correlation ID from context

@@ -412,6 +412,7 @@ func main() {
 	var ragModelHandler *ragHandlers.ModelHandler
 	var ragDocumentHandler *ragHandlers.DocumentHandler
 	var ragQueryHandler *ragHandlers.QueryHandler
+	var ragStreamHandler *ragHandlers.StreamHandler
 	ragEnabled := cfg.RAG.Enabled
 
 	if ragEnabled {
@@ -433,6 +434,7 @@ func main() {
 			// Query service
 			queryService := ragSvc.NewQueryService(graphRepository, modelService, cfg.RAG.DefaultTopK, logger)
 			ragQueryHandler = ragHandlers.NewQueryHandler(queryService)
+			ragStreamHandler = ragHandlers.NewStreamHandler(queryService, logger)
 		}
 
 		ragModelHandler = ragHandlers.NewModelHandler(modelService)
@@ -552,7 +554,17 @@ func main() {
 
 	// Keep the default recoverer as a fallback
 	router.Use(middleware.Recoverer)
-	router.Use(middleware.Timeout(60 * time.Second))
+	// Timeout middleware with bypass for SSE streaming endpoints
+	router.Use(func(next http.Handler) http.Handler {
+		timeoutHandler := middleware.Timeout(60 * time.Second)(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/stream") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			timeoutHandler.ServeHTTP(w, r)
+		})
+	})
 
 	// Dev token routes - registered directly on main router in non-production
 	// These routes are registered BEFORE the protected router mount, so they take precedence
@@ -690,6 +702,9 @@ func main() {
 			}
 			if ragQueryHandler != nil {
 				rag.RegisterQueryRoutes(ragAPI, ragQueryHandler)
+			}
+			if ragStreamHandler != nil {
+				rag.RegisterStreamRoute(r, ragStreamHandler)
 			}
 		})
 	}

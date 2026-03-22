@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/orkestra/backend/internal/rag/handlers"
 )
@@ -146,4 +147,9 @@ func RegisterQueryRoutes(api huma.API, handler *handlers.QueryHandler) {
 		Tags:        []string{"RAG Query"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.Query)
+}
+
+// RegisterStreamRoute registers the SSE streaming query route on the Chi router directly
+func RegisterStreamRoute(r chi.Router, handler *handlers.StreamHandler) {
+	r.Post("/v1/rag/query/stream", handler.HandleQueryStream)
 }

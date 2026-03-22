@@ -12,9 +12,26 @@ import (
 	"github.com/orkestra/backend/internal/rag/providers"
 )
 
+const ragSystemPrompt = `You are an ISO compliance expert assistant. Answer the question based ONLY on the provided context.
+If the context does not contain enough information to answer, say so clearly.
+Always cite the source document and section when referencing specific requirements.
+Be precise and actionable in your responses.
+/no_think`
+
+// StreamResult holds the pre-LLM data and token channel for streaming queries
+type StreamResult struct {
+	Sources   []models.SourceRef
+	PreMeta   models.QueryMeta
+	TokenChan <-chan providers.StreamChunk
+	ModelName string
+	StartTime time.Time // total query start for final metadata
+	LLMStart  time.Time // LLM start for llmTimeMs
+}
+
 // QueryService handles RAG query execution
 type QueryService interface {
 	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*models.RAGQueryResponse, error)
+	QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*StreamResult, error)
 }
 
 type queryService struct {
@@ -34,9 +51,19 @@ func NewQueryService(gr graphRepo.GraphRepository, modelSvc ModelService, defaul
 	}
 }
 
-func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*models.RAGQueryResponse, error) {
-	totalStart := time.Now()
+// preparedContext holds the results of embedding + vector search + context expansion
+type preparedContext struct {
+	sources      []models.SourceRef
+	contextStr   string
+	prompt       string
+	embTimeMs    int64
+	searchTimeMs int64
+	llmProvider  providers.LLMProvider
+}
 
+// prepareContext performs embedding, vector search, context expansion, and LLM provider resolution.
+// Shared by both Query and QueryStream.
+func (s *queryService) prepareContext(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*preparedContext, error) {
 	if topK <= 0 {
 		topK = s.defaultTopK
 	}
@@ -104,21 +131,13 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 		}
 
 		// Filter by ISO standard if specified
-		if isoStandard != "" {
-			docInfo := s.getDocumentInfo(ctx, src.DocumentUUID)
-			if docInfo != nil {
-				src.DocumentTitle = docInfo.title
-				src.ISOStandard = docInfo.isoStandard
-				if src.ISOStandard != isoStandard {
-					continue
-				}
-			}
-		} else {
-			docInfo := s.getDocumentInfo(ctx, src.DocumentUUID)
-			if docInfo != nil {
-				src.DocumentTitle = docInfo.title
-				src.ISOStandard = docInfo.isoStandard
-			}
+		docInfo := s.getDocumentInfo(ctx, src.DocumentUUID)
+		if docInfo != nil {
+			src.DocumentTitle = docInfo.title
+			src.ISOStandard = docInfo.isoStandard
+		}
+		if isoStandard != "" && src.ISOStandard != isoStandard {
+			continue
 		}
 
 		sources = append(sources, src)
@@ -135,20 +154,7 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 		))
 	}
 
-	if len(sources) == 0 {
-		resp := &models.RAGQueryResponse{}
-		resp.Body.Answer = "No relevant information found in the knowledge base for your question."
-		resp.Body.Sources = []models.SourceRef{}
-		resp.Body.Metadata = models.QueryMeta{
-			EmbeddingTimeMs: embTimeMs,
-			SearchTimeMs:    searchTimeMs,
-			TotalTimeMs:     time.Since(totalStart).Milliseconds(),
-		}
-		return resp, nil
-	}
-
-	// Step 3: Build prompt and generate answer
-	llmStart := time.Now()
+	// Resolve LLM provider
 	var llmProvider providers.LLMProvider
 	if llmOverrideUUID != "" {
 		model, err := s.modelService.GetModel(ctx, llmOverrideUUID)
@@ -171,18 +177,43 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 	contextStr := strings.Join(contextParts, "\n---\n")
 	prompt := fmt.Sprintf("CONTEXT:\n%s\n\nQUESTION: %s\n\nANSWER:", contextStr, question)
 
-	systemPrompt := `You are an ISO compliance expert assistant. Answer the question based ONLY on the provided context.
-If the context does not contain enough information to answer, say so clearly.
-Always cite the source document and section when referencing specific requirements.
-Be precise and actionable in your responses.
-/no_think`
+	return &preparedContext{
+		sources:      sources,
+		contextStr:   contextStr,
+		prompt:       prompt,
+		embTimeMs:    embTimeMs,
+		searchTimeMs: searchTimeMs,
+		llmProvider:  llmProvider,
+	}, nil
+}
 
-	// Use a dedicated context with longer timeout for LLM generation
+func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*models.RAGQueryResponse, error) {
+	totalStart := time.Now()
+
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pc.sources) == 0 {
+		resp := &models.RAGQueryResponse{}
+		resp.Body.Answer = "No relevant information found in the knowledge base for your question."
+		resp.Body.Sources = []models.SourceRef{}
+		resp.Body.Metadata = models.QueryMeta{
+			EmbeddingTimeMs: pc.embTimeMs,
+			SearchTimeMs:    pc.searchTimeMs,
+			TotalTimeMs:     time.Since(totalStart).Milliseconds(),
+		}
+		return resp, nil
+	}
+
+	// Generate answer with LLM
+	llmStart := time.Now()
 	llmCtx, llmCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer llmCancel()
 
-	answer, err := llmProvider.Complete(llmCtx, prompt, providers.CompletionOptions{
-		SystemPrompt: systemPrompt,
+	answer, err := pc.llmProvider.Complete(llmCtx, pc.prompt, providers.CompletionOptions{
+		SystemPrompt: ragSystemPrompt,
 		Temperature:  0.1,
 		MaxTokens:    2048,
 	})
@@ -193,22 +224,71 @@ Be precise and actionable in your responses.
 
 	resp := &models.RAGQueryResponse{}
 	resp.Body.Answer = answer
-	resp.Body.Sources = sources
+	resp.Body.Sources = pc.sources
 	resp.Body.Metadata = models.QueryMeta{
-		EmbeddingTimeMs: embTimeMs,
-		SearchTimeMs:    searchTimeMs,
+		EmbeddingTimeMs: pc.embTimeMs,
+		SearchTimeMs:    pc.searchTimeMs,
 		LLMTimeMs:       llmTimeMs,
 		TotalTimeMs:     time.Since(totalStart).Milliseconds(),
-		ChunksRetrieved: len(sources),
-		ModelUsed:       llmProvider.ModelName(),
+		ChunksRetrieved: len(pc.sources),
+		ModelUsed:       pc.llmProvider.ModelName(),
 	}
 
 	s.logger.Info("RAG query completed",
 		slog.Int64("totalMs", resp.Body.Metadata.TotalTimeMs),
-		slog.Int("chunks", len(sources)),
+		slog.Int("chunks", len(pc.sources)),
 	)
 
 	return resp, nil
+}
+
+func (s *queryService) QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*StreamResult, error) {
+	totalStart := time.Now()
+
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pc.sources) == 0 {
+		// Return a result with nil channel to signal "no results" to the handler
+		return &StreamResult{
+			Sources: []models.SourceRef{},
+			PreMeta: models.QueryMeta{
+				EmbeddingTimeMs: pc.embTimeMs,
+				SearchTimeMs:    pc.searchTimeMs,
+				TotalTimeMs:     time.Since(totalStart).Milliseconds(),
+			},
+			TokenChan: nil,
+		}, nil
+	}
+
+	// Start streaming LLM generation
+	llmCtx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
+	llmStart := time.Now()
+
+	tokenChan, err := pc.llmProvider.StreamComplete(llmCtx, pc.prompt, providers.CompletionOptions{
+		SystemPrompt: ragSystemPrompt,
+		Temperature:  0.1,
+		MaxTokens:    2048,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LLM stream failed: %w", err)
+	}
+
+	return &StreamResult{
+		Sources: pc.sources,
+		PreMeta: models.QueryMeta{
+			EmbeddingTimeMs: pc.embTimeMs,
+			SearchTimeMs:    pc.searchTimeMs,
+			ChunksRetrieved: len(pc.sources),
+			ModelUsed:       pc.llmProvider.ModelName(),
+		},
+		TokenChan: tokenChan,
+		ModelName: pc.llmProvider.ModelName(),
+		StartTime: totalStart,
+		LLMStart:  llmStart,
+	}, nil
 }
 
 type docInfo struct {

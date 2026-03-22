@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Row, Col, Card, Button, Form, Spinner, Badge, Accordion } from 'react-bootstrap';
-import { useRagQueryMutation } from '../../../store/api/ragApi';
-import type { RagQueryResponse, SourceRef } from '../../../types/rag';
+import { useRAGStream } from '../../../hooks/useRAGStream';
+import type { SourceRef, QueryMeta } from '../../../types/rag';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   sources?: SourceRef[];
-  metadata?: RagQueryResponse['metadata'];
+  metadata?: QueryMeta;
 }
 
 const GraphRAG: React.FC = () => {
@@ -16,40 +16,82 @@ const GraphRAG: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [ragQuery, { isLoading }] = useRagQueryMutation();
+  const {
+    streamQuery,
+    isStreaming,
+    answer: streamingAnswer,
+    sources: streamingSources,
+    metadata: streamingMetadata,
+    error: streamingError,
+  } = useRAGStream();
+
+  // Track whether we have an active streaming assistant message
+  const [streamingMsgIndex, setStreamingMsgIndex] = useState<number | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingAnswer]);
+
+  // Update the streaming assistant message as tokens arrive
+  useEffect(() => {
+    if (streamingMsgIndex === null) return;
+
+    setMessages(prev => {
+      const updated = [...prev];
+      if (updated[streamingMsgIndex]?.role === 'assistant') {
+        updated[streamingMsgIndex] = {
+          ...updated[streamingMsgIndex],
+          content: streamingAnswer,
+          sources: streamingSources.length > 0 ? streamingSources : updated[streamingMsgIndex].sources,
+          metadata: streamingMetadata || updated[streamingMsgIndex].metadata,
+        };
+      }
+      return updated;
+    });
+  }, [streamingAnswer, streamingSources, streamingMetadata, streamingMsgIndex]);
+
+  // Handle stream completion or error
+  useEffect(() => {
+    if (streamingMsgIndex === null) return;
+    if (isStreaming) return;
+
+    if (streamingError) {
+      setMessages(prev => {
+        const updated = [...prev];
+        if (updated[streamingMsgIndex]?.role === 'assistant') {
+          updated[streamingMsgIndex] = {
+            ...updated[streamingMsgIndex],
+            content: updated[streamingMsgIndex].content || 'An error occurred while processing your question. Please try again.',
+          };
+        }
+        return updated;
+      });
+    }
+    setStreamingMsgIndex(null);
+  }, [isStreaming, streamingError, streamingMsgIndex]);
 
   const handleSubmit = useCallback(async () => {
-    if (!question.trim() || isLoading) return;
+    if (!question.trim() || isStreaming) return;
 
     const q = question.trim();
     setQuestion('');
 
-    // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: q }]);
+    // Add user message + empty assistant message placeholder
+    setMessages(prev => {
+      const newMessages = [
+        ...prev,
+        { role: 'user' as const, content: q },
+        { role: 'assistant' as const, content: '' },
+      ];
+      setStreamingMsgIndex(newMessages.length - 1);
+      return newMessages;
+    });
 
-    try {
-      const result = await ragQuery({
-        question: q,
-        isoStandard: isoFilter || undefined,
-      }).unwrap();
-
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: result.answer,
-        sources: result.sources,
-        metadata: result.metadata,
-      }]);
-    } catch {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'An error occurred while processing your question. Please try again.',
-      }]);
-    }
-  }, [question, isoFilter, isLoading, ragQuery]);
+    streamQuery({
+      question: q,
+      isoStandard: isoFilter || undefined,
+    });
+  }, [question, isoFilter, isStreaming, streamQuery]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -73,7 +115,7 @@ const GraphRAG: React.FC = () => {
                 placeholder="All standards"
                 style={{ width: 140 }}
               />
-              <Button size="sm" variant="outline-secondary" onClick={() => setMessages([])}>
+              <Button size="sm" variant="outline-secondary" onClick={() => { setMessages([]); setStreamingMsgIndex(null); }}>
                 Clear
               </Button>
             </div>
@@ -98,7 +140,20 @@ const GraphRAG: React.FC = () => {
                       className={`p-3 rounded-3 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-light border'}`}
                       style={{ maxWidth: '80%' }}
                     >
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                      {/* Assistant content or streaming indicator */}
+                      {msg.role === 'assistant' && !msg.content && i === streamingMsgIndex ? (
+                        <div>
+                          <Spinner size="sm" className="me-2" />
+                          {streamingSources.length > 0 ? 'Generating answer...' : 'Searching...'}
+                        </div>
+                      ) : (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                      )}
+
+                      {/* Streaming cursor */}
+                      {i === streamingMsgIndex && isStreaming && msg.content && (
+                        <span className="d-inline-block bg-dark" style={{ width: 2, height: '1em', animation: 'blink 1s infinite', verticalAlign: 'text-bottom' }} />
+                      )}
 
                       {/* Sources */}
                       {msg.sources && msg.sources.length > 0 && (
@@ -140,14 +195,6 @@ const GraphRAG: React.FC = () => {
                   </div>
                 ))
               )}
-              {isLoading && (
-                <div className="d-flex justify-content-start mb-3">
-                  <div className="bg-light border p-3 rounded-3">
-                    <Spinner size="sm" className="me-2" />
-                    Thinking...
-                  </div>
-                </div>
-              )}
               <div ref={messagesEndRef} />
             </Card.Body>
 
@@ -162,23 +209,31 @@ const GraphRAG: React.FC = () => {
                   onChange={e => setQuestion(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask a question about your ISO documents..."
-                  disabled={isLoading}
+                  disabled={isStreaming}
                   style={{ resize: 'none' }}
                 />
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={handleSubmit}
-                  disabled={isLoading || !question.trim()}
+                  disabled={isStreaming || !question.trim()}
                   style={{ whiteSpace: 'nowrap' }}
                 >
-                  {isLoading ? <Spinner size="sm" /> : 'Send'}
+                  {isStreaming ? <Spinner size="sm" /> : 'Send'}
                 </Button>
               </div>
             </Card.Footer>
           </Card>
         </Col>
       </Row>
+
+      {/* Blinking cursor animation */}
+      <style>{`
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+      `}</style>
     </>
   );
 };
