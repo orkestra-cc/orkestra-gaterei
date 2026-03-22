@@ -39,6 +39,10 @@ import (
 	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	graphSvc "github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/documents"
+	"github.com/orkestra/backend/internal/aimodels"
+	aimodelsHandlers "github.com/orkestra/backend/internal/aimodels/handlers"
+	aimodelsRepo "github.com/orkestra/backend/internal/aimodels/repository"
+	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
 	"github.com/orkestra/backend/internal/rag"
 	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
 	ragRepo "github.com/orkestra/backend/internal/rag/repository"
@@ -408,17 +412,54 @@ func main() {
 		logger.Warn("Graph database module disabled: GRAPH_ENABLED not set")
 	}
 
+	// Initialize AI Models module (standalone model management)
+	var aiModelHandler *aimodelsHandlers.ModelHandler
+	var aiModelService aimodelsSvc.AIModelService
+	aimodelsEnabled := cfg.AIModels.Enabled
+
+	if aimodelsEnabled {
+		aiModelRepository := aimodelsRepo.NewModelRepository(db)
+		aiModelService = aimodelsSvc.NewModelService(aiModelRepository, aimodelsSvc.AIModelsConfig{
+			OllamaBaseURL: cfg.AIModels.OllamaBaseURL,
+			OpenAIAPIKey:  cfg.AIModels.OpenAIAPIKey,
+			AnthropicKey:  cfg.AIModels.AnthropicKey,
+			GeminiKey:     cfg.AIModels.GeminiKey,
+		}, logger)
+
+		aiModelHandler = aimodelsHandlers.NewModelHandler(aiModelService)
+
+		// Seed default models on first startup
+		if err := aiModelService.SeedDefaults(ctx); err != nil {
+			logger.Warn("Failed to seed default AI models", slog.String("error", err.Error()))
+		}
+
+		logger.Info("AI Models module initialized")
+	} else {
+		logger.Warn("AI Models module disabled: AIMODELS_ENABLED not set")
+	}
+
 	// Initialize RAG module
-	var ragModelHandler *ragHandlers.ModelHandler
 	var ragDocumentHandler *ragHandlers.DocumentHandler
 	var ragQueryHandler *ragHandlers.QueryHandler
 	var ragStreamHandler *ragHandlers.StreamHandler
 	ragEnabled := cfg.RAG.Enabled
 
 	if ragEnabled {
-		modelRepository := ragRepo.NewModelRepository(db)
 		documentRepository := ragRepo.NewDocumentRepository(db)
-		modelService := ragSvc.NewModelService(modelRepository, cfg.RAG, logger)
+
+		// Use aimodels service if available, otherwise create a standalone model service for RAG
+		var ragModelProvider ragSvc.AIModelProvider
+		if aiModelService != nil {
+			ragModelProvider = aiModelService
+		} else {
+			// Fallback: create a local model service for RAG when aimodels module is disabled
+			modelRepository := ragRepo.NewModelRepository(db)
+			localModelService := ragSvc.NewModelService(modelRepository, cfg.RAG, logger)
+			if err := localModelService.SeedDefaults(ctx); err != nil {
+				logger.Warn("Failed to seed default RAG models", slog.String("error", err.Error()))
+			}
+			ragModelProvider = localModelService
+		}
 
 		// Text extractor using Gotenberg
 		textExtractor := ragSvc.NewTextExtractor(cfg.Documents.GotenbergURL)
@@ -426,22 +467,15 @@ func main() {
 		// Ingestion service (depends on graph repo if graph module is enabled)
 		if graphEnabled {
 			ingestionService := ragSvc.NewIngestionService(
-				documentRepository, graphRepository, modelService, textExtractor,
+				documentRepository, graphRepository, ragModelProvider, textExtractor,
 				cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, logger,
 			)
 			ragDocumentHandler = ragHandlers.NewDocumentHandler(ingestionService)
 
 			// Query service
-			queryService := ragSvc.NewQueryService(graphRepository, modelService, cfg.RAG.DefaultTopK, logger)
+			queryService := ragSvc.NewQueryService(graphRepository, ragModelProvider, cfg.RAG.DefaultTopK, logger)
 			ragQueryHandler = ragHandlers.NewQueryHandler(queryService)
 			ragStreamHandler = ragHandlers.NewStreamHandler(queryService, logger)
-		}
-
-		ragModelHandler = ragHandlers.NewModelHandler(modelService)
-
-		// Seed default models on first startup
-		if err := modelService.SeedDefaults(ctx); err != nil {
-			logger.Warn("Failed to seed default RAG models", slog.String("error", err.Error()))
 		}
 
 		logger.Info("RAG module initialized")
@@ -691,12 +725,20 @@ func main() {
 		})
 	}
 
+	// AI Models routes - administrator role and above
+	if aimodelsEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
+			aiModelsAPI := humachi.New(r, apiConfig)
+			aimodels.RegisterRoutes(aiModelsAPI, aiModelHandler)
+		})
+	}
+
 	// RAG routes - administrator role and above
 	if ragEnabled {
 		protectedRouter.Group(func(r chi.Router) {
 			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
 			ragAPI := humachi.New(r, apiConfig)
-			rag.RegisterModelRoutes(ragAPI, ragModelHandler)
 			if ragDocumentHandler != nil {
 				rag.RegisterDocumentRoutes(ragAPI, ragDocumentHandler)
 			}

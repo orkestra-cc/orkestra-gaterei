@@ -111,10 +111,15 @@ services:
       GRAPH_TIMEOUT: ${GRAPH_TIMEOUT:-30s}
       GRAPH_ENCRYPTED: ${GRAPH_ENCRYPTED:-false}
 
-      # RAG - Retrieval-Augmented Generation
-      RAG_ENABLED: ${RAG_ENABLED:-false}
+      # AI Models
+      AIMODELS_ENABLED: ${AIMODELS_ENABLED:-false}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+      # RAG - Retrieval-Augmented Generation
+      RAG_ENABLED: ${RAG_ENABLED:-false}
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-50}
       RAG_DEFAULT_TOP_K: ${RAG_DEFAULT_TOP_K:-10}

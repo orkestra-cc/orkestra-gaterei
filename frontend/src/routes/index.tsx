@@ -246,9 +246,11 @@ const GraphExplorer = lazy(() => import('pages/graph/explorer'));
 const GraphAlgorithms = lazy(() => import('pages/graph/algorithms'));
 const GraphDatabases = lazy(() => import('pages/graph/databases'));
 const GraphVector = lazy(() => import('pages/graph/vector'));
-const GraphModels = lazy(() => import('pages/graph/models'));
 const GraphDocuments = lazy(() => import('pages/graph/documents'));
 const GraphRAG = lazy(() => import('pages/graph/rag'));
+
+// AI module lazy imports
+const AIModels = lazy(() => import('pages/ai/models'));
 
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
@@ -943,15 +945,7 @@ const routes: RouteObject[] = [
           },
           {
             path: 'graph/models',
-            element: (
-              <ProtectedRoute
-                requiredPermissions={[['developer', 'ceo', 'administrator']]}
-              >
-                <Suspense key="graph-models" fallback={<FalconLoader />}>
-                  <GraphModels />
-                </Suspense>
-              </ProtectedRoute>
-            )
+            element: <Navigate to="/ai/models" replace />
           },
           {
             path: 'graph/documents',
@@ -973,6 +967,18 @@ const routes: RouteObject[] = [
               >
                 <Suspense key="graph-rag" fallback={<FalconLoader />}>
                   <GraphRAG />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'ai/models',
+            element: (
+              <ProtectedRoute
+                requiredPermissions={[['developer', 'ceo', 'administrator']]}
+              >
+                <Suspense key="ai-models" fallback={<FalconLoader />}>
+                  <AIModels />
                 </Suspense>
               </ProtectedRoute>
             )

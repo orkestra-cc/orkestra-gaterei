@@ -24,20 +24,20 @@ type IngestionService interface {
 }
 
 type ingestionService struct {
-	docRepo       repository.DocumentRepository
-	graphRepo     graphRepo.GraphRepository
-	modelService  ModelService
-	extractor     TextExtractor
-	defaultChunk  int
+	docRepo        repository.DocumentRepository
+	graphRepo      graphRepo.GraphRepository
+	modelProvider  AIModelProvider
+	extractor      TextExtractor
+	defaultChunk   int
 	defaultOverlap int
-	logger        *slog.Logger
+	logger         *slog.Logger
 }
 
 // NewIngestionService creates a new IngestionService
 func NewIngestionService(
 	docRepo repository.DocumentRepository,
 	gr graphRepo.GraphRepository,
-	modelSvc ModelService,
+	modelProvider AIModelProvider,
 	extractor TextExtractor,
 	defaultChunk, defaultOverlap int,
 	logger *slog.Logger,
@@ -45,7 +45,7 @@ func NewIngestionService(
 	return &ingestionService{
 		docRepo:        docRepo,
 		graphRepo:      gr,
-		modelService:   modelSvc,
+		modelProvider:  modelProvider,
 		extractor:      extractor,
 		defaultChunk:   defaultChunk,
 		defaultOverlap: defaultOverlap,
@@ -68,7 +68,7 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 	}
 
 	// Get default embedding model
-	embProvider, err := s.modelService.GetDefaultEmbeddingProvider(ctx)
+	embProvider, err := s.modelProvider.GetDefaultEmbeddingProvider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("no default embedding model configured: %w", err)
 	}

@@ -7,8 +7,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
+	"github.com/orkestra/backend/internal/aimodels/providers"
 	"github.com/orkestra/backend/internal/rag/models"
-	"github.com/orkestra/backend/internal/rag/providers"
 	"github.com/orkestra/backend/internal/rag/repository"
 	"github.com/orkestra/backend/internal/shared/config"
 )
@@ -24,6 +24,7 @@ type ModelService interface {
 	TestConnectivity(ctx context.Context, uuid string) error
 	GetDefaultEmbeddingProvider(ctx context.Context) (providers.EmbeddingProvider, error)
 	GetDefaultLLMProvider(ctx context.Context) (providers.LLMProvider, error)
+	GetLLMProvider(ctx context.Context, uuid string) (providers.LLMProvider, error)
 	FetchAvailableModels(ctx context.Context, provider, baseURL, apiKey string) ([]providers.RemoteModel, error)
 	SeedDefaults(ctx context.Context) error
 }
@@ -159,6 +160,14 @@ func (s *modelService) GetDefaultEmbeddingProvider(ctx context.Context) (provide
 
 func (s *modelService) GetDefaultLLMProvider(ctx context.Context) (providers.LLMProvider, error) {
 	model, err := s.repo.GetDefault(ctx, "llm")
+	if err != nil {
+		return nil, err
+	}
+	return providers.NewLLMProvider(s.toProviderConfig(model))
+}
+
+func (s *modelService) GetLLMProvider(ctx context.Context, uuid string) (providers.LLMProvider, error) {
+	model, err := s.repo.GetByUUID(ctx, uuid)
 	if err != nil {
 		return nil, err
 	}

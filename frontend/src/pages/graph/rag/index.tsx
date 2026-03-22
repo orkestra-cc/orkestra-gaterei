@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Row, Col, Card, Button, Form, Spinner, Badge, Accordion } from 'react-bootstrap';
 import { useRAGStream } from '../../../hooks/useRAGStream';
+import { useListAIModelsQuery } from '../../../store/api/aiModelsApi';
 import type { SourceRef, QueryMeta } from '../../../types/rag';
 
 interface Message {
@@ -13,7 +14,11 @@ interface Message {
 const GraphRAG: React.FC = () => {
   const [question, setQuestion] = useState('');
   const [isoFilter, setIsoFilter] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+
+  const { data: modelsData } = useListAIModelsQuery({ type: 'llm' });
+  const llmModels = modelsData?.models ?? [];
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -90,8 +95,9 @@ const GraphRAG: React.FC = () => {
     streamQuery({
       question: q,
       isoStandard: isoFilter || undefined,
+      modelUuid: selectedModel || undefined,
     });
-  }, [question, isoFilter, isStreaming, streamQuery]);
+  }, [question, isoFilter, selectedModel, isStreaming, streamQuery]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -107,13 +113,27 @@ const GraphRAG: React.FC = () => {
           <div className="d-flex align-items-center justify-content-between">
             <h5 className="mb-0">RAG Query</h5>
             <div className="d-flex gap-2 align-items-center">
-              <Form.Label className="mb-0 small text-muted">ISO Filter:</Form.Label>
+              <Form.Label className="mb-0 small text-muted">Model:</Form.Label>
+              <Form.Select
+                size="sm"
+                value={selectedModel}
+                onChange={e => setSelectedModel(e.target.value)}
+                style={{ width: 200 }}
+              >
+                <option value="">Default LLM</option>
+                {llmModels.map(m => (
+                  <option key={m.uuid} value={m.uuid}>
+                    {m.name}{m.isDefault ? ' (default)' : ''}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Label className="mb-0 small text-muted">ISO:</Form.Label>
               <Form.Control
                 size="sm"
                 value={isoFilter}
                 onChange={e => setIsoFilter(e.target.value)}
-                placeholder="All standards"
-                style={{ width: 140 }}
+                placeholder="All"
+                style={{ width: 100 }}
               />
               <Button size="sm" variant="outline-secondary" onClick={() => { setMessages([]); setStreamingMsgIndex(null); }}>
                 Clear
@@ -137,7 +157,7 @@ const GraphRAG: React.FC = () => {
                 messages.map((msg, i) => (
                   <div key={i} className={`mb-3 d-flex ${msg.role === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
                     <div
-                      className={`p-3 rounded-3 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-light border'}`}
+                      className={`p-3 rounded-3 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary border'}`}
                       style={{ maxWidth: '80%' }}
                     >
                       {/* Assistant content or streaming indicator */}

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	aimodelsProviders "github.com/orkestra/backend/internal/aimodels/providers"
 	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	"github.com/orkestra/backend/internal/rag/models"
-	"github.com/orkestra/backend/internal/rag/providers"
 )
 
 const ragSystemPrompt = `You are an ISO compliance expert assistant. Answer the question based ONLY on the provided context.
@@ -22,7 +22,7 @@ Be precise and actionable in your responses.
 type StreamResult struct {
 	Sources   []models.SourceRef
 	PreMeta   models.QueryMeta
-	TokenChan <-chan providers.StreamChunk
+	TokenChan <-chan aimodelsProviders.StreamChunk
 	ModelName string
 	StartTime time.Time // total query start for final metadata
 	LLMStart  time.Time // LLM start for llmTimeMs
@@ -35,19 +35,19 @@ type QueryService interface {
 }
 
 type queryService struct {
-	graphRepo    graphRepo.GraphRepository
-	modelService ModelService
-	defaultTopK  int
-	logger       *slog.Logger
+	graphRepo     graphRepo.GraphRepository
+	modelProvider AIModelProvider
+	defaultTopK   int
+	logger        *slog.Logger
 }
 
 // NewQueryService creates a new QueryService
-func NewQueryService(gr graphRepo.GraphRepository, modelSvc ModelService, defaultTopK int, logger *slog.Logger) QueryService {
+func NewQueryService(gr graphRepo.GraphRepository, modelProvider AIModelProvider, defaultTopK int, logger *slog.Logger) QueryService {
 	return &queryService{
-		graphRepo:    gr,
-		modelService: modelSvc,
-		defaultTopK:  defaultTopK,
-		logger:       logger.With(slog.String("module", "rag-query")),
+		graphRepo:     gr,
+		modelProvider: modelProvider,
+		defaultTopK:   defaultTopK,
+		logger:        logger.With(slog.String("module", "rag-query")),
 	}
 }
 
@@ -58,7 +58,7 @@ type preparedContext struct {
 	prompt       string
 	embTimeMs    int64
 	searchTimeMs int64
-	llmProvider  providers.LLMProvider
+	llmProvider  aimodelsProviders.LLMProvider
 }
 
 // prepareContext performs embedding, vector search, context expansion, and LLM provider resolution.
@@ -73,7 +73,7 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 
 	// Step 1: Embed the question
 	embStart := time.Now()
-	embProvider, err := s.modelService.GetDefaultEmbeddingProvider(ctx)
+	embProvider, err := s.modelProvider.GetDefaultEmbeddingProvider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("no embedding model: %w", err)
 	}
@@ -155,20 +155,12 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	}
 
 	// Resolve LLM provider
-	var llmProvider providers.LLMProvider
+	var llmProvider aimodelsProviders.LLMProvider
 	if llmOverrideUUID != "" {
-		model, err := s.modelService.GetModel(ctx, llmOverrideUUID)
-		if err == nil {
-			llmProvider, _ = providers.NewLLMProvider(providers.ModelConfig{
-				Provider:  model.Provider,
-				ModelName: model.ModelName,
-				BaseURL:   model.BaseURL,
-				APIKey:    model.APIKey,
-			})
-		}
+		llmProvider, _ = s.modelProvider.GetLLMProvider(ctx, llmOverrideUUID)
 	}
 	if llmProvider == nil {
-		llmProvider, err = s.modelService.GetDefaultLLMProvider(ctx)
+		llmProvider, err = s.modelProvider.GetDefaultLLMProvider(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("no LLM model: %w", err)
 		}
@@ -212,7 +204,7 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 	llmCtx, llmCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer llmCancel()
 
-	answer, err := pc.llmProvider.Complete(llmCtx, pc.prompt, providers.CompletionOptions{
+	answer, err := pc.llmProvider.Complete(llmCtx, pc.prompt, aimodelsProviders.CompletionOptions{
 		SystemPrompt: ragSystemPrompt,
 		Temperature:  0.1,
 		MaxTokens:    2048,
@@ -267,7 +259,7 @@ func (s *queryService) QueryStream(ctx context.Context, question string, topK in
 	llmCtx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
 	llmStart := time.Now()
 
-	tokenChan, err := pc.llmProvider.StreamComplete(llmCtx, pc.prompt, providers.CompletionOptions{
+	tokenChan, err := pc.llmProvider.StreamComplete(llmCtx, pc.prompt, aimodelsProviders.CompletionOptions{
 		SystemPrompt: ragSystemPrompt,
 		Temperature:  0.1,
 		MaxTokens:    2048,

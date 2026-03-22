@@ -25,6 +25,16 @@ type Config struct {
 	Company   CompanyConfig
 	Graph     GraphConfig
 	RAG       RAGConfig
+	AIModels  AIModelsConfig
+}
+
+// AIModelsConfig holds configuration for the AI models management module
+type AIModelsConfig struct {
+	Enabled       bool   // Module enabled flag (AIMODELS_ENABLED)
+	OllamaBaseURL string // Ollama API base URL (shared with RAG)
+	OpenAIAPIKey  string // OpenAI API key (shared with RAG)
+	AnthropicKey  string // Anthropic API key
+	GeminiKey     string // Google Gemini API key
 }
 
 // GraphConfig holds configuration for the graph database module (Memgraph)
@@ -350,6 +360,15 @@ func Load() (*Config, error) {
 		ChunkSize:     getEnvAsInt("RAG_CHUNK_SIZE", 512),
 		ChunkOverlap:  getEnvAsInt("RAG_CHUNK_OVERLAP", 50),
 		DefaultTopK:   getEnvAsInt("RAG_DEFAULT_TOP_K", 10),
+	}
+
+	// AI Models management configuration
+	config.AIModels = AIModelsConfig{
+		Enabled:       getEnvAsBool("AIMODELS_ENABLED", false),
+		OllamaBaseURL: getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
+		AnthropicKey:  getEnv("ANTHROPIC_API_KEY", ""),
+		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)
