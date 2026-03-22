@@ -27,11 +27,14 @@ func NewStreamHandler(querySvc services.QueryService, logger *slog.Logger) *Stre
 
 // streamRequest mirrors RAGQueryRequest.Body for manual JSON parsing
 type streamRequest struct {
-	Question    string  `json:"question"`
-	TopK        int     `json:"topK"`
-	MinScore    float64 `json:"minScore"`
-	ISOStandard string  `json:"isoStandard"`
-	ModelUUID   string  `json:"modelUuid"`
+	Question         string  `json:"question"`
+	TopK             int     `json:"topK"`
+	MinScore         float64 `json:"minScore"`
+	ISOStandard      string  `json:"isoStandard"`
+	ModelUUID        string  `json:"modelUuid"`
+	RequirementLevel string  `json:"requirementLevel"`
+	NodeType         string  `json:"nodeType"`
+	RetrievalMode    string  `json:"retrievalMode"`
 }
 
 // sourcesEvent is sent immediately after vector search completes
@@ -69,7 +72,7 @@ func (h *StreamHandler) HandleQueryStream(w http.ResponseWriter, r *http.Request
 	}
 
 	// Run query preparation + start streaming
-	result, err := h.queryService.QueryStream(r.Context(), req.Question, req.TopK, req.MinScore, req.ISOStandard, req.ModelUUID)
+	result, err := h.queryService.QueryStream(r.Context(), req.Question, req.TopK, req.MinScore, req.ISOStandard, req.ModelUUID, req.RequirementLevel, req.NodeType, req.RetrievalMode)
 	if err != nil {
 		h.logger.Error("QueryStream failed", slog.String("error", err.Error()))
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)

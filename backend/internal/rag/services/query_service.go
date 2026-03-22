@@ -12,9 +12,9 @@ import (
 	"github.com/orkestra/backend/internal/rag/models"
 )
 
-const ragSystemPrompt = `You are an ISO compliance expert assistant. Answer the question based ONLY on the provided context.
+const ragSystemPrompt = `You are an expert assistant for ISO standards, laws, and regulatory compliance. Answer the question based ONLY on the provided context.
 If the context does not contain enough information to answer, say so clearly.
-Always cite the source document and section when referencing specific requirements.
+Always cite the source document, section path, and requirement level when referencing specific provisions.
 Be precise and actionable in your responses.
 /no_think`
 
@@ -30,8 +30,8 @@ type StreamResult struct {
 
 // QueryService handles RAG query execution
 type QueryService interface {
-	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*models.RAGQueryResponse, error)
-	QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*StreamResult, error)
+	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*models.RAGQueryResponse, error)
+	QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*StreamResult, error)
 }
 
 type queryService struct {
@@ -62,13 +62,15 @@ type preparedContext struct {
 }
 
 // prepareContext performs embedding, vector search, context expansion, and LLM provider resolution.
-// Shared by both Query and QueryStream.
-func (s *queryService) prepareContext(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*preparedContext, error) {
+func (s *queryService) prepareContext(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*preparedContext, error) {
 	if topK <= 0 {
 		topK = s.defaultTopK
 	}
 	if minScore <= 0 {
 		minScore = 0.3
+	}
+	if retrievalMode == "" {
+		retrievalMode = "vector"
 	}
 
 	// Step 1: Embed the question
@@ -84,22 +86,39 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	}
 	embTimeMs := time.Since(embStart).Milliseconds()
 
-	// Step 2: Vector search
+	// Step 2: Vector search with optional filters
 	searchStart := time.Now()
-	searchResult, err := s.graphRepo.ExecuteRead(ctx, "", `
-		CALL vector_search.search('rag_chunk_embedding', $topK, $queryVector)
-		YIELD node, similarity
-		WITH node, similarity
-		WHERE similarity >= $minScore
-		RETURN node.uuid AS chunkUuid, node.text AS text,
-		       node.sectionTitle AS sectionTitle, node.position AS position,
-		       node.documentUuid AS documentUuid, similarity
-		ORDER BY similarity DESC
-	`, map[string]interface{}{
+
+	// Build WHERE clauses
+	whereClauses := []string{"similarity >= $minScore"}
+	params := map[string]interface{}{
 		"topK":        topK,
 		"queryVector": queryVector,
 		"minScore":    minScore,
-	})
+	}
+	if requirementLevel != "" {
+		whereClauses = append(whereClauses, "node.requirementLevel = $reqLevel")
+		params["reqLevel"] = requirementLevel
+	}
+	if nodeType != "" {
+		whereClauses = append(whereClauses, "node.nodeType = $nodeType")
+		params["nodeType"] = nodeType
+	}
+
+	searchCypher := fmt.Sprintf(`
+		CALL vector_search.search('rag_chunk_embedding', $topK, $queryVector)
+		YIELD node, similarity
+		WITH node, similarity
+		WHERE %s
+		RETURN node.uuid AS chunkUuid, node.text AS text,
+		       node.fullPath AS fullPath, node.nodeType AS nodeType,
+		       node.requirementLevel AS requirementLevel,
+		       node.position AS position,
+		       node.documentUuid AS documentUuid, similarity
+		ORDER BY similarity DESC
+	`, strings.Join(whereClauses, " AND "))
+
+	searchResult, err := s.graphRepo.ExecuteRead(ctx, "", searchCypher, params)
 	if err != nil {
 		return nil, fmt.Errorf("vector search failed: %w", err)
 	}
@@ -117,8 +136,14 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 		if v, ok := row["text"].(string); ok {
 			src.ChunkText = v
 		}
-		if v, ok := row["sectionTitle"].(string); ok {
-			src.SectionTitle = v
+		if v, ok := row["fullPath"].(string); ok {
+			src.FullPath = v
+		}
+		if v, ok := row["nodeType"].(string); ok {
+			src.NodeType = v
+		}
+		if v, ok := row["requirementLevel"].(string); ok {
+			src.RequirementLevel = v
 		}
 		if v, ok := row["position"].(int64); ok {
 			src.Position = int(v)
@@ -142,16 +167,29 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 
 		sources = append(sources, src)
 
-		// Build context with neighboring chunks
-		expandedText := s.expandContext(ctx, src.ChunkUUID, src.ChunkText)
-		section := src.SectionTitle
-		if section == "" {
-			section = "General"
+		// Build context based on retrieval mode
+		var expandedText string
+		switch retrievalMode {
+		case "graph", "hybrid":
+			expandedText = s.expandContextGraph(ctx, src.ChunkUUID, src.ChunkText)
+		default:
+			expandedText = s.expandContext(ctx, src.ChunkUUID, src.ChunkText)
 		}
-		contextParts = append(contextParts, fmt.Sprintf(
-			"Source: %s (%s), Section: %s\n%s",
-			src.DocumentTitle, src.ISOStandard, section, expandedText,
-		))
+
+		path := src.FullPath
+		if path == "" {
+			path = "General"
+		}
+
+		// Build richer context entry
+		var entry strings.Builder
+		entry.WriteString(fmt.Sprintf("Source: %s (%s)\nPath: %s\n", src.DocumentTitle, src.ISOStandard, path))
+		if src.RequirementLevel != "" {
+			entry.WriteString(fmt.Sprintf("Requirement Level: %s\n", src.RequirementLevel))
+		}
+		entry.WriteString(expandedText)
+
+		contextParts = append(contextParts, entry.String())
 	}
 
 	// Resolve LLM provider
@@ -179,10 +217,10 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	}, nil
 }
 
-func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*models.RAGQueryResponse, error) {
+func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*models.RAGQueryResponse, error) {
 	totalStart := time.Now()
 
-	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID)
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode)
 	if err != nil {
 		return nil, err
 	}
@@ -234,16 +272,15 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 	return resp, nil
 }
 
-func (s *queryService) QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard string, llmOverrideUUID string) (*StreamResult, error) {
+func (s *queryService) QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*StreamResult, error) {
 	totalStart := time.Now()
 
-	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID)
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(pc.sources) == 0 {
-		// Return a result with nil channel to signal "no results" to the handler
 		return &StreamResult{
 			Sources: []models.SourceRef{},
 			PreMeta: models.QueryMeta{
@@ -306,6 +343,7 @@ func (s *queryService) getDocumentInfo(ctx context.Context, docUUID string) *doc
 	return info
 }
 
+// expandContext fetches prev/next chunks via NEXT edges (basic mode).
 func (s *queryService) expandContext(ctx context.Context, chunkUUID, chunkText string) string {
 	result, err := s.graphRepo.ExecuteRead(ctx, "", `
 		MATCH (c:RagChunk {uuid: $uuid})
@@ -327,4 +365,68 @@ func (s *queryService) expandContext(ctx context.Context, chunkUUID, chunkText s
 		parts = append(parts, v)
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// expandContextGraph performs full graph-aware context expansion:
+// section hierarchy, sibling chunks, cross-references, and definitions.
+func (s *queryService) expandContextGraph(ctx context.Context, chunkUUID, chunkText string) string {
+	result, err := s.graphRepo.ExecuteRead(ctx, "", `
+		MATCH (c:RagChunk {uuid: $uuid})
+		OPTIONAL MATCH (sec:RagSection)-[:CONTAINS]->(c)
+		OPTIONAL MATCH (parent:RagSection)-[:CONTAINS]->(sec)
+		OPTIONAL MATCH (prev:RagChunk)-[:NEXT]->(c)
+		OPTIONAL MATCH (c)-[:NEXT]->(next:RagChunk)
+		OPTIONAL MATCH (c)-[:REFERENCES]->(refSec:RagSection)
+		OPTIONAL MATCH (def:RagDefinition)-[:DEFINES]->(c)
+		RETURN sec.title AS sectionTitle, sec.fullPath AS sectionPath,
+		       parent.title AS parentTitle,
+		       prev.text AS prevText, next.text AS nextText,
+		       collect(DISTINCT refSec.fullPath) AS referencedPaths,
+		       collect(DISTINCT {term: def.term, definition: def.definition}) AS definitions
+	`, map[string]interface{}{"uuid": chunkUUID})
+
+	if err != nil || len(result.Rows) == 0 {
+		return chunkText
+	}
+
+	row := result.Rows[0]
+	var sb strings.Builder
+
+	// Main chunk text with neighbors
+	if v, ok := row["prevText"].(string); ok && v != "" {
+		sb.WriteString(v)
+		sb.WriteString("\n\n")
+	}
+	sb.WriteString(chunkText)
+	if v, ok := row["nextText"].(string); ok && v != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(v)
+	}
+
+	// Cross-references
+	if refs, ok := row["referencedPaths"].([]interface{}); ok && len(refs) > 0 {
+		sb.WriteString("\n\nReferenced sections:")
+		for _, ref := range refs {
+			if path, ok := ref.(string); ok && path != "" {
+				sb.WriteString("\n  - ")
+				sb.WriteString(path)
+			}
+		}
+	}
+
+	// Definitions
+	if defs, ok := row["definitions"].([]interface{}); ok && len(defs) > 0 {
+		sb.WriteString("\n\nDefinitions:")
+		for _, d := range defs {
+			if dm, ok := d.(map[string]interface{}); ok {
+				term, _ := dm["term"].(string)
+				def, _ := dm["definition"].(string)
+				if term != "" && def != "" {
+					sb.WriteString(fmt.Sprintf("\n  - %s: %s", term, def))
+				}
+			}
+		}
+	}
+
+	return sb.String()
 }

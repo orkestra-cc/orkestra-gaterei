@@ -155,11 +155,37 @@ type GetDocumentChunksRequest struct {
 }
 
 type RagChunk struct {
+	UUID             string `json:"uuid"`
+	DocumentUUID     string `json:"documentUuid"`
+	Text             string `json:"text"`
+	Position         int    `json:"position"`
+	FullPath         string `json:"fullPath,omitempty"`
+	NodeType         string `json:"nodeType,omitempty"`
+	Numbering        string `json:"numbering,omitempty"`
+	RequirementLevel string `json:"requirementLevel,omitempty"`
+	Depth            int    `json:"depth,omitempty"`
+}
+
+// RagSection represents a structural section of a document
+type RagSection struct {
 	UUID         string `json:"uuid"`
 	DocumentUUID string `json:"documentUuid"`
-	Text         string `json:"text"`
+	NodeType     string `json:"nodeType"`
+	Numbering    string `json:"numbering,omitempty"`
+	Title        string `json:"title,omitempty"`
+	Depth        int    `json:"depth"`
+	FullPath     string `json:"fullPath,omitempty"`
 	Position     int    `json:"position"`
-	SectionTitle string `json:"sectionTitle,omitempty"`
+}
+
+type GetDocumentSectionsRequest struct {
+	UUID string `path:"uuid" doc:"Document UUID"`
+}
+
+type GetDocumentSectionsResponse struct {
+	Body struct {
+		Sections []RagSection `json:"sections" doc:"Document sections ordered by position"`
+	}
 }
 
 type GetDocumentChunksResponse struct {
@@ -182,23 +208,28 @@ type ReprocessDocumentResponse struct {
 
 type RAGQueryRequest struct {
 	Body struct {
-		Question    string  `json:"question" doc:"Natural language question" required:"true"`
-		TopK        int     `json:"topK,omitempty" doc:"Number of chunks to retrieve" default:"10"`
-		MinScore    float64 `json:"minScore,omitempty" doc:"Minimum similarity score" default:"0.3"`
-		ISOStandard string  `json:"isoStandard,omitempty" doc:"Filter by ISO standard"`
-		ModelUUID   string  `json:"modelUuid,omitempty" doc:"Override default LLM model"`
+		Question         string  `json:"question" doc:"Natural language question" required:"true"`
+		TopK             int     `json:"topK,omitempty" doc:"Number of chunks to retrieve" default:"10"`
+		MinScore         float64 `json:"minScore,omitempty" doc:"Minimum similarity score" default:"0.3"`
+		ISOStandard      string  `json:"isoStandard,omitempty" doc:"Filter by ISO standard"`
+		ModelUUID        string  `json:"modelUuid,omitempty" doc:"Override default LLM model"`
+		RequirementLevel string  `json:"requirementLevel,omitempty" doc:"Filter by requirement level: SHALL, SHOULD, MAY"`
+		NodeType         string  `json:"nodeType,omitempty" doc:"Filter by node type: requirement, definition, note, etc."`
+		RetrievalMode    string  `json:"retrievalMode,omitempty" doc:"Retrieval mode: vector (default), graph, hybrid" default:"vector"`
 	}
 }
 
 type SourceRef struct {
-	DocumentUUID  string  `json:"documentUuid"`
-	DocumentTitle string  `json:"documentTitle"`
-	ISOStandard   string  `json:"isoStandard,omitempty"`
-	ChunkUUID     string  `json:"chunkUuid"`
-	ChunkText     string  `json:"chunkText"`
-	SectionTitle  string  `json:"sectionTitle,omitempty"`
-	Score         float64 `json:"score"`
-	Position      int     `json:"position"`
+	DocumentUUID     string  `json:"documentUuid"`
+	DocumentTitle    string  `json:"documentTitle"`
+	ISOStandard      string  `json:"isoStandard,omitempty"`
+	ChunkUUID        string  `json:"chunkUuid"`
+	ChunkText        string  `json:"chunkText"`
+	FullPath         string  `json:"fullPath,omitempty"`
+	NodeType         string  `json:"nodeType,omitempty"`
+	RequirementLevel string  `json:"requirementLevel,omitempty"`
+	Score            float64 `json:"score"`
+	Position         int     `json:"position"`
 }
 
 type QueryMeta struct {

@@ -41,8 +41,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
   const [title, setTitle] = useState('');
   const [iso, setIso] = useState('');
   const [version, setVersion] = useState('');
-  const [chunkSize, setChunkSize] = useState(512);
-  const [chunkOverlap, setChunkOverlap] = useState(50);
+  const [category, setCategory] = useState('');
   const [error, setError] = useState('');
   const [uploadDocument, { isLoading }] = useUploadDocumentMutation();
 
@@ -50,8 +49,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
     setTitle('');
     setIso('');
     setVersion('');
-    setChunkSize(512);
-    setChunkOverlap(50);
+    setCategory('');
     setError('');
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -67,8 +65,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
     formData.append('title', title || file.name);
     if (iso) formData.append('isoStandard', iso);
     if (version) formData.append('version', version);
-    formData.append('chunkSize', String(chunkSize));
-    formData.append('chunkOverlap', String(chunkOverlap));
+    if (category) formData.append('documentCategory', category);
 
     try {
       await uploadDocument(formData).unwrap();
@@ -108,20 +105,16 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
             </Form.Group>
           </Col>
         </Row>
-        <Row className="g-2">
-          <Col>
-            <Form.Group>
-              <Form.Label className="small">Chunk Size</Form.Label>
-              <Form.Control size="sm" type="number" value={chunkSize} onChange={e => setChunkSize(parseInt(e.target.value) || 512)} />
-            </Form.Group>
-          </Col>
-          <Col>
-            <Form.Group>
-              <Form.Label className="small">Chunk Overlap</Form.Label>
-              <Form.Control size="sm" type="number" value={chunkOverlap} onChange={e => setChunkOverlap(parseInt(e.target.value) || 50)} />
-            </Form.Group>
-          </Col>
-        </Row>
+        <Form.Group>
+          <Form.Label className="small">Document Category</Form.Label>
+          <Form.Select size="sm" value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">Auto-detect</option>
+            <option value="iso">ISO Standard</option>
+            <option value="law">Law / Legal Act</option>
+            <option value="regulation">Regulation</option>
+            <option value="generic">Generic Document</option>
+          </Form.Select>
+        </Form.Group>
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" size="sm" onClick={handleClose} disabled={isLoading}>Cancel</Button>
@@ -231,7 +224,7 @@ const ContentViewer: React.FC<ContentViewerProps> = ({ show, onHide, document })
   const filtered = search.trim()
     ? chunks.filter(c =>
         c.text.toLowerCase().includes(search.toLowerCase()) ||
-        (c.sectionTitle || '').toLowerCase().includes(search.toLowerCase())
+        (c.fullPath || '').toLowerCase().includes(search.toLowerCase())
       )
     : chunks;
 
@@ -288,7 +281,9 @@ const ContentViewer: React.FC<ContentViewerProps> = ({ show, onHide, document })
                 <Accordion.Header>
                   <div className="d-flex align-items-center gap-2 w-100 pe-2">
                     <Badge bg="secondary" className="flex-shrink-0">#{chunk.position + 1}</Badge>
-                    {chunk.sectionTitle && <span className="fw-semibold small">{chunk.sectionTitle}</span>}
+                    {chunk.fullPath && <span className="fw-semibold small">{chunk.fullPath}</span>}
+                    {chunk.requirementLevel && <Badge bg="warning" text="dark" className="ms-1">{chunk.requirementLevel}</Badge>}
+                    {chunk.nodeType && <Badge bg="info" className="ms-1">{chunk.nodeType}</Badge>}
                     <small className="text-muted ms-auto flex-shrink-0">{chunk.text.length} chars</small>
                   </div>
                 </Accordion.Header>

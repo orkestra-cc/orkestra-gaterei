@@ -146,6 +146,26 @@ func RegisterDocumentRoutes(api huma.API, handler *handlers.DocumentHandler) {
 	}, handler.GetDocumentChunks)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "get-rag-document-sections",
+		Method:      http.MethodGet,
+		Path:        "/v1/rag/documents/{uuid}/sections",
+		Summary:     "Get document sections",
+		Description: "Returns the structural section tree for a document, ordered by position.",
+		Tags:        []string{"RAG Documents"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.GetDocumentSections)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "reprocess-rag-document",
+		Method:      http.MethodPost,
+		Path:        "/v1/rag/documents/{uuid}/reprocess",
+		Summary:     "Reprocess document",
+		Description: "Clears existing graph nodes for a document so it can be re-uploaded with the new pipeline.",
+		Tags:        []string{"RAG Documents"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.ReprocessDocument)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "delete-rag-document",
 		Method:      http.MethodDelete,
 		Path:        "/v1/rag/documents/{uuid}",

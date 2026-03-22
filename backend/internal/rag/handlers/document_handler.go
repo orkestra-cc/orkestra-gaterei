@@ -55,11 +55,12 @@ func (h *DocumentHandler) UploadDocument(ctx context.Context, input *struct{}) (
 
 	isoStandard := httpReq.FormValue("isoStandard")
 	version := httpReq.FormValue("version")
+	documentCategory := httpReq.FormValue("documentCategory")
 
 	chunkSize, _ := strconv.Atoi(httpReq.FormValue("chunkSize"))
 	chunkOverlap, _ := strconv.Atoi(httpReq.FormValue("chunkOverlap"))
 
-	doc, err := h.ingestionService.IngestDocument(ctx, title, header.Filename, fileData, isoStandard, version, chunkSize, chunkOverlap)
+	doc, err := h.ingestionService.IngestDocument(ctx, title, header.Filename, fileData, isoStandard, version, documentCategory, chunkSize, chunkOverlap)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("ingestion failed: %v", err))
 	}
@@ -104,6 +105,25 @@ func (h *DocumentHandler) GetDocumentChunks(ctx context.Context, req *models.Get
 	}
 	resp := &models.GetDocumentChunksResponse{}
 	resp.Body.Chunks = chunks
+	return resp, nil
+}
+
+func (h *DocumentHandler) GetDocumentSections(ctx context.Context, req *models.GetDocumentSectionsRequest) (*models.GetDocumentSectionsResponse, error) {
+	sections, err := h.ingestionService.GetDocumentSections(ctx, req.UUID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Document not found or no sections available", err)
+	}
+	resp := &models.GetDocumentSectionsResponse{}
+	resp.Body.Sections = sections
+	return resp, nil
+}
+
+func (h *DocumentHandler) ReprocessDocument(ctx context.Context, req *models.ReprocessDocumentRequest) (*models.ReprocessDocumentResponse, error) {
+	if err := h.ingestionService.ReprocessDocument(ctx, req.UUID); err != nil {
+		return nil, huma.Error400BadRequest("Reprocessing failed", err)
+	}
+	resp := &models.ReprocessDocumentResponse{}
+	resp.Body.Message = "Document reprocessing started"
 	return resp, nil
 }
 

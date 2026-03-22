@@ -249,6 +249,27 @@ export function CytoscapeViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
   const [activeLayout, setActiveLayout] = useState<LayoutName>(layoutProp);
+  const contextMenuCleanupRef = useRef<(() => void) | null>(null);
+
+  // Callback ref: suppress the browser context menu the instant the DOM node exists.
+  // A callback ref fires synchronously when React attaches the node — no effect
+  // timing gaps, no missed events.
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    if (contextMenuCleanupRef.current) {
+      contextMenuCleanupRef.current();
+      contextMenuCleanupRef.current = null;
+    }
+    containerRef.current = node;
+    if (node) {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      };
+      node.addEventListener('contextmenu', handler, true);
+      contextMenuCleanupRef.current = () =>
+        node.removeEventListener('contextmenu', handler, true);
+    }
+  }, []);
 
   const labelColorMap = useMemo(() => buildLabelColorMap(nodes), [nodes]);
   const relTypeStyleMap = useMemo(() => buildRelTypeStyleMap(relationships), [relationships]);
@@ -294,6 +315,14 @@ export function CytoscapeViewer({
 
     cyRef.current = cy;
 
+    // Also suppress contextmenu directly on every canvas Cytoscape created
+    const canvases = containerRef.current.querySelectorAll('canvas');
+    const canvasHandler = (e: Event) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    canvases.forEach((c) => c.addEventListener('contextmenu', canvasHandler, true));
+
     cy.on('tap', 'node', (evt: EventObject) => {
       const gn = evt.target.data('_graphNode') as GraphNode | undefined;
       if (gn && onNodeClickRef.current) onNodeClickRef.current(gn);
@@ -307,14 +336,11 @@ export function CytoscapeViewer({
       if (gr && onEdgeClickRef.current) onEdgeClickRef.current(gr);
     });
 
-    // Right-click context menu events
-    const preventContextMenu = (e: Event) => e.preventDefault();
-    containerRef.current.addEventListener('contextmenu', preventContextMenu);
-
     cy.on('cxttap', 'node', (evt: EventObject) => {
       const gn = evt.target.data('_graphNode') as GraphNode | undefined;
       if (gn && onNodeContextMenuRef.current) {
         const me = evt.originalEvent as MouseEvent;
+        me.preventDefault();
         onNodeContextMenuRef.current(gn, { x: me.clientX, y: me.clientY });
       }
     });
@@ -323,6 +349,7 @@ export function CytoscapeViewer({
       const gr = evt.target.data('_graphRel') as GraphRelationship | undefined;
       if (gr && onEdgeContextMenuRef.current) {
         const me = evt.originalEvent as MouseEvent;
+        me.preventDefault();
         onEdgeContextMenuRef.current(gr, { x: me.clientX, y: me.clientY });
       }
     });
@@ -339,11 +366,10 @@ export function CytoscapeViewer({
       lo.run();
     });
 
-    const container = containerRef.current;
     return () => {
       cancelled = true;
       cancelAnimationFrame(layoutTimer);
-      container?.removeEventListener('contextmenu', preventContextMenu);
+      canvases.forEach((c) => c.removeEventListener('contextmenu', canvasHandler, true));
       cy.destroy();
       cyRef.current = null;
     };
@@ -430,11 +456,11 @@ export function CytoscapeViewer({
       {/* Graph canvas */}
       <Card.Body className="p-0 position-relative">
         <div
-          ref={containerRef}
+          ref={setContainerRef}
           style={{
             width: '100%',
             height: '100%',
-            minHeight: 400
+            minHeight: 700
           }}
         />
 

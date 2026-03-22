@@ -7,6 +7,7 @@ export interface RagDocument {
   fileSize: number;
   isoStandard?: string;
   version?: string;
+  documentCategory?: string;
   docType: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   error?: string;
@@ -26,7 +27,24 @@ export interface RagChunk {
   documentUuid: string;
   text: string;
   position: number;
-  sectionTitle?: string;
+  fullPath?: string;
+  nodeType?: string;
+  numbering?: string;
+  requirementLevel?: string;
+  depth?: number;
+}
+
+// --- Section Types ---
+
+export interface RagSection {
+  uuid: string;
+  documentUuid: string;
+  nodeType: string;
+  numbering?: string;
+  title?: string;
+  depth: number;
+  fullPath?: string;
+  position: number;
 }
 
 // --- Update Types ---
@@ -45,6 +63,9 @@ export interface RagQueryRequest {
   minScore?: number;
   isoStandard?: string;
   modelUuid?: string;
+  requirementLevel?: string;
+  nodeType?: string;
+  retrievalMode?: string;
 }
 
 export interface RagQueryResponse {
@@ -59,7 +80,9 @@ export interface SourceRef {
   isoStandard?: string;
   chunkUuid: string;
   chunkText: string;
-  sectionTitle?: string;
+  fullPath?: string;
+  nodeType?: string;
+  requirementLevel?: string;
   score: number;
   position: number;
 }

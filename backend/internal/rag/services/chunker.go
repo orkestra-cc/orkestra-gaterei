@@ -1,113 +1,321 @@
 package services
 
 import (
-	"regexp"
 	"strings"
+	"unicode"
 )
 
-// Chunk represents a text segment from a document
-type Chunk struct {
-	Text         string
-	Position     int
-	SectionTitle string
-}
-
-// ChunkText splits text into overlapping chunks, detecting section headings
-func ChunkText(text string, chunkSize, overlap int) []Chunk {
-	if chunkSize <= 0 {
-		chunkSize = 512
+// ChunkStructured walks the structural tree and produces chunks that respect
+// structural boundaries. Each chunk inherits rich metadata from the tree.
+//
+// maxSize: maximum chunk size in characters (default 1024)
+// minSize: minimum chunk size before merging with siblings (default 128)
+func ChunkStructured(root *StructuralNode, maxSize, minSize int) []StructuredChunk {
+	if maxSize <= 0 {
+		maxSize = 1024
 	}
-	if overlap < 0 {
-		overlap = 0
-	}
-	if overlap >= chunkSize {
-		overlap = chunkSize / 4
+	if minSize <= 0 {
+		minSize = 128
 	}
 
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil
-	}
-
-	// Split into paragraphs
-	paragraphs := splitParagraphs(text)
-
-	var chunks []Chunk
-	var current strings.Builder
-	currentSection := ""
+	var chunks []StructuredChunk
 	position := 0
 
-	for _, para := range paragraphs {
-		para = strings.TrimSpace(para)
-		if para == "" {
-			continue
+	// Recursive function to process each node
+	var processNode func(node *StructuralNode)
+	processNode = func(node *StructuralNode) {
+		if node.NodeType == "document" {
+			for _, child := range node.Children {
+				processNode(child)
+			}
+			return
 		}
 
-		// Detect section headings
-		if heading := detectHeading(para); heading != "" {
-			currentSection = heading
+		// Leaf node (no children): emit as chunk(s)
+		if len(node.Children) == 0 {
+			text := buildNodeText(node)
+			if strings.TrimSpace(text) == "" {
+				return
+			}
+
+			fullPath := BuildFullPath(node)
+			sectionUUID := findParentSectionUUID(node)
+
+			if len(text) <= maxSize {
+				// Fits in one chunk
+				chunks = append(chunks, StructuredChunk{
+					Text:             text,
+					Position:         position,
+					NodeType:         effectiveNodeType(node),
+					Numbering:        node.Numbering,
+					FullPath:         fullPath,
+					RequirementLevel: node.RequirementLevel,
+					Depth:            node.Depth,
+					SectionUUID:      sectionUUID,
+				})
+				position++
+			} else {
+				// Split at sentence boundaries
+				parts := splitAtSentences(text, maxSize)
+				for _, part := range parts {
+					chunks = append(chunks, StructuredChunk{
+						Text:             part,
+						Position:         position,
+						NodeType:         effectiveNodeType(node),
+						Numbering:        node.Numbering,
+						FullPath:         fullPath,
+						RequirementLevel: DetectRequirementLevel(part),
+						Depth:            node.Depth,
+						SectionUUID:      sectionUUID,
+					})
+					position++
+				}
+			}
+			return
 		}
 
-		// Would adding this paragraph exceed chunk size?
-		if current.Len() > 0 && current.Len()+len(para)+1 > chunkSize {
-			// Emit current chunk
-			chunks = append(chunks, Chunk{
-				Text:         strings.TrimSpace(current.String()),
-				Position:     position,
-				SectionTitle: currentSection,
-			})
-			position++
+		// Non-leaf node: emit own text (if any) as chunk, then process children
+		if text := strings.TrimSpace(node.Text); text != "" {
+			fullPath := BuildFullPath(node)
+			sectionUUID := node.UUID // this node IS the section
 
-			// Start new chunk with overlap from end of previous
-			prev := current.String()
-			current.Reset()
-			if overlap > 0 && len(prev) > overlap {
-				current.WriteString(prev[len(prev)-overlap:])
-				current.WriteString("\n\n")
+			if len(text) <= maxSize {
+				chunks = append(chunks, StructuredChunk{
+					Text:             text,
+					Position:         position,
+					NodeType:         effectiveNodeType(node),
+					Numbering:        node.Numbering,
+					FullPath:         fullPath,
+					RequirementLevel: node.RequirementLevel,
+					Depth:            node.Depth,
+					SectionUUID:      sectionUUID,
+				})
+				position++
+			} else {
+				parts := splitAtSentences(text, maxSize)
+				for _, part := range parts {
+					chunks = append(chunks, StructuredChunk{
+						Text:             part,
+						Position:         position,
+						NodeType:         effectiveNodeType(node),
+						Numbering:        node.Numbering,
+						FullPath:         fullPath,
+						RequirementLevel: DetectRequirementLevel(part),
+						Depth:            node.Depth,
+						SectionUUID:      sectionUUID,
+					})
+					position++
+				}
 			}
 		}
 
-		if current.Len() > 0 {
-			current.WriteString("\n\n")
+		// Merge small children before processing
+		merged := mergeSmallSiblings(node.Children, minSize, maxSize)
+		for _, group := range merged {
+			if len(group) == 1 {
+				processNode(group[0])
+			} else {
+				// Merged group: combine their text into one chunk
+				var texts []string
+				for _, child := range group {
+					t := buildNodeText(child)
+					if strings.TrimSpace(t) != "" {
+						texts = append(texts, t)
+					}
+				}
+				combined := strings.Join(texts, "\n\n")
+				if strings.TrimSpace(combined) == "" {
+					continue
+				}
+				// Use the first child's metadata
+				first := group[0]
+				fullPath := BuildFullPath(first)
+				sectionUUID := findParentSectionUUID(first)
+
+				chunks = append(chunks, StructuredChunk{
+					Text:             combined,
+					Position:         position,
+					NodeType:         effectiveNodeType(first),
+					Numbering:        first.Numbering,
+					FullPath:         fullPath,
+					RequirementLevel: DetectRequirementLevel(combined),
+					Depth:            first.Depth,
+					SectionUUID:      sectionUUID,
+				})
+				position++
+			}
 		}
-		current.WriteString(para)
 	}
 
-	// Emit final chunk
-	if current.Len() > 0 {
-		chunks = append(chunks, Chunk{
-			Text:         strings.TrimSpace(current.String()),
-			Position:     position,
-			SectionTitle: currentSection,
-		})
-	}
+	processNode(root)
 
 	return chunks
 }
 
-func splitParagraphs(text string) []string {
-	// Split on double newlines or more
-	re := regexp.MustCompile(`\n\s*\n`)
-	return re.Split(text, -1)
-}
+// buildNodeText constructs the display text for a leaf node, including title as header.
+func buildNodeText(node *StructuralNode) string {
+	var sb strings.Builder
 
-// ISO clause/section heading patterns
-var headingPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`^(?:Clause|Section|Article)\s+\d+(\.\d+)*`),
-	regexp.MustCompile(`^\d+(\.\d+)*\s+[A-Z]`),                  // "4.1 Context of the organization"
-	regexp.MustCompile(`^[A-Z][A-Z\s]{3,}$`),                     // ALL CAPS headings
-	regexp.MustCompile(`^Annex\s+[A-Z]`),                         // "Annex A"
-	regexp.MustCompile(`^(?:Introduction|Scope|Normative references|Terms and definitions)`),
-}
+	// Add a heading line from numbering + title
+	heading := ""
+	if node.Numbering != "" && node.Title != "" {
+		heading = node.Numbering + " " + node.Title
+	} else if node.Title != "" {
+		heading = node.Title
+	} else if node.Numbering != "" {
+		heading = node.Numbering
+	}
 
-func detectHeading(para string) string {
-	firstLine := strings.SplitN(para, "\n", 2)[0]
-	firstLine = strings.TrimSpace(firstLine)
-
-	for _, pattern := range headingPatterns {
-		if pattern.MatchString(firstLine) {
-			return firstLine
+	if heading != "" {
+		sb.WriteString(heading)
+		if node.Text != "" {
+			sb.WriteString("\n\n")
 		}
 	}
+	if node.Text != "" {
+		sb.WriteString(node.Text)
+	}
+
+	return sb.String()
+}
+
+// effectiveNodeType returns the node type, classifying nodes with requirement
+// language as "requirement" if they're generic clause/subclause types.
+func effectiveNodeType(node *StructuralNode) string {
+	if node.RequirementLevel != "" &&
+		(node.NodeType == "clause" || node.NodeType == "subclause" || node.NodeType == "article" || node.NodeType == "paragraph" || node.NodeType == "list_item") {
+		return "requirement"
+	}
+	return node.NodeType
+}
+
+// findParentSectionUUID walks up the tree to find the nearest section-level parent's UUID.
+func findParentSectionUUID(node *StructuralNode) string {
+	n := node.Parent
+	for n != nil && n.NodeType != "document" {
+		return n.UUID
+	}
+	if node.Parent != nil {
+		return node.Parent.UUID
+	}
 	return ""
+}
+
+// mergeSmallSiblings groups adjacent small leaf siblings so they can be merged
+// into a single chunk. Returns groups — a group of 1 means process normally,
+// a group of 2+ means merge into one chunk.
+func mergeSmallSiblings(children []*StructuralNode, minSize, maxSize int) [][]*StructuralNode {
+	if len(children) == 0 {
+		return nil
+	}
+
+	var groups [][]*StructuralNode
+	var currentGroup []*StructuralNode
+	currentSize := 0
+
+	for _, child := range children {
+		// Non-leaf children are never merged
+		if len(child.Children) > 0 {
+			if len(currentGroup) > 0 {
+				groups = append(groups, currentGroup)
+				currentGroup = nil
+				currentSize = 0
+			}
+			groups = append(groups, []*StructuralNode{child})
+			continue
+		}
+
+		childSize := len(buildNodeText(child))
+
+		// Large enough on its own — don't merge
+		if childSize >= minSize {
+			if len(currentGroup) > 0 {
+				groups = append(groups, currentGroup)
+				currentGroup = nil
+				currentSize = 0
+			}
+			groups = append(groups, []*StructuralNode{child})
+			continue
+		}
+
+		// Small child — try to merge with current group
+		if currentSize+childSize+2 > maxSize {
+			// Would exceed max — flush current group and start new one
+			if len(currentGroup) > 0 {
+				groups = append(groups, currentGroup)
+			}
+			currentGroup = []*StructuralNode{child}
+			currentSize = childSize
+		} else {
+			currentGroup = append(currentGroup, child)
+			currentSize += childSize + 2 // +2 for \n\n separator
+		}
+	}
+
+	if len(currentGroup) > 0 {
+		groups = append(groups, currentGroup)
+	}
+
+	return groups
+}
+
+// splitAtSentences splits text into parts of at most maxSize characters,
+// breaking at sentence boundaries (". " or ".\n").
+func splitAtSentences(text string, maxSize int) []string {
+	if len(text) <= maxSize {
+		return []string{text}
+	}
+
+	var parts []string
+	remaining := text
+
+	for len(remaining) > maxSize {
+		// Find the last sentence boundary within maxSize
+		cutPoint := findSentenceBoundary(remaining, maxSize)
+		if cutPoint <= 0 {
+			// No sentence boundary found — force cut at maxSize
+			cutPoint = maxSize
+			// Try to at least cut at a word boundary
+			for cutPoint > maxSize/2 {
+				if remaining[cutPoint] == ' ' || remaining[cutPoint] == '\n' {
+					break
+				}
+				cutPoint--
+			}
+			if cutPoint <= maxSize/2 {
+				cutPoint = maxSize
+			}
+		}
+
+		parts = append(parts, strings.TrimSpace(remaining[:cutPoint]))
+		remaining = strings.TrimSpace(remaining[cutPoint:])
+	}
+
+	if len(remaining) > 0 {
+		parts = append(parts, remaining)
+	}
+
+	return parts
+}
+
+// findSentenceBoundary finds the last position within maxLen where a sentence ends.
+// Returns -1 if no sentence boundary is found.
+func findSentenceBoundary(text string, maxLen int) int {
+	if maxLen > len(text) {
+		maxLen = len(text)
+	}
+
+	lastBoundary := -1
+	runes := []rune(text[:maxLen])
+
+	for i := 0; i < len(runes)-1; i++ {
+		if runes[i] == '.' || runes[i] == '?' || runes[i] == '!' {
+			next := runes[i+1]
+			if next == ' ' || next == '\n' || next == '\r' || unicode.IsUpper(next) {
+				lastBoundary = i + 1
+			}
+		}
+	}
+
+	return lastBoundary
 }

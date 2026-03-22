@@ -105,52 +105,83 @@ The `openai` provider supports custom base URLs via `openai.NewClientWithConfig(
 
 ## Document Ingestion Pipeline
 
-Runs asynchronously in a background goroutine:
+Runs asynchronously in a background goroutine (17 steps):
 
 ```
-1. Create MongoDB record (status: "pending")
-2. Update status → "processing"
-3. Extract text (TextExtractor: PDF or plain text)
-4. Chunk text (ChunkText: paragraph-based, ISO heading detection)
-5. Generate embeddings (EmbeddingProvider.Embed per chunk)
-6. Create :RagDocument node in Memgraph
-7. Create :RagChunk nodes with embedding vectors + HAS_CHUNK relationships
-8. Create :NEXT relationships between sequential chunks
-9. Ensure vector index exists (ExecuteAutoCommit)
-10. Update status → "completed" (or "failed" with error message)
+1.  Create MongoDB record (status: "pending")
+2.  Update status → "processing"
+3.  Extract text (TextExtractor: PDF or plain text)
+4.  Parse document structure (structural_parser.go: builds hierarchical tree)
+5.  Chunk using structural boundaries (chunker.go: ChunkStructured)
+6.  Generate embeddings (EmbeddingProvider.Embed per chunk)
+7.  Create :RagDocument node in Memgraph
+8.  Create :RagSection nodes from structural tree
+9.  Create HAS_SECTION relationships (document → top-level sections)
+10. Create CONTAINS relationships (section → child sections)
+11. Create NEXT_SECTION relationships (sequential siblings)
+12. Create :RagChunk nodes with embeddings
+13. Create CONTAINS relationships (section → chunks)
+14. Create NEXT relationships between sequential chunks
+15. Extract definitions → :RagDefinition nodes + DEFINES edges
+16. Resolve cross-references → REFERENCES edges
+17. Compute SIMILAR_TO edges (cosine > 0.85 threshold)
+18. Create vector + property indexes
+19. Update status → "completed"
 ```
 
 ### Memgraph Graph Schema
 
 ```cypher
-(:RagDocument {uuid, title, isoStandard, version, docType, chunkCount, createdAt})
-(:RagChunk {uuid, documentUuid, text, position, sectionTitle, embedding})
+(:RagDocument {uuid, title, isoStandard, version, documentCategory, docType, chunkCount, createdAt})
+(:RagSection {uuid, documentUuid, nodeType, numbering, title, depth, fullPath, position})
+(:RagChunk {uuid, documentUuid, text, position, nodeType, numbering, fullPath, requirementLevel, depth, sectionUuid, embedding})
+(:RagDefinition {uuid, documentUuid, term, definition, embedding})
 
-(RagDocument)-[:HAS_CHUNK]->(RagChunk)
+(RagDocument)-[:HAS_SECTION]->(RagSection)
+(RagSection)-[:CONTAINS]->(RagSection)
+(RagSection)-[:CONTAINS]->(RagChunk)
+(RagSection)-[:NEXT_SECTION]->(RagSection)
 (RagChunk)-[:NEXT]->(RagChunk)
-
--- Vector index (created automatically on first ingestion)
-CREATE VECTOR INDEX rag_chunk_embedding ON :RagChunk(embedding)
-  WITH CONFIG {"dimension": <model_dims>, "capacity": 100000, "metric": "cos"}
+(RagDocument)-[:HAS_DEFINITION]->(RagDefinition)
+(RagDefinition)-[:DEFINES]->(RagChunk)
+(RagChunk)-[:REFERENCES {referenceText}]->(RagSection)
+(RagChunk)-[:SIMILAR_TO {similarity}]->(RagChunk)
 ```
 
-### Text Chunking
+### Structural Chunking
 
-- Splits by paragraph boundaries (double newlines)
-- Configurable chunk size (default 512 chars) and overlap (default 50 chars)
-- Detects ISO section headings via regex patterns:
-  - `Clause 4.1`, `Section 7`, `Annex A`
-  - Numbered headings like `4.1 Context of the organization`
-  - ALL CAPS headings
+The chunker uses a two-phase approach:
+
+**Phase 1 — Structure Detection** (`structural_parser.go`):
+- State-machine parser processes text line-by-line with ~15 regex patterns
+- Supports ISO standards (Clause, Section, Annex) AND Italian legal docs (TITOLO, CAPO, SEZIONE, Articolo)
+- Builds a hierarchical `StructuralNode` tree
+- Detects requirement language: SHALL/SHOULD/MAY (EN) + deve/dovrebbe/può (IT)
+- Extracts cross-references: "see 4.1.3", "Art. 12", "Annex A", etc.
+
+**Phase 2 — Tree → Chunks** (`chunker.go`):
+- Leaf-first: each leaf node becomes a chunk (128–1024 chars)
+- Merges small adjacent siblings under same parent
+- Splits oversized nodes at sentence boundaries
+- Every chunk inherits `fullPath` metadata (e.g., "Clause 4 > 4.1 > 4.1.2")
+- No overlap needed — context recovered via graph traversal
+
+### Relationship Extraction (`relationship_extractor.go`)
+
+- **Definitions**: Parsed from "Terms and definitions" sections → `RagDefinition` nodes
+- **Cross-references**: Regex-based, resolved to target `RagSection` by numbering
+- **Similarity**: Pairwise cosine between non-adjacent chunks, edges for pairs > 0.85
 
 ## RAG Query Pipeline
 
 ```
 1. Embed question → default EmbeddingProvider
-2. Vector search → CALL vector_search.search() on rag_chunk_embedding index
-3. Graph context expansion → fetch prev/next chunks via [:NEXT] relationships
+2. Vector search with optional filters (requirementLevel, nodeType)
+3. Context expansion:
+   - "vector" mode: prev/next chunks via NEXT edges
+   - "graph" mode: section hierarchy + cross-refs + definitions
 4. Fetch document metadata → title, isoStandard from :RagDocument nodes
-5. Build prompt → system prompt + context (sources with section info) + question
+5. Build richer prompt with structural paths + requirement levels + definitions
 6. LLM generation → default LLMProvider.Complete() with 5-minute timeout
 7. Return → answer + source citations + timing metadata
 ```

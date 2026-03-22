@@ -188,7 +188,8 @@ const GraphRAG: React.FC = () => {
                                   <div className="d-flex gap-1 mb-1 flex-wrap">
                                     <Badge bg="primary">{src.documentTitle}</Badge>
                                     {src.isoStandard && <Badge bg="info">{src.isoStandard}</Badge>}
-                                    {src.sectionTitle && <Badge bg="secondary">{src.sectionTitle}</Badge>}
+                                    {src.fullPath && <Badge bg="secondary">{src.fullPath}</Badge>}
+                                    {src.requirementLevel && <Badge bg="warning" text="dark">{src.requirementLevel}</Badge>}
                                     <Badge bg="success">{(src.score * 100).toFixed(0)}%</Badge>
                                   </div>
                                   <div className="text-muted" style={{ maxHeight: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>

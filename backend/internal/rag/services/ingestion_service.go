@@ -17,22 +17,25 @@ import (
 
 // IngestionService manages document ingestion into the knowledge graph
 type IngestionService interface {
-	IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version string, chunkSize, chunkOverlap int) (*models.RagDocument, error)
+	IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int) (*models.RagDocument, error)
 	ListDocuments(ctx context.Context, status, isoStandard string) ([]models.RagDocument, error)
 	GetDocument(ctx context.Context, uuid string) (*models.RagDocument, error)
 	UpdateDocument(ctx context.Context, uuid string, title, isoStandard, version *string) (*models.RagDocument, error)
 	GetDocumentChunks(ctx context.Context, uuid string) ([]models.RagChunk, error)
+	GetDocumentSections(ctx context.Context, uuid string) ([]models.RagSection, error)
 	DeleteDocument(ctx context.Context, uuid string) error
+	ReprocessDocument(ctx context.Context, uuid string) error
 }
 
 type ingestionService struct {
-	docRepo        repository.DocumentRepository
-	graphRepo      graphRepo.GraphRepository
-	modelProvider  AIModelProvider
-	extractor      TextExtractor
-	defaultChunk   int
-	defaultOverlap int
-	logger         *slog.Logger
+	docRepo             repository.DocumentRepository
+	graphRepo           graphRepo.GraphRepository
+	modelProvider       AIModelProvider
+	extractor           TextExtractor
+	defaultChunk        int
+	defaultOverlap      int
+	similarityThreshold float64
+	logger              *slog.Logger
 }
 
 // NewIngestionService creates a new IngestionService
@@ -45,17 +48,18 @@ func NewIngestionService(
 	logger *slog.Logger,
 ) IngestionService {
 	return &ingestionService{
-		docRepo:        docRepo,
-		graphRepo:      gr,
-		modelProvider:  modelProvider,
-		extractor:      extractor,
-		defaultChunk:   defaultChunk,
-		defaultOverlap: defaultOverlap,
-		logger:         logger.With(slog.String("module", "rag-ingestion")),
+		docRepo:             docRepo,
+		graphRepo:           gr,
+		modelProvider:       modelProvider,
+		extractor:           extractor,
+		defaultChunk:        defaultChunk,
+		defaultOverlap:      defaultOverlap,
+		similarityThreshold: 0.85,
+		logger:              logger.With(slog.String("module", "rag-ingestion")),
 	}
 }
 
-func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version string, chunkSize, chunkOverlap int) (*models.RagDocument, error) {
+func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int) (*models.RagDocument, error) {
 	if chunkSize <= 0 {
 		chunkSize = s.defaultChunk
 	}
@@ -77,17 +81,18 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 
 	// Create document record
 	doc := &models.RagDocument{
-		UUID:         uuid.New().String(),
-		Title:        title,
-		FileName:     fileName,
-		FileSize:     int64(len(fileData)),
-		ISOStandard:  isoStandard,
-		Version:      version,
-		DocType:      ext,
-		Status:       "pending",
-		ChunkSize:    chunkSize,
-		ChunkOverlap: chunkOverlap,
-		ModelUUID:    "", // Will be set from provider
+		UUID:             uuid.New().String(),
+		Title:            title,
+		FileName:         fileName,
+		FileSize:         int64(len(fileData)),
+		ISOStandard:      isoStandard,
+		Version:          version,
+		DocumentCategory: documentCategory,
+		DocType:          ext,
+		Status:           "pending",
+		ChunkSize:        chunkSize,
+		ChunkOverlap:     chunkOverlap,
+		ModelUUID:        "",
 	}
 
 	if err := s.docRepo.Create(ctx, doc); err != nil {
@@ -98,15 +103,22 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 		slog.String("uuid", doc.UUID),
 		slog.String("title", title),
 		slog.String("fileName", fileName),
+		slog.String("category", documentCategory),
 	)
 
 	// Process in background goroutine
-	go s.processDocument(doc.UUID, fileData, ext, chunkSize, chunkOverlap, embProvider)
+	go s.processDocument(doc.UUID, fileData, ext, chunkSize, embProvider)
 
 	return doc, nil
 }
 
-func (s *ingestionService) processDocument(docUUID string, fileData []byte, docType string, chunkSize, chunkOverlap int, embProvider interface{ Embed(context.Context, string) ([]float64, error); Dimensions() int; ModelName() string }) {
+type embeddingProvider interface {
+	Embed(context.Context, string) ([]float64, error)
+	Dimensions() int
+	ModelName() string
+}
+
+func (s *ingestionService) processDocument(docUUID string, fileData []byte, docType string, maxChunkSize int, embProvider embeddingProvider) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -125,17 +137,25 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		return
 	}
 
-	// Step 2: Chunk text
-	s.logger.Info("chunking text", slog.String("uuid", docUUID), slog.Int("textLen", len(text)))
-	chunks := ChunkText(text, chunkSize, chunkOverlap)
+	// Step 2: Parse document structure
+	s.logger.Info("parsing document structure", slog.String("uuid", docUUID), slog.Int("textLen", len(text)))
+	root := ParseDocumentStructure(text)
+
+	// Step 3: Chunk using structural boundaries
+	minChunkSize := 128
+	chunks := ChunkStructured(root, maxChunkSize, minChunkSize)
 	if len(chunks) == 0 {
-		s.failDocument(ctx, docUUID, "no chunks produced from text")
+		s.failDocument(ctx, docUUID, "no chunks produced from document")
 		return
 	}
 
-	s.logger.Info("generating embeddings", slog.String("uuid", docUUID), slog.Int("chunks", len(chunks)))
+	s.logger.Info("generating embeddings",
+		slog.String("uuid", docUUID),
+		slog.Int("chunks", len(chunks)),
+		slog.Int("sections", len(CollectSections(root))),
+	)
 
-	// Step 3: Generate embeddings
+	// Step 4: Generate embeddings for all chunks
 	embeddings := make([][]float64, len(chunks))
 	for i, chunk := range chunks {
 		emb, err := embProvider.Embed(ctx, chunk.Text)
@@ -146,23 +166,23 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		embeddings[i] = emb
 	}
 
-	// Step 4: Create graph nodes in Memgraph
+	// Step 5: Create graph nodes
 	s.logger.Info("creating graph nodes", slog.String("uuid", docUUID))
 
-	// Get document metadata for the graph node
 	doc, err := s.docRepo.GetByUUID(ctx, docUUID)
 	if err != nil {
 		s.failDocument(ctx, docUUID, "failed to retrieve document: "+err.Error())
 		return
 	}
 
-	// Create document node
+	// Create RagDocument node
 	_, err = s.graphRepo.ExecuteWrite(ctx, "", `
 		CREATE (d:RagDocument {
 			uuid: $uuid,
 			title: $title,
 			isoStandard: $isoStandard,
 			version: $version,
+			documentCategory: $category,
 			docType: $docType,
 			chunkCount: $chunkCount,
 			createdAt: $createdAt
@@ -172,6 +192,7 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		"title":       doc.Title,
 		"isoStandard": doc.ISOStandard,
 		"version":     doc.Version,
+		"category":    doc.DocumentCategory,
 		"docType":     doc.DocType,
 		"chunkCount":  len(chunks),
 		"createdAt":   doc.CreatedAt.Format(time.RFC3339),
@@ -181,27 +202,116 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		return
 	}
 
-	// Create chunk nodes with embeddings and relationships
+	// Step 6: Create RagSection nodes from the structural tree
+	sections := CollectSections(root)
+	for _, sec := range sections {
+		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+			CREATE (s:RagSection {
+				uuid: $uuid,
+				documentUuid: $docUuid,
+				nodeType: $nodeType,
+				numbering: $numbering,
+				title: $title,
+				depth: $depth,
+				fullPath: $fullPath,
+				position: $position
+			})
+		`, map[string]interface{}{
+			"uuid":      sec.UUID,
+			"docUuid":   docUUID,
+			"nodeType":  sec.NodeType,
+			"numbering": sec.Numbering,
+			"title":     sec.Title,
+			"depth":     sec.Depth,
+			"fullPath":  BuildFullPath(sec),
+			"position":  sec.Position,
+		})
+		if err != nil {
+			s.logger.Warn("failed to create section node", slog.String("error", err.Error()), slog.String("numbering", sec.Numbering))
+		}
+	}
+
+	// Step 7: Create HAS_SECTION relationships (document → top-level sections)
+	for _, sec := range sections {
+		if sec.Parent != nil && sec.Parent.NodeType == "document" {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (d:RagDocument {uuid: $docUuid})
+				MATCH (s:RagSection {uuid: $secUuid})
+				CREATE (d)-[:HAS_SECTION]->(s)
+			`, map[string]interface{}{"docUuid": docUUID, "secUuid": sec.UUID})
+			if err != nil {
+				s.logger.Warn("failed to create HAS_SECTION", slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	// Step 8: Create CONTAINS relationships (section → child section)
+	for _, sec := range sections {
+		if sec.Parent != nil && sec.Parent.NodeType != "document" {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (parent:RagSection {uuid: $parentUuid})
+				MATCH (child:RagSection {uuid: $childUuid})
+				CREATE (parent)-[:CONTAINS]->(child)
+			`, map[string]interface{}{"parentUuid": sec.Parent.UUID, "childUuid": sec.UUID})
+			if err != nil {
+				s.logger.Warn("failed to create section CONTAINS", slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	// Step 9: Create NEXT_SECTION relationships (sequential sections at same depth under same parent)
+	sectionsByParent := make(map[string][]*StructuralNode)
+	for _, sec := range sections {
+		if sec.Parent != nil {
+			parentID := sec.Parent.UUID
+			sectionsByParent[parentID] = append(sectionsByParent[parentID], sec)
+		}
+	}
+	for _, siblings := range sectionsByParent {
+		for i := 0; i < len(siblings)-1; i++ {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (a:RagSection {uuid: $aUuid})
+				MATCH (b:RagSection {uuid: $bUuid})
+				CREATE (a)-[:NEXT_SECTION]->(b)
+			`, map[string]interface{}{"aUuid": siblings[i].UUID, "bUuid": siblings[i+1].UUID})
+			if err != nil {
+				s.logger.Warn("failed to create NEXT_SECTION", slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	// Step 10: Create RagChunk nodes with embeddings
+	chunkUUIDs := make([]string, len(chunks))
 	for i, chunk := range chunks {
 		chunkUUID := uuid.New().String()
+		chunkUUIDs[i] = chunkUUID
+
 		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
-			MATCH (d:RagDocument {uuid: $docUuid})
 			CREATE (c:RagChunk {
 				uuid: $chunkUuid,
 				documentUuid: $docUuid,
 				text: $text,
 				position: $position,
-				sectionTitle: $sectionTitle,
+				nodeType: $nodeType,
+				numbering: $numbering,
+				fullPath: $fullPath,
+				requirementLevel: $reqLevel,
+				depth: $depth,
+				sectionUuid: $sectionUuid,
 				embedding: $embedding
 			})
-			CREATE (d)-[:HAS_CHUNK]->(c)
 		`, map[string]interface{}{
-			"docUuid":      docUUID,
-			"chunkUuid":    chunkUUID,
-			"text":         chunk.Text,
-			"position":     chunk.Position,
-			"sectionTitle": chunk.SectionTitle,
-			"embedding":    embeddings[i],
+			"chunkUuid":   chunkUUID,
+			"docUuid":     docUUID,
+			"text":        chunk.Text,
+			"position":    chunk.Position,
+			"nodeType":    chunk.NodeType,
+			"numbering":   chunk.Numbering,
+			"fullPath":    chunk.FullPath,
+			"reqLevel":    chunk.RequirementLevel,
+			"depth":       chunk.Depth,
+			"sectionUuid": chunk.SectionUUID,
+			"embedding":   embeddings[i],
 		})
 		if err != nil {
 			s.failDocument(ctx, docUUID, fmt.Sprintf("failed to create chunk node %d: %v", i, err))
@@ -209,20 +319,117 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		}
 	}
 
-	// Create NEXT relationships between sequential chunks
-	_, err = s.graphRepo.ExecuteWrite(ctx, "", `
-		MATCH (d:RagDocument {uuid: $docUuid})-[:HAS_CHUNK]->(c:RagChunk)
-		WITH c ORDER BY c.position
-		WITH collect(c) AS chunks
-		UNWIND range(0, size(chunks)-2) AS i
-		WITH chunks[i] AS a, chunks[i+1] AS b
-		CREATE (a)-[:NEXT]->(b)
-	`, map[string]interface{}{"docUuid": docUUID})
-	if err != nil {
-		s.logger.Warn("failed to create NEXT relationships", slog.String("error", err.Error()))
+	// Step 11: Create CONTAINS relationships (section → chunk)
+	for i, chunk := range chunks {
+		if chunk.SectionUUID != "" {
+			_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+				MATCH (s:RagSection {uuid: $secUuid})
+				MATCH (c:RagChunk {uuid: $chunkUuid})
+				CREATE (s)-[:CONTAINS]->(c)
+			`, map[string]interface{}{"secUuid": chunk.SectionUUID, "chunkUuid": chunkUUIDs[i]})
+			if err != nil {
+				s.logger.Warn("failed to create section→chunk CONTAINS", slog.String("error", err.Error()))
+			}
+		}
 	}
 
-	// Step 5: Ensure vector index exists (must use auto-commit for Memgraph)
+	// Step 12: Create NEXT relationships between sequential chunks
+	for i := 0; i < len(chunkUUIDs)-1; i++ {
+		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+			MATCH (a:RagChunk {uuid: $aUuid})
+			MATCH (b:RagChunk {uuid: $bUuid})
+			CREATE (a)-[:NEXT]->(b)
+		`, map[string]interface{}{"aUuid": chunkUUIDs[i], "bUuid": chunkUUIDs[i+1]})
+		if err != nil {
+			s.logger.Warn("failed to create NEXT relationship", slog.String("error", err.Error()))
+		}
+	}
+
+	// Step 13: Extract and create definitions from terms sections
+	for _, sec := range sections {
+		if sec.NodeType == "terms_section" {
+			defs := ExtractDefinitions(sec)
+			for _, def := range defs {
+				defUUID := uuid.New().String()
+				defEmb, embErr := embProvider.Embed(ctx, def.Term+": "+def.Definition)
+				if embErr != nil {
+					s.logger.Warn("failed to embed definition", slog.String("term", def.Term), slog.String("error", embErr.Error()))
+					continue
+				}
+
+				_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+					MATCH (d:RagDocument {uuid: $docUuid})
+					CREATE (def:RagDefinition {
+						uuid: $defUuid,
+						documentUuid: $docUuid,
+						term: $term,
+						definition: $definition,
+						embedding: $embedding
+					})
+					CREATE (d)-[:HAS_DEFINITION]->(def)
+				`, map[string]interface{}{
+					"docUuid":    docUUID,
+					"defUuid":    defUUID,
+					"term":       def.Term,
+					"definition": def.Definition,
+					"embedding":  defEmb,
+				})
+				if err != nil {
+					s.logger.Warn("failed to create definition node", slog.String("term", def.Term), slog.String("error", err.Error()))
+					continue
+				}
+
+				// Create DEFINES edges: scan all chunks for usage of this term
+				termLower := strings.ToLower(def.Term)
+				for j, chunk := range chunks {
+					if strings.Contains(strings.ToLower(chunk.Text), termLower) {
+						_, _ = s.graphRepo.ExecuteWrite(ctx, "", `
+							MATCH (def:RagDefinition {uuid: $defUuid})
+							MATCH (c:RagChunk {uuid: $chunkUuid})
+							CREATE (def)-[:DEFINES]->(c)
+						`, map[string]interface{}{"defUuid": defUUID, "chunkUuid": chunkUUIDs[j]})
+					}
+				}
+			}
+		}
+	}
+
+	// Step 14: Create REFERENCES edges from cross-references
+	refEdges := ResolveInternalReferences(chunks, sections)
+	for _, edge := range refEdges {
+		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+			MATCH (src:RagChunk {uuid: $srcUuid})
+			MATCH (tgt:RagSection {documentUuid: $docUuid, numbering: $numbering})
+			CREATE (src)-[:REFERENCES {referenceText: $refText}]->(tgt)
+		`, map[string]interface{}{
+			"srcUuid":   chunkUUIDs[edge.SourceChunkIdx],
+			"docUuid":   docUUID,
+			"numbering": edge.TargetNumber,
+			"refText":   edge.ReferenceText,
+		})
+		if err != nil {
+			s.logger.Warn("failed to create REFERENCES edge", slog.String("error", err.Error()))
+		}
+	}
+
+	// Step 15: Compute SIMILAR_TO edges
+	simEdges := ComputeSimilarityEdges(embeddings, s.similarityThreshold)
+	for _, edge := range simEdges {
+		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
+			MATCH (a:RagChunk {uuid: $aUuid})
+			MATCH (b:RagChunk {uuid: $bUuid})
+			CREATE (a)-[:SIMILAR_TO {similarity: $sim}]->(b)
+		`, map[string]interface{}{
+			"aUuid": chunkUUIDs[edge.ChunkIdxA],
+			"bUuid": chunkUUIDs[edge.ChunkIdxB],
+			"sim":   edge.Similarity,
+		})
+		if err != nil {
+			s.logger.Warn("failed to create SIMILAR_TO edge", slog.String("error", err.Error()))
+		}
+	}
+
+	// Step 16: Ensure vector indexes exist
 	dims := embProvider.Dimensions()
 	err = s.graphRepo.ExecuteAutoCommit(ctx, "", fmt.Sprintf(
 		`CREATE VECTOR INDEX rag_chunk_embedding ON :RagChunk(embedding) WITH CONFIG {"dimension": %d, "capacity": 100000, "metric": "cos"}`,
@@ -232,7 +439,27 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		s.logger.Warn("vector index creation note", slog.String("error", err.Error()))
 	}
 
-	// Step 6: Mark as completed
+	err = s.graphRepo.ExecuteAutoCommit(ctx, "", fmt.Sprintf(
+		`CREATE VECTOR INDEX rag_definition_embedding ON :RagDefinition(embedding) WITH CONFIG {"dimension": %d, "capacity": 50000, "metric": "cos"}`,
+		dims,
+	), nil)
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		s.logger.Warn("definition vector index note", slog.String("error", err.Error()))
+	}
+
+	// Create property indexes
+	for _, idx := range []string{
+		"CREATE INDEX ON :RagSection(documentUuid)",
+		"CREATE INDEX ON :RagSection(numbering)",
+		"CREATE INDEX ON :RagChunk(requirementLevel)",
+		"CREATE INDEX ON :RagChunk(nodeType)",
+		"CREATE INDEX ON :RagDefinition(documentUuid)",
+		"CREATE INDEX ON :RagDefinition(term)",
+	} {
+		_ = s.graphRepo.ExecuteAutoCommit(ctx, "", idx, nil)
+	}
+
+	// Step 17: Mark as completed
 	if err := s.docRepo.UpdateCompleted(ctx, docUUID, len(chunks)); err != nil {
 		s.logger.Error("failed to update document status", slog.String("error", err.Error()))
 		return
@@ -241,6 +468,9 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 	s.logger.Info("document ingestion completed",
 		slog.String("uuid", docUUID),
 		slog.Int("chunks", len(chunks)),
+		slog.Int("sections", len(sections)),
+		slog.Int("references", len(refEdges)),
+		slog.Int("similarEdges", len(simEdges)),
 		slog.Int("dimensions", dims),
 	)
 }
@@ -291,14 +521,15 @@ func (s *ingestionService) UpdateDocument(ctx context.Context, docUUID string, t
 }
 
 func (s *ingestionService) GetDocumentChunks(ctx context.Context, docUUID string) ([]models.RagChunk, error) {
-	// Verify document exists
 	if _, err := s.docRepo.GetByUUID(ctx, docUUID); err != nil {
 		return nil, err
 	}
 
 	result, err := s.graphRepo.ExecuteRead(ctx, "", `
-		MATCH (d:RagDocument {uuid: $uuid})-[:HAS_CHUNK]->(c:RagChunk)
-		RETURN c.uuid AS uuid, c.documentUuid AS documentUuid, c.text AS text, c.position AS position, c.sectionTitle AS sectionTitle
+		MATCH (c:RagChunk {documentUuid: $uuid})
+		RETURN c.uuid AS uuid, c.documentUuid AS documentUuid, c.text AS text,
+		       c.position AS position, c.fullPath AS fullPath, c.nodeType AS nodeType,
+		       c.numbering AS numbering, c.requirementLevel AS requirementLevel, c.depth AS depth
 		ORDER BY c.position
 	`, map[string]interface{}{"uuid": docUUID})
 	if err != nil {
@@ -320,8 +551,20 @@ func (s *ingestionService) GetDocumentChunks(ctx context.Context, docUUID string
 		if v, ok := row["position"].(int64); ok {
 			chunk.Position = int(v)
 		}
-		if v, ok := row["sectionTitle"].(string); ok {
-			chunk.SectionTitle = v
+		if v, ok := row["fullPath"].(string); ok {
+			chunk.FullPath = v
+		}
+		if v, ok := row["nodeType"].(string); ok {
+			chunk.NodeType = v
+		}
+		if v, ok := row["numbering"].(string); ok {
+			chunk.Numbering = v
+		}
+		if v, ok := row["requirementLevel"].(string); ok {
+			chunk.RequirementLevel = v
+		}
+		if v, ok := row["depth"].(int64); ok {
+			chunk.Depth = int(v)
 		}
 		chunks = append(chunks, chunk)
 	}
@@ -329,17 +572,100 @@ func (s *ingestionService) GetDocumentChunks(ctx context.Context, docUUID string
 	return chunks, nil
 }
 
+func (s *ingestionService) GetDocumentSections(ctx context.Context, docUUID string) ([]models.RagSection, error) {
+	if _, err := s.docRepo.GetByUUID(ctx, docUUID); err != nil {
+		return nil, err
+	}
+
+	result, err := s.graphRepo.ExecuteRead(ctx, "", `
+		MATCH (s:RagSection {documentUuid: $uuid})
+		RETURN s.uuid AS uuid, s.documentUuid AS documentUuid, s.nodeType AS nodeType,
+		       s.numbering AS numbering, s.title AS title, s.depth AS depth,
+		       s.fullPath AS fullPath, s.position AS position
+		ORDER BY s.position
+	`, map[string]interface{}{"uuid": docUUID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sections: %w", err)
+	}
+
+	sections := make([]models.RagSection, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		sec := models.RagSection{}
+		if v, ok := row["uuid"].(string); ok {
+			sec.UUID = v
+		}
+		if v, ok := row["documentUuid"].(string); ok {
+			sec.DocumentUUID = v
+		}
+		if v, ok := row["nodeType"].(string); ok {
+			sec.NodeType = v
+		}
+		if v, ok := row["numbering"].(string); ok {
+			sec.Numbering = v
+		}
+		if v, ok := row["title"].(string); ok {
+			sec.Title = v
+		}
+		if v, ok := row["depth"].(int64); ok {
+			sec.Depth = int(v)
+		}
+		if v, ok := row["fullPath"].(string); ok {
+			sec.FullPath = v
+		}
+		if v, ok := row["position"].(int64); ok {
+			sec.Position = int(v)
+		}
+		sections = append(sections, sec)
+	}
+
+	return sections, nil
+}
+
 func (s *ingestionService) DeleteDocument(ctx context.Context, docUUID string) error {
-	// Delete from Memgraph first
+	// Delete all graph nodes for this document
 	_, err := s.graphRepo.ExecuteWrite(context.Background(), "", `
 		MATCH (d:RagDocument {uuid: $uuid})
-		OPTIONAL MATCH (d)-[:HAS_CHUNK]->(c:RagChunk)
-		DETACH DELETE c, d
+		OPTIONAL MATCH (d)-[:HAS_SECTION]->(s:RagSection)
+		OPTIONAL MATCH (s)-[:CONTAINS*]->(child)
+		OPTIONAL MATCH (d)-[:HAS_DEFINITION]->(def:RagDefinition)
+		OPTIONAL MATCH (c:RagChunk {documentUuid: $uuid})
+		DETACH DELETE c, child, s, def, d
 	`, map[string]interface{}{"uuid": docUUID})
 	if err != nil {
 		s.logger.Warn("failed to delete graph nodes", slog.String("error", err.Error()))
 	}
 
-	// Delete from MongoDB
 	return s.docRepo.Delete(context.Background(), docUUID)
+}
+
+func (s *ingestionService) ReprocessDocument(ctx context.Context, docUUID string) error {
+	doc, err := s.docRepo.GetByUUID(ctx, docUUID)
+	if err != nil {
+		return fmt.Errorf("document not found: %w", err)
+	}
+
+	// Can only reprocess completed or failed documents
+	if doc.Status != "completed" && doc.Status != "failed" {
+		return fmt.Errorf("cannot reprocess document with status %q", doc.Status)
+	}
+
+	// Delete existing graph nodes
+	_, err = s.graphRepo.ExecuteWrite(ctx, "", `
+		MATCH (d:RagDocument {uuid: $uuid})
+		OPTIONAL MATCH (d)-[:HAS_SECTION]->(s:RagSection)
+		OPTIONAL MATCH (s)-[:CONTAINS*]->(child)
+		OPTIONAL MATCH (d)-[:HAS_DEFINITION]->(def:RagDefinition)
+		OPTIONAL MATCH (c:RagChunk {documentUuid: $uuid})
+		DETACH DELETE c, child, s, def, d
+	`, map[string]interface{}{"uuid": docUUID})
+	if err != nil {
+		s.logger.Warn("failed to delete old graph nodes for reprocess", slog.String("error", err.Error()))
+	}
+
+	// Reset status
+	_ = s.docRepo.UpdateStatus(ctx, docUUID, "pending", "")
+
+	// We need the file data — but we don't store it. Return error for now.
+	// The user must re-upload the file to reprocess.
+	return fmt.Errorf("reprocessing requires re-uploading the file — graph nodes have been cleared, please upload the document again")
 }

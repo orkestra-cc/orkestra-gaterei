@@ -209,7 +209,7 @@ const GraphExplorer: React.FC = () => {
             isLoading={isLoading}
             readOnly={readOnly}
             onReadOnlyChange={setReadOnly}
-            defaultValue="MATCH (n) RETURN n LIMIT 25"
+            defaultValue="MATCH (n) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100"
           />
 
           {/* Graph Visualization */}
