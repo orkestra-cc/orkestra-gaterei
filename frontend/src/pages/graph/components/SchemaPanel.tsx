@@ -167,7 +167,8 @@ const SchemaPanel = ({
   onDatabaseChange,
 }: SchemaPanelProps) => {
   const { data: schema, isLoading, error } = useGetSchemaQuery(
-    database ? { database } : undefined
+    database ? { database } : {},
+    { pollingInterval: 15000 }
   );
   const { data: dbData } = useListDatabasesQuery();
 
@@ -189,7 +190,11 @@ const SchemaPanel = ({
   }
 
   if (!schema) {
-    return null;
+    return (
+      <div className="d-flex justify-content-center align-items-center py-5">
+        <span className="text-muted fs-10">No schema data available</span>
+      </div>
+    );
   }
 
   const databases = dbData?.databases ?? [];

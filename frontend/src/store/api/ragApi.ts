@@ -18,7 +18,7 @@ export const ragApi = baseApi.injectEndpoints({
         body: formData,
         formData: true,
       }),
-      invalidatesTags: ['RagDocument'],
+      invalidatesTags: ['RagDocument', 'GraphSchema'],
     }),
 
     listDocuments: builder.query<{ documents: RagDocument[] }, { status?: string; isoStandard?: string } | void>({
@@ -56,7 +56,7 @@ export const ragApi = baseApi.injectEndpoints({
         url: `/v1/rag/documents/${uuid}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['RagDocument'],
+      invalidatesTags: ['RagDocument', 'GraphSchema'],
     }),
 
     // --- RAG Query ---
