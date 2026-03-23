@@ -1,21 +1,31 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Row, Col, Card, Button, ButtonGroup } from 'react-bootstrap';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Card, Button, ButtonGroup } from 'react-bootstrap';
 import { CytoscapeViewer } from '../components/CytoscapeViewer';
 import CypherEditor from '../components/CypherEditor';
 import ResultsTable from '../components/ResultsTable';
 import SchemaPanel from '../components/SchemaPanel';
+import { JsonView, darkStyles } from 'react-json-view-lite';
+import 'react-json-view-lite/dist/index.css';
+import ResizeHandle from '../../../components/common/ResizeHandle';
+import { useResizable } from '../../../hooks/ui/useResizable';
 import { useExecuteQueryMutation, useLazyGetNodeNeighborsQuery, useDeleteNodeMutation, useDeleteRelationshipMutation } from '../../../store/api/graphApi';
 import { GraphContextMenu, type ContextMenuState } from '../components/GraphContextMenu';
 import type { QueryResult, GraphNode, GraphRelationship } from '../../../types/graph';
 
 type ViewMode = 'graph' | 'table' | 'split';
 
+const SIDEBAR_STORAGE_KEY = 'orkestra:graph-explorer-sidebar-open';
+const SPLIT_HEIGHT_STORAGE_KEY = 'orkestra:graph-explorer-split-height';
+
 const GraphExplorer: React.FC = () => {
   const [database, setDatabase] = useState<string>('');
   const [result, setResult] = useState<QueryResult | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [readOnly, setReadOnly] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return stored === null ? true : stored === 'true';
+  });
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, type: 'node' });
 
@@ -23,6 +33,24 @@ const GraphExplorer: React.FC = () => {
   const [fetchNeighbors] = useLazyGetNodeNeighborsQuery();
   const [deleteNodeMutation] = useDeleteNodeMutation();
   const [deleteRelationshipMutation] = useDeleteRelationshipMutation();
+
+  // Vertical resize between graph and table in split mode
+  const {
+    size: graphHeight,
+    isDragging: isResizing,
+    handleProps: resizeHandleProps,
+  } = useResizable({
+    direction: 'vertical',
+    initialSize: 500,
+    minSize: 200,
+    maxSize: 900,
+    storageKey: SPLIT_HEIGHT_STORAGE_KEY,
+  });
+
+  // Persist sidebar state
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen));
+  }, [sidebarOpen]);
 
   const handleExecute = useCallback(async (cypher: string, params?: Record<string, unknown>) => {
     try {
@@ -142,19 +170,16 @@ const GraphExplorer: React.FC = () => {
   const graphRels = useMemo(() => result?.graph?.relationships ?? [], [result]);
   const hasGraph = graphNodes.length > 0 || graphRels.length > 0;
 
+  const showGraph = (viewMode === 'graph' || viewMode === 'split') && hasGraph;
+  const showTable = viewMode === 'table' || viewMode === 'split';
+  const isSplit = viewMode === 'split' && hasGraph;
+
   return (
     <>
       {/* Page Header */}
       <div className="d-flex align-items-center justify-content-between mb-3">
         <h5 className="mb-0">Graph Explorer</h5>
         <div className="d-flex gap-2 align-items-center">
-          <Button
-            variant={sidebarOpen ? 'falcon-primary' : 'falcon-default'}
-            size="sm"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? 'Hide' : 'Show'} Schema
-          </Button>
           {result && (
             <ButtonGroup size="sm">
               <Button
@@ -181,13 +206,25 @@ const GraphExplorer: React.FC = () => {
         </div>
       </div>
 
-      <Row className="g-3">
-        {/* Schema Sidebar */}
-        {sidebarOpen && (
-          <Col xl={3} lg={4}>
-            <Card className="sticky-top" style={{ top: '1rem', maxHeight: 'calc(100vh - 6rem)', overflow: 'auto' }}>
-              <Card.Header className="bg-body-tertiary py-2">
+      <div className="d-flex gap-3" style={{ minHeight: 'calc(100vh - 8rem)' }}>
+        {/* Collapsible Schema Sidebar */}
+        <div
+          className={`graph-sidebar${isResizing ? ' resizing' : ''}`}
+          style={{ width: sidebarOpen ? 280 : 40 }}
+        >
+          {sidebarOpen ? (
+            <Card style={{ height: '100%', maxHeight: 'calc(100vh - 8rem)', overflow: 'auto' }}>
+              <Card.Header className="bg-body-tertiary py-2 d-flex align-items-center justify-content-between">
                 <h6 className="mb-0">Database Schema</h6>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="p-0 text-muted"
+                  onClick={() => setSidebarOpen(false)}
+                  title="Collapse sidebar"
+                >
+                  <i className="fas fa-chevron-left" />
+                </Button>
               </Card.Header>
               <Card.Body className="p-0">
                 <SchemaPanel
@@ -198,11 +235,21 @@ const GraphExplorer: React.FC = () => {
                 />
               </Card.Body>
             </Card>
-          </Col>
-        )}
+          ) : (
+            <div
+              className="graph-sidebar-toggle"
+              onClick={() => setSidebarOpen(true)}
+              title="Expand Schema"
+            >
+              <span className="toggle-icon">
+                <i className="fas fa-chevron-right" />
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Main Content */}
-        <Col xl={sidebarOpen ? 9 : 12} lg={sidebarOpen ? 8 : 12}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Cypher Query Editor */}
           <CypherEditor
             onExecute={handleExecute}
@@ -212,69 +259,125 @@ const GraphExplorer: React.FC = () => {
             defaultValue="MATCH (n) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100"
           />
 
-          {/* Graph Visualization */}
-          {(viewMode === 'graph' || viewMode === 'split') && hasGraph && (
-            <div className="mt-3">
-              <CytoscapeViewer
-                nodes={graphNodes}
-                relationships={graphRels}
-                onNodeClick={handleNodeClick}
-                onNodeDoubleClick={handleNodeDoubleClick}
-                onNodeContextMenu={handleNodeContextMenu}
-                onEdgeContextMenu={handleEdgeContextMenu}
+          {/* Split view: graph + resize handle + table */}
+          {isSplit ? (
+            <div className="graph-panels mt-3" style={{ flex: 1 }}>
+              {/* Graph panel - fixed height from resize */}
+              <div
+                className={`graph-panel${isResizing ? ' resizing' : ''}`}
+                style={{ height: graphHeight, flexShrink: 0 }}
+              >
+                <CytoscapeViewer
+                  nodes={graphNodes}
+                  relationships={graphRels}
+                  onNodeClick={handleNodeClick}
+                  onNodeDoubleClick={handleNodeDoubleClick}
+                  onNodeContextMenu={handleNodeContextMenu}
+                  onEdgeContextMenu={handleEdgeContextMenu}
+                  fillHeight
+                  style={{ height: '100%' }}
+                />
+              </div>
+
+              <ResizeHandle
+                direction="vertical"
+                isDragging={isResizing}
+                onPointerDown={resizeHandleProps.onPointerDown}
               />
+
+              {/* Selected Node Info */}
+              {selectedNode && (
+                <SelectedNodeCard node={selectedNode} onClose={() => setSelectedNode(null)} />
+              )}
+
+              {/* Table panel - takes remaining space */}
+              <div style={{ flex: 1, minHeight: 150, overflow: 'auto' }}>
+                <Card style={{ height: '100%' }}>
+                  <Card.Header className="bg-body-tertiary py-2">
+                    <h6 className="mb-0">
+                      Results
+                      {result && (
+                        <small className="text-muted fw-normal ms-2">
+                          {result.metadata.resultCount} row{result.metadata.resultCount !== 1 ? 's' : ''}
+                          {' '}in {result.metadata.executionTimeMs}ms
+                        </small>
+                      )}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className={result ? 'p-0' : 'text-center py-4'}>
+                    {result ? (
+                      <ResultsTable result={result} isLoading={isLoading} />
+                    ) : isLoading ? (
+                      <ResultsTable result={null} isLoading={true} />
+                    ) : (
+                      <p className="text-muted mb-0">Run a query to see results here. Click a label in the schema to browse nodes.</p>
+                    )}
+                  </Card.Body>
+                </Card>
+              </div>
             </div>
-          )}
-
-          {/* Selected Node Info */}
-          {selectedNode && (
-            <Card className="mt-3 border">
-              <Card.Body className="py-2 px-3">
-                <div className="d-flex align-items-center justify-content-between">
-                  <div>
-                    <small className="text-muted me-2">Node {selectedNode.id}</small>
-                    {(selectedNode.labels ?? []).map(l => (
-                      <span key={l} className="badge bg-primary me-1">:{l}</span>
-                    ))}
+          ) : (
+            <>
+              {/* Graph only view */}
+              {showGraph && (
+                <div className="mt-3">
+                  <div
+                    className={`graph-panel${isResizing ? ' resizing' : ''}`}
+                    style={{ height: graphHeight, flexShrink: 0 }}
+                  >
+                    <CytoscapeViewer
+                      nodes={graphNodes}
+                      relationships={graphRels}
+                      onNodeClick={handleNodeClick}
+                      onNodeDoubleClick={handleNodeDoubleClick}
+                      onNodeContextMenu={handleNodeContextMenu}
+                      onEdgeContextMenu={handleEdgeContextMenu}
+                      fillHeight
+                      style={{ height: '100%' }}
+                    />
                   </div>
-                  <Button variant="link" size="sm" className="p-0 text-muted" onClick={() => setSelectedNode(null)}>
-                    Close
-                  </Button>
+                  <ResizeHandle
+                    direction="vertical"
+                    isDragging={isResizing}
+                    onPointerDown={resizeHandleProps.onPointerDown}
+                  />
                 </div>
-                <pre className="mb-0 mt-1 bg-body-tertiary rounded p-2" style={{ fontSize: '0.75rem', maxHeight: 120, overflow: 'auto' }}>
-                  {JSON.stringify(selectedNode.properties, null, 2)}
-                </pre>
-              </Card.Body>
-            </Card>
-          )}
+              )}
 
-          {/* Results Table */}
-          {(viewMode === 'table' || viewMode === 'split') && (
-            <Card className="mt-3">
-              <Card.Header className="bg-body-tertiary py-2">
-                <h6 className="mb-0">
-                  Results
-                  {result && (
-                    <small className="text-muted fw-normal ms-2">
-                      {result.metadata.resultCount} row{result.metadata.resultCount !== 1 ? 's' : ''}
-                      {' '}in {result.metadata.executionTimeMs}ms
-                    </small>
-                  )}
-                </h6>
-              </Card.Header>
-              <Card.Body className={result ? 'p-0' : 'text-center py-4'}>
-                {result ? (
-                  <ResultsTable result={result} isLoading={isLoading} />
-                ) : isLoading ? (
-                  <ResultsTable result={null} isLoading={true} />
-                ) : (
-                  <p className="text-muted mb-0">Run a query to see results here. Click a label in the schema to browse nodes.</p>
-                )}
-              </Card.Body>
-            </Card>
+              {/* Selected Node Info */}
+              {selectedNode && (
+                <SelectedNodeCard node={selectedNode} onClose={() => setSelectedNode(null)} />
+              )}
+
+              {/* Table only view */}
+              {showTable && (
+                <Card className="mt-3">
+                  <Card.Header className="bg-body-tertiary py-2">
+                    <h6 className="mb-0">
+                      Results
+                      {result && (
+                        <small className="text-muted fw-normal ms-2">
+                          {result.metadata.resultCount} row{result.metadata.resultCount !== 1 ? 's' : ''}
+                          {' '}in {result.metadata.executionTimeMs}ms
+                        </small>
+                      )}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className={result ? 'p-0' : 'text-center py-4'}>
+                    {result ? (
+                      <ResultsTable result={result} isLoading={isLoading} />
+                    ) : isLoading ? (
+                      <ResultsTable result={null} isLoading={true} />
+                    ) : (
+                      <p className="text-muted mb-0">Run a query to see results here. Click a label in the schema to browse nodes.</p>
+                    )}
+                  </Card.Body>
+                </Card>
+              )}
+            </>
           )}
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       <GraphContextMenu
         menu={contextMenu}
@@ -286,5 +389,48 @@ const GraphExplorer: React.FC = () => {
     </>
   );
 };
+
+/** Selected node info card with collapsible JSON tree and resizable height */
+function SelectedNodeCard({ node, onClose }: { node: GraphNode; onClose: () => void }) {
+  const {
+    size: cardHeight,
+    isDragging,
+    handleProps,
+  } = useResizable({
+    direction: 'vertical',
+    initialSize: 200,
+    minSize: 80,
+    maxSize: 600,
+    storageKey: 'orkestra:graph-explorer-node-card-height',
+  });
+
+  return (
+    <div className="mt-3" style={{ flexShrink: 0 }}>
+      <Card className="border">
+        <Card.Header className="py-2 px-3 bg-body-tertiary">
+          <div className="d-flex align-items-center justify-content-between">
+            <div>
+              <small className="text-muted me-2">Node {node.id}</small>
+              {(node.labels ?? []).map(l => (
+                <span key={l} className="badge bg-primary me-1">:{l}</span>
+              ))}
+            </div>
+            <Button variant="link" size="sm" className="p-0 text-muted" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </Card.Header>
+        <div style={{ height: cardHeight, overflow: 'auto', padding: '0.5rem', fontSize: '0.875rem', fontFamily: "'JetBrains Mono', 'Fira Code', 'Source Code Pro', Consolas, monospace" }}>
+          <JsonView data={node.properties} shouldExpandNode={(_level, _value, field) => field !== 'embedding'} style={darkStyles} />
+        </div>
+      </Card>
+      <ResizeHandle
+        direction="vertical"
+        isDragging={isDragging}
+        onPointerDown={handleProps.onPointerDown}
+      />
+    </div>
+  );
+}
 
 export default GraphExplorer;

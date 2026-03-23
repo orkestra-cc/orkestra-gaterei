@@ -50,6 +50,8 @@ interface CytoscapeViewerProps {
   layout?: LayoutName;
   className?: string;
   style?: React.CSSProperties;
+  /** When set, the canvas fills its container height instead of using minHeight */
+  fillHeight?: boolean;
 }
 
 function buildLabelColorMap(nodes: GraphNode[]): Map<string, string> {
@@ -244,7 +246,8 @@ export function CytoscapeViewer({
   onEdgeContextMenu,
   layout: layoutProp = 'fcose',
   className,
-  style
+  style,
+  fillHeight,
 }: CytoscapeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -315,6 +318,17 @@ export function CytoscapeViewer({
 
     cyRef.current = cy;
 
+    // Resize observer: re-render cytoscape when container dimensions change
+    let resizeRaf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        cy.resize();
+        cy.fit(undefined, 40);
+      });
+    });
+    if (containerRef.current) ro.observe(containerRef.current);
+
     // Also suppress contextmenu directly on every canvas Cytoscape created
     const canvases = containerRef.current.querySelectorAll('canvas');
     const canvasHandler = (e: Event) => {
@@ -369,6 +383,8 @@ export function CytoscapeViewer({
     return () => {
       cancelled = true;
       cancelAnimationFrame(layoutTimer);
+      cancelAnimationFrame(resizeRaf);
+      ro.disconnect();
       canvases.forEach((c) => c.removeEventListener('contextmenu', canvasHandler, true));
       cy.destroy();
       cyRef.current = null;
@@ -408,7 +424,7 @@ export function CytoscapeViewer({
   }, [layoutProp]);
 
   return (
-    <Card className={className} style={style}>
+    <Card className={className} style={{ ...(fillHeight ? { display: 'flex', flexDirection: 'column', height: '100%' } : {}), ...style }}>
       {/* Toolbar */}
       <Card.Header className="py-2">
         <Row className="align-items-center g-2">
@@ -454,13 +470,13 @@ export function CytoscapeViewer({
       </Card.Header>
 
       {/* Graph canvas */}
-      <Card.Body className="p-0 position-relative">
+      <Card.Body className="p-0 position-relative" style={fillHeight ? { flex: 1, minHeight: 0 } : undefined}>
         <div
           ref={setContainerRef}
           style={{
             width: '100%',
             height: '100%',
-            minHeight: 700
+            ...(fillHeight ? {} : { minHeight: 700 }),
           }}
         />
 

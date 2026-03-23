@@ -1,7 +1,7 @@
 
 import classNames from 'classnames';
 import { Link, LinkProps } from 'react-router';
-import logo from 'assets/img/logos/orkestra.png';
+import logo from 'assets/img/logos/orkestra-logo.webp';
 
 type LogoLocation = 'auth' | 'navbar-vertical' | 'navbar-top';
 
@@ -14,7 +14,7 @@ interface LogoProps extends Omit<LinkProps, 'to'> {
 
 const Logo: React.FC<LogoProps> = ({
   at = 'auth',
-  width = 150,
+  width = 350,
   className,
   textClass,
   ...rest
