@@ -11,10 +11,12 @@ handlers/
   └── query_handler.go      ← RAG query execution
 services/
   ├── model_service.go      ← Model management, provider factory, seeding
-  ├── ingestion_service.go  ← Full pipeline: extract → chunk → embed → graph
+  ├── ingestion_service.go  ← Full pipeline: extract → parse → chunk → embed → graph
   ├── query_service.go      ← Vector search → context expansion → LLM
-  ├── chunker.go            ← Text chunking with ISO heading detection
-  └── text_extractor.go     ← PDF/text extraction
+  ├── markdown_parser.go    ← Goldmark-based CommonMark AST → StructuralNode tree
+  ├── structural_parser.go  ← Regex-based parser for ISO/legal documents
+  ├── chunker.go            ← Text chunking respecting structural boundaries
+  └── text_extractor.go     ← PDF/text/markdown extraction
 providers/
   ├── embedding.go          ← EmbeddingProvider interface
   ├── llm.go                ← LLMProvider interface
@@ -110,8 +112,10 @@ Runs asynchronously in a background goroutine (17 steps):
 ```
 1.  Create MongoDB record (status: "pending")
 2.  Update status → "processing"
-3.  Extract text (TextExtractor: PDF or plain text)
-4.  Parse document structure (structural_parser.go: builds hierarchical tree)
+3.  Extract text (TextExtractor: PDF via Gotenberg, plain text/markdown as-is)
+4.  Parse document structure:
+    - Markdown (.md) → goldmark CommonMark AST → StructuralNode tree (markdown_parser.go)
+    - PDF/TXT        → regex-based line-by-line parser (structural_parser.go)
 5.  Chunk using structural boundaries (chunker.go: ChunkStructured)
 6.  Generate embeddings (EmbeddingProvider.Embed per chunk)
 7.  Create :RagDocument node in Memgraph
@@ -148,18 +152,28 @@ Runs asynchronously in a background goroutine (17 steps):
 (RagChunk)-[:SIMILAR_TO {similarity}]->(RagChunk)
 ```
 
-### Structural Chunking
+### Structural Parsing
 
-The chunker uses a two-phase approach:
+Two parsers produce the same `StructuralNode` tree — the downstream chunking, embedding, and graph creation pipeline is shared.
 
-**Phase 1 — Structure Detection** (`structural_parser.go`):
+**Markdown Parser** (`markdown_parser.go`) — used for `.md` files:
+- Uses **goldmark** (Go CommonMark reference implementation) to parse into a proper AST
+- Heading levels (`#` count) map to tree depth: `#` → clause (depth 1), `##`+ → subclause (depth 2+)
+- Extracts leading numbering from headings (e.g., `## 4.1 Understanding` → numbering `4.1`, title `Understanding`)
+- Handles: headings, paragraphs, fenced/indented code blocks (`code_block` node type), ordered/unordered/nested lists (`list_item`), blockquotes (`blockquote`), GFM tables (rendered as pipe-delimited text), thematic breaks, inline formatting (bold, italic, code spans, links, images)
+- Text before any heading becomes a "Preamble" node
+- Detects requirement language (SHALL/SHOULD/MAY) on all nodes
+
+**ISO/Legal Parser** (`structural_parser.go`) — used for `.pdf`, `.txt` files:
 - State-machine parser processes text line-by-line with ~15 regex patterns
 - Supports ISO standards (Clause, Section, Annex) AND Italian legal docs (TITOLO, CAPO, SEZIONE, Articolo)
 - Builds a hierarchical `StructuralNode` tree
 - Detects requirement language: SHALL/SHOULD/MAY (EN) + deve/dovrebbe/può (IT)
 - Extracts cross-references: "see 4.1.3", "Art. 12", "Annex A", etc.
 
-**Phase 2 — Tree → Chunks** (`chunker.go`):
+### Chunking
+
+**Tree → Chunks** (`chunker.go`):
 - Leaf-first: each leaf node becomes a chunk (128–1024 chars)
 - Merges small adjacent siblings under same parent
 - Splits oversized nodes at sentence boundaries

@@ -141,8 +141,13 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 	}
 
 	// Step 2: Parse document structure
-	s.logger.Info("parsing document structure", slog.String("uuid", docUUID), slog.Int("textLen", len(text)))
-	root := ParseDocumentStructure(text)
+	s.logger.Info("parsing document structure", slog.String("uuid", docUUID), slog.String("docType", docType), slog.Int("textLen", len(text)))
+	var root *StructuralNode
+	if docType == "md" {
+		root = ParseMarkdownStructure([]byte(text))
+	} else {
+		root = ParseDocumentStructure(text)
+	}
 
 	// Step 3: Chunk using structural boundaries
 	minChunkSize := 128

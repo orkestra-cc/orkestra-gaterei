@@ -11,7 +11,7 @@ import (
 // (clause, article, section, annex, definition, etc.)
 type StructuralNode struct {
 	UUID             string
-	NodeType         string // "document", "clause", "subclause", "article", "title", "chapter", "section", "paragraph", "annex", "note", "example", "terms_section", "definition", "list_item"
+	NodeType         string // "document", "clause", "subclause", "article", "title", "chapter", "section", "paragraph", "annex", "note", "example", "terms_section", "definition", "list_item", "code_block", "blockquote"
 	Numbering        string // "4.1.2", "Art. 12", "a)"
 	Title            string // "Context of the organization"
 	Depth            int    // 0=document root, 1=top-level section, 2=sub-section, ...
