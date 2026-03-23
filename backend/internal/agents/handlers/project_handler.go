@@ -88,3 +88,47 @@ func (h *ProjectHandler) UpdateFilters(ctx context.Context, req *models.UpdateFi
 	}
 	return &models.UpdateFiltersResponse{Body: *project}, nil
 }
+
+func (h *ProjectHandler) UpdateSettings(ctx context.Context, req *models.UpdateSettingsRequest) (*models.UpdateSettingsResponse, error) {
+	settings := &models.AgentSettings{}
+	if req.Body.SystemPrompt != nil {
+		settings.SystemPrompt = *req.Body.SystemPrompt
+	}
+	if req.Body.Directives != nil {
+		settings.Directives = req.Body.Directives
+	}
+	if req.Body.Skepticism != nil {
+		settings.Skepticism = *req.Body.Skepticism
+	}
+	if req.Body.Literalism != nil {
+		settings.Literalism = *req.Body.Literalism
+	}
+	if req.Body.Empathy != nil {
+		settings.Empathy = *req.Body.Empathy
+	}
+	if req.Body.MaxTokens != nil {
+		settings.MaxTokens = *req.Body.MaxTokens
+	}
+	if req.Body.Temperature != nil {
+		settings.Temperature = *req.Body.Temperature
+	}
+	if req.Body.Language != nil {
+		settings.Language = *req.Body.Language
+	}
+
+	project, err := h.projectService.UpdateSettings(ctx, req.UUID, settings)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to update settings", err)
+	}
+	return &models.UpdateSettingsResponse{Body: *project}, nil
+}
+
+func (h *ProjectHandler) GetSettings(ctx context.Context, req *models.GetSettingsRequest) (*models.GetSettingsResponse, error) {
+	project, err := h.projectService.GetProject(ctx, req.UUID)
+	if err != nil {
+		return nil, huma.Error404NotFound("Project not found", err)
+	}
+	resp := &models.GetSettingsResponse{}
+	resp.Body.Settings = project.Settings
+	return resp, nil
+}

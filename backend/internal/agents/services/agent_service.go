@@ -64,10 +64,11 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 	if !models.CanUsePersona(userRole, persona) {
 		return nil, fmt.Errorf("insufficient permissions to use persona %q with role %q", persona, userRole)
 	}
-	profile, ok := models.PersonaProfiles[persona]
+	baseProfile, ok := models.PersonaProfiles[persona]
 	if !ok {
 		return nil, fmt.Errorf("unknown persona: %s", persona)
 	}
+	profile := mergeProfile(baseProfile, project.Settings)
 
 	// 3. Get or create conversation
 	conversationID := req.Body.ConversationID
@@ -137,6 +138,7 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 	// 7. Reflect Phase — combine RAG context + persistent memory + persona directives
 	var answer string
 	var reflectTimeMs int64
+	var inputTokens, outputTokens, totalTokens int32
 
 	reflectCtx := s.buildReflectContext(profile, ragResult)
 
@@ -152,7 +154,6 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 			s.logger.Warn("Hindsight reflect failed, falling back to RAG answer",
 				slog.String("error", err.Error()),
 			)
-			// Fallback: use the RAG answer directly
 			if ragResult != nil {
 				answer = ragResult.Answer
 			} else {
@@ -160,6 +161,9 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 			}
 		} else {
 			answer = result.Text
+			inputTokens = result.InputTokens
+			outputTokens = result.OutputTokens
+			totalTokens = result.TotalTokens
 		}
 	} else if ragResult != nil {
 		answer = ragResult.Answer
@@ -175,6 +179,9 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 		RAGTimeMs:     ragTimeMs,
 		ReflectTimeMs: reflectTimeMs,
 		TotalTimeMs:   time.Since(totalStart).Milliseconds(),
+		InputTokens:   inputTokens,
+		OutputTokens:  outputTokens,
+		TotalTokens:   totalTokens,
 	}
 	if ragResult != nil {
 		meta.ChunksRetrieved = len(sources)
@@ -227,6 +234,43 @@ func (s *agentService) Query(ctx context.Context, req *models.AgentQueryRequest,
 	)
 
 	return resp, nil
+}
+
+// mergeProfile applies project-level settings on top of persona defaults.
+func mergeProfile(base models.PersonaProfile, settings *models.AgentSettings) models.PersonaProfile {
+	if settings == nil {
+		return base
+	}
+	merged := base
+
+	if settings.SystemPrompt != "" {
+		merged.SystemContext = settings.SystemPrompt
+	}
+	if len(settings.Directives) > 0 {
+		merged.Directives = append(merged.Directives, settings.Directives...)
+	}
+	if settings.Skepticism > 0 {
+		merged.Disposition.Skepticism = settings.Skepticism
+	}
+	if settings.Literalism > 0 {
+		merged.Disposition.Literalism = settings.Literalism
+	}
+	if settings.Empathy > 0 {
+		merged.Disposition.Empathy = settings.Empathy
+	}
+	if settings.MaxTokens > 0 {
+		merged.MaxTokens = settings.MaxTokens
+	}
+	if settings.Language != "" {
+		merged.Directives = append(merged.Directives, fmt.Sprintf("Always respond in %s", settings.Language))
+	}
+	if settings.Temperature == "precise" {
+		merged.Directives = append(merged.Directives, "Be precise and factual. Avoid speculation.")
+	} else if settings.Temperature == "creative" {
+		merged.Directives = append(merged.Directives, "Be creative and exploratory. Offer suggestions and alternatives.")
+	}
+
+	return merged
 }
 
 // buildReflectContext combines persona directives and RAG results into the context for Hindsight reflect.

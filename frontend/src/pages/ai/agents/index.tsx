@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Row,
@@ -11,6 +11,7 @@ import {
   Badge,
   Dropdown,
   Spinner,
+  Offcanvas,
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -22,6 +23,7 @@ import {
   faEllipsisV,
   faExclamationTriangle,
   faFileAlt,
+  faSlidersH,
 } from '@fortawesome/free-solid-svg-icons';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
@@ -32,9 +34,11 @@ import {
   useDeleteProjectMutation,
   useAddProjectDocumentsMutation,
   useRemoveProjectDocumentsMutation,
+  useGetProjectSettingsQuery,
+  useUpdateProjectSettingsMutation,
 } from '../../../store/api/agentsApi';
 import { useListDocumentsQuery } from '../../../store/api/ragApi';
-import type { AgentProject, CreateProjectRequest, UpdateProjectRequest } from '../../../types/agents';
+import type { AgentProject, AgentSettings, CreateProjectRequest, UpdateProjectRequest } from '../../../types/agents';
 
 // ---------------------------------------------------------------------------
 // Greetings Banner
@@ -338,6 +342,163 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
 }
 
 // ---------------------------------------------------------------------------
+// Agent Settings Panel (Offcanvas)
+// ---------------------------------------------------------------------------
+
+interface SettingsPanelProps {
+  show: boolean;
+  onHide: () => void;
+  project: AgentProject | null;
+}
+
+const DISPOSITION_LABELS: Record<string, { low: string; high: string }> = {
+  skepticism: { low: 'Trusting', high: 'Strict to docs' },
+  literalism: { low: 'Creative', high: 'Literal' },
+  empathy: { low: 'Detached', high: 'Helpful / warm' },
+};
+
+function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
+  const { data } = useGetProjectSettingsQuery(project?.uuid ?? '', { skip: !show || !project });
+  const [updateSettings, { isLoading: saving }] = useUpdateProjectSettingsMutation();
+
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [directives, setDirectives] = useState('');
+  const [skepticism, setSkepticism] = useState(0);
+  const [literalism, setLiteralism] = useState(0);
+  const [empathy, setEmpathy] = useState(0);
+  const [temperature, setTemperature] = useState('');
+  const [language, setLanguage] = useState('');
+
+  useEffect(() => {
+    if (!data?.settings) {
+      setSystemPrompt('');
+      setDirectives('');
+      setSkepticism(0);
+      setLiteralism(0);
+      setEmpathy(0);
+      setTemperature('');
+      setLanguage('');
+      return;
+    }
+    const s = data.settings;
+    setSystemPrompt(s.systemPrompt || '');
+    setDirectives((s.directives || []).join('\n'));
+    setSkepticism(s.skepticism || 0);
+    setLiteralism(s.literalism || 0);
+    setEmpathy(s.empathy || 0);
+    setTemperature(s.temperature || '');
+    setLanguage(s.language || '');
+  }, [data]);
+
+  const handleSave = useCallback(async () => {
+    if (!project) return;
+    const settings: Partial<AgentSettings> = {
+      systemPrompt: systemPrompt || undefined,
+      directives: directives.trim()
+        ? directives.split('\n').map((d) => d.trim()).filter(Boolean)
+        : undefined,
+      skepticism: skepticism || undefined,
+      literalism: literalism || undefined,
+      empathy: empathy || undefined,
+      temperature: (temperature as AgentSettings['temperature']) || undefined,
+      language: language || undefined,
+    };
+    try {
+      await updateSettings({ uuid: project.uuid, settings }).unwrap();
+      onHide();
+    } catch {
+      // Handled by RTK Query
+    }
+  }, [updateSettings, project, onHide, systemPrompt, directives, skepticism, literalism, empathy, temperature, language]);
+
+  const renderSlider = (label: string, value: number, setter: (v: number) => void, key: string) => (
+    <Form.Group className="mb-3" key={key}>
+      <div className="d-flex justify-content-between">
+        <Form.Label className="small mb-1">{label}</Form.Label>
+        <small className="text-muted">{value === 0 ? 'Default' : value}</small>
+      </div>
+      <Form.Range min={0} max={5} step={1} value={value} onChange={(e) => setter(Number(e.target.value))} />
+      <div className="d-flex justify-content-between">
+        <small className="text-muted">{DISPOSITION_LABELS[key]?.low}</small>
+        <small className="text-muted">{DISPOSITION_LABELS[key]?.high}</small>
+      </div>
+    </Form.Group>
+  );
+
+  return (
+    <Offcanvas show={show} onHide={onHide} placement="end" style={{ width: 380 }}>
+      <Offcanvas.Header closeButton>
+        <Offcanvas.Title>
+          <FontAwesomeIcon icon={faSlidersH} className="me-2" />
+          Agent Settings — {project?.name}
+        </Offcanvas.Title>
+      </Offcanvas.Header>
+      <Offcanvas.Body>
+        <Form.Group className="mb-3">
+          <Form.Label className="small fw-semibold">System Prompt</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={3}
+            size="sm"
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder="Custom instructions prepended to every query..."
+          />
+          <Form.Text className="text-muted">Overrides the persona's default context</Form.Text>
+        </Form.Group>
+
+        <Form.Group className="mb-3">
+          <Form.Label className="small fw-semibold">Extra Directives</Form.Label>
+          <Form.Control
+            as="textarea"
+            rows={3}
+            size="sm"
+            value={directives}
+            onChange={(e) => setDirectives(e.target.value)}
+            placeholder="One directive per line..."
+          />
+          <Form.Text className="text-muted">Added on top of persona directives</Form.Text>
+        </Form.Group>
+
+        <hr />
+        <p className="small fw-semibold mb-2">Disposition (0 = use persona default)</p>
+        {renderSlider('Skepticism', skepticism, setSkepticism, 'skepticism')}
+        {renderSlider('Literalism', literalism, setLiteralism, 'literalism')}
+        {renderSlider('Empathy', empathy, setEmpathy, 'empathy')}
+
+        <hr />
+        <Form.Group className="mb-3">
+          <Form.Label className="small fw-semibold">Response Style</Form.Label>
+          <Form.Select size="sm" value={temperature} onChange={(e) => setTemperature(e.target.value)}>
+            <option value="">Persona default</option>
+            <option value="precise">Precise — factual, no speculation</option>
+            <option value="balanced">Balanced</option>
+            <option value="creative">Creative — exploratory, suggests alternatives</option>
+          </Form.Select>
+        </Form.Group>
+
+        <Form.Group className="mb-3">
+          <Form.Label className="small fw-semibold">Response Language</Form.Label>
+          <Form.Select size="sm" value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <option value="">Auto (follow query language)</option>
+            <option value="en">English</option>
+            <option value="it">Italiano</option>
+            <option value="es">Espanol</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Francais</option>
+          </Form.Select>
+        </Form.Group>
+
+        <Button variant="primary" className="w-100" onClick={handleSave} disabled={saving}>
+          {saving ? <Spinner size="sm" className="me-1" /> : null}
+          Save Settings
+        </Button>
+      </Offcanvas.Body>
+    </Offcanvas>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Projects Table
 // ---------------------------------------------------------------------------
 
@@ -347,6 +508,7 @@ function ProjectsTable() {
   const [editingProject, setEditingProject] = useState<AgentProject | null>(null);
   const [deletingProject, setDeletingProject] = useState<AgentProject | null>(null);
   const [docsProject, setDocsProject] = useState<AgentProject | null>(null);
+  const [settingsProject, setSettingsProject] = useState<AgentProject | null>(null);
 
   const queryParams = statusFilter ? { status: statusFilter } : undefined;
   const { data, isLoading } = useListProjectsQuery(queryParams);
@@ -481,6 +643,10 @@ function ProjectsTable() {
                               <FontAwesomeIcon icon={faFileAlt} className="me-2" />
                               Documents
                             </Dropdown.Item>
+                            <Dropdown.Item onClick={() => setSettingsProject(project)}>
+                              <FontAwesomeIcon icon={faSlidersH} className="me-2" />
+                              Settings
+                            </Dropdown.Item>
                             <Dropdown.Item onClick={() => openEdit(project)}>
                               <FontAwesomeIcon icon={faEdit} className="me-2" />
                               Edit
@@ -521,6 +687,12 @@ function ProjectsTable() {
         show={!!docsProject}
         onHide={() => setDocsProject(null)}
         project={docsProject}
+      />
+
+      <SettingsPanel
+        show={!!settingsProject}
+        onHide={() => setSettingsProject(null)}
+        project={settingsProject}
       />
     </>
   );

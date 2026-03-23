@@ -114,14 +114,22 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
 
         {/* Metadata badge */}
         {!isUser && message.metadata?.totalTimeMs && (
-          <div className="mt-1">
+          <div className="mt-1 d-flex gap-3 flex-wrap">
             <small className="text-muted">
               <FontAwesomeIcon icon={faClock} className="me-1" size="xs" />
               {(message.metadata.totalTimeMs / 1000).toFixed(1)}s
-              {message.metadata.modelUsed && (
-                <span className="ms-2">{message.metadata.modelUsed}</span>
-              )}
             </small>
+            {message.metadata.totalTokens ? (
+              <small className="text-muted">
+                {message.metadata.totalTokens} tokens
+                <span className="ms-1 text-muted-50">
+                  ({message.metadata.inputTokens} in / {message.metadata.outputTokens} out)
+                </span>
+              </small>
+            ) : null}
+            {message.metadata.modelUsed && (
+              <small className="text-muted">{message.metadata.modelUsed}</small>
+            )}
           </div>
         )}
 

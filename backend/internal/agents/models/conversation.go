@@ -40,4 +40,8 @@ type MsgMeta struct {
 	TotalTimeMs     int64  `bson:"totalTimeMs,omitempty" json:"totalTimeMs,omitempty"`
 	ChunksRetrieved int    `bson:"chunksRetrieved,omitempty" json:"chunksRetrieved,omitempty"`
 	ModelUsed       string `bson:"modelUsed,omitempty" json:"modelUsed,omitempty"`
+	// Token usage from Hindsight reflect
+	InputTokens  int32 `bson:"inputTokens,omitempty" json:"inputTokens,omitempty"`
+	OutputTokens int32 `bson:"outputTokens,omitempty" json:"outputTokens,omitempty"`
+	TotalTokens  int32 `bson:"totalTokens,omitempty" json:"totalTokens,omitempty"`
 }

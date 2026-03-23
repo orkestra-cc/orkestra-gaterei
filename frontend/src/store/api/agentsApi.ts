@@ -4,6 +4,7 @@ import type {
   AgentConversation,
   AgentQueryResponse,
   AgentQueryRequest,
+  AgentSettings,
   CreateProjectRequest,
   UpdateProjectRequest,
 } from '../../types/agents';
@@ -131,6 +132,25 @@ export const agentsApi = baseApi.injectEndpoints({
 
     // --- Admin ---
 
+    // --- Settings ---
+
+    getProjectSettings: builder.query<{ settings: AgentSettings | null }, string>({
+      query: (uuid) => `/v1/agents/projects/${uuid}/settings`,
+      providesTags: (_result, _err, uuid) => [{ type: 'AgentProject', id: `settings-${uuid}` }],
+    }),
+
+    updateProjectSettings: builder.mutation<AgentProject, { uuid: string; settings: Partial<AgentSettings> }>({
+      query: ({ uuid, settings }) => ({
+        url: `/v1/agents/projects/${uuid}/settings`,
+        method: 'PATCH',
+        body: settings,
+      }),
+      invalidatesTags: (_result, _err, { uuid }) => [
+        { type: 'AgentProject', id: uuid },
+        { type: 'AgentProject', id: `settings-${uuid}` },
+      ],
+    }),
+
     agentHealthCheck: builder.query<{ hindsight: string }, void>({
       query: () => '/v1/agents/health',
     }),
@@ -151,5 +171,7 @@ export const {
   useListConversationsQuery,
   useGetConversationQuery,
   useDeleteConversationMutation,
+  useGetProjectSettingsQuery,
+  useUpdateProjectSettingsMutation,
   useAgentHealthCheckQuery,
 } = agentsApi;

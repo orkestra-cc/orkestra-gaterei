@@ -91,6 +91,36 @@ type UpdateFiltersResponse struct {
 	Body Project
 }
 
+// --- Agent Settings DTOs ---
+
+type UpdateSettingsRequest struct {
+	UUID string `path:"uuid" doc:"Project UUID"`
+	Body struct {
+		SystemPrompt *string  `json:"systemPrompt,omitempty" doc:"Custom system prompt prepended to every query"`
+		Directives   []string `json:"directives,omitempty" doc:"Extra directives merged with persona defaults"`
+		Skepticism   *int32   `json:"skepticism,omitempty" doc:"1=trusting, 5=strict to docs (0=persona default)"`
+		Literalism   *int32   `json:"literalism,omitempty" doc:"1=creative, 5=strictly literal (0=persona default)"`
+		Empathy      *int32   `json:"empathy,omitempty" doc:"1=detached, 5=helpful/warm (0=persona default)"`
+		MaxTokens    *int32   `json:"maxTokens,omitempty" doc:"Max response tokens (0=persona default)"`
+		Temperature  *string  `json:"temperature,omitempty" doc:"Response style: precise, balanced, creative"`
+		Language     *string  `json:"language,omitempty" doc:"Force response language (e.g. en, it)"`
+	}
+}
+
+type UpdateSettingsResponse struct {
+	Body Project
+}
+
+type GetSettingsRequest struct {
+	UUID string `path:"uuid" doc:"Project UUID"`
+}
+
+type GetSettingsResponse struct {
+	Body struct {
+		Settings *AgentSettings `json:"settings" doc:"Current agent settings"`
+	}
+}
+
 // --- Agent Query DTOs ---
 
 type AgentQueryRequest struct {

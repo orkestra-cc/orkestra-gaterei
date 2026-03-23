@@ -21,6 +21,7 @@ type ProjectService interface {
 	AddDocuments(ctx context.Context, uuid string, documentUUIDs []string) (*models.Project, error)
 	RemoveDocuments(ctx context.Context, uuid string, documentUUIDs []string) (*models.Project, error)
 	UpdateFilters(ctx context.Context, uuid string, isoStandards, categories []string) (*models.Project, error)
+	UpdateSettings(ctx context.Context, uuid string, settings *models.AgentSettings) (*models.Project, error)
 }
 
 type projectService struct {
@@ -196,4 +197,8 @@ func (s *projectService) UpdateFilters(ctx context.Context, uuid string, isoStan
 		return s.repo.GetByUUID(ctx, uuid)
 	}
 	return s.repo.Update(ctx, uuid, update)
+}
+
+func (s *projectService) UpdateSettings(ctx context.Context, uuid string, settings *models.AgentSettings) (*models.Project, error) {
+	return s.repo.Update(ctx, uuid, bson.M{"settings": settings})
 }

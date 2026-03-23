@@ -89,6 +89,26 @@ func RegisterProjectRoutes(api huma.API, handler *handlers.ProjectHandler) {
 		Tags:        []string{"Agent Projects"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.UpdateFilters)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-agent-project-settings",
+		Method:      http.MethodPatch,
+		Path:        "/v1/agents/projects/{uuid}/settings",
+		Summary:     "Update agent settings",
+		Description: "Tune agent behavior: system prompt, directives, disposition traits, response style, and language.",
+		Tags:        []string{"Agent Projects"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.UpdateSettings)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-agent-project-settings",
+		Method:      http.MethodGet,
+		Path:        "/v1/agents/projects/{uuid}/settings",
+		Summary:     "Get agent settings",
+		Description: "Returns the current agent behavior settings for a project.",
+		Tags:        []string{"Agent Projects"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.GetSettings)
 }
 
 // RegisterQueryRoutes registers agent query and conversation routes (requires operator role)

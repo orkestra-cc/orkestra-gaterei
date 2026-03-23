@@ -64,7 +64,17 @@ type RecallMemory struct {
 
 // ReflectResult holds the synthesized answer from Hindsight reflect
 type ReflectResult struct {
-	Text string
+	Text         string
+	InputTokens  int32
+	OutputTokens int32
+	TotalTokens  int32
+}
+
+// TokenUsageInfo holds token counts from a Hindsight operation
+type TokenUsageInfo struct {
+	InputTokens  int32
+	OutputTokens int32
+	TotalTokens  int32
 }
 
 type hindsightClient struct {
@@ -203,7 +213,20 @@ func (c *hindsightClient) Reflect(ctx context.Context, bankID, query, extraConte
 	if err != nil {
 		return nil, fmt.Errorf("reflect from bank %s: %w", bankID, err)
 	}
-	return &ReflectResult{Text: resp.Text}, nil
+
+	result := &ReflectResult{Text: resp.Text}
+	if usage, ok := resp.GetUsageOk(); ok && usage != nil {
+		if v := usage.InputTokens; v != nil {
+			result.InputTokens = *v
+		}
+		if v := usage.OutputTokens; v != nil {
+			result.OutputTokens = *v
+		}
+		if v := usage.TotalTokens; v != nil {
+			result.TotalTokens = *v
+		}
+	}
+	return result, nil
 }
 
 func (c *hindsightClient) HealthCheck(ctx context.Context) error {

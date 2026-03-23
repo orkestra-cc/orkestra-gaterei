@@ -64,6 +64,9 @@ export interface AgentMsgMeta {
   totalTimeMs?: number;
   chunksRetrieved?: number;
   modelUsed?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
 }
 
 // --- Query Types ---
@@ -82,6 +85,19 @@ export interface AgentQueryResponse {
   sources: AgentSource[];
   conversationId: string;
   metadata: AgentMsgMeta;
+}
+
+// --- Agent Settings ---
+
+export interface AgentSettings {
+  systemPrompt?: string;
+  directives?: string[];
+  skepticism?: number;  // 1-5, 0=default
+  literalism?: number;  // 1-5, 0=default
+  empathy?: number;     // 1-5, 0=default
+  maxTokens?: number;   // 0=default
+  temperature?: 'precise' | 'balanced' | 'creative';
+  language?: string;    // e.g. "en", "it"
 }
 
 // --- Persona Types ---
