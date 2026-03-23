@@ -17,6 +17,7 @@ interface CypherEditorProps {
   readOnly?: boolean;
   onReadOnlyChange?: (readOnly: boolean) => void;
   defaultValue?: string;
+  externalQuery?: string;
 }
 
 function loadHistory(): string[] {
@@ -48,6 +49,7 @@ const CypherEditor = ({
   readOnly = false,
   onReadOnlyChange,
   defaultValue = '',
+  externalQuery,
 }: CypherEditorProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [query, setQuery] = useState(defaultValue);
@@ -96,6 +98,13 @@ const CypherEditor = ({
     },
     [handleExecute]
   );
+
+  // Sync textarea when a query is triggered externally (e.g., sidebar click)
+  useEffect(() => {
+    if (externalQuery !== undefined && externalQuery !== '') {
+      setQuery(externalQuery);
+    }
+  }, [externalQuery]);
 
   // Auto-resize textarea based on content
   useEffect(() => {

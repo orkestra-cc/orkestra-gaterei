@@ -19,9 +19,11 @@ const SPLIT_HEIGHT_STORAGE_KEY = 'orkestra:graph-explorer-split-height';
 
 const GraphExplorer: React.FC = () => {
   const [database, setDatabase] = useState<string>('');
+  const [selectedDocumentUuid, setSelectedDocumentUuid] = useState<string>('');
   const [result, setResult] = useState<QueryResult | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [readOnly, setReadOnly] = useState(true);
+  const [lastSidebarQuery, setLastSidebarQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
     return stored === null ? true : stored === 'true';
@@ -100,15 +102,41 @@ const GraphExplorer: React.FC = () => {
   }, [fetchNeighbors, database, result]);
 
   const handleLabelClick = useCallback((label: string) => {
-    handleExecute(`MATCH (n:\`${label}\`) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`);
-  }, [handleExecute]);
+    let cypher: string;
+    let params: Record<string, unknown> | undefined;
+    if (!selectedDocumentUuid) {
+      cypher = `MATCH (n:\`${label}\`) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
+    } else if (label === 'RagDocument') {
+      cypher = 'MATCH (n:`RagDocument` {uuid: $docUuid}) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100';
+      params = { docUuid: selectedDocumentUuid };
+    } else {
+      cypher = `MATCH (n:\`${label}\`) WHERE n.documentUuid = $docUuid OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
+      params = { docUuid: selectedDocumentUuid };
+    }
+    setLastSidebarQuery(cypher);
+    handleExecute(cypher, params);
+  }, [handleExecute, selectedDocumentUuid]);
 
   const handleRelTypeClick = useCallback((type: string) => {
-    handleExecute(`MATCH (a)-[r:\`${type}\`]->(b) RETURN a, r, b LIMIT 100`);
-  }, [handleExecute]);
+    let cypher: string;
+    let params: Record<string, unknown> | undefined;
+    if (!selectedDocumentUuid) {
+      cypher = `MATCH (a)-[r:\`${type}\`]->(b) RETURN a, r, b LIMIT 100`;
+    } else {
+      cypher = `MATCH (a)-[r:\`${type}\`]->(b) WHERE a.documentUuid = $docUuid OR a.uuid = $docUuid RETURN a, r, b LIMIT 100`;
+      params = { docUuid: selectedDocumentUuid };
+    }
+    setLastSidebarQuery(cypher);
+    handleExecute(cypher, params);
+  }, [handleExecute, selectedDocumentUuid]);
 
   const handleDatabaseChange = useCallback((db: string) => {
     setDatabase(db);
+    setResult(null);
+  }, []);
+
+  const handleDocumentChange = useCallback((docUuid: string) => {
+    setSelectedDocumentUuid(docUuid);
     setResult(null);
   }, []);
 
@@ -229,7 +257,9 @@ const GraphExplorer: React.FC = () => {
               <Card.Body className="p-0">
                 <SchemaPanel
                   database={database}
+                  selectedDocumentUuid={selectedDocumentUuid}
                   onDatabaseChange={handleDatabaseChange}
+                  onDocumentChange={handleDocumentChange}
                   onLabelClick={handleLabelClick}
                   onRelTypeClick={handleRelTypeClick}
                 />
@@ -257,6 +287,7 @@ const GraphExplorer: React.FC = () => {
             readOnly={readOnly}
             onReadOnlyChange={setReadOnly}
             defaultValue="MATCH (n) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100"
+            externalQuery={lastSidebarQuery}
           />
 
           {/* Split view: graph + resize handle + table */}

@@ -10,6 +10,7 @@ import {
   useGetSchemaQuery,
   useListDatabasesQuery,
 } from '../../../store/api/graphApi';
+import { useListDocumentsQuery } from '../../../store/api/ragApi';
 import type {
   LabelInfo,
   RelTypeInfo,
@@ -19,9 +20,11 @@ import type {
 
 interface SchemaPanelProps {
   database?: string;
+  selectedDocumentUuid?: string;
   onLabelClick?: (label: string) => void;
   onRelTypeClick?: (type: string) => void;
   onDatabaseChange?: (database: string) => void;
+  onDocumentChange?: (documentUuid: string) => void;
 }
 
 function LabelItem({ label, onClick }: { label: LabelInfo; onClick?: (name: string) => void }) {
@@ -162,15 +165,19 @@ function ConstraintItem({ constraint }: { constraint: ConstraintInfo }) {
 
 const SchemaPanel = ({
   database,
+  selectedDocumentUuid,
   onLabelClick,
   onRelTypeClick,
   onDatabaseChange,
+  onDocumentChange,
 }: SchemaPanelProps) => {
   const { data: schema, isLoading, error } = useGetSchemaQuery(
     database ? { database } : {},
     { pollingInterval: 15000 }
   );
   const { data: dbData } = useListDatabasesQuery();
+  const { data: docsData } = useListDocumentsQuery({ status: 'completed' });
+  const completedDocs = docsData?.documents ?? [];
 
   if (isLoading) {
     return (
@@ -221,6 +228,25 @@ const SchemaPanel = ({
           </Form.Select>
         </div>
       )}
+
+      {/* Document filter */}
+      <div className="px-3 py-2 border-bottom">
+        <Form.Label className="fs-10 mb-1 text-muted">Document scope</Form.Label>
+        <Form.Select
+          size="sm"
+          value={selectedDocumentUuid ?? ''}
+          onChange={(e) => onDocumentChange?.(e.target.value)}
+          className="fs-10"
+        >
+          <option value="">All documents</option>
+          {completedDocs.map((doc) => (
+            <option key={doc.uuid} value={doc.uuid}>
+              {doc.title}
+              {doc.isoStandard ? ` (${doc.isoStandard})` : ''}
+            </option>
+          ))}
+        </Form.Select>
+      </div>
 
       {/* Summary badges */}
       <div className="d-flex gap-2 px-3 py-2 border-bottom">
