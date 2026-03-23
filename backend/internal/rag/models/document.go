@@ -21,6 +21,7 @@ type RagDocument struct {
 	Error            string             `bson:"error,omitempty" json:"error,omitempty"`
 	ChunkCount       int                `bson:"chunkCount" json:"chunkCount"`
 	ModelUUID        string             `bson:"modelUuid" json:"modelUuid"`
+	LLMModelName     string             `bson:"llmModelName,omitempty" json:"llmModelName,omitempty"`
 	ChunkSize        int                `bson:"chunkSize" json:"chunkSize"`
 	ChunkOverlap     int                `bson:"chunkOverlap" json:"chunkOverlap"`
 	CreatedAt        time.Time          `bson:"createdAt" json:"createdAt"`

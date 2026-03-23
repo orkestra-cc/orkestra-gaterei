@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	aimodelsProviders "github.com/orkestra/backend/internal/aimodels/providers"
 	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	"github.com/orkestra/backend/internal/rag/models"
 	"github.com/orkestra/backend/internal/rag/repository"
@@ -17,7 +18,7 @@ import (
 
 // IngestionService manages document ingestion into the knowledge graph
 type IngestionService interface {
-	IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int) (*models.RagDocument, error)
+	IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int, llmModelUUID string) (*models.RagDocument, error)
 	ListDocuments(ctx context.Context, status, isoStandard string) ([]models.RagDocument, error)
 	GetDocument(ctx context.Context, uuid string) (*models.RagDocument, error)
 	UpdateDocument(ctx context.Context, uuid string, title, isoStandard, version *string) (*models.RagDocument, error)
@@ -62,7 +63,7 @@ func NewIngestionService(
 	}
 }
 
-func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int) (*models.RagDocument, error) {
+func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName string, fileData []byte, isoStandard, version, documentCategory string, chunkSize, chunkOverlap int, llmModelUUID string) (*models.RagDocument, error) {
 	if chunkSize <= 0 {
 		chunkSize = s.defaultChunk
 	}
@@ -82,6 +83,19 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 		return nil, fmt.Errorf("no default embedding model configured: %w", err)
 	}
 
+	// Resolve LLM model name for contextual enrichment (best-effort)
+	llmModelName := ""
+	if llmModelUUID != "" {
+		if p, err := s.modelProvider.GetLLMProvider(ctx, llmModelUUID); err == nil {
+			llmModelName = p.ModelName()
+		}
+	}
+	if llmModelName == "" {
+		if p, err := s.modelProvider.GetDefaultLLMProvider(ctx); err == nil {
+			llmModelName = p.ModelName()
+		}
+	}
+
 	// Create document record
 	doc := &models.RagDocument{
 		UUID:             uuid.New().String(),
@@ -96,6 +110,7 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 		ChunkSize:        chunkSize,
 		ChunkOverlap:     chunkOverlap,
 		ModelUUID:        "",
+		LLMModelName:     llmModelName,
 	}
 
 	if err := s.docRepo.Create(ctx, doc); err != nil {
@@ -110,7 +125,7 @@ func (s *ingestionService) IngestDocument(ctx context.Context, title, fileName s
 	)
 
 	// Process in background goroutine
-	go s.processDocument(doc.UUID, fileData, ext, chunkSize, embProvider)
+	go s.processDocument(doc.UUID, fileData, ext, chunkSize, embProvider, llmModelUUID)
 
 	return doc, nil
 }
@@ -121,8 +136,8 @@ type embeddingProvider interface {
 	ModelName() string
 }
 
-func (s *ingestionService) processDocument(docUUID string, fileData []byte, docType string, maxChunkSize int, embProvider embeddingProvider) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+func (s *ingestionService) processDocument(docUUID string, fileData []byte, docType string, maxChunkSize int, embProvider embeddingProvider, llmModelUUID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	_ = s.docRepo.UpdateStatus(ctx, docUUID, "processing", "")
@@ -163,10 +178,40 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		slog.Int("sections", len(CollectSections(root))),
 	)
 
+	// Step 3.5: Contextual Retrieval — generate LLM context prefix for each chunk
+	// This enriches the embedding with document context without changing the stored text.
+	var contextPrefixes []string
+	var llmProvider aimodelsProviders.LLMProvider
+	// Use specified LLM model, or fall back to default
+	if llmModelUUID != "" {
+		llmProvider, _ = s.modelProvider.GetLLMProvider(ctx, llmModelUUID)
+	}
+	if llmProvider == nil {
+		llmProvider, _ = s.modelProvider.GetDefaultLLMProvider(ctx)
+	}
+	if llmProvider != nil {
+		doc, _ := s.docRepo.GetByUUID(ctx, docUUID)
+		docTitle := ""
+		isoStd := ""
+		if doc != nil {
+			docTitle = doc.Title
+			isoStd = doc.ISOStandard
+		}
+		outline := BuildDocumentOutline(root)
+		contextPrefixes = GenerateChunkContexts(ctx, llmProvider, docTitle, isoStd, outline, chunks, s.logger)
+	} else {
+		s.logger.Info("skipping contextual enrichment (no LLM configured)", slog.String("uuid", docUUID))
+	}
+
 	// Step 4: Generate embeddings for all chunks
+	// Use contextualized text for embedding (context + chunk) but store raw text in graph.
 	embeddings := make([][]float64, len(chunks))
 	for i, chunk := range chunks {
-		emb, err := embProvider.Embed(ctx, chunk.Text)
+		textToEmbed := chunk.Text
+		if i < len(contextPrefixes) && contextPrefixes[i] != "" {
+			textToEmbed = contextPrefixes[i] + "\n\n" + chunk.Text
+		}
+		emb, err := embProvider.Embed(ctx, textToEmbed)
 		if err != nil {
 			s.failDocument(ctx, docUUID, fmt.Sprintf("embedding failed for chunk %d: %v", i, err))
 			return
@@ -294,6 +339,11 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 		chunkUUID := uuid.New().String()
 		chunkUUIDs[i] = chunkUUID
 
+		ctxPrefix := ""
+		if i < len(contextPrefixes) {
+			ctxPrefix = contextPrefixes[i]
+		}
+
 		_, err := s.graphRepo.ExecuteWrite(ctx, "", `
 			CREATE (c:RagChunk {
 				uuid: $chunkUuid,
@@ -306,6 +356,7 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 				requirementLevel: $reqLevel,
 				depth: $depth,
 				sectionUuid: $sectionUuid,
+				contextPrefix: $ctxPrefix,
 				embedding: $embedding
 			})
 		`, map[string]interface{}{
@@ -319,6 +370,7 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 			"reqLevel":    chunk.RequirementLevel,
 			"depth":       chunk.Depth,
 			"sectionUuid": chunk.SectionUUID,
+			"ctxPrefix":   ctxPrefix,
 			"embedding":   embeddings[i],
 		})
 		if err != nil {

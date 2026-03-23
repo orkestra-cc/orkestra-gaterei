@@ -243,6 +243,7 @@ const SchemaPanel = ({
             <option key={doc.uuid} value={doc.uuid}>
               {doc.title}
               {doc.isoStandard ? ` (${doc.isoStandard})` : ''}
+              {doc.llmModelName ? ` [${doc.llmModelName}]` : ''}
             </option>
           ))}
         </Form.Select>

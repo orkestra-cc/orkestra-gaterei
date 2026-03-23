@@ -13,6 +13,7 @@ export interface RagDocument {
   error?: string;
   chunkCount: number;
   modelUuid: string;
+  llmModelName?: string;
   chunkSize: number;
   chunkOverlap: number;
   createdAt: string;

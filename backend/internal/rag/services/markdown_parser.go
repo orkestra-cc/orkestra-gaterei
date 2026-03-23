@@ -29,6 +29,9 @@ func ParseMarkdownStructure(source []byte) *StructuralNode {
 		return root
 	}
 
+	// Clean boilerplate before parsing (copyright, licensing, page headers, etc.)
+	source = cleanMarkdownSource(source)
+
 	// Parse with GFM extensions (tables, strikethrough, etc.)
 	md := goldmark.New(goldmark.WithExtensions(gmext.Table))
 	reader := text.NewReader(source)
@@ -81,6 +84,48 @@ func processMarkdownBlock(node ast.Node, source []byte, root, currentParent *Str
 			}
 			root.Children = append(root.Children, preamble)
 			currentParent = preamble
+		} else if m := subclauseInParagraphRe.FindStringSubmatch(txt); m != nil {
+			// Numbered sub-clause without heading marker (e.g., "4.4.1 The organization shall...")
+			numbering := m[1]
+			rest := m[2]
+
+			// Depth from dot count: "4.4.1" has 2 dots → depth 3
+			depth := strings.Count(numbering, ".") + 1
+
+			node := &StructuralNode{
+				UUID:      uuid.New().String(),
+				NodeType:  "subclause",
+				Numbering: numbering,
+				Depth:     depth,
+				Text:      rest,
+			}
+
+			parent := findParent(root, currentParent, depth)
+			node.Parent = parent
+			node.Position = len(parent.Children)
+			parent.Children = append(parent.Children, node)
+			currentParent = node
+		} else if m := noteInParagraphRe.FindStringSubmatch(txt); m != nil {
+			// NOTE or EXAMPLE line → child node of current parent
+			noteType := strings.ToLower(m[1]) // "note" or "example"
+			noteNum := m[2]
+			noteText := m[3]
+
+			title := strings.ToUpper(noteType[:1]) + noteType[1:]
+			if noteNum != "" {
+				title += " " + noteNum
+			}
+
+			noteNode := &StructuralNode{
+				UUID:     uuid.New().String(),
+				NodeType: noteType,
+				Title:    title,
+				Text:     noteText,
+				Depth:    currentParent.Depth + 1,
+				Parent:   currentParent,
+				Position: len(currentParent.Children),
+			}
+			currentParent.Children = append(currentParent.Children, noteNode)
 		} else {
 			appendText(currentParent, txt)
 		}
@@ -181,6 +226,69 @@ func processHeading(heading *ast.Heading, source []byte, root, currentParent *St
 // numberingInHeadingRe matches an optional leading dotted number like "4.1.2" or "4"
 // followed by the rest of the heading title.
 var numberingInHeadingRe = regexp.MustCompile(`^(\d+(?:\.\d+)*)\s+(.+)$`)
+
+// subclauseInParagraphRe matches paragraphs starting with a multi-level numbered
+// clause like "4.4.1 The organization shall..." (must have at least one dot).
+var subclauseInParagraphRe = regexp.MustCompile(`^(\d+(?:\.\d+)+)\s+(.*)`)
+
+// noteInParagraphRe matches NOTE/EXAMPLE lines at the start of a paragraph.
+var noteInParagraphRe = regexp.MustCompile(`^(NOTE|EXAMPLE)\s*(\d*)\s+(.*)`)
+
+// --- Boilerplate cleaning ---
+
+// Patterns for lines to strip from MistralOCR (and similar) output.
+var (
+	copyrightLineRe  = regexp.MustCompile(`(?i)^©\s*ISO\s+\d{4}`)
+	licensingLineRe  = regexp.MustCompile(`(?i)^Licensed to .+prohibited\.?$`)
+	pageHeaderLineRe = regexp.MustCompile(`^ISO\s+\d+-?\d*:\d{4}\([A-Z]+\)\s*$`)
+	imageRefLineRe   = regexp.MustCompile(`^!\[.*?\]\(.*?\)\s*$`)
+)
+
+// cleanMarkdownSource removes boilerplate lines (copyright, licensing, page
+// headers, image refs) and the Table of Contents block from OCR-converted
+// markdown before parsing.
+func cleanMarkdownSource(source []byte) []byte {
+	lines := strings.Split(string(source), "\n")
+	var cleaned []string
+	inTOC := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Detect and skip Table of Contents block
+		if strings.HasPrefix(trimmed, "# Contents") || strings.HasPrefix(trimmed, "## Contents") {
+			inTOC = true
+			continue
+		}
+		if inTOC {
+			// End TOC when we hit the next heading (that isn't part of TOC)
+			if strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## ") {
+				inTOC = false
+				// Fall through to process this heading normally
+			} else {
+				continue
+			}
+		}
+
+		// Skip boilerplate lines
+		if copyrightLineRe.MatchString(trimmed) {
+			continue
+		}
+		if licensingLineRe.MatchString(trimmed) {
+			continue
+		}
+		if pageHeaderLineRe.MatchString(trimmed) {
+			continue
+		}
+		if imageRefLineRe.MatchString(trimmed) {
+			continue
+		}
+
+		cleaned = append(cleaned, line)
+	}
+
+	return []byte(strings.Join(cleaned, "\n"))
+}
 
 // processListNode processes a goldmark List, creating list_item children on the parent.
 func processListNode(list *ast.List, source []byte, parent *StructuralNode) {

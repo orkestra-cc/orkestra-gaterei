@@ -74,6 +74,27 @@ func ChunkStructured(root *StructuralNode, maxSize, minSize int) []StructuredChu
 			return
 		}
 
+		// If a node has introductory text and all children are list items or notes,
+		// try to keep them together as a single chunk (e.g., "The organization shall: a) ... b) ...").
+		if allChildrenAreLeafItems(node) {
+			combined := buildNodeWithChildrenText(node)
+			if strings.TrimSpace(combined) != "" && len(combined) <= maxSize {
+				fullPath := BuildFullPath(node)
+				chunks = append(chunks, StructuredChunk{
+					Text:             combined,
+					Position:         position,
+					NodeType:         effectiveNodeType(node),
+					Numbering:        node.Numbering,
+					FullPath:         fullPath,
+					RequirementLevel: DetectRequirementLevel(combined),
+					Depth:            node.Depth,
+					SectionUUID:      node.UUID,
+				})
+				position++
+				return
+			}
+		}
+
 		// Non-leaf node: emit own text (if any) as chunk, then process children
 		if text := strings.TrimSpace(node.Text); text != "" {
 			fullPath := BuildFullPath(node)
@@ -318,4 +339,44 @@ func findSentenceBoundary(text string, maxLen int) int {
 	}
 
 	return lastBoundary
+}
+
+// allChildrenAreLeafItems returns true if a node has children and every child
+// is a leaf (no grandchildren) with a type like list_item, note, or example.
+func allChildrenAreLeafItems(node *StructuralNode) bool {
+	if len(node.Children) == 0 {
+		return false
+	}
+	for _, child := range node.Children {
+		if len(child.Children) > 0 {
+			return false
+		}
+		switch child.NodeType {
+		case "list_item", "note", "example":
+			// ok
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// buildNodeWithChildrenText combines a node's own text with all its children's
+// text to produce a single combined string (parent intro + list items).
+func buildNodeWithChildrenText(node *StructuralNode) string {
+	var sb strings.Builder
+	heading := buildNodeText(node)
+	if heading != "" {
+		sb.WriteString(heading)
+	}
+	for _, child := range node.Children {
+		childText := buildNodeText(child)
+		if childText != "" {
+			if sb.Len() > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(childText)
+		}
+	}
+	return sb.String()
 }

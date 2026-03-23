@@ -14,6 +14,7 @@ import {
   useGetDocumentChunksQuery,
   useDeleteDocumentMutation,
 } from '../../../store/api/ragApi';
+import { useListAIModelsQuery } from '../../../store/api/aiModelsApi';
 import type { RagDocument } from '../../../types/rag';
 
 const statusColors: Record<string, string> = {
@@ -42,14 +43,18 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
   const [iso, setIso] = useState('');
   const [version, setVersion] = useState('');
   const [category, setCategory] = useState('');
+  const [llmModel, setLlmModel] = useState('');
   const [error, setError] = useState('');
   const [uploadDocument, { isLoading }] = useUploadDocumentMutation();
+  const { data: modelsData } = useListAIModelsQuery({ type: 'llm' });
+  const llmModels = modelsData?.models?.filter(m => m.isActive) ?? [];
 
   const reset = () => {
     setTitle('');
     setIso('');
     setVersion('');
     setCategory('');
+    setLlmModel('');
     setError('');
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -66,6 +71,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
     if (iso) formData.append('isoStandard', iso);
     if (version) formData.append('version', version);
     if (category) formData.append('documentCategory', category);
+    if (llmModel) formData.append('llmModelUuid', llmModel);
 
     try {
       await uploadDocument(formData).unwrap();
@@ -105,7 +111,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
             </Form.Group>
           </Col>
         </Row>
-        <Form.Group>
+        <Form.Group className="mb-3">
           <Form.Label className="small">Document Category</Form.Label>
           <Form.Select size="sm" value={category} onChange={e => setCategory(e.target.value)}>
             <option value="">Auto-detect</option>
@@ -114,6 +120,20 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide }) => {
             <option value="regulation">Regulation</option>
             <option value="generic">Generic Document</option>
           </Form.Select>
+        </Form.Group>
+        <Form.Group>
+          <Form.Label className="small">LLM for Contextual Enrichment</Form.Label>
+          <Form.Select size="sm" value={llmModel} onChange={e => setLlmModel(e.target.value)}>
+            <option value="">Default model</option>
+            {llmModels.map(m => (
+              <option key={m.uuid} value={m.uuid}>
+                {m.name} ({m.modelName}){m.isDefault ? ' - default' : ''}
+              </option>
+            ))}
+          </Form.Select>
+          <Form.Text className="text-muted">
+            Used to generate context prefixes for each chunk before embedding
+          </Form.Text>
         </Form.Group>
       </Modal.Body>
       <Modal.Footer>
@@ -384,6 +404,7 @@ const GraphDocuments: React.FC = () => {
                       <th>Title</th>
                       <th>File</th>
                       <th>ISO</th>
+                      <th>LLM</th>
                       <th>Status</th>
                       <th className="text-end">Chunks</th>
                       <th className="text-end">Size</th>
@@ -407,6 +428,7 @@ const GraphDocuments: React.FC = () => {
                         </td>
                         <td className="small text-muted">{d.fileName}</td>
                         <td>{d.isoStandard ? <Badge bg="primary">{d.isoStandard}</Badge> : <span className="text-muted">-</span>}</td>
+                        <td className="small text-muted">{d.llmModelName || '-'}</td>
                         <td>
                           <Badge bg={statusColors[d.status] || 'secondary'}>
                             {d.status === 'processing' && <Spinner size="sm" className="me-1" />}
@@ -450,6 +472,78 @@ const GraphDocuments: React.FC = () => {
                   </tbody>
                 </Table>
               )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Pipeline Info */}
+      <Row className="g-3 mt-1">
+        <Col>
+          <Card className="border-0 bg-body-tertiary">
+            <Card.Body className="py-3 px-4">
+              <h6 className="mb-3">
+                <i className="fas fa-info-circle text-info me-2" />
+                What happens after upload?
+              </h6>
+              <p className="small text-muted mb-2">
+                When a document is uploaded, the backend runs an asynchronous ingestion pipeline
+                that transforms it into a searchable knowledge graph. Here are the steps:
+              </p>
+              <ol className="small text-muted mb-0 ps-3" style={{ lineHeight: 1.9 }}>
+                <li>
+                  <strong>Text Extraction</strong> &mdash;
+                  <code>text_extractor.go</code> extracts raw text (Gotenberg for PDFs, pass-through for .txt/.md)
+                </li>
+                <li>
+                  <strong>Structural Parsing</strong> &mdash;
+                  <code>structural_parser.go</code> (PDF/TXT) or <code>markdown_parser.go</code> (.md)
+                  builds a hierarchical tree of sections, clauses, and articles.
+                  Cleans OCR boilerplate, promotes numbered sub-clauses (e.g. 4.4.1) to proper nodes,
+                  and detects requirement levels (SHALL / SHOULD / MAY)
+                </li>
+                <li>
+                  <strong>Chunking</strong> &mdash;
+                  <code>chunker.go</code> splits the tree into chunks respecting structural boundaries.
+                  Each chunk inherits metadata: full path, numbering, node type, requirement level.
+                  Lists are kept together with their introductory clause when possible
+                </li>
+                <li>
+                  <strong>Contextual Enrichment</strong> &mdash;
+                  <code>contextual_enrichment.go</code> calls the LLM to generate a short context prefix
+                  for each chunk (Contextual Retrieval). The prefix is prepended before embedding
+                  so vectors capture broader document context
+                </li>
+                <li>
+                  <strong>Embedding</strong> &mdash;
+                  Each chunk is embedded into a vector via the configured embedding model.
+                  The embedding uses the contextualized text (prefix + chunk) for better retrieval
+                </li>
+                <li>
+                  <strong>Graph Node Creation</strong> &mdash;
+                  <code>ingestion_service.go</code> creates <code>:RagDocument</code>, <code>:RagSection</code>,
+                  and <code>:RagChunk</code> nodes in Memgraph
+                </li>
+                <li>
+                  <strong>Structural Relationships</strong> &mdash;
+                  <code>ingestion_service.go</code> creates <code>HAS_SECTION</code>, <code>CONTAINS</code>,
+                  <code>NEXT_SECTION</code>, and <code>NEXT</code> edges to encode hierarchy and reading order
+                </li>
+                <li>
+                  <strong>Semantic Relationships</strong> &mdash;
+                  <code>relationship_extractor.go</code> extracts definitions (<code>DEFINES</code>),
+                  cross-references (<code>REFERENCES</code>), and computes similarity
+                  edges (<code>SIMILAR_TO</code>, cosine &ge; 0.85)
+                </li>
+                <li>
+                  <strong>Indexing</strong> &mdash;
+                  Vector indexes and property indexes are created for fast retrieval
+                </li>
+              </ol>
+              <p className="small text-muted mt-2 mb-0">
+                All files are located in <code>backend/internal/rag/services/</code>.
+                The pipeline is orchestrated by <code>ingestion_service.go</code>.
+              </p>
             </Card.Body>
           </Card>
         </Col>

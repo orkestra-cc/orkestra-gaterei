@@ -59,8 +59,9 @@ func (h *DocumentHandler) UploadDocument(ctx context.Context, input *struct{}) (
 
 	chunkSize, _ := strconv.Atoi(httpReq.FormValue("chunkSize"))
 	chunkOverlap, _ := strconv.Atoi(httpReq.FormValue("chunkOverlap"))
+	llmModelUUID := httpReq.FormValue("llmModelUuid")
 
-	doc, err := h.ingestionService.IngestDocument(ctx, title, header.Filename, fileData, isoStandard, version, documentCategory, chunkSize, chunkOverlap)
+	doc, err := h.ingestionService.IngestDocument(ctx, title, header.Filename, fileData, isoStandard, version, documentCategory, chunkSize, chunkOverlap, llmModelUUID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("ingestion failed: %v", err))
 	}
