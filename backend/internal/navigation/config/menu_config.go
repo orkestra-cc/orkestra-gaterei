@@ -201,12 +201,21 @@ func buildSuperAdminRoutes() models.RouteGroup {
 }
 
 // buildAIRoutes creates AI-related navigation
-// Accessible by: administrator, ceo, developer
+// Accessible by: administrator, ceo, developer (agents also by manager/operator)
 func buildAIRoutes() models.RouteGroup {
 	return models.RouteGroup{
 		Label: "AI",
-		Roles: []string{"administrator"},
+		Roles: []string{"operator"},
 		Children: []models.NavItem{
+			{
+				Name:   "AI Agents",
+				Icon:   "robot",
+				Active: true,
+				Roles:  []string{"operator"},
+				Children: []models.NavItem{
+					{Name: "Projects", To: "/ai/agents", Active: true, Roles: []string{"manager"}},
+				},
+			},
 			{
 				Name:   "AI Models",
 				Icon:   "brain",

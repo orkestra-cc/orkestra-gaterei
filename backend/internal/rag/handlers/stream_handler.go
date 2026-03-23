@@ -72,7 +72,7 @@ func (h *StreamHandler) HandleQueryStream(w http.ResponseWriter, r *http.Request
 	}
 
 	// Run query preparation + start streaming
-	result, err := h.queryService.QueryStream(r.Context(), req.Question, req.TopK, req.MinScore, req.ISOStandard, req.ModelUUID, req.RequirementLevel, req.NodeType, req.RetrievalMode)
+	result, err := h.queryService.QueryStream(r.Context(), req.Question, req.TopK, req.MinScore, req.ISOStandard, req.ModelUUID, req.RequirementLevel, req.NodeType, req.RetrievalMode, nil)
 	if err != nil {
 		h.logger.Error("QueryStream failed", slog.String("error", err.Error()))
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)

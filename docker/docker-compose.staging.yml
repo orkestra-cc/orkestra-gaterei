@@ -118,6 +118,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
 
+      # Agents / Hindsight
+      AGENTS_ENABLED: ${AGENTS_ENABLED:-false}
+      HINDSIGHT_URL: ${HINDSIGHT_URL:-http://orkestra-hindsight:8888}
+      HINDSIGHT_NAMESPACE: ${HINDSIGHT_NAMESPACE:-orkestra}
+
       # RAG - Retrieval-Augmented Generation
       RAG_ENABLED: ${RAG_ENABLED:-false}
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}

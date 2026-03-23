@@ -26,6 +26,14 @@ type Config struct {
 	Graph     GraphConfig
 	RAG       RAGConfig
 	AIModels  AIModelsConfig
+	Agents    AgentsConfig
+}
+
+// AgentsConfig holds configuration for the AI agents module (Hindsight integration)
+type AgentsConfig struct {
+	Enabled            bool   // Module enabled flag (AGENTS_ENABLED)
+	HindsightURL       string // Hindsight API base URL (HINDSIGHT_URL)
+	HindsightNamespace string // Hindsight namespace for bank IDs (HINDSIGHT_NAMESPACE)
 }
 
 // AIModelsConfig holds configuration for the AI models management module
@@ -369,6 +377,13 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
 		AnthropicKey:  getEnv("ANTHROPIC_API_KEY", ""),
 		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
+	}
+
+	// Agents / Hindsight configuration
+	config.Agents = AgentsConfig{
+		Enabled:            getEnvAsBool("AGENTS_ENABLED", false),
+		HindsightURL:       getEnv("HINDSIGHT_URL", "http://hindsight:8888"),
+		HindsightNamespace: getEnv("HINDSIGHT_NAMESPACE", "orkestra"),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)

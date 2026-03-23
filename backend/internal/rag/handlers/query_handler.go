@@ -20,7 +20,7 @@ func NewQueryHandler(querySvc services.QueryService) *QueryHandler {
 }
 
 func (h *QueryHandler) Query(ctx context.Context, req *models.RAGQueryRequest) (*models.RAGQueryResponse, error) {
-	resp, err := h.queryService.Query(ctx, req.Body.Question, req.Body.TopK, req.Body.MinScore, req.Body.ISOStandard, req.Body.ModelUUID, req.Body.RequirementLevel, req.Body.NodeType, req.Body.RetrievalMode)
+	resp, err := h.queryService.Query(ctx, req.Body.Question, req.Body.TopK, req.Body.MinScore, req.Body.ISOStandard, req.Body.ModelUUID, req.Body.RequirementLevel, req.Body.NodeType, req.Body.RetrievalMode, nil)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("RAG query failed", err)
 	}

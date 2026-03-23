@@ -30,8 +30,8 @@ type StreamResult struct {
 
 // QueryService handles RAG query execution
 type QueryService interface {
-	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*models.RAGQueryResponse, error)
-	QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*StreamResult, error)
+	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*models.RAGQueryResponse, error)
+	QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*StreamResult, error)
 }
 
 type queryService struct {
@@ -62,7 +62,8 @@ type preparedContext struct {
 }
 
 // prepareContext performs embedding, vector search, context expansion, and LLM provider resolution.
-func (s *queryService) prepareContext(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*preparedContext, error) {
+// documentUUIDs optionally restricts results to chunks from specific documents (nil = no filter).
+func (s *queryService) prepareContext(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*preparedContext, error) {
 	if topK <= 0 {
 		topK = s.defaultTopK
 	}
@@ -103,6 +104,10 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	if nodeType != "" {
 		whereClauses = append(whereClauses, "node.nodeType = $nodeType")
 		params["nodeType"] = nodeType
+	}
+	if len(documentUUIDs) > 0 {
+		whereClauses = append(whereClauses, "node.documentUuid IN $documentUuids")
+		params["documentUuids"] = documentUUIDs
 	}
 
 	searchCypher := fmt.Sprintf(`
@@ -217,10 +222,10 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	}, nil
 }
 
-func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*models.RAGQueryResponse, error) {
+func (s *queryService) Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*models.RAGQueryResponse, error) {
 	totalStart := time.Now()
 
-	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode)
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode, documentUUIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -272,10 +277,10 @@ func (s *queryService) Query(ctx context.Context, question string, topK int, min
 	return resp, nil
 }
 
-func (s *queryService) QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string) (*StreamResult, error) {
+func (s *queryService) QueryStream(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*StreamResult, error) {
 	totalStart := time.Now()
 
-	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode)
+	pc, err := s.prepareContext(ctx, question, topK, minScore, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode, documentUUIDs)
 	if err != nil {
 		return nil, err
 	}

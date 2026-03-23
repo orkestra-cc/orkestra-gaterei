@@ -57,12 +57,35 @@ services:
       timeout: 5s
       retries: 5
 
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: orkestra-hindsight
+    restart: unless-stopped
+    ports:
+      - "${HINDSIGHT_PORT:-8888}:8888"
+    environment:
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_LLM_API_KEY:-}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_LLM_MODEL:-gpt-4o-mini}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_LLM_BASE_URL:-}
+    volumes:
+      - orkestra-hindsight-data:/home/hindsight/.pg0
+    networks:
+      - orkestra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
 volumes:
   orkestra-mongodb-data:
     driver: local
   orkestra-mongodb-config:
     driver: local
   orkestra-redis-data:
+    driver: local
+  orkestra-hindsight-data:
     driver: local
 
 networks:

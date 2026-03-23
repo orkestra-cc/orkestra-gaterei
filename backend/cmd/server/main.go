@@ -43,6 +43,10 @@ import (
 	aimodelsHandlers "github.com/orkestra/backend/internal/aimodels/handlers"
 	aimodelsRepo "github.com/orkestra/backend/internal/aimodels/repository"
 	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
+	"github.com/orkestra/backend/internal/agents"
+	agentsHandlers "github.com/orkestra/backend/internal/agents/handlers"
+	agentsRepo "github.com/orkestra/backend/internal/agents/repository"
+	agentsSvc "github.com/orkestra/backend/internal/agents/services"
 	"github.com/orkestra/backend/internal/rag"
 	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
 	ragRepo "github.com/orkestra/backend/internal/rag/repository"
@@ -443,6 +447,7 @@ func main() {
 	var ragQueryHandler *ragHandlers.QueryHandler
 	var ragStreamHandler *ragHandlers.StreamHandler
 	var ragRelationshipHandler *ragHandlers.RelationshipHandler
+	var ragQueryService ragSvc.QueryService // hoisted for agents module
 	ragEnabled := cfg.RAG.Enabled
 
 	if ragEnabled {
@@ -477,14 +482,44 @@ func main() {
 			ragDocumentHandler = ragHandlers.NewDocumentHandler(ingestionService)
 
 			// Query service
-			queryService := ragSvc.NewQueryService(graphRepository, ragModelProvider, cfg.RAG.DefaultTopK, logger)
-			ragQueryHandler = ragHandlers.NewQueryHandler(queryService)
-			ragStreamHandler = ragHandlers.NewStreamHandler(queryService, logger)
+			ragQueryService = ragSvc.NewQueryService(graphRepository, ragModelProvider, cfg.RAG.DefaultTopK, logger)
+			ragQueryHandler = ragHandlers.NewQueryHandler(ragQueryService)
+			ragStreamHandler = ragHandlers.NewStreamHandler(ragQueryService, logger)
 		}
 
 		logger.Info("RAG module initialized")
 	} else {
 		logger.Warn("RAG module disabled: RAG_ENABLED not set")
+	}
+
+	// Initialize Agents module (Hindsight AI agent integration)
+	var agentProjectHandler *agentsHandlers.ProjectHandler
+	var agentQueryHandler *agentsHandlers.AgentHandler
+	agentsEnabled := cfg.Agents.Enabled
+
+	if agentsEnabled {
+		projectRepo := agentsRepo.NewProjectRepository(db)
+		conversationRepo := agentsRepo.NewConversationRepository(db)
+
+		hsClient := agentsSvc.NewHindsightClient(cfg.Agents.HindsightURL, logger)
+
+		// Create RAG bridge if RAG query service is available
+		var ragBridge agentsSvc.RAGBridge
+		if ragQueryService != nil {
+			ragBridge = agentsSvc.NewRAGBridge(ragQueryService, cfg.RAG.DefaultTopK, logger)
+		}
+
+		projectService := agentsSvc.NewProjectService(projectRepo, hsClient, cfg.Agents.HindsightNamespace, logger)
+		agentService := agentsSvc.NewAgentService(projectRepo, conversationRepo, hsClient, ragBridge, logger)
+
+		agentProjectHandler = agentsHandlers.NewProjectHandler(projectService)
+		agentQueryHandler = agentsHandlers.NewAgentHandler(agentService)
+
+		logger.Info("Agents module initialized",
+			slog.String("hindsightURL", cfg.Agents.HindsightURL),
+		)
+	} else {
+		logger.Warn("Agents module disabled: AGENTS_ENABLED not set")
 	}
 
 	// Initialize auth service with all repositories
@@ -755,6 +790,30 @@ func main() {
 			if ragRelationshipHandler != nil {
 				rag.RegisterRelationshipTypeRoutes(ragAPI, ragRelationshipHandler)
 			}
+		})
+	}
+
+	// Agents routes - different role levels for different operations
+	if agentsEnabled {
+		// Project management - manager role and above
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
+			agentsProjectAPI := humachi.New(r, apiConfig)
+			agents.RegisterProjectRoutes(agentsProjectAPI, agentProjectHandler)
+		})
+
+		// Agent querying and conversations - operator role and above
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("operator"))
+			agentsQueryAPI := humachi.New(r, apiConfig)
+			agents.RegisterQueryRoutes(agentsQueryAPI, agentQueryHandler)
+		})
+
+		// Agent admin - administrator role and above
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
+			agentsAdminAPI := humachi.New(r, apiConfig)
+			agents.RegisterAdminRoutes(agentsAdminAPI, agentQueryHandler)
 		})
 	}
 

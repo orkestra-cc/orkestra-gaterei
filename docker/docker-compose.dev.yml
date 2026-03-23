@@ -111,6 +111,11 @@ services:
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-50}
       RAG_DEFAULT_TOP_K: ${RAG_DEFAULT_TOP_K:-10}
 
+      # Agents / Hindsight
+      AGENTS_ENABLED: ${AGENTS_ENABLED:-false}
+      HINDSIGHT_URL: ${HINDSIGHT_URL:-http://orkestra-hindsight:8888}
+      HINDSIGHT_NAMESPACE: ${HINDSIGHT_NAMESPACE:-orkestra}
+
       # Hot reload
       AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
       AIR_BIN: ./tmp/main
