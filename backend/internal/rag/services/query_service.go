@@ -18,6 +18,14 @@ Always cite the source document, section path, and requirement level when refere
 Be precise and actionable in your responses.
 /no_think`
 
+const (
+	// scopeOverFetchMultiplier increases the vector search candidate pool when
+	// post-filtering (by document, requirement level, node type, or ISO standard)
+	// is active, compensating for global top-K not including scoped documents.
+	scopeOverFetchMultiplier = 5
+	maxOverFetchTopK         = 200
+)
+
 // StreamResult holds the pre-LLM data and token channel for streaming queries
 type StreamResult struct {
 	Sources   []models.SourceRef
@@ -93,7 +101,6 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 	// Build WHERE clauses
 	whereClauses := []string{"similarity >= $minScore"}
 	params := map[string]interface{}{
-		"topK":        topK,
 		"queryVector": queryVector,
 		"minScore":    minScore,
 	}
@@ -110,6 +117,22 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 		params["documentUuids"] = documentUUIDs
 	}
 
+	// Over-fetch when post-filtering is active so scoped documents aren't missed.
+	// Document filtering needs the full candidate set in Go for balanced selection.
+	hasPostFilter := len(documentUUIDs) > 0 || requirementLevel != "" || nodeType != "" || isoStandard != ""
+	searchTopK := topK
+	limit := topK
+	if hasPostFilter {
+		searchTopK = topK * scopeOverFetchMultiplier
+		if searchTopK > maxOverFetchTopK {
+			searchTopK = maxOverFetchTopK
+		}
+		// Return full over-fetched set — Go handles final truncation + balancing
+		limit = searchTopK
+	}
+	params["topK"] = searchTopK
+	params["limit"] = limit
+
 	searchCypher := fmt.Sprintf(`
 		CALL vector_search.search('rag_chunk_embedding', $topK, $queryVector)
 		YIELD node, similarity
@@ -121,6 +144,7 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 		       node.position AS position,
 		       node.documentUuid AS documentUuid, similarity
 		ORDER BY similarity DESC
+		LIMIT $limit
 	`, strings.Join(whereClauses, " AND "))
 
 	searchResult, err := s.graphRepo.ExecuteRead(ctx, "", searchCypher, params)
@@ -128,6 +152,14 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 		return nil, fmt.Errorf("vector search failed: %w", err)
 	}
 	searchTimeMs := time.Since(searchStart).Milliseconds()
+
+	s.logger.Debug("vector search completed",
+		slog.Int("searchTopK", searchTopK),
+		slog.Int("requestedTopK", topK),
+		slog.Int("rawResults", len(searchResult.Rows)),
+		slog.Bool("hasDocumentScope", len(documentUUIDs) > 0),
+		slog.Bool("hasISOFilter", isoStandard != ""),
+	)
 
 	// Build source refs with document metadata
 	var sources []models.SourceRef
@@ -195,6 +227,53 @@ func (s *queryService) prepareContext(ctx context.Context, question string, topK
 		entry.WriteString(expandedText)
 
 		contextParts = append(contextParts, entry.String())
+	}
+
+	// Balanced per-document selection: ensure each scoped document is represented
+	if len(documentUUIDs) > 1 && len(sources) > topK {
+		// Group source indices by document (order preserved = similarity order)
+		docIndices := make(map[string][]int)
+		for i, src := range sources {
+			docIndices[src.DocumentUUID] = append(docIndices[src.DocumentUUID], i)
+		}
+
+		perDoc := (topK + len(docIndices) - 1) / len(docIndices) // ceil
+		selected := make(map[int]bool)
+
+		// Phase 1: guarantee each document up to perDoc slots
+		for _, indices := range docIndices {
+			for j := 0; j < perDoc && j < len(indices); j++ {
+				selected[indices[j]] = true
+			}
+		}
+		// Phase 2: fill remaining with best unselected (global similarity order)
+		for i := range sources {
+			if len(selected) >= topK {
+				break
+			}
+			if !selected[i] {
+				selected[i] = true
+			}
+		}
+
+		// Rebuild in original similarity order
+		var balSources []models.SourceRef
+		var balParts []string
+		for i := range sources {
+			if !selected[i] {
+				continue
+			}
+			balSources = append(balSources, sources[i])
+			balParts = append(balParts, contextParts[i])
+			if len(balSources) >= topK {
+				break
+			}
+		}
+		sources = balSources
+		contextParts = balParts
+	} else if len(sources) > topK {
+		sources = sources[:topK]
+		contextParts = contextParts[:topK]
 	}
 
 	// Resolve LLM provider

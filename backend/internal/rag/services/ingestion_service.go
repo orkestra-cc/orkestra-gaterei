@@ -596,6 +596,7 @@ func (s *ingestionService) processDocument(docUUID string, fileData []byte, docT
 	for _, idx := range []string{
 		"CREATE INDEX ON :RagSection(documentUuid)",
 		"CREATE INDEX ON :RagSection(numbering)",
+		"CREATE INDEX ON :RagChunk(documentUuid)",
 		"CREATE INDEX ON :RagChunk(requirementLevel)",
 		"CREATE INDEX ON :RagChunk(nodeType)",
 		"CREATE INDEX ON :RagDefinition(documentUuid)",
