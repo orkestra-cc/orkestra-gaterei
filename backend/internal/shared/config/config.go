@@ -27,6 +27,18 @@ type Config struct {
 	RAG       RAGConfig
 	AIModels  AIModelsConfig
 	Agents    AgentsConfig
+	Sales     SalesConfig
+}
+
+// SalesConfig holds configuration for the AI Sales Intelligence module
+type SalesConfig struct {
+	Enabled         bool          // Module enabled flag (SALES_ENABLED)
+	MaxConcurrency  int           // Max parallel agent LLM calls per job (SALES_MAX_CONCURRENCY)
+	DefaultLocale   string        // Default locale for prompts (SALES_DEFAULT_LOCALE)
+	QuickTimeout    time.Duration // Timeout for sync /prospect/quick (SALES_QUICK_TIMEOUT)
+	FullTimeout     time.Duration // Timeout for async /prospect pipeline (SALES_FULL_TIMEOUT)
+	ScraperTimeout  time.Duration // Timeout per scrape request (SALES_SCRAPER_TIMEOUT)
+	ScraperMaxDepth int           // Max subpage depth for scraping (SALES_SCRAPER_MAX_DEPTH)
 }
 
 // AgentsConfig holds configuration for the AI agents module (Hindsight integration)
@@ -384,6 +396,17 @@ func Load() (*Config, error) {
 		Enabled:            getEnvAsBool("AGENTS_ENABLED", false),
 		HindsightURL:       getEnv("HINDSIGHT_URL", "http://hindsight:8888"),
 		HindsightNamespace: getEnv("HINDSIGHT_NAMESPACE", "orkestra"),
+	}
+
+	// Sales Intelligence configuration
+	config.Sales = SalesConfig{
+		Enabled:         getEnvAsBool("SALES_ENABLED", false),
+		MaxConcurrency:  getEnvAsInt("SALES_MAX_CONCURRENCY", 5),
+		DefaultLocale:   getEnv("SALES_DEFAULT_LOCALE", "it"),
+		QuickTimeout:    getEnvAsDuration("SALES_QUICK_TIMEOUT", "60s"),
+		FullTimeout:     getEnvAsDuration("SALES_FULL_TIMEOUT", "15m"),
+		ScraperTimeout:  getEnvAsDuration("SALES_SCRAPER_TIMEOUT", "30s"),
+		ScraperMaxDepth: getEnvAsInt("SALES_SCRAPER_MAX_DEPTH", 3),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)

@@ -256,6 +256,15 @@ const AgentProjects = lazy(() => import('pages/ai/agents'));
 const AgentChat = lazy(() => import('pages/ai/agents/AgentChat'));
 const PersonalAgentChat = lazy(() => import('pages/ai/personal-agent/PersonalAgentChat'));
 
+// Sales Intelligence pages
+const SalesProspect = lazy(() => import('pages/sales/prospect'));
+const SalesSkill = lazy(() => import('pages/sales/skills'));
+const SalesJobs = lazy(() => import('pages/sales/jobs'));
+const SalesJobDetail = lazy(() => import('pages/sales/jobs/detail'));
+const SalesReports = lazy(() => import('pages/sales/reports'));
+const SalesReportDetail = lazy(() => import('pages/sales/reports/detail'));
+const SalesSettings = lazy(() => import('pages/sales/settings'));
+
 import TableView from 'reference/app-examples/support-desk/tickets-layout/TableView';
 import CardView from 'reference/app-examples/support-desk/tickets-layout/CardView';
 import Contacts from 'reference/app-examples/support-desk/contacts/Contacts';
@@ -1035,6 +1044,79 @@ const routes: RouteObject[] = [
               </ProtectedRoute>
             )
           },
+
+          // ── Sales Intelligence ──
+          {
+            path: 'sales/prospect',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-prospect" fallback={<FalconLoader />}>
+                  <SalesProspect />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/skills/:skill',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-skill" fallback={<FalconLoader />}>
+                  <SalesSkill />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/jobs',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-jobs" fallback={<FalconLoader />}>
+                  <SalesJobs />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/jobs/:uuid',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-job-detail" fallback={<FalconLoader />}>
+                  <SalesJobDetail />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/reports',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-reports" fallback={<FalconLoader />}>
+                  <SalesReports />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/reports/:uuid',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-report-detail" fallback={<FalconLoader />}>
+                  <SalesReportDetail />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'sales/settings',
+            element: (
+              <ProtectedRoute requiredPermissions={[['developer', 'ceo', 'administrator', 'manager']]}>
+                <Suspense key="sales-settings" fallback={<FalconLoader />}>
+                  <SalesSettings />
+                </Suspense>
+              </ProtectedRoute>
+            )
+          },
+
           {
             path: rootPaths.formsRoot,
             children: [

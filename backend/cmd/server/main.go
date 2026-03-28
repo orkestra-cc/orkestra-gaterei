@@ -47,6 +47,10 @@ import (
 	agentsHandlers "github.com/orkestra/backend/internal/agents/handlers"
 	agentsRepo "github.com/orkestra/backend/internal/agents/repository"
 	agentsSvc "github.com/orkestra/backend/internal/agents/services"
+	"github.com/orkestra/backend/internal/sales"
+	salesHandlers "github.com/orkestra/backend/internal/sales/handlers"
+	salesRepo "github.com/orkestra/backend/internal/sales/repository"
+	salesSvc "github.com/orkestra/backend/internal/sales/services"
 	"github.com/orkestra/backend/internal/rag"
 	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
 	ragRepo "github.com/orkestra/backend/internal/rag/repository"
@@ -527,6 +531,58 @@ func main() {
 		logger.Warn("Agents module disabled: AGENTS_ENABLED not set")
 	}
 
+	// Initialize Sales Intelligence module
+	var salesSkillHandler *salesHandlers.SkillHandler
+	var salesProspectHandler *salesHandlers.ProspectHandler
+	var salesJobHandler *salesHandlers.JobHandler
+	var salesReportHandler *salesHandlers.ReportHandler
+	var salesSettingsHandler *salesHandlers.SettingsHandler
+	salesEnabled := cfg.Sales.Enabled
+
+	if salesEnabled {
+		salesJobRepo := salesRepo.NewJobRepository(db)
+
+		// Sales module uses the AI model provider through a consumer interface
+		var salesModelProvider salesSvc.AIModelProvider
+		if aiModelService != nil {
+			salesModelProvider = aiModelService
+		}
+
+		// Optional: company enrichment for Italian business registry
+		var salesEnrichment salesSvc.CompanyEnrichmentService
+		// TODO: wire companyService adapter when ready
+
+		promptLoader := salesSvc.NewPromptLoader("", logger)
+		scraper := salesSvc.NewScraper(cfg.Sales, logger)
+		agentExecutor := salesSvc.NewAgentExecutor(cfg.Sales.MaxConcurrency, logger)
+		scorer := salesSvc.NewScorer()
+
+		salesSettingsRepo := salesRepo.NewSettingsRepository(db)
+		salesReportRepo := salesRepo.NewReportRepository(db)
+		reportGen := salesSvc.NewReportGenerator(salesReportRepo, logger)
+
+		orchestrator := salesSvc.NewOrchestrator(
+			salesJobRepo, salesSettingsRepo, salesModelProvider, promptLoader,
+			scraper, agentExecutor, scorer, salesEnrichment, reportGen,
+			cfg.Sales, logger,
+		)
+
+		salesSkillHandler = salesHandlers.NewSkillHandler(orchestrator)
+		salesProspectHandler = salesHandlers.NewProspectHandler(orchestrator)
+		salesJobHandler = salesHandlers.NewJobHandler(orchestrator)
+		salesReportHandler = salesHandlers.NewReportHandler(salesReportRepo, salesJobRepo, reportGen)
+		salesSettingsHandler = salesHandlers.NewSettingsHandler(salesSettingsRepo)
+
+		// Mark incomplete jobs from previous runs as failed
+		if err := salesJobRepo.MarkStaleJobsFailed(context.Background()); err != nil {
+			logger.Warn("Failed to mark stale sales jobs", slog.String("error", err.Error()))
+		}
+
+		logger.Info("Sales Intelligence module initialized")
+	} else {
+		logger.Warn("Sales Intelligence module disabled: SALES_ENABLED not set")
+	}
+
 	// Initialize auth service with all repositories
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
@@ -826,6 +882,20 @@ func main() {
 			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
 			agentsAdminAPI := humachi.New(r, apiConfig)
 			agents.RegisterAdminRoutes(agentsAdminAPI, agentQueryHandler)
+		})
+	}
+
+	// Sales Intelligence routes - manager role and above
+	if salesEnabled {
+		protectedRouter.Group(func(r chi.Router) {
+			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
+			salesAPI := humachi.New(r, apiConfig)
+			sales.RegisterSkillRoutes(salesAPI, salesSkillHandler)
+			sales.RegisterProspectRoutes(salesAPI, salesProspectHandler)
+			sales.RegisterJobRoutes(salesAPI, salesJobHandler)
+			sales.RegisterReportRoutes(salesAPI, salesReportHandler)
+			sales.RegisterReportDownloadRoute(r, salesReportHandler)
+			sales.RegisterSettingsRoutes(salesAPI, salesSettingsHandler)
 		})
 	}
 

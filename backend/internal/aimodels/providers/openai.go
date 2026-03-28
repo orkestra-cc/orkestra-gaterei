@@ -20,7 +20,7 @@ type openaiProvider struct {
 // newOpenAIClient creates an OpenAI client, optionally with a custom base URL
 func newOpenAIClient(apiKey, baseURL string) *openai.Client {
 	config := openai.DefaultConfig(apiKey)
-	config.HTTPClient = &http.Client{Timeout: 5 * time.Minute}
+	config.HTTPClient = &http.Client{Timeout: 10 * time.Minute}
 	if baseURL != "" {
 		config.BaseURL = baseURL
 	}

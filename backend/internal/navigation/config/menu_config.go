@@ -16,6 +16,7 @@ func NewMenuConfig() *MenuConfig {
 	groups := []models.RouteGroup{
 		buildSuperAdminRoutes(),
 		buildAIRoutes(),
+		buildSalesRoutes(),
 		buildAdminRoutes(),
 		buildOperatorRoutes(),
 	}
@@ -39,6 +40,60 @@ func (m *MenuConfig) GetGroups() []models.RouteGroup {
 func isDevelopment() bool {
 	env := os.Getenv("APP_ENV")
 	return env == "" || env == "development" || env == "dev"
+}
+
+// buildSalesRoutes creates Sales Intelligence navigation
+// Accessible by: manager, administrator, ceo, developer
+func buildSalesRoutes() models.RouteGroup {
+	return models.RouteGroup{
+		Label: "Sales Intelligence",
+		Roles: []string{"manager"},
+		Children: []models.NavItem{
+			{
+				Name:   "Prospect Analysis",
+				Icon:   "crosshairs",
+				To:     "/sales/prospect",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
+			{
+				Name:   "Skills",
+				Icon:   "magic",
+				Active: true,
+				Roles:  []string{"manager"},
+				Children: []models.NavItem{
+					{Name: "Company Research", To: "/sales/skills/research", Active: true, Roles: []string{"manager"}},
+					{Name: "Lead Qualification", To: "/sales/skills/qualify", Active: true, Roles: []string{"manager"}},
+					{Name: "Contact Finder", To: "/sales/skills/contacts", Active: true, Roles: []string{"manager"}},
+					{Name: "Outreach", To: "/sales/skills/outreach", Active: true, Roles: []string{"manager"}},
+					{Name: "Meeting Prep", To: "/sales/skills/prep", Active: true, Roles: []string{"manager"}},
+					{Name: "Proposal", To: "/sales/skills/proposal", Active: true, Roles: []string{"manager"}},
+					{Name: "Competitors", To: "/sales/skills/competitors", Active: true, Roles: []string{"manager"}},
+				},
+			},
+			{
+				Name:   "Jobs",
+				Icon:   "tasks",
+				To:     "/sales/jobs",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
+			{
+				Name:   "Reports",
+				Icon:   "file-chart-line",
+				To:     "/sales/reports",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
+			{
+				Name:   "Settings",
+				Icon:   "cog",
+				To:     "/sales/settings",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
+		},
+	}
 }
 
 // buildOperatorRoutes creates operator-level navigation

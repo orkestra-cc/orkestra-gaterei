@@ -37,3 +37,17 @@ type LLMProvider interface {
 	// ModelName returns the model identifier
 	ModelName() string
 }
+
+// CompletionResult holds the LLM response text along with token usage information
+type CompletionResult struct {
+	Text         string
+	InputTokens  int
+	OutputTokens int
+}
+
+// LLMProviderWithUsage extends LLMProvider with token usage tracking.
+// Providers that support usage reporting (e.g. Anthropic) implement this interface.
+type LLMProviderWithUsage interface {
+	LLMProvider
+	CompleteWithUsage(ctx context.Context, prompt string, opts CompletionOptions) (*CompletionResult, error)
+}

@@ -134,6 +134,51 @@ func (p *anthropicProvider) Complete(ctx context.Context, prompt string, opts Co
 	return sb.String(), nil
 }
 
+func (p *anthropicProvider) CompleteWithUsage(ctx context.Context, prompt string, opts CompletionOptions) (*CompletionResult, error) {
+	maxTokens := opts.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = 4096
+	}
+
+	reqBody := anthropicRequest{
+		Model:     p.modelName,
+		Messages:  []anthropicMessage{{Role: "user", Content: prompt}},
+		System:    opts.SystemPrompt,
+		MaxTokens: maxTokens,
+	}
+	if opts.Temperature > 0 {
+		reqBody.Temperature = &opts.Temperature
+	}
+
+	resp, err := p.doRequest(ctx, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("anthropic call: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("anthropic error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result anthropicResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("anthropic decode: %w", err)
+	}
+
+	var sb strings.Builder
+	for _, block := range result.Content {
+		if block.Type == "text" {
+			sb.WriteString(block.Text)
+		}
+	}
+	return &CompletionResult{
+		Text:         sb.String(),
+		InputTokens:  result.Usage.InputTokens,
+		OutputTokens: result.Usage.OutputTokens,
+	}, nil
+}
+
 func (p *anthropicProvider) StreamComplete(ctx context.Context, prompt string, opts CompletionOptions) (<-chan StreamChunk, error) {
 	maxTokens := opts.MaxTokens
 	if maxTokens <= 0 {
