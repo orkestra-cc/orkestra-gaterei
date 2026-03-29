@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Row, Col, Card, Table, Badge, Button, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileAlt, faSync, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faSync, faEye, faTrash } from '@fortawesome/free-solid-svg-icons';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
-import { useListSalesReportsQuery, useListSalesJobsQuery, useGenerateSalesReportMutation } from '../../../store/api/salesApi';
+import { useListSalesReportsQuery, useListSalesJobsQuery, useGenerateSalesReportMutation, useDeleteSalesReportMutation } from '../../../store/api/salesApi';
 import type { Report } from '../../../store/api/salesApi';
 
 const GRADE_COLORS: Record<string, string> = {
@@ -22,6 +22,7 @@ const ReportsPage = () => {
   const { data, isLoading, refetch } = useListSalesReportsQuery({ pageSize: 50 });
   const { data: jobsData } = useListSalesJobsQuery({ pageSize: 50 });
   const [generateReport] = useGenerateSalesReportMutation();
+  const [deleteReport] = useDeleteSalesReportMutation();
 
   const reports = data?.reports || [];
   const completedJobs = (jobsData?.jobs || []).filter((j: any) => j.status === 'completed');
@@ -112,9 +113,17 @@ const ReportsPage = () => {
                         </td>
                         <td><small>{new Date(report.createdAt).toLocaleString()}</small></td>
                         <td>
-                          <Button variant="outline-primary" size="sm" onClick={e => { e.stopPropagation(); navigate(`/sales/reports/${report.uuid}`); }}>
-                            <FontAwesomeIcon icon={faEye} />
-                          </Button>
+                          <div className="d-flex gap-1">
+                            <Button variant="outline-primary" size="sm" onClick={e => { e.stopPropagation(); navigate(`/sales/reports/${report.uuid}`); }}>
+                              <FontAwesomeIcon icon={faEye} />
+                            </Button>
+                            <Button variant="outline-danger" size="sm" onClick={e => {
+                              e.stopPropagation();
+                              if (window.confirm('Delete this report?')) deleteReport(report.uuid);
+                            }}>
+                              <FontAwesomeIcon icon={faTrash} />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}

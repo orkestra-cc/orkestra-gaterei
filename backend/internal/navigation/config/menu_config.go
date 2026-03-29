@@ -86,6 +86,13 @@ func buildSalesRoutes() models.RouteGroup {
 				Roles:  []string{"manager"},
 			},
 			{
+				Name:   "Prompts",
+				Icon:   "scroll",
+				To:     "/sales/prompts",
+				Active: true,
+				Roles:  []string{"manager"},
+			},
+			{
 				Name:   "Settings",
 				Icon:   "cog",
 				To:     "/sales/settings",

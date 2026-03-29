@@ -96,3 +96,13 @@ type JobDeleteRequest struct {
 type JobRetryRequest struct {
 	UUID string `path:"uuid" doc:"Job UUID"`
 }
+
+// JobRerunRequest is the Huma input for POST /v1/sales/jobs/{uuid}/rerun
+type JobRerunRequest struct {
+	UUID string `path:"uuid" doc:"Job UUID"`
+}
+
+// JobRerunResponse is the Huma output for POST /v1/sales/jobs/{uuid}/rerun
+type JobRerunResponse struct {
+	Body Job
+}

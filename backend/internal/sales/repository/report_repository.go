@@ -18,6 +18,8 @@ type ReportRepository interface {
 	Create(ctx context.Context, report *models.Report) error
 	GetByUUID(ctx context.Context, uuid string) (*models.Report, error)
 	GetByJobUUID(ctx context.Context, jobUUID string) (*models.Report, error)
+	Delete(ctx context.Context, uuid string) error
+	DeleteByJobUUID(ctx context.Context, jobUUID string) error
 	ListByUser(ctx context.Context, userID string, page, pageSize int) ([]models.Report, int64, error)
 }
 
@@ -63,6 +65,22 @@ func (r *reportRepository) GetByJobUUID(ctx context.Context, jobUUID string) (*m
 		return nil, fmt.Errorf("find report for job %s: %w", jobUUID, err)
 	}
 	return &report, nil
+}
+
+func (r *reportRepository) Delete(ctx context.Context, uuid string) error {
+	_, err := r.collection.DeleteOne(ctx, bson.M{"uuid": uuid})
+	if err != nil {
+		return fmt.Errorf("delete sales report: %w", err)
+	}
+	return nil
+}
+
+func (r *reportRepository) DeleteByJobUUID(ctx context.Context, jobUUID string) error {
+	_, err := r.collection.DeleteMany(ctx, bson.M{"jobUuid": jobUUID})
+	if err != nil {
+		return fmt.Errorf("delete sales reports by job: %w", err)
+	}
+	return nil
 }
 
 func (r *reportRepository) ListByUser(ctx context.Context, userID string, page, pageSize int) ([]models.Report, int64, error) {

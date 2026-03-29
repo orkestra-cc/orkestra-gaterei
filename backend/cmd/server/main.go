@@ -536,6 +536,7 @@ func main() {
 	var salesProspectHandler *salesHandlers.ProspectHandler
 	var salesJobHandler *salesHandlers.JobHandler
 	var salesReportHandler *salesHandlers.ReportHandler
+	var salesPromptHandler *salesHandlers.PromptHandler
 	var salesSettingsHandler *salesHandlers.SettingsHandler
 	salesEnabled := cfg.Sales.Enabled
 
@@ -552,7 +553,13 @@ func main() {
 		var salesEnrichment salesSvc.CompanyEnrichmentService
 		// TODO: wire companyService adapter when ready
 
-		promptLoader := salesSvc.NewPromptLoader("", logger)
+		salesPromptRepo := salesRepo.NewPromptRepository(db)
+		promptLoader := salesSvc.NewPromptLoader(salesPromptRepo, logger)
+
+		// Seed default prompts from embedded files on first run
+		if err := promptLoader.SeedDefaults(context.Background()); err != nil {
+			logger.Warn("Failed to seed sales prompts", slog.String("error", err.Error()))
+		}
 		scraper := salesSvc.NewScraper(cfg.Sales, logger)
 		agentExecutor := salesSvc.NewAgentExecutor(cfg.Sales.MaxConcurrency, logger)
 		scorer := salesSvc.NewScorer()
@@ -562,7 +569,7 @@ func main() {
 		reportGen := salesSvc.NewReportGenerator(salesReportRepo, logger)
 
 		orchestrator := salesSvc.NewOrchestrator(
-			salesJobRepo, salesSettingsRepo, salesModelProvider, promptLoader,
+			salesJobRepo, salesReportRepo, salesSettingsRepo, salesModelProvider, promptLoader,
 			scraper, agentExecutor, scorer, salesEnrichment, reportGen,
 			cfg.Sales, logger,
 		)
@@ -571,6 +578,7 @@ func main() {
 		salesProspectHandler = salesHandlers.NewProspectHandler(orchestrator)
 		salesJobHandler = salesHandlers.NewJobHandler(orchestrator)
 		salesReportHandler = salesHandlers.NewReportHandler(salesReportRepo, salesJobRepo, reportGen)
+		salesPromptHandler = salesHandlers.NewPromptHandler(salesPromptRepo, promptLoader)
 		salesSettingsHandler = salesHandlers.NewSettingsHandler(salesSettingsRepo)
 
 		// Mark incomplete jobs from previous runs as failed
@@ -894,6 +902,7 @@ func main() {
 			sales.RegisterProspectRoutes(salesAPI, salesProspectHandler)
 			sales.RegisterJobRoutes(salesAPI, salesJobHandler)
 			sales.RegisterReportRoutes(salesAPI, salesReportHandler)
+			sales.RegisterPromptRoutes(salesAPI, salesPromptHandler)
 			sales.RegisterReportDownloadRoute(r, salesReportHandler)
 			sales.RegisterSettingsRoutes(salesAPI, salesSettingsHandler)
 		})

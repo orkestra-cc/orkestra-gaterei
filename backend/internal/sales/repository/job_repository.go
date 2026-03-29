@@ -21,6 +21,7 @@ type JobRepository interface {
 	UpdateFull(ctx context.Context, job *models.Job) error
 	ListByUser(ctx context.Context, userID string, status string, page, pageSize int) ([]models.Job, int64, error)
 	UpdatePhases(ctx context.Context, uuid string, phases []models.JobPhase) error
+	Delete(ctx context.Context, uuid string) error
 	MarkStaleJobsFailed(ctx context.Context) error
 }
 
@@ -134,6 +135,14 @@ func (r *jobRepository) ListByUser(ctx context.Context, userID string, status st
 		return nil, 0, fmt.Errorf("decode sales jobs: %w", err)
 	}
 	return jobs, total, nil
+}
+
+func (r *jobRepository) Delete(ctx context.Context, uuid string) error {
+	_, err := r.collection.DeleteOne(ctx, bson.M{"uuid": uuid})
+	if err != nil {
+		return fmt.Errorf("delete sales job: %w", err)
+	}
+	return nil
 }
 
 func (r *jobRepository) UpdatePhases(ctx context.Context, uuid string, phases []models.JobPhase) error {

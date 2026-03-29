@@ -115,6 +115,14 @@ export const salesApi = baseApi.injectEndpoints({
       invalidatesTags: ['Sales'],
     }),
 
+    rerunSalesJobAgents: builder.mutation<Job, string>({
+      query: (uuid) => ({
+        url: `v1/sales/jobs/${uuid}/rerun`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Sales'],
+    }),
+
     retrySalesJob: builder.mutation<{ jobId: string; streamUrl: string }, string>({
       query: (uuid) => ({
         url: `v1/sales/jobs/${uuid}/retry`,
@@ -137,10 +145,49 @@ export const salesApi = baseApi.injectEndpoints({
       providesTags: ['Sales'],
     }),
 
+    // Prompts
+    listSalesPrompts: builder.query<{ prompts: SalesPromptConfig[] }, { category?: string }>({
+      query: (params) => ({
+        url: 'v1/sales/prompts',
+        params,
+      }),
+      providesTags: ['Sales'],
+    }),
+
+    getSalesPrompt: builder.query<SalesPromptConfig, string>({
+      query: (uuid) => `v1/sales/prompts/${uuid}`,
+      providesTags: ['Sales'],
+    }),
+
+    updateSalesPrompt: builder.mutation<SalesPromptConfig, { uuid: string; content: string; displayName?: string; description?: string }>({
+      query: ({ uuid, ...body }) => ({
+        url: `v1/sales/prompts/${uuid}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Sales'],
+    }),
+
+    resetSalesPrompt: builder.mutation<SalesPromptConfig, string>({
+      query: (uuid) => ({
+        url: `v1/sales/prompts/${uuid}/reset`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Sales'],
+    }),
+
     generateSalesReport: builder.mutation<Report, string>({
       query: (jobUuid) => ({
         url: `v1/sales/reports/generate/${jobUuid}`,
         method: 'POST',
+      }),
+      invalidatesTags: ['Sales'],
+    }),
+
+    deleteSalesReport: builder.mutation<void, string>({
+      query: (uuid) => ({
+        url: `v1/sales/reports/${uuid}`,
+        method: 'DELETE',
       }),
       invalidatesTags: ['Sales'],
     }),
@@ -161,6 +208,18 @@ export const salesApi = baseApi.injectEndpoints({
     }),
   }),
 });
+
+export interface SalesPromptConfig {
+  uuid: string;
+  category: string;
+  name: string;
+  displayName: string;
+  description: string;
+  content: string;
+  isCustom: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Report {
   uuid: string;
@@ -200,10 +259,16 @@ export const {
   useListSalesJobsQuery,
   useGetSalesJobQuery,
   useCancelSalesJobMutation,
+  useRerunSalesJobAgentsMutation,
   useRetrySalesJobMutation,
   useListSalesReportsQuery,
   useGetSalesReportQuery,
   useGenerateSalesReportMutation,
+  useListSalesPromptsQuery,
+  useGetSalesPromptQuery,
+  useUpdateSalesPromptMutation,
+  useResetSalesPromptMutation,
+  useDeleteSalesReportMutation,
   useGetSalesSettingsQuery,
   useUpdateSalesSettingsMutation,
 } = salesApi;

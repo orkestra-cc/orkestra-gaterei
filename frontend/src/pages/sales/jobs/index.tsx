@@ -5,7 +5,7 @@ import { faTasks, faSync, faTrash, faEye, faCheckCircle, faTimesCircle, faClock,
 import { Link } from 'react-router-dom';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
-import { useListSalesJobsQuery, useGetSalesJobQuery, useCancelSalesJobMutation, useRetrySalesJobMutation } from '../../../store/api/salesApi';
+import { useListSalesJobsQuery, useGetSalesJobQuery, useCancelSalesJobMutation, useRetrySalesJobMutation, useRerunSalesJobAgentsMutation } from '../../../store/api/salesApi';
 
 const STATUS_COLORS: Record<string, string> = {
   queued: 'secondary',
@@ -99,6 +99,7 @@ export function JobDetailPage() {
     skip: !uuid,
   });
   const [retryJob, { isLoading: retrying }] = useRetrySalesJobMutation();
+  const [rerunAgents, { isLoading: rerunning }] = useRerunSalesJobAgentsMutation();
   const [cancelJob] = useCancelSalesJobMutation();
 
   if (isLoading || !job) {
@@ -111,6 +112,8 @@ export function JobDetailPage() {
 
   const agentResults = job.agentResults || [];
   const running = isRunning(job.status);
+  const failedAgents = agentResults.filter((r: any) => r && (r.error || (r.score === 0 && (!r.findings || r.findings.length <= 2))));
+  const hasFailedAgents = failedAgents.length > 0 && !running;
   const elapsed = job.completedAt
     ? ((new Date(job.completedAt).getTime() - new Date(job.createdAt).getTime()) / 1000).toFixed(0)
     : ((Date.now() - new Date(job.createdAt).getTime()) / 1000).toFixed(0);
@@ -162,11 +165,27 @@ export function JobDetailPage() {
                     Retry
                   </Button>
                 )}
+                {hasFailedAgents && (
+                  <Button variant="warning" size="sm" disabled={rerunning} onClick={async () => {
+                    await rerunAgents(job.uuid).unwrap();
+                  }}>
+                    {rerunning ? <Spinner size="sm" className="me-1" /> : <FontAwesomeIcon icon={faRedo} className="me-1" />}
+                    Re-run {failedAgents.length} Failed
+                  </Button>
+                )}
                 {job.reportUuid && (
                   <Link to={`/sales/reports/${job.reportUuid}`} className="btn btn-outline-success btn-sm">
                     <FontAwesomeIcon icon={faFileAlt} className="me-1" /> Report
                   </Link>
                 )}
+                <Button variant="outline-danger" size="sm" onClick={() => {
+                  if (window.confirm('Delete this job and its report?')) {
+                    cancelJob(job.uuid);
+                    navigate('/sales/jobs');
+                  }
+                }}>
+                  <FontAwesomeIcon icon={faTrash} className="me-1" /> Delete
+                </Button>
               </div>
             </Card.Header>
           </Card>
@@ -339,20 +358,25 @@ const JobsPage = () => {
                         <td>{job.totalScore ? `${job.totalScore} (${job.grade})` : '—'}</td>
                         <td><small>{new Date(job.createdAt).toLocaleString()}</small></td>
                         <td>
-                          {isRunning(job.status) && (
-                            <Button variant="outline-danger" size="sm" onClick={e => { e.stopPropagation(); cancelJob(job.uuid); }}>
+                          <div className="d-flex gap-1">
+                            {(job.status === 'failed' || job.status === 'cancelled') && (
+                              <Button variant="outline-warning" size="sm" onClick={async e => {
+                                e.stopPropagation();
+                                const result = await retryJob(job.uuid).unwrap();
+                                navigate(`/sales/jobs/${result.jobId}`);
+                              }}>
+                                <FontAwesomeIcon icon={faRedo} />
+                              </Button>
+                            )}
+                            <Button variant="outline-danger" size="sm" onClick={e => {
+                              e.stopPropagation();
+                              if (!isRunning(job.status) || window.confirm('Cancel and delete this running job?')) {
+                                cancelJob(job.uuid);
+                              }
+                            }}>
                               <FontAwesomeIcon icon={faTrash} />
                             </Button>
-                          )}
-                          {(job.status === 'failed' || job.status === 'cancelled') && (
-                            <Button variant="outline-warning" size="sm" onClick={async e => {
-                              e.stopPropagation();
-                              const result = await retryJob(job.uuid).unwrap();
-                              navigate(`/sales/jobs/${result.jobId}`);
-                            }}>
-                              <FontAwesomeIcon icon={faRedo} />
-                            </Button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}

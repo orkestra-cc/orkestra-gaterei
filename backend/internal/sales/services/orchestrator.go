@@ -24,11 +24,14 @@ type OrchestratorService interface {
 	GetJob(ctx context.Context, jobID string) (*models.Job, error)
 	ListJobs(ctx context.Context, userID, status string, page, pageSize int) ([]models.Job, int64, error)
 	CancelJob(ctx context.Context, jobID, userID string) error
+	DeleteJob(ctx context.Context, jobID, userID string) error
 	RetryJob(ctx context.Context, jobID, userID string) (*models.Job, error)
+	RerunFailedAgents(ctx context.Context, jobID, userID string) (*models.Job, error)
 }
 
 type orchestratorService struct {
 	jobRepo         repository.JobRepository
+	reportRepo      repository.ReportRepository
 	settingsRepo    repository.SettingsRepository
 	modelProvider   AIModelProvider
 	promptLoader    *PromptLoader
@@ -48,6 +51,7 @@ type orchestratorService struct {
 // NewOrchestrator creates a new OrchestratorService
 func NewOrchestrator(
 	jobRepo repository.JobRepository,
+	reportRepo repository.ReportRepository,
 	settingsRepo repository.SettingsRepository,
 	modelProvider AIModelProvider,
 	promptLoader *PromptLoader,
@@ -61,6 +65,7 @@ func NewOrchestrator(
 ) OrchestratorService {
 	return &orchestratorService{
 		jobRepo:       jobRepo,
+		reportRepo:    reportRepo,
 		settingsRepo:  settingsRepo,
 		modelProvider: modelProvider,
 		promptLoader:  promptLoader,
@@ -350,6 +355,29 @@ func (s *orchestratorService) CancelJob(ctx context.Context, jobID, userID strin
 	return s.jobRepo.UpdateStatus(ctx, jobID, models.JobStatusCancelled, "cancelled by user")
 }
 
+func (s *orchestratorService) DeleteJob(ctx context.Context, jobID, userID string) error {
+	job, err := s.jobRepo.GetByUUID(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("get job: %w", err)
+	}
+	if job.CreatedBy != userID {
+		return fmt.Errorf("not authorized to delete this job")
+	}
+
+	// Cancel if still running
+	s.runningJobsMu.Lock()
+	if cancelFn, ok := s.runningJobs[jobID]; ok {
+		cancelFn()
+		delete(s.runningJobs, jobID)
+	}
+	s.runningJobsMu.Unlock()
+
+	// Cascade delete associated report
+	s.reportRepo.DeleteByJobUUID(ctx, jobID)
+
+	return s.jobRepo.Delete(ctx, jobID)
+}
+
 func (s *orchestratorService) RetryJob(ctx context.Context, jobID, userID string) (*models.Job, error) {
 	old, err := s.jobRepo.GetByUUID(ctx, jobID)
 	if err != nil {
@@ -363,6 +391,132 @@ func (s *orchestratorService) RetryJob(ctx context.Context, jobID, userID string
 	}
 
 	return s.CreateProspectJob(ctx, old.CompanyURL, old.Locale, userID)
+}
+
+func (s *orchestratorService) RerunFailedAgents(ctx context.Context, jobID, userID string) (*models.Job, error) {
+	job, err := s.jobRepo.GetByUUID(ctx, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("get job: %w", err)
+	}
+	if job.CreatedBy != userID {
+		return nil, fmt.Errorf("not authorized")
+	}
+	if job.Status != models.JobStatusCompleted && job.Status != models.JobStatusFailed && job.Status != models.JobStatusAnalysis {
+		return nil, fmt.Errorf("can only re-run agents on completed, failed, or stuck jobs (current: %s)", job.Status)
+	}
+
+	// Identify failed agents (errored or score 0 with no real findings)
+	failedAgentNames := make(map[models.AgentName]int) // name -> index in agentResults
+	for i, r := range job.AgentResults {
+		if r == nil {
+			continue
+		}
+		if r.Error != "" || (r.Score == 0 && len(r.Findings) <= 2) {
+			failedAgentNames[r.AgentName] = i
+		}
+	}
+
+	if len(failedAgentNames) == 0 {
+		return job, nil // nothing to re-run
+	}
+
+	// Get LLM provider
+	llm, _, _, _, err := s.getLLMForUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get LLM provider: %w", err)
+	}
+
+	// Re-scrape for prompt template vars
+	scraped, err := s.scraper.ScrapeCompany(job.CompanyURL)
+	if err != nil {
+		return nil, fmt.Errorf("scrape failed: %w", err)
+	}
+
+	promptVars := s.buildPromptVars(scraped, nil, job.Locale, job.CompanyURL)
+
+	// Build only the failed agent defs
+	allDefs, err := s.buildAgentDefs(job.Locale, promptVars)
+	if err != nil {
+		return nil, fmt.Errorf("load agent prompts: %w", err)
+	}
+
+	var rerunDefs []AgentDef
+	for _, d := range allDefs {
+		if _, failed := failedAgentNames[d.Name]; failed {
+			rerunDefs = append(rerunDefs, d)
+		}
+	}
+
+	if len(rerunDefs) == 0 {
+		return job, nil
+	}
+
+	// Update job status to show it's re-running
+	s.updatePhase(job, "analysis", "running")
+	s.jobRepo.UpdateStatus(context.Background(), job.UUID, models.JobStatusAnalysis, "")
+
+	// Run in background goroutine (not tied to HTTP request context)
+	go func() {
+		rerunCtx, cancel := context.WithTimeout(context.Background(), s.cfg.FullTimeout)
+		defer cancel()
+
+		input := &models.AgentInput{
+			CompanyURL:  job.CompanyURL,
+			ScrapedData: scraped,
+			Locale:      job.Locale,
+		}
+
+		newResults := s.agentExecutor.RunParallel(rerunCtx, rerunDefs, input, llm, nil)
+
+		// Merge: replace old failed results with new ones
+		for j, newR := range newResults {
+			if newR == nil {
+				continue
+			}
+			agentName := rerunDefs[j].Name
+			if idx, ok := failedAgentNames[agentName]; ok {
+				job.AgentResults[idx] = newR
+			}
+		}
+
+		// Recalculate score
+		scoreResult := s.scorer.Calculate(job.AgentResults)
+		job.TotalScore = scoreResult.Total
+		job.Grade = scoreResult.Grade
+		job.ErrorMessage = ""
+
+		// Regenerate report
+		if s.reportGen != nil {
+			s.reportRepo.DeleteByJobUUID(context.Background(), job.UUID)
+			report, genErr := s.reportGen.GenerateFromJob(job)
+			if genErr != nil {
+				s.logger.Error("failed to regenerate report", slog.String("jobId", job.UUID), slog.String("error", genErr.Error()))
+			} else {
+				job.ReportUUID = report.UUID
+			}
+		}
+
+		// Always save final state
+		now := time.Now()
+		job.Status = models.JobStatusCompleted
+		job.CompletedAt = &now
+		job.UpdatedAt = now
+		s.updatePhase(job, "analysis", "completed")
+		s.updatePhase(job, "synthesis", "completed")
+
+		if saveErr := s.jobRepo.UpdateFull(context.Background(), job); saveErr != nil {
+			s.logger.Error("failed to save rerun results", slog.String("jobId", job.UUID), slog.String("error", saveErr.Error()))
+		}
+
+		s.logger.Info("re-ran failed agents",
+			slog.String("jobId", job.UUID),
+			slog.Int("rerunCount", len(rerunDefs)),
+			slog.Int("newScore", job.TotalScore),
+			slog.String("grade", job.Grade),
+		)
+	}()
+
+	return job, nil
 }
 
 // ---------- Three-Phase Pipeline ----------

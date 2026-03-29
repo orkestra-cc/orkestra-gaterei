@@ -51,11 +51,23 @@ func (h *JobHandler) GetJob(ctx context.Context, req *models.JobDetailRequest) (
 func (h *JobHandler) DeleteJob(ctx context.Context, req *models.JobDeleteRequest) (*struct{}, error) {
 	userUUID, _ := ctx.Value("userUUID").(string)
 
-	if err := h.orchestrator.CancelJob(ctx, req.UUID, userUUID); err != nil {
-		return nil, huma.Error500InternalServerError("Failed to cancel job", err)
+	if err := h.orchestrator.DeleteJob(ctx, req.UUID, userUUID); err != nil {
+		return nil, huma.Error500InternalServerError("Failed to delete job", err)
 	}
 
 	return nil, nil
+}
+
+// RerunFailedAgents handles POST /v1/sales/jobs/{uuid}/rerun
+func (h *JobHandler) RerunFailedAgents(ctx context.Context, req *models.JobRerunRequest) (*models.JobRerunResponse, error) {
+	userUUID, _ := ctx.Value("userUUID").(string)
+
+	job, err := h.orchestrator.RerunFailedAgents(ctx, req.UUID, userUUID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to re-run failed agents", err)
+	}
+
+	return &models.JobRerunResponse{Body: *job}, nil
 }
 
 // RetryJob handles POST /v1/sales/jobs/{uuid}/retry

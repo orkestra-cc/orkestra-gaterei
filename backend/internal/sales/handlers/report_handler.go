@@ -78,6 +78,14 @@ func (h *ReportHandler) GenerateReport(ctx context.Context, req *models.Generate
 	return &models.GetReportResponse{Body: *report}, nil
 }
 
+// DeleteReport handles DELETE /v1/sales/reports/{uuid}
+func (h *ReportHandler) DeleteReport(ctx context.Context, req *models.GetReportRequest) (*struct{}, error) {
+	if err := h.repo.Delete(ctx, req.UUID); err != nil {
+		return nil, huma.Error500InternalServerError("Failed to delete report", err)
+	}
+	return nil, nil
+}
+
 // DownloadMarkdown serves the Markdown content as a downloadable file.
 // Registered directly on chi (not Huma) for raw HTTP response control.
 func (h *ReportHandler) DownloadMarkdown(w http.ResponseWriter, r *http.Request) {
