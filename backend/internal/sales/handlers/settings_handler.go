@@ -52,6 +52,9 @@ func (h *SettingsHandler) UpdateSettings(ctx context.Context, req *models.Update
 	if req.Body.Locale != nil {
 		settings.Locale = *req.Body.Locale
 	}
+	if req.Body.BatchMode != nil {
+		settings.BatchMode = *req.Body.BatchMode
+	}
 
 	if err := h.repo.Upsert(ctx, settings); err != nil {
 		return nil, huma.Error500InternalServerError("Failed to save settings", err)

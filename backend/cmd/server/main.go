@@ -568,11 +568,21 @@ func main() {
 		salesReportRepo := salesRepo.NewReportRepository(db)
 		reportGen := salesSvc.NewReportGenerator(salesReportRepo, logger)
 
+		salesBatchRepo := salesRepo.NewBatchRepository(db)
+
 		orchestrator := salesSvc.NewOrchestrator(
-			salesJobRepo, salesReportRepo, salesSettingsRepo, salesModelProvider, promptLoader,
+			salesJobRepo, salesReportRepo, salesSettingsRepo, salesBatchRepo, salesModelProvider, promptLoader,
 			scraper, agentExecutor, scorer, salesEnrichment, reportGen,
 			cfg.Sales, logger,
 		)
+
+		// Start batch poller for async LLM batch results
+		batchPoller := salesSvc.NewBatchPoller(
+			salesBatchRepo, salesJobRepo, salesReportRepo,
+			salesModelProvider, scorer, reportGen,
+			30*time.Second, logger,
+		)
+		batchPoller.Start()
 
 		skillStore := salesSvc.NewSkillStore()
 		salesSkillHandler = salesHandlers.NewSkillHandler(orchestrator, skillStore, logger)

@@ -281,6 +281,7 @@ function LLMConfigTab() {
   const [temperature, setTemperature] = useState(0);
   const [maxTokens, setMaxTokens] = useState(0);
   const [locale, setLocale] = useState('');
+  const [batchMode, setBatchMode] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const models = modelsData?.models || [];
@@ -291,12 +292,13 @@ function LLMConfigTab() {
       setTemperature(settings.temperature || 0);
       setMaxTokens(settings.maxTokens || 0);
       setLocale(settings.locale || '');
+      setBatchMode(settings.batchMode || false);
     }
   }, [settings]);
 
   const handleSave = async () => {
     setSaved(false);
-    await updateSettings({ modelUuid, temperature, maxTokens, locale }).unwrap();
+    await updateSettings({ modelUuid, temperature, maxTokens, locale, batchMode }).unwrap();
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -377,6 +379,21 @@ function LLMConfigTab() {
                 </Form.Text>
               </Form.Group>
 
+              <Form.Group className="mb-4">
+                <Form.Check
+                  type="switch"
+                  id="batchMode"
+                  label="Batch Mode (50% cost savings)"
+                  checked={batchMode}
+                  onChange={e => setBatchMode(e.target.checked)}
+                />
+                <Form.Text className="text-muted">
+                  Submit prospect analysis as a batch job via the provider's batch API.
+                  Results typically arrive within 1 hour. Only works with cloud LLMs
+                  (OpenAI, Anthropic, Gemini). Local models always use standard mode.
+                </Form.Text>
+              </Form.Group>
+
               <div className="d-flex align-items-center gap-3">
                 <Button variant="primary" onClick={handleSave} disabled={saving}>
                   {saving ? <Spinner size="sm" className="me-1" /> : <FontAwesomeIcon icon={faSave} className="me-1" />}
@@ -417,6 +434,8 @@ function LLMConfigTab() {
               </dd>
               <dt>Locale</dt>
               <dd className="text-muted">{locale || 'Italian (default)'}</dd>
+              <dt>Batch Mode</dt>
+              <dd className="text-muted">{batchMode ? 'Enabled (50% savings)' : 'Disabled (real-time)'}</dd>
             </dl>
           </Card.Body>
         </Card>

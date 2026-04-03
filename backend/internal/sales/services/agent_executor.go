@@ -153,6 +153,11 @@ func (e *AgentExecutor) executeAgent(
 	return result
 }
 
+// BuildUserMessage constructs the user message from agent input (for batch submission)
+func (e *AgentExecutor) BuildUserMessage(input *models.AgentInput) string {
+	return buildAgentUserMessage(input)
+}
+
 func buildAgentUserMessage(input *models.AgentInput) string {
 	var sb fmt.Stringer = &agentMessageBuilder{input: input}
 	return sb.String()

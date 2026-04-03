@@ -264,6 +264,7 @@ export interface SalesSettings {
   temperature?: number;
   maxTokens?: number;
   locale?: string;
+  batchMode?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

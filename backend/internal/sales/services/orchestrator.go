@@ -33,6 +33,7 @@ type orchestratorService struct {
 	jobRepo         repository.JobRepository
 	reportRepo      repository.ReportRepository
 	settingsRepo    repository.SettingsRepository
+	batchRepo       repository.BatchRepository
 	modelProvider   AIModelProvider
 	promptLoader    *PromptLoader
 	scraper         *Scraper
@@ -53,6 +54,7 @@ func NewOrchestrator(
 	jobRepo repository.JobRepository,
 	reportRepo repository.ReportRepository,
 	settingsRepo repository.SettingsRepository,
+	batchRepo repository.BatchRepository,
 	modelProvider AIModelProvider,
 	promptLoader *PromptLoader,
 	scraper *Scraper,
@@ -67,6 +69,7 @@ func NewOrchestrator(
 		jobRepo:       jobRepo,
 		reportRepo:    reportRepo,
 		settingsRepo:  settingsRepo,
+		batchRepo:     batchRepo,
 		modelProvider: modelProvider,
 		promptLoader:  promptLoader,
 		scraper:       scraper,
@@ -80,38 +83,49 @@ func NewOrchestrator(
 	}
 }
 
+// userLLMSettings holds resolved LLM provider and user preferences
+type userLLMSettings struct {
+	llm        providers.LLMProvider
+	modelUUID  string
+	temp       float64
+	maxTokens  int
+	locale     string
+	batchMode  bool
+}
+
 // getLLMForUser resolves the LLM provider based on user settings, falling back to system default
-func (s *orchestratorService) getLLMForUser(ctx context.Context, userID string) (providers.LLMProvider, float64, int, string, error) {
+func (s *orchestratorService) getLLMForUser(ctx context.Context, userID string) (*userLLMSettings, error) {
 	settings, _ := s.settingsRepo.GetByUser(ctx, userID)
 
-	var llm providers.LLMProvider
-	var err error
+	result := &userLLMSettings{
+		locale: s.cfg.DefaultLocale,
+	}
 
+	var err error
 	if settings != nil && settings.ModelUUID != "" {
-		llm, err = s.modelProvider.GetLLMProvider(ctx, settings.ModelUUID)
+		result.llm, err = s.modelProvider.GetLLMProvider(ctx, settings.ModelUUID)
+		result.modelUUID = settings.ModelUUID
 	} else {
-		llm, err = s.modelProvider.GetDefaultLLMProvider(ctx)
+		result.llm, err = s.modelProvider.GetDefaultLLMProvider(ctx)
 	}
 	if err != nil {
-		return nil, 0, 0, "", err
+		return nil, err
 	}
 
-	temperature := float64(0)
-	maxTokens := 0
-	locale := s.cfg.DefaultLocale
 	if settings != nil {
 		if settings.Temperature > 0 {
-			temperature = settings.Temperature
+			result.temp = settings.Temperature
 		}
 		if settings.MaxTokens > 0 {
-			maxTokens = settings.MaxTokens
+			result.maxTokens = settings.MaxTokens
 		}
 		if settings.Locale != "" {
-			locale = settings.Locale
+			result.locale = settings.Locale
 		}
+		result.batchMode = settings.BatchMode
 	}
 
-	return llm, temperature, maxTokens, locale, nil
+	return result, nil
 }
 
 // ---------- Skill Execution ----------
@@ -131,12 +145,12 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 	skillCtx, cancel := context.WithTimeout(context.Background(), skillTimeout)
 	defer cancel()
 
-	llm, userTemp, userMaxTokens, userLocale, err := s.getLLMForUser(skillCtx, userID)
+	us, err := s.getLLMForUser(skillCtx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get LLM provider: %w", err)
 	}
 	if locale == "" {
-		locale = userLocale
+		locale = us.locale
 	}
 
 	vars := map[string]any{
@@ -159,11 +173,11 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 	var inputTokens, outputTokens int
 
 	// Apply user settings with sensible defaults
-	temp := userTemp
+	temp := us.temp
 	if temp == 0 {
 		temp = 0.3
 	}
-	maxTok := userMaxTokens
+	maxTok := us.maxTokens
 	if maxTok == 0 {
 		maxTok = 4096
 	}
@@ -174,7 +188,7 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 		MaxTokens:    maxTok,
 	}
 
-	if usageProvider, ok := llm.(providers.LLMProviderWithUsage); ok {
+	if usageProvider, ok := us.llm.(providers.LLMProviderWithUsage); ok {
 		result, callErr := usageProvider.CompleteWithUsage(skillCtx, userMessage, opts)
 		if callErr != nil {
 			return nil, fmt.Errorf("LLM completion for skill %s: %w", skillName, callErr)
@@ -183,7 +197,7 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 		inputTokens = result.InputTokens
 		outputTokens = result.OutputTokens
 	} else {
-		text, err = llm.Complete(skillCtx, userMessage, opts)
+		text, err = us.llm.Complete(skillCtx, userMessage, opts)
 		if err != nil {
 			return nil, fmt.Errorf("LLM completion for skill %s: %w", skillName, err)
 		}
@@ -201,7 +215,7 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 	s.logger.Info("skill executed",
 		slog.String("skill", string(skillName)),
 		slog.String("url", url),
-		slog.String("model", llm.ModelName()),
+		slog.String("model", us.llm.ModelName()),
 		slog.Int64("latencyMs", latencyMs),
 	)
 
@@ -211,7 +225,7 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
 		LatencyMs:    latencyMs,
-		ModelUsed:    llm.ModelName(),
+		ModelUsed:    us.llm.ModelName(),
 	}, nil
 }
 
@@ -220,12 +234,12 @@ func (s *orchestratorService) RunSkill(ctx context.Context, skillName models.Ski
 // CreateProspectJob creates an async prospect job and starts the 3-phase pipeline in background
 func (s *orchestratorService) CreateProspectJob(ctx context.Context, url, locale, userID string) (*models.Job, error) {
 	// Resolve LLM and settings now (before goroutine) so we have access to user context
-	llm, _, _, userLocale, err := s.getLLMForUser(ctx, userID)
+	us, err := s.getLLMForUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get LLM provider: %w", err)
 	}
 	if locale == "" {
-		locale = userLocale
+		locale = us.locale
 	}
 
 	job := &models.Job{
@@ -262,7 +276,7 @@ func (s *orchestratorService) CreateProspectJob(ctx context.Context, url, locale
 			s.runningJobsMu.Unlock()
 		}()
 
-		s.runProspectPipeline(pipelineCtx, job, llm)
+		s.runProspectPipeline(pipelineCtx, job, us)
 	}()
 
 	s.logger.Info("prospect job created", slog.String("jobId", job.UUID), slog.String("url", url))
@@ -285,7 +299,7 @@ func (s *orchestratorService) RunQuickProspect(ctx context.Context, url, locale,
 	}
 
 	// Quick mode: run only company-research agent
-	llm, _, _, _, err := s.getLLMForUser(ctx, userID)
+	us, err := s.getLLMForUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get LLM provider: %w", err)
 	}
@@ -308,7 +322,7 @@ func (s *orchestratorService) RunQuickProspect(ctx context.Context, url, locale,
 		Prompt: prompt,
 	}}
 
-	results := s.agentExecutor.RunParallel(ctx, agents, input, llm, nil)
+	results := s.agentExecutor.RunParallel(ctx, agents, input, us.llm, nil)
 
 	result := &models.QuickProspectResult{
 		CompanyName: scraped.CompanyName,
@@ -431,7 +445,7 @@ func (s *orchestratorService) RerunFailedAgents(ctx context.Context, jobID, user
 	}
 
 	// Get LLM provider
-	llm, _, _, _, err := s.getLLMForUser(ctx, userID)
+	us, err := s.getLLMForUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get LLM provider: %w", err)
 	}
@@ -476,7 +490,7 @@ func (s *orchestratorService) RerunFailedAgents(ctx context.Context, jobID, user
 			Locale:      job.Locale,
 		}
 
-		newResults := s.agentExecutor.RunParallel(rerunCtx, rerunDefs, input, llm, nil)
+		newResults := s.agentExecutor.RunParallel(rerunCtx, rerunDefs, input, us.llm, nil)
 
 		// Merge: replace old failed results with new ones
 		for j, newR := range newResults {
@@ -531,7 +545,8 @@ func (s *orchestratorService) RerunFailedAgents(ctx context.Context, jobID, user
 
 // ---------- Three-Phase Pipeline ----------
 
-func (s *orchestratorService) runProspectPipeline(ctx context.Context, job *models.Job, llm providers.LLMProvider) {
+func (s *orchestratorService) runProspectPipeline(ctx context.Context, job *models.Job, us *userLLMSettings) {
+	llm := us.llm
 	// Use a separate context for DB writes so they succeed even if the pipeline context times out
 	dbCtx := context.Background()
 
@@ -570,6 +585,12 @@ func (s *orchestratorService) runProspectPipeline(ctx context.Context, job *mode
 		ScrapedData:  scraped,
 		RegistryData: enrichmentData,
 		Locale:       job.Locale,
+	}
+
+	// Check if batch mode is enabled and provider supports it
+	if batchProvider, ok := llm.(providers.BatchLLMProvider); ok && us.batchMode && s.batchRepo != nil {
+		s.submitBatchAnalysis(dbCtx, job, batchProvider, us.modelUUID, agentDefs, input)
+		return // pipeline continues via batch poller
 	}
 
 	results := s.agentExecutor.RunParallel(ctx, agentDefs, input, llm, nil)
@@ -612,6 +633,65 @@ func (s *orchestratorService) runProspectPipeline(ctx context.Context, job *mode
 		slog.String("url", job.CompanyURL),
 		slog.Int("score", job.TotalScore),
 		slog.String("grade", job.Grade),
+	)
+}
+
+// submitBatchAnalysis submits all agent prompts as a single batch and hands off to the poller
+func (s *orchestratorService) submitBatchAnalysis(
+	ctx context.Context,
+	job *models.Job,
+	batchProvider providers.BatchLLMProvider,
+	modelUUID string,
+	agentDefs []AgentDef,
+	input *models.AgentInput,
+) {
+	// Build batch requests from agent defs
+	requests := make([]providers.BatchRequest, len(agentDefs))
+	requestMap := make(map[string]int, len(agentDefs))
+
+	for i, def := range agentDefs {
+		customID := string(def.Name)
+		requests[i] = providers.BatchRequest{
+			CustomID: customID,
+			Prompt:   s.agentExecutor.BuildUserMessage(input),
+			Options: providers.CompletionOptions{
+				SystemPrompt: def.Prompt,
+				Temperature:  0.3,
+				MaxTokens:    4096,
+			},
+		}
+		requestMap[customID] = i
+	}
+
+	submission, err := batchProvider.SubmitBatch(ctx, requests)
+	if err != nil {
+		s.failJob(ctx, job, "analysis", fmt.Sprintf("batch submit failed: %v", err))
+		return
+	}
+
+	// Persist batch record
+	batchJob := &models.BatchJob{
+		UUID:       uuid.New().String(),
+		JobUUID:    job.UUID,
+		ModelUUID:  modelUUID,
+		Provider:   submission.Provider,
+		BatchID:    submission.BatchID,
+		Status:     "submitted",
+		RequestMap: requestMap,
+	}
+	if err := s.batchRepo.Create(ctx, batchJob); err != nil {
+		s.failJob(ctx, job, "analysis", fmt.Sprintf("save batch record: %v", err))
+		return
+	}
+
+	// Update job to batch_pending
+	s.jobRepo.UpdateStatus(ctx, job.UUID, models.JobStatusBatchPending, "")
+
+	s.logger.Info("batch submitted",
+		slog.String("jobId", job.UUID),
+		slog.String("batchId", submission.BatchID),
+		slog.String("provider", submission.Provider),
+		slog.Int("agents", len(agentDefs)),
 	)
 }
 

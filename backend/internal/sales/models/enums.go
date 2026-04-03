@@ -9,8 +9,9 @@ const (
 	JobStatusAnalysis  JobStatus = "analysis"
 	JobStatusSynthesis JobStatus = "synthesis"
 	JobStatusCompleted JobStatus = "completed"
-	JobStatusFailed    JobStatus = "failed"
-	JobStatusCancelled JobStatus = "cancelled"
+	JobStatusBatchPending JobStatus = "batch_pending"
+	JobStatusFailed      JobStatus = "failed"
+	JobStatusCancelled   JobStatus = "cancelled"
 )
 
 // SkillName identifies a sales intelligence skill

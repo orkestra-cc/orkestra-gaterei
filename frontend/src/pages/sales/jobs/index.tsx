@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Row, Col, Card, Table, Badge, Button, Spinner, Tab, Tabs } from 'react-bootstrap';
+import { Row, Col, Card, Table, Badge, Button, Spinner, Tab, Tabs, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTasks, faSync, faTrash, faEye, faCheckCircle, faTimesCircle, faClock, faPlay, faRedo, faFileAlt, faSpinner, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router-dom';
@@ -14,6 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
   synthesis: 'warning',
   completed: 'success',
   failed: 'danger',
+  batch_pending: 'info',
   cancelled: 'dark',
 };
 
@@ -21,6 +22,7 @@ const STATUS_ICONS: Record<string, any> = {
   queued: faClock,
   discovery: faSpinner,
   analysis: faSpinner,
+  batch_pending: faClock,
   synthesis: faSpinner,
   completed: faCheckCircle,
   failed: faTimesCircle,
@@ -43,7 +45,7 @@ const PHASE_COLORS: Record<string, string> = {
   skipped: 'text-muted',
 };
 
-const RUNNING_STATUSES = ['queued', 'discovery', 'analysis', 'synthesis'];
+const RUNNING_STATUSES = ['queued', 'discovery', 'analysis', 'batch_pending', 'synthesis'];
 
 function isRunning(status: string) {
   return RUNNING_STATUSES.includes(status);
@@ -234,6 +236,21 @@ export function JobDetailPage() {
                 <strong>Error:</strong> {job.errorMessage}
               </Card.Body>
             </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Batch pending info */}
+      {job.status === 'batch_pending' && (
+        <Row className="g-3 mb-3">
+          <Col>
+            <Alert variant="info" className="d-flex align-items-center gap-2 mb-0">
+              <FontAwesomeIcon icon={faClock} />
+              <div>
+                <strong>Batch Mode</strong> — Agent analysis has been submitted as a batch job to your LLM provider.
+                Results typically arrive within 1 hour. This page will update automatically.
+              </div>
+            </Alert>
           </Col>
         </Row>
       )}
