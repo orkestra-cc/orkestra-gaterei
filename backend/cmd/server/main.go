@@ -30,10 +30,6 @@ import (
 	billingRepo "github.com/orkestra/backend/internal/billing/repository"
 	billingSvc "github.com/orkestra/backend/internal/billing/services"
 	"github.com/orkestra/backend/internal/company"
-	companyConfig "github.com/orkestra/backend/internal/company/config"
-	companyHandlers "github.com/orkestra/backend/internal/company/handlers"
-	companyRepo "github.com/orkestra/backend/internal/company/repository"
-	companySvc "github.com/orkestra/backend/internal/company/services"
 	"github.com/orkestra/backend/internal/graph"
 	graphHandlers "github.com/orkestra/backend/internal/graph/handlers"
 	graphRepo "github.com/orkestra/backend/internal/graph/repository"
@@ -62,21 +58,16 @@ import (
 	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	"github.com/orkestra/backend/internal/navigation"
 	"github.com/orkestra/backend/internal/reporting"
-	reportingHandlers "github.com/orkestra/backend/internal/reporting/handlers"
-	reportingRepository "github.com/orkestra/backend/internal/reporting/repository"
-	reportingServices "github.com/orkestra/backend/internal/reporting/services"
 	"github.com/orkestra/backend/internal/user"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/utils"
 	userHandlers "github.com/orkestra/backend/internal/user/handlers"
 	userRepository "github.com/orkestra/backend/internal/user/repository"
 	userServices "github.com/orkestra/backend/internal/user/services"
-	navigationConfig "github.com/orkestra/backend/internal/navigation/config"
-	navigationHandlers "github.com/orkestra/backend/internal/navigation/handlers"
-	navigationServices "github.com/orkestra/backend/internal/navigation/services"
 )
 
 func main() {
@@ -189,16 +180,6 @@ func main() {
 	userRepo := userRepository.NewUserRepository(db)
 	userService := userServices.NewUserService(userRepo, oauthProviderRepo)
 	userHandler := userHandlers.NewUserHandler(userService)
-
-	// Initialize reporting module
-	reportingRepo := reportingRepository.NewDeadlineRepository(db)
-	reportingService := reportingServices.NewDeadlineService(reportingRepo)
-	reportingHandler := reportingHandlers.NewDeadlineHandler(reportingService)
-
-	// Initialize navigation module
-	menuConfig := navigationConfig.NewMenuConfig()
-	navigationService := navigationServices.NewNavigationService(menuConfig)
-	navigationHandler := navigationHandlers.NewNavigationHandler(navigationService)
 
 	// Initialize documents module (PDF generation with Gotenberg)
 	// IMPORTANT: Documents module must be initialized BEFORE billing module
@@ -328,31 +309,6 @@ func main() {
 		)
 	} else {
 		logger.Warn("Billing module disabled: OPENAPI_BILLING_BEARER_TOKEN not configured")
-	}
-
-	// Initialize company lookup module (OpenAPI Company API)
-	var companyLookupHandler *companyHandlers.CompanyHandler
-	companyEnabled := cfg.Company.BearerToken != ""
-
-	if companyEnabled {
-		companyCfg := &companyConfig.CompanyAPIConfig{
-			BaseURL:       cfg.Company.BaseURL,
-			BearerToken:   cfg.Company.BearerToken,
-			Timeout:       cfg.Company.Timeout,
-			RetryAttempts: cfg.Company.RetryAttempts,
-			CacheTTL:      cfg.Company.CacheTTL,
-		}
-
-		companyRepository := companyRepo.NewCompanyRepository(db)
-		companyClient := companySvc.NewCompanyAPIClientWithCache(companyCfg, logger, redisClientAdapter)
-		companyService := companySvc.NewCompanyService(companyRepository, companyClient, logger)
-		companyLookupHandler = companyHandlers.NewCompanyHandler(companyService)
-
-		logger.Info("Company lookup module initialized",
-			slog.String("baseURL", cfg.Company.BaseURL),
-		)
-	} else {
-		logger.Warn("Company lookup module disabled: OPENAPI_COMPANY_BEARER_TOKEN not configured")
 	}
 
 	// Initialize graph database module (Memgraph)
@@ -698,6 +654,26 @@ func main() {
 		)
 	}
 
+	// Initialize module registry for migrated modules
+	svcRegistry := module.NewServiceRegistry()
+	modRegistry := module.NewModuleRegistry(logger)
+	modDeps := &module.Dependencies{
+		DB:           db,
+		RedisAdapter: redisClientAdapter,
+		Config:       cfg,
+		Logger:       logger,
+		Services:     svcRegistry,
+	}
+
+	// Register migrated modules (order matters: producers before consumers)
+	modRegistry.Register(navigation.NewModule())
+	modRegistry.Register(reporting.NewModule())
+	modRegistry.Register(company.NewModule())
+
+	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+		log.Fatalf("Failed to initialize modules: %v", err)
+	}
+
 	apiConfig := huma.DefaultConfig("Orkestra API", "1.0.0")
 	apiConfig.DocsPath = ""
 	apiConfig.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
@@ -736,19 +712,14 @@ func main() {
 		user.RegisterRoutes(userAPI, userHandler)
 	})
 
-	// Create reporting routes with role-based protection
-	// Only manager, administrator, ceo, and developer roles should have access
-	protectedRouter.Group(func(r chi.Router) {
-		r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-		reportingAPI := humachi.New(r, apiConfig)
-		// Register reporting routes (protected with role restrictions)
-		reporting.RegisterRoutes(reportingAPI, reportingHandler)
+	// Register routes for all migrated modules
+	modRegistry.RegisterAllRoutes(&module.RouteInfo{
+		PublicAPI:        publicAPI,
+		ProtectedRouter:  protectedRouter,
+		Router:           router,
+		AuthMW:           authMiddlewareHandler,
+		APIConfig:        apiConfig,
 	})
-
-	// Navigation routes - accessible to all authenticated users
-	// Role filtering happens inside the service based on user's role
-	navigationAPI := humachi.New(protectedRouter, apiConfig)
-	navigation.RegisterRoutes(navigationAPI, navigationHandler)
 
 	// Billing routes - manager role and above
 	// Only register if billing module is enabled
@@ -788,16 +759,6 @@ func main() {
 				documentsTemplateHandler,
 				documentsDocumentHandler,
 			)
-		})
-	}
-
-	// Company lookup routes - manager role and above
-	// Only register if company module is enabled (same token as billing)
-	if companyEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-			companyAPI := humachi.New(r, apiConfig)
-			company.RegisterRoutes(companyAPI, companyLookupHandler)
 		})
 	}
 
@@ -1089,6 +1050,11 @@ func main() {
 		}()
 	}
 
+	// Start background jobs for migrated modules
+	if err := modRegistry.StartAll(context.Background()); err != nil {
+		log.Fatalf("Failed to start modules: %v", err)
+	}
+
 	// Log development mode warning
 	if !cfg.IsProduction() {
 		utils.PrintDevelopmentWarning(cfg.Server.Environment)
@@ -1111,6 +1077,9 @@ func main() {
 	<-quit
 
 	logger.Info("Shutting down server...")
+
+	// Stop migrated modules
+	modRegistry.StopAll(context.Background())
 
 	// Stop billing polling job
 	if billingEnabled && billingPollingJob != nil {

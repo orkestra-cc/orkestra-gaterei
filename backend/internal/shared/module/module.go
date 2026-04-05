@@ -2,10 +2,12 @@ package module
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -43,9 +45,11 @@ type Module interface {
 
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {
-	DB       *mongo.Database
-	Config   *config.Config
-	Services *ServiceRegistry
+	DB           *mongo.Database
+	RedisAdapter *database.RedisClientAdapter
+	Config       *config.Config
+	Logger       *slog.Logger
+	Services     *ServiceRegistry
 }
 
 // RouteInfo provides the routing infrastructure for module route registration.
