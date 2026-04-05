@@ -26,24 +26,11 @@ import (
 	"github.com/orkestra/backend/internal/billing"
 	"github.com/orkestra/backend/internal/company"
 	"github.com/orkestra/backend/internal/graph"
-	graphHandlers "github.com/orkestra/backend/internal/graph/handlers"
-	graphRepo "github.com/orkestra/backend/internal/graph/repository"
-	graphSvc "github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/documents"
 	"github.com/orkestra/backend/internal/aimodels"
-	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
 	"github.com/orkestra/backend/internal/agents"
-	agentsHandlers "github.com/orkestra/backend/internal/agents/handlers"
-	agentsRepo "github.com/orkestra/backend/internal/agents/repository"
-	agentsSvc "github.com/orkestra/backend/internal/agents/services"
 	"github.com/orkestra/backend/internal/sales"
-	salesHandlers "github.com/orkestra/backend/internal/sales/handlers"
-	salesRepo "github.com/orkestra/backend/internal/sales/repository"
-	salesSvc "github.com/orkestra/backend/internal/sales/services"
 	"github.com/orkestra/backend/internal/rag"
-	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
-	ragRepo "github.com/orkestra/backend/internal/rag/repository"
-	ragSvc "github.com/orkestra/backend/internal/rag/services"
 	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	"github.com/orkestra/backend/internal/navigation"
 	"github.com/orkestra/backend/internal/reporting"
@@ -188,203 +175,13 @@ func main() {
 	modRegistry.Register(aimodels.NewModule())
 	modRegistry.Register(company.NewModule())
 	modRegistry.Register(billing.NewModule())
+	modRegistry.Register(graph.NewModule())
+	modRegistry.Register(rag.NewModule())
+	modRegistry.Register(sales.NewModule())
+	modRegistry.Register(agents.NewModule())
 
 	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
-	}
-
-	// Bridge: retrieve cross-module services from registry for not-yet-migrated modules
-	var aiModelService aimodelsSvc.AIModelService
-	if svc := svcRegistry.Get(module.ServiceAIModelProvider); svc != nil {
-		aiModelService = svc.(aimodelsSvc.AIModelService)
-	}
-
-	// Initialize graph database module (Memgraph)
-	var graphHandler *graphHandlers.GraphHandler
-	var graphRepository graphRepo.GraphRepository
-	graphEnabled := cfg.Graph.Enabled
-
-	if graphEnabled {
-		graphDriver, err := database.NewGraphConnection(ctx, database.GraphDBConfig{
-			URI:         cfg.Graph.URI,
-			Username:    cfg.Graph.Username,
-			Password:    cfg.Graph.Password,
-			Database:    cfg.Graph.Database,
-			MaxConnPool: cfg.Graph.MaxConnPool,
-		})
-		if err != nil {
-			log.Fatalf("Failed to connect to graph database: %v", err)
-		}
-		defer database.DisconnectGraph(ctx, graphDriver)
-
-		graphRepository = graphRepo.NewGraphRepository(graphDriver, cfg.Graph.Database)
-		graphService := graphSvc.NewGraphService(graphRepository, logger)
-		algorithmService := graphSvc.NewAlgorithmService(graphRepository, logger)
-		vectorService := graphSvc.NewVectorService(graphRepository, logger)
-		graphHandler = graphHandlers.NewGraphHandler(graphService, algorithmService, vectorService, cfg.Graph.URI)
-
-		logger.Info("Graph database module initialized",
-			slog.String("uri", cfg.Graph.URI),
-			slog.String("database", cfg.Graph.Database),
-		)
-	} else {
-		logger.Warn("Graph database module disabled: GRAPH_ENABLED not set")
-	}
-
-	// Initialize RAG module
-	var ragDocumentHandler *ragHandlers.DocumentHandler
-	var ragQueryHandler *ragHandlers.QueryHandler
-	var ragStreamHandler *ragHandlers.StreamHandler
-	var ragRelationshipHandler *ragHandlers.RelationshipHandler
-	var ragQueryService ragSvc.QueryService // hoisted for agents module
-	ragEnabled := cfg.RAG.Enabled
-
-	if ragEnabled {
-		documentRepository := ragRepo.NewDocumentRepository(db)
-		relTypeRepo := ragRepo.NewRelationshipTypeRepository(db)
-		relTypeService := ragSvc.NewRelationshipTypeService(relTypeRepo, logger)
-		ragRelationshipHandler = ragHandlers.NewRelationshipHandler(relTypeService)
-
-		// Use aimodels service if available, otherwise create a standalone model service for RAG
-		var ragModelProvider ragSvc.AIModelProvider
-		if aiModelService != nil {
-			ragModelProvider = aiModelService
-		} else {
-			// Fallback: create a local model service for RAG when aimodels module is disabled
-			modelRepository := ragRepo.NewModelRepository(db)
-			localModelService := ragSvc.NewModelService(modelRepository, cfg.RAG, logger)
-			if err := localModelService.SeedDefaults(ctx); err != nil {
-				logger.Warn("Failed to seed default RAG models", slog.String("error", err.Error()))
-			}
-			ragModelProvider = localModelService
-		}
-
-		// Text extractor using Gotenberg
-		textExtractor := ragSvc.NewTextExtractor(cfg.Documents.GotenbergURL)
-
-		// Ingestion service (depends on graph repo if graph module is enabled)
-		if graphEnabled {
-			ingestionService := ragSvc.NewIngestionService(
-				documentRepository, relTypeRepo, graphRepository, ragModelProvider, textExtractor,
-				cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, logger,
-			)
-			ragDocumentHandler = ragHandlers.NewDocumentHandler(ingestionService)
-
-			// Query service
-			ragQueryService = ragSvc.NewQueryService(graphRepository, ragModelProvider, cfg.RAG.DefaultTopK, logger)
-			ragQueryHandler = ragHandlers.NewQueryHandler(ragQueryService)
-			ragStreamHandler = ragHandlers.NewStreamHandler(ragQueryService, logger)
-		}
-
-		logger.Info("RAG module initialized")
-	} else {
-		logger.Warn("RAG module disabled: RAG_ENABLED not set")
-	}
-
-	// Initialize Agents module (Hindsight AI agent integration)
-	var agentProjectHandler *agentsHandlers.ProjectHandler
-	var agentQueryHandler *agentsHandlers.AgentHandler
-	var personalAgentHandler *agentsHandlers.PersonalAgentHandler
-	agentsEnabled := cfg.Agents.Enabled
-
-	if agentsEnabled {
-		projectRepo := agentsRepo.NewProjectRepository(db)
-		conversationRepo := agentsRepo.NewConversationRepository(db)
-
-		hsClient := agentsSvc.NewHindsightClient(cfg.Agents.HindsightURL, logger)
-
-		// Create RAG bridge if RAG query service is available
-		var ragBridge agentsSvc.RAGBridge
-		if ragQueryService != nil {
-			ragBridge = agentsSvc.NewRAGBridge(ragQueryService, cfg.RAG.DefaultTopK, logger)
-		}
-
-		projectService := agentsSvc.NewProjectService(projectRepo, hsClient, cfg.Agents.HindsightNamespace, logger)
-		agentService := agentsSvc.NewAgentService(projectRepo, conversationRepo, hsClient, ragBridge, logger)
-
-		agentProjectHandler = agentsHandlers.NewProjectHandler(projectService)
-		agentQueryHandler = agentsHandlers.NewAgentHandler(agentService)
-
-		// Personal agent — per-user auto-provisioned agent
-		personalAgentService := agentsSvc.NewPersonalAgentService(projectRepo, agentService, hsClient, cfg.Agents.HindsightNamespace, logger)
-		personalAgentHandler = agentsHandlers.NewPersonalAgentHandler(personalAgentService)
-
-		logger.Info("Agents module initialized",
-			slog.String("hindsightURL", cfg.Agents.HindsightURL),
-		)
-	} else {
-		logger.Warn("Agents module disabled: AGENTS_ENABLED not set")
-	}
-
-	// Initialize Sales Intelligence module
-	var salesSkillHandler *salesHandlers.SkillHandler
-	var salesProspectHandler *salesHandlers.ProspectHandler
-	var salesJobHandler *salesHandlers.JobHandler
-	var salesReportHandler *salesHandlers.ReportHandler
-	var salesPromptHandler *salesHandlers.PromptHandler
-	var salesSettingsHandler *salesHandlers.SettingsHandler
-	salesEnabled := cfg.Sales.Enabled
-
-	if salesEnabled {
-		salesJobRepo := salesRepo.NewJobRepository(db)
-
-		// Sales module uses the AI model provider through a consumer interface
-		var salesModelProvider salesSvc.AIModelProvider
-		if aiModelService != nil {
-			salesModelProvider = aiModelService
-		}
-
-		// Optional: company enrichment for Italian business registry
-		var salesEnrichment salesSvc.CompanyEnrichmentService
-		// TODO: wire companyService adapter when ready
-
-		salesPromptRepo := salesRepo.NewPromptRepository(db)
-		promptLoader := salesSvc.NewPromptLoader(salesPromptRepo, logger)
-
-		// Seed default prompts from embedded files on first run
-		if err := promptLoader.SeedDefaults(context.Background()); err != nil {
-			logger.Warn("Failed to seed sales prompts", slog.String("error", err.Error()))
-		}
-		scraper := salesSvc.NewScraper(cfg.Sales, logger)
-		agentExecutor := salesSvc.NewAgentExecutor(cfg.Sales.MaxConcurrency, logger)
-		scorer := salesSvc.NewScorer()
-
-		salesSettingsRepo := salesRepo.NewSettingsRepository(db)
-		salesReportRepo := salesRepo.NewReportRepository(db)
-		reportGen := salesSvc.NewReportGenerator(salesReportRepo, logger)
-
-		salesBatchRepo := salesRepo.NewBatchRepository(db)
-
-		orchestrator := salesSvc.NewOrchestrator(
-			salesJobRepo, salesReportRepo, salesSettingsRepo, salesBatchRepo, salesModelProvider, promptLoader,
-			scraper, agentExecutor, scorer, salesEnrichment, reportGen,
-			cfg.Sales, logger,
-		)
-
-		// Start batch poller for async LLM batch results
-		batchPoller := salesSvc.NewBatchPoller(
-			salesBatchRepo, salesJobRepo, salesReportRepo,
-			salesModelProvider, scorer, reportGen,
-			30*time.Second, logger,
-		)
-		batchPoller.Start()
-
-		skillStore := salesSvc.NewSkillStore()
-		salesSkillHandler = salesHandlers.NewSkillHandler(orchestrator, skillStore, logger)
-		salesProspectHandler = salesHandlers.NewProspectHandler(orchestrator)
-		salesJobHandler = salesHandlers.NewJobHandler(orchestrator)
-		salesReportHandler = salesHandlers.NewReportHandler(salesReportRepo, salesJobRepo, reportGen)
-		salesPromptHandler = salesHandlers.NewPromptHandler(salesPromptRepo, promptLoader)
-		salesSettingsHandler = salesHandlers.NewSettingsHandler(salesSettingsRepo)
-
-		// Mark incomplete jobs from previous runs as failed
-		if err := salesJobRepo.MarkStaleJobsFailed(context.Background()); err != nil {
-			logger.Warn("Failed to mark stale sales jobs", slog.String("error", err.Error()))
-		}
-
-		logger.Info("Sales Intelligence module initialized")
-	} else {
-		logger.Warn("Sales Intelligence module disabled: SALES_ENABLED not set")
 	}
 
 	// Initialize auth service with all repositories
@@ -562,82 +359,6 @@ func main() {
 		AuthMW:           authMiddlewareHandler,
 		APIConfig:        apiConfig,
 	})
-
-	// Graph database routes - administrator role and above
-	// Provides raw Cypher execution, restricted to trusted roles
-	if graphEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
-			graphAPI := humachi.New(r, apiConfig)
-			graph.RegisterRoutes(graphAPI, graphHandler)
-		})
-	}
-
-	// RAG routes - administrator role and above
-	if ragEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
-			ragAPI := humachi.New(r, apiConfig)
-			if ragDocumentHandler != nil {
-				rag.RegisterDocumentRoutes(ragAPI, ragDocumentHandler)
-			}
-			if ragQueryHandler != nil {
-				rag.RegisterQueryRoutes(ragAPI, ragQueryHandler)
-			}
-			if ragStreamHandler != nil {
-				rag.RegisterStreamRoute(r, ragStreamHandler)
-			}
-			if ragRelationshipHandler != nil {
-				rag.RegisterRelationshipTypeRoutes(ragAPI, ragRelationshipHandler)
-			}
-		})
-	}
-
-	// Agents routes - different role levels for different operations
-	if agentsEnabled {
-		// Personal agent - any authenticated user (guest and above)
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("guest"))
-			personalAgentAPI := humachi.New(r, apiConfig)
-			agents.RegisterPersonalAgentRoutes(personalAgentAPI, personalAgentHandler)
-		})
-
-		// Project management - manager role and above
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-			agentsProjectAPI := humachi.New(r, apiConfig)
-			agents.RegisterProjectRoutes(agentsProjectAPI, agentProjectHandler)
-		})
-
-		// Agent querying and conversations - operator role and above
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("operator"))
-			agentsQueryAPI := humachi.New(r, apiConfig)
-			agents.RegisterQueryRoutes(agentsQueryAPI, agentQueryHandler)
-		})
-
-		// Agent admin - administrator role and above
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
-			agentsAdminAPI := humachi.New(r, apiConfig)
-			agents.RegisterAdminRoutes(agentsAdminAPI, agentQueryHandler)
-		})
-	}
-
-	// Sales Intelligence routes - manager role and above
-	if salesEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-			salesAPI := humachi.New(r, apiConfig)
-			sales.RegisterSkillRoutes(salesAPI, salesSkillHandler)
-			sales.RegisterProspectRoutes(salesAPI, salesProspectHandler)
-			sales.RegisterJobRoutes(salesAPI, salesJobHandler)
-			sales.RegisterReportRoutes(salesAPI, salesReportHandler)
-			sales.RegisterPromptRoutes(salesAPI, salesPromptHandler)
-			sales.RegisterReportDownloadRoute(r, salesReportHandler)
-			sales.RegisterSettingsRoutes(salesAPI, salesSettingsHandler)
-		})
-	}
 
 	// Mount the protected routes
 	router.Mount("/", protectedRouter)
