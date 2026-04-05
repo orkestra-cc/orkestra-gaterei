@@ -36,8 +36,6 @@ import (
 	graphSvc "github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/documents"
 	"github.com/orkestra/backend/internal/aimodels"
-	aimodelsHandlers "github.com/orkestra/backend/internal/aimodels/handlers"
-	aimodelsRepo "github.com/orkestra/backend/internal/aimodels/repository"
 	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
 	"github.com/orkestra/backend/internal/agents"
 	agentsHandlers "github.com/orkestra/backend/internal/agents/handlers"
@@ -51,9 +49,6 @@ import (
 	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
 	ragRepo "github.com/orkestra/backend/internal/rag/repository"
 	ragSvc "github.com/orkestra/backend/internal/rag/services"
-	documentsConfig "github.com/orkestra/backend/internal/documents/config"
-	documentsHandlers "github.com/orkestra/backend/internal/documents/handlers"
-	documentsRepo "github.com/orkestra/backend/internal/documents/repository"
 	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	"github.com/orkestra/backend/internal/navigation"
@@ -181,52 +176,36 @@ func main() {
 	userService := userServices.NewUserService(userRepo, oauthProviderRepo)
 	userHandler := userHandlers.NewUserHandler(userService)
 
-	// Initialize documents module (PDF generation with Gotenberg)
-	// IMPORTANT: Documents module must be initialized BEFORE billing module
-	// so pdfSvc can be injected into billing's InvoiceService
-	var documentsTemplateHandler *documentsHandlers.TemplateHandler
-	var documentsDocumentHandler *documentsHandlers.DocumentHandler
-	var pdfSvc documentsSvc.PDFService // Declared here so billing module can use it
-	documentsEnabled := cfg.Documents.GotenbergURL != ""
+	// Initialize module registry for migrated modules
+	svcRegistry := module.NewServiceRegistry()
+	modRegistry := module.NewModuleRegistry(logger)
+	modDeps := &module.Dependencies{
+		DB:           db,
+		RedisAdapter: redisClientAdapter,
+		Config:       cfg,
+		Logger:       logger,
+		Services:     svcRegistry,
+	}
 
-	if documentsEnabled {
-		// Create documents config
-		docsConfig := &documentsConfig.Config{
-			GotenbergURL:  cfg.Documents.GotenbergURL,
-			Timeout:       cfg.Documents.Timeout,
-			RetryAttempts: cfg.Documents.RetryAttempts,
-			DefaultMargins: documentsConfig.PDFMargins{
-				Top:    cfg.Documents.DefaultMargins.Top,
-				Bottom: cfg.Documents.DefaultMargins.Bottom,
-				Left:   cfg.Documents.DefaultMargins.Left,
-				Right:  cfg.Documents.DefaultMargins.Right,
-			},
-		}
+	// Register migrated modules (order matters: producers before consumers)
+	modRegistry.Register(navigation.NewModule())
+	modRegistry.Register(reporting.NewModule())
+	modRegistry.Register(documents.NewModule())
+	modRegistry.Register(aimodels.NewModule())
+	modRegistry.Register(company.NewModule())
 
-		// Create repositories
-		templateRepo := documentsRepo.NewTemplateRepository(db)
-		documentRepo := documentsRepo.NewDocumentRepository(db)
+	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+		log.Fatalf("Failed to initialize modules: %v", err)
+	}
 
-		// Create services
-		gotenbergClient := documentsSvc.NewGotenbergClient(docsConfig, logger)
-		templateEngine := documentsSvc.NewTemplateEngine()
-		templateSvc := documentsSvc.NewTemplateService(templateRepo, templateEngine, logger)
-		pdfSvc = documentsSvc.NewPDFService(templateRepo, documentRepo, gotenbergClient, templateEngine, logger)
-
-		// Create handlers
-		documentsTemplateHandler = documentsHandlers.NewTemplateHandler(templateSvc)
-		documentsDocumentHandler = documentsHandlers.NewDocumentHandler(pdfSvc)
-
-		// Seed built-in templates
-		if err := templateSvc.SeedBuiltInTemplates(context.Background()); err != nil {
-			logger.Warn("Failed to seed built-in templates", slog.String("error", err.Error()))
-		}
-
-		logger.Info("Documents module initialized",
-			slog.String("gotenbergURL", cfg.Documents.GotenbergURL),
-		)
-	} else {
-		logger.Warn("Documents module disabled: GOTENBERG_URL not configured")
+	// Bridge: retrieve cross-module services from registry for not-yet-migrated modules
+	var pdfSvc documentsSvc.PDFService
+	if svc := svcRegistry.Get(module.ServicePDFService); svc != nil {
+		pdfSvc = svc.(documentsSvc.PDFService)
+	}
+	var aiModelService aimodelsSvc.AIModelService
+	if svc := svcRegistry.Get(module.ServiceAIModelProvider); svc != nil {
+		aiModelService = svc.(aimodelsSvc.AIModelService)
 	}
 
 	// Initialize billing module (OpenAPI SDI integration)
@@ -341,32 +320,6 @@ func main() {
 		)
 	} else {
 		logger.Warn("Graph database module disabled: GRAPH_ENABLED not set")
-	}
-
-	// Initialize AI Models module (standalone model management)
-	var aiModelHandler *aimodelsHandlers.ModelHandler
-	var aiModelService aimodelsSvc.AIModelService
-	aimodelsEnabled := cfg.AIModels.Enabled
-
-	if aimodelsEnabled {
-		aiModelRepository := aimodelsRepo.NewModelRepository(db)
-		aiModelService = aimodelsSvc.NewModelService(aiModelRepository, aimodelsSvc.AIModelsConfig{
-			OllamaBaseURL: cfg.AIModels.OllamaBaseURL,
-			OpenAIAPIKey:  cfg.AIModels.OpenAIAPIKey,
-			AnthropicKey:  cfg.AIModels.AnthropicKey,
-			GeminiKey:     cfg.AIModels.GeminiKey,
-		}, logger)
-
-		aiModelHandler = aimodelsHandlers.NewModelHandler(aiModelService)
-
-		// Seed default models on first startup
-		if err := aiModelService.SeedDefaults(ctx); err != nil {
-			logger.Warn("Failed to seed default AI models", slog.String("error", err.Error()))
-		}
-
-		logger.Info("AI Models module initialized")
-	} else {
-		logger.Warn("AI Models module disabled: AIMODELS_ENABLED not set")
 	}
 
 	// Initialize RAG module
@@ -654,26 +607,6 @@ func main() {
 		)
 	}
 
-	// Initialize module registry for migrated modules
-	svcRegistry := module.NewServiceRegistry()
-	modRegistry := module.NewModuleRegistry(logger)
-	modDeps := &module.Dependencies{
-		DB:           db,
-		RedisAdapter: redisClientAdapter,
-		Config:       cfg,
-		Logger:       logger,
-		Services:     svcRegistry,
-	}
-
-	// Register migrated modules (order matters: producers before consumers)
-	modRegistry.Register(navigation.NewModule())
-	modRegistry.Register(reporting.NewModule())
-	modRegistry.Register(company.NewModule())
-
-	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
-		log.Fatalf("Failed to initialize modules: %v", err)
-	}
-
 	apiConfig := huma.DefaultConfig("Orkestra API", "1.0.0")
 	apiConfig.DocsPath = ""
 	apiConfig.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
@@ -748,20 +681,6 @@ func main() {
 		)
 	}
 
-	// Documents routes - manager role and above for templates, all authenticated for PDF generation
-	// Only register if documents module is enabled
-	if documentsEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-			documentsAPI := humachi.New(r, apiConfig)
-			documents.RegisterRoutes(
-				documentsAPI,
-				documentsTemplateHandler,
-				documentsDocumentHandler,
-			)
-		})
-	}
-
 	// Graph database routes - administrator role and above
 	// Provides raw Cypher execution, restricted to trusted roles
 	if graphEnabled {
@@ -769,15 +688,6 @@ func main() {
 			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
 			graphAPI := humachi.New(r, apiConfig)
 			graph.RegisterRoutes(graphAPI, graphHandler)
-		})
-	}
-
-	// AI Models routes - administrator role and above
-	if aimodelsEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("administrator"))
-			aiModelsAPI := humachi.New(r, apiConfig)
-			aimodels.RegisterRoutes(aiModelsAPI, aiModelHandler)
 		})
 	}
 
