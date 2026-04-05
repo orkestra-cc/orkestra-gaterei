@@ -16,20 +16,40 @@ import (
 )
 
 type RAGModule struct {
+	module.BaseModule
 	documentHandler     *handlers.DocumentHandler
 	queryHandler        *handlers.QueryHandler
 	streamHandler       *handlers.StreamHandler
 	relationshipHandler *handlers.RelationshipHandler
 }
 
-func NewModule() *RAGModule {
-	return &RAGModule{}
+func NewModule() *RAGModule { return &RAGModule{} }
+
+func (m *RAGModule) Name() string                   { return "rag" }
+func (m *RAGModule) DisplayName() string             { return "RAG Pipeline" }
+func (m *RAGModule) Description() string             { return "Document ingestion, embedding, and retrieval-augmented generation" }
+func (m *RAGModule) Category() module.ModuleCategory { return module.CategoryToggleable }
+func (m *RAGModule) Enabled(cfg *config.Config) bool { return cfg.RAG.Enabled }
+func (m *RAGModule) Dependencies() []string          { return []string{"graph", "aimodels"} }
+
+func (m *RAGModule) ProvidedServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceRAGQuery} }
+func (m *RAGModule) RequiredServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceGraphRepo} }
+func (m *RAGModule) OptionalServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceAIModelProvider} }
+
+func (m *RAGModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "rag_documents", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "rag_models"},
+		{Name: "rag_relationship_types"},
+	}
 }
 
-func (m *RAGModule) Name() string { return "rag" }
-
-func (m *RAGModule) Enabled(cfg *config.Config) bool {
-	return cfg.RAG.Enabled
+func (m *RAGModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "AI", Name: "Documents", Icon: "file-alt", Path: "/graph/documents", MinRole: "administrator", Active: true},
+		{Group: "AI", Name: "Relationships", Icon: "project-diagram", Path: "/graph/relationships", MinRole: "administrator", Active: true},
+		{Group: "AI", Name: "RAG Query", Icon: "search", Path: "/graph/rag", MinRole: "administrator", Active: true},
+	}
 }
 
 func (m *RAGModule) Init(deps *module.Dependencies) error {

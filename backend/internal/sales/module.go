@@ -16,6 +16,7 @@ import (
 )
 
 type SalesModule struct {
+	module.BaseModule
 	skillHandler    *handlers.SkillHandler
 	prospectHandler *handlers.ProspectHandler
 	jobHandler      *handlers.JobHandler
@@ -25,14 +26,38 @@ type SalesModule struct {
 	batchPoller     *services.BatchPoller
 }
 
-func NewModule() *SalesModule {
-	return &SalesModule{}
+func NewModule() *SalesModule { return &SalesModule{} }
+
+func (m *SalesModule) Name() string                   { return "sales" }
+func (m *SalesModule) DisplayName() string             { return "Sales Intelligence" }
+func (m *SalesModule) Description() string             { return "AI-driven prospect analysis, scoring, and outreach" }
+func (m *SalesModule) Category() module.ModuleCategory { return module.CategoryToggleable }
+func (m *SalesModule) Enabled(cfg *config.Config) bool { return cfg.Sales.Enabled }
+func (m *SalesModule) OptionalServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceAIModelProvider}
 }
 
-func (m *SalesModule) Name() string { return "sales" }
+func (m *SalesModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "sales_jobs", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "sales_reports", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "sales_prompts"},
+		{Name: "sales_settings"},
+		{Name: "sales_batches"},
+	}
+}
 
-func (m *SalesModule) Enabled(cfg *config.Config) bool {
-	return cfg.Sales.Enabled
+func (m *SalesModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{{
+		Group: "Sales Intelligence", Name: "Sales", Icon: "chart-line", Path: "/sales",
+		MinRole: "manager", Active: true,
+		Children: []module.NavItemSpec{
+			{Name: "Prospect Analysis", Icon: "search", Path: "/sales/prospect", Active: true},
+			{Name: "Jobs", Icon: "tasks", Path: "/sales/jobs", Active: true},
+			{Name: "Reports", Icon: "file-alt", Path: "/sales/reports", Active: true},
+			{Name: "Settings", Icon: "cog", Path: "/sales/settings", Active: true},
+		},
+	}}
 }
 
 func (m *SalesModule) Init(deps *module.Dependencies) error {

@@ -1,7 +1,6 @@
 package dev
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/orkestra/backend/internal/auth/services"
@@ -11,19 +10,21 @@ import (
 )
 
 type DevModule struct {
+	module.BaseModule
 	handler *handlers.DevTokenHandler
 	logger  *slog.Logger
 }
 
-func NewModule() *DevModule {
-	return &DevModule{}
-}
+func NewModule() *DevModule { return &DevModule{} }
 
-func (m *DevModule) Name() string { return "dev" }
+func (m *DevModule) Name() string        { return "dev" }
+func (m *DevModule) DisplayName() string  { return "Development Tools" }
+func (m *DevModule) Description() string  { return "Dev token generation and testing utilities" }
 
-func (m *DevModule) Enabled(cfg *config.Config) bool {
-	return !cfg.IsProduction()
-}
+func (m *DevModule) Enabled(cfg *config.Config) bool { return !cfg.IsProduction() }
+
+func (m *DevModule) Dependencies() []string           { return []string{"auth"} }
+func (m *DevModule) RequiredServices() []module.ServiceKey { return []module.ServiceKey{module.ServiceJWTService} }
 
 func (m *DevModule) Init(deps *module.Dependencies) error {
 	jwtService := deps.Services.MustGet(module.ServiceJWTService).(services.JWTService)
@@ -33,14 +34,7 @@ func (m *DevModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *DevModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Dev routes are registered directly on the main router (not Huma, no auth)
 	ri.Router.Post("/dev/token", m.handler.GenerateTokenHTTP)
 	ri.Router.Get("/dev/token/roles", m.handler.ListRolesHTTP)
-	m.logger.Info("Dev token routes registered",
-		slog.String("note", "registered via module registry"),
-	)
+	m.logger.Info("Dev token routes registered")
 }
-
-func (m *DevModule) Start(_ context.Context) error      { return nil }
-func (m *DevModule) Stop(_ context.Context) error       { return nil }
-func (m *DevModule) HealthCheck(_ context.Context) error { return nil }

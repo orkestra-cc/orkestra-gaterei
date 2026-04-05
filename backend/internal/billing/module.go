@@ -18,6 +18,7 @@ import (
 )
 
 type BillingModule struct {
+	module.BaseModule
 	invoiceHandler          *handlers.InvoiceHandler
 	customerHandler         *handlers.CustomerHandler
 	supplierHandler         *handlers.SupplierHandler
@@ -33,14 +34,56 @@ type BillingModule struct {
 	logger        *slog.Logger
 }
 
-func NewModule() *BillingModule {
-	return &BillingModule{}
+func NewModule() *BillingModule { return &BillingModule{} }
+
+func (m *BillingModule) Name() string                   { return "billing" }
+func (m *BillingModule) DisplayName() string             { return "Fatturazione Elettronica" }
+func (m *BillingModule) Description() string             { return "Italian electronic invoicing via FatturaPA/SDI" }
+func (m *BillingModule) Category() module.ModuleCategory { return module.CategoryExternal }
+func (m *BillingModule) Enabled(cfg *config.Config) bool { return cfg.Billing.OpenAPIBearerToken != "" }
+func (m *BillingModule) Dependencies() []string          { return []string{"documents"} }
+func (m *BillingModule) OptionalServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServicePDFService}
 }
 
-func (m *BillingModule) Name() string { return "billing" }
+func (m *BillingModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "bearerToken", Label: "OpenAPI Bearer Token", Type: module.FieldSecret, Required: true, EnvVar: "OPENAPI_BILLING_BEARER_TOKEN"},
+		{Key: "baseURL", Label: "API Base URL", Type: module.FieldString, Default: "https://test.sdi.openapi.it", EnvVar: "OPENAPI_BILLING_BASE_URL"},
+		{Key: "fiscalID", Label: "Codice Fiscale", Type: module.FieldString, Required: true, EnvVar: "OPENAPI_BILLING_FISCAL_ID"},
+		{Key: "recipientCode", Label: "Codice Destinatario", Type: module.FieldString, EnvVar: "OPENAPI_BILLING_RECIPIENT_CODE"},
+		{Key: "sandboxMode", Label: "Sandbox Mode", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_SANDBOX_MODE"},
+		{Key: "pollingEnabled", Label: "Enable SDI Polling", Type: module.FieldBool, Default: "true"},
+		{Key: "pollingInterval", Label: "Polling Interval", Type: module.FieldDuration, Default: "12h"},
+		{Key: "webhookURL", Label: "Webhook URL", Type: module.FieldString, EnvVar: "BILLING_WEBHOOK_URL"},
+		{Key: "webhookSecret", Label: "Webhook Secret", Type: module.FieldSecret, EnvVar: "BILLING_WEBHOOK_SECRET"},
+	}
+}
 
-func (m *BillingModule) Enabled(cfg *config.Config) bool {
-	return cfg.Billing.OpenAPIBearerToken != ""
+func (m *BillingModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "invoices", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "billing_customers", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "billing_suppliers", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "billing_companies", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "billing_notifications"},
+		{Name: "billing_polling_state"},
+	}
+}
+
+func (m *BillingModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{{
+		Group: "Administration", Name: "Fatturazione", Icon: "file-invoice", Path: "/billing",
+		MinRole: "manager", Active: true,
+		Children: []module.NavItemSpec{
+			{Name: "Dashboard", Icon: "chart-pie", Path: "/billing/dashboard", Active: true},
+			{Name: "Fatture Emesse", Icon: "paper-plane", Path: "/billing/invoices/issued", Active: true},
+			{Name: "Fatture Ricevute", Icon: "inbox", Path: "/billing/invoices/received", Active: true},
+			{Name: "Clienti", Icon: "users", Path: "/billing/customers", Active: true},
+			{Name: "Fornitori", Icon: "truck", Path: "/billing/suppliers", Active: true},
+			{Name: "Notifiche SDI", Icon: "bell", Path: "/billing/notifications", Active: true},
+		},
+	}}
 }
 
 func (m *BillingModule) Init(deps *module.Dependencies) error {

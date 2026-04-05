@@ -1,29 +1,48 @@
 package auth
 
 import (
-	"context"
-
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/orkestra/backend/internal/auth/handlers"
 	"github.com/orkestra/backend/internal/auth/models"
 	"github.com/orkestra/backend/internal/auth/repository"
 	"github.com/orkestra/backend/internal/auth/services"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/module"
 	userServices "github.com/orkestra/backend/internal/user/services"
 )
 
 type AuthModule struct {
+	module.BaseModule
 	authHandler *handlers.AuthHandler
 }
 
-func NewModule() *AuthModule {
-	return &AuthModule{}
+func NewModule() *AuthModule { return &AuthModule{} }
+
+func (m *AuthModule) Name() string        { return "auth" }
+func (m *AuthModule) DisplayName() string  { return "Authentication" }
+func (m *AuthModule) Description() string  { return "OAuth 2.1, JWT, sessions, RBAC" }
+
+func (m *AuthModule) Dependencies() []string           { return []string{"user"} }
+func (m *AuthModule) RequiredServices() []module.ServiceKey { return []module.ServiceKey{module.ServiceUserService} }
+func (m *AuthModule) ProvidedServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceAuthService, module.ServiceJWTService}
 }
 
-func (m *AuthModule) Name() string { return "auth" }
-
-func (m *AuthModule) Enabled(_ *config.Config) bool { return true }
+func (m *AuthModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "users"},
+		{Name: "oauth_providers", Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"userUuid": 1, "provider": 1}, Unique: true},
+		}},
+		{Name: "refresh_tokens", Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1}},
+		}},
+		{Name: "auth_sessions", Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+		}},
+		{Name: "security_events"},
+	}
+}
 
 func (m *AuthModule) Init(deps *module.Dependencies) error {
 	cfg := deps.Config
@@ -126,6 +145,3 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	m.authHandler.RegisterRoutes(ri.PublicAPI, protectedAPI, ri.Router, ri.ProtectedRouter)
 }
 
-func (m *AuthModule) Start(_ context.Context) error      { return nil }
-func (m *AuthModule) Stop(_ context.Context) error       { return nil }
-func (m *AuthModule) HealthCheck(_ context.Context) error { return nil }

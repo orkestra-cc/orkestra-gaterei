@@ -15,19 +15,46 @@ import (
 )
 
 type GraphModule struct {
+	module.BaseModule
 	handler    *handlers.GraphHandler
 	graphRepo  repository.GraphRepository
 	disconnect func(ctx context.Context) error
 }
 
-func NewModule() *GraphModule {
-	return &GraphModule{}
+func NewModule() *GraphModule { return &GraphModule{} }
+
+func (m *GraphModule) Name() string                   { return "graph" }
+func (m *GraphModule) DisplayName() string             { return "Graph Database" }
+func (m *GraphModule) Description() string             { return "Memgraph graph database for knowledge graphs and algorithms" }
+func (m *GraphModule) Category() module.ModuleCategory { return module.CategoryExternal }
+func (m *GraphModule) Enabled(cfg *config.Config) bool { return cfg.Graph.Enabled }
+
+func (m *GraphModule) ProvidedServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceGraphRepo}
 }
 
-func (m *GraphModule) Name() string { return "graph" }
+func (m *GraphModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "uri", Label: "Connection URI", Type: module.FieldString, Required: true, Default: "bolt://memgraph:7687", EnvVar: "GRAPH_URI"},
+		{Key: "username", Label: "Username", Type: module.FieldString, EnvVar: "GRAPH_USERNAME"},
+		{Key: "password", Label: "Password", Type: module.FieldSecret, EnvVar: "GRAPH_PASSWORD"},
+		{Key: "database", Label: "Database Name", Type: module.FieldString, Default: "memgraph", EnvVar: "GRAPH_DATABASE"},
+		{Key: "maxConnPool", Label: "Max Connection Pool", Type: module.FieldInt, Default: "50", EnvVar: "GRAPH_MAX_CONN_POOL"},
+	}
+}
 
-func (m *GraphModule) Enabled(cfg *config.Config) bool {
-	return cfg.Graph.Enabled
+func (m *GraphModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "System Administration", Name: "Graph Database", Icon: "project-diagram", Path: "/graph",
+			MinRole: "administrator", Active: true,
+			Children: []module.NavItemSpec{
+				{Name: "Explorer", Icon: "search", Path: "/graph/explorer", Active: true},
+				{Name: "Algorithms", Icon: "brain", Path: "/graph/algorithms", Active: true},
+				{Name: "Databases", Icon: "database", Path: "/graph/databases", Active: true},
+				{Name: "Vector Search", Icon: "vector-square", Path: "/graph/vector", Active: true},
+			},
+		},
+	}
 }
 
 func (m *GraphModule) Init(deps *module.Dependencies) error {

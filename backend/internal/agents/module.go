@@ -15,19 +15,36 @@ import (
 )
 
 type AgentsModule struct {
+	module.BaseModule
 	projectHandler       *handlers.ProjectHandler
 	agentHandler         *handlers.AgentHandler
 	personalAgentHandler *handlers.PersonalAgentHandler
 }
 
-func NewModule() *AgentsModule {
-	return &AgentsModule{}
+func NewModule() *AgentsModule { return &AgentsModule{} }
+
+func (m *AgentsModule) Name() string                   { return "agents" }
+func (m *AgentsModule) DisplayName() string             { return "AI Agents" }
+func (m *AgentsModule) Description() string             { return "Hindsight-powered AI agents with RAG context" }
+func (m *AgentsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
+func (m *AgentsModule) Enabled(cfg *config.Config) bool { return cfg.Agents.Enabled }
+func (m *AgentsModule) Dependencies() []string          { return []string{"auth"} }
+func (m *AgentsModule) OptionalServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceRAGQuery}
 }
 
-func (m *AgentsModule) Name() string { return "agents" }
+func (m *AgentsModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "agent_projects", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "agent_conversations", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+	}
+}
 
-func (m *AgentsModule) Enabled(cfg *config.Config) bool {
-	return cfg.Agents.Enabled
+func (m *AgentsModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "AI", Name: "Personal Agent", Icon: "robot", Path: "/ai/personal-agent", MinRole: "guest", Active: true},
+		{Group: "AI", Name: "AI Agents", Icon: "users-cog", Path: "/ai/agents", MinRole: "manager", Active: true},
+	}
 }
 
 func (m *AgentsModule) Init(deps *module.Dependencies) error {

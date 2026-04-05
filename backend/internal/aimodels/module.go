@@ -14,18 +14,45 @@ import (
 )
 
 type AIModelsModule struct {
+	module.BaseModule
 	handler *handlers.ModelHandler
 	service services.AIModelService
 }
 
-func NewModule() *AIModelsModule {
-	return &AIModelsModule{}
+func NewModule() *AIModelsModule { return &AIModelsModule{} }
+
+func (m *AIModelsModule) Name() string                   { return "aimodels" }
+func (m *AIModelsModule) DisplayName() string             { return "AI Models" }
+func (m *AIModelsModule) Description() string             { return "LLM and embedding model management (Ollama, OpenAI, Anthropic, Gemini)" }
+func (m *AIModelsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
+func (m *AIModelsModule) Enabled(cfg *config.Config) bool { return cfg.AIModels.Enabled }
+
+func (m *AIModelsModule) ProvidedServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceAIModelProvider}
 }
 
-func (m *AIModelsModule) Name() string { return "aimodels" }
+func (m *AIModelsModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "ollamaBaseURL", Label: "Ollama Base URL", Type: module.FieldString, Default: "http://host.docker.internal:11434", EnvVar: "OLLAMA_BASE_URL"},
+		{Key: "openaiKey", Label: "OpenAI API Key", Type: module.FieldSecret, EnvVar: "OPENAI_API_KEY"},
+		{Key: "anthropicKey", Label: "Anthropic API Key", Type: module.FieldSecret, EnvVar: "ANTHROPIC_API_KEY"},
+		{Key: "geminiKey", Label: "Gemini API Key", Type: module.FieldSecret, EnvVar: "GEMINI_API_KEY"},
+	}
+}
 
-func (m *AIModelsModule) Enabled(cfg *config.Config) bool {
-	return cfg.AIModels.Enabled
+func (m *AIModelsModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: "ai_models", Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"isDefault": 1, "type": 1}},
+		}},
+	}
+}
+
+func (m *AIModelsModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "AI", Name: "AI Models", Icon: "microchip", Path: "/ai/models", MinRole: "administrator", Active: true},
+	}
 }
 
 func (m *AIModelsModule) Init(deps *module.Dependencies) error {

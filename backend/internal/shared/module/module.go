@@ -13,35 +13,83 @@ import (
 )
 
 // Module defines the contract for a self-contained backend module.
-// Each module manages its own initialization, route registration,
-// background jobs, and graceful shutdown.
+// Each module declares everything it needs (DB, config, nav, services)
+// and the registry wires it automatically.
 type Module interface {
-	// Name returns the unique identifier for this module.
-	Name() string
+	// --- Identity ---
 
-	// Enabled returns whether this module should be initialized
-	// based on the current configuration.
+	// Name returns the unique identifier (e.g., "billing", "sales").
+	Name() string
+	// DisplayName returns a human-readable name for the admin UI.
+	DisplayName() string
+	// Description returns a short description of the module's purpose.
+	Description() string
+	// Category returns whether this module is core, toggleable, or external.
+	Category() ModuleCategory
+
+	// --- Schema declarations ---
+
+	// ConfigSchema returns the configurable fields for this module.
+	// The admin UI renders forms from these, and the registry seeds DB defaults.
+	ConfigSchema() []ConfigField
+	// Collections returns the MongoDB collections this module owns.
+	// The registry auto-creates collections and indexes on boot.
+	Collections() []CollectionSpec
+	// NavItems returns menu entries this module contributes to the navigation.
+	// The navigation module aggregates these from all enabled modules.
+	NavItems() []NavItemSpec
+	// Dependencies returns names of modules that must init before this one.
+	Dependencies() []string
+	// ProvidedServices returns ServiceKeys this module registers in the ServiceRegistry.
+	ProvidedServices() []ServiceKey
+	// RequiredServices returns ServiceKeys this module needs (hard dependency — panics if missing).
+	RequiredServices() []ServiceKey
+	// OptionalServices returns ServiceKeys this module can use (graceful degradation if missing).
+	OptionalServices() []ServiceKey
+
+	// --- Activation ---
+
+	// Enabled returns whether this module should be initialized.
+	// During transition: checked by registry at boot. Will be replaced by DB-backed config.
 	Enabled(cfg *config.Config) bool
 
-	// Init initializes the module's repositories, services, and handlers.
-	// Cross-module dependencies should be retrieved from deps.Services.
+	// --- Lifecycle ---
+
+	// Init initializes repositories, services, and handlers.
 	Init(deps *Dependencies) error
-
-	// RegisterRoutes registers the module's HTTP endpoints.
+	// RegisterRoutes registers HTTP endpoints.
 	RegisterRoutes(ri *RouteInfo)
-
 	// Start launches background goroutines (polling jobs, workers).
-	// Called after all modules are initialized and routes are registered.
-	// Modules with no background work should return nil.
 	Start(ctx context.Context) error
-
 	// Stop performs graceful shutdown of background goroutines.
-	// Called in reverse registration order during server shutdown.
 	Stop(ctx context.Context) error
-
-	// HealthCheck verifies the module's runtime dependencies are healthy.
+	// HealthCheck verifies runtime dependencies are healthy.
 	HealthCheck(ctx context.Context) error
 }
+
+// BaseModule provides default implementations for all declarative methods.
+// Embed this in your module struct to avoid implementing methods you don't need.
+//
+//	type MyModule struct {
+//	    module.BaseModule
+//	    handler *handlers.MyHandler
+//	}
+type BaseModule struct{}
+
+func (BaseModule) DisplayName() string                   { return "" }
+func (BaseModule) Description() string                   { return "" }
+func (BaseModule) Category() ModuleCategory              { return CategoryCore }
+func (BaseModule) Enabled(_ *config.Config) bool         { return true }
+func (BaseModule) ConfigSchema() []ConfigField           { return nil }
+func (BaseModule) Collections() []CollectionSpec         { return nil }
+func (BaseModule) NavItems() []NavItemSpec               { return nil }
+func (BaseModule) Dependencies() []string                { return nil }
+func (BaseModule) ProvidedServices() []ServiceKey        { return nil }
+func (BaseModule) RequiredServices() []ServiceKey        { return nil }
+func (BaseModule) OptionalServices() []ServiceKey        { return nil }
+func (BaseModule) Start(_ context.Context) error         { return nil }
+func (BaseModule) Stop(_ context.Context) error          { return nil }
+func (BaseModule) HealthCheck(_ context.Context) error   { return nil }
 
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {
@@ -56,17 +104,14 @@ type Dependencies struct {
 type RouteInfo struct {
 	// PublicAPI is for unauthenticated endpoints (health, webhooks, OAuth callbacks).
 	PublicAPI huma.API
-
 	// ProtectedRouter is the chi.Router with auth middleware applied.
-	// Use this to create role-scoped route groups.
 	ProtectedRouter chi.Router
-
 	// Router is the root chi.Router for special cases (dev endpoints, SSE streams).
 	Router chi.Router
-
 	// AuthMW provides role-based middleware helpers.
 	AuthMW *middleware.AuthMiddleware
-
-	// APIConfig is the shared Huma API configuration (OpenAPI metadata, security schemes).
+	// APIConfig is the shared Huma API configuration.
 	APIConfig huma.Config
+	// ConfigService provides runtime module enabled/disabled checks for gate middleware.
+	ConfigService *ModuleConfigService
 }
