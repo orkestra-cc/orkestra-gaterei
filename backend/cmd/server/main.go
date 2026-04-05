@@ -24,11 +24,6 @@ import (
 	"github.com/orkestra/backend/internal/auth/repository"
 	"github.com/orkestra/backend/internal/auth/services"
 	"github.com/orkestra/backend/internal/billing"
-	billingConfig "github.com/orkestra/backend/internal/billing/config"
-	billingHandlers "github.com/orkestra/backend/internal/billing/handlers"
-	billingJobs "github.com/orkestra/backend/internal/billing/jobs"
-	billingRepo "github.com/orkestra/backend/internal/billing/repository"
-	billingSvc "github.com/orkestra/backend/internal/billing/services"
 	"github.com/orkestra/backend/internal/company"
 	"github.com/orkestra/backend/internal/graph"
 	graphHandlers "github.com/orkestra/backend/internal/graph/handlers"
@@ -49,7 +44,6 @@ import (
 	ragHandlers "github.com/orkestra/backend/internal/rag/handlers"
 	ragRepo "github.com/orkestra/backend/internal/rag/repository"
 	ragSvc "github.com/orkestra/backend/internal/rag/services"
-	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 	devHandlers "github.com/orkestra/backend/internal/dev/handlers"
 	"github.com/orkestra/backend/internal/navigation"
 	"github.com/orkestra/backend/internal/reporting"
@@ -193,101 +187,16 @@ func main() {
 	modRegistry.Register(documents.NewModule())
 	modRegistry.Register(aimodels.NewModule())
 	modRegistry.Register(company.NewModule())
+	modRegistry.Register(billing.NewModule())
 
 	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
 	}
 
 	// Bridge: retrieve cross-module services from registry for not-yet-migrated modules
-	var pdfSvc documentsSvc.PDFService
-	if svc := svcRegistry.Get(module.ServicePDFService); svc != nil {
-		pdfSvc = svc.(documentsSvc.PDFService)
-	}
 	var aiModelService aimodelsSvc.AIModelService
 	if svc := svcRegistry.Get(module.ServiceAIModelProvider); svc != nil {
 		aiModelService = svc.(aimodelsSvc.AIModelService)
-	}
-
-	// Initialize billing module (OpenAPI SDI integration)
-	var billingPollingJob *billingJobs.PollingJob
-	var billingInvoiceHandler *billingHandlers.InvoiceHandler
-	var billingCustomerHandler *billingHandlers.CustomerHandler
-	var billingSupplierHandler *billingHandlers.SupplierHandler
-	var billingCompanyHandler *billingHandlers.CompanyHandler
-	var billingNotificationHandler *billingHandlers.NotificationHandler
-	var billingBusinessRegistryHandler *billingHandlers.BusinessRegistryHandler
-	var billingSyncHandler *billingHandlers.SyncHandler
-	var billingWebhookHandler *billingHandlers.WebhookHandler
-	var openAPIClient billingSvc.OpenAPIClient
-	billingEnabled := cfg.Billing.OpenAPIBearerToken != ""
-
-	if billingEnabled {
-		// Create OpenAPI config from shared config
-		openAPIConfig := &billingConfig.OpenAPIConfig{
-			BaseURL:        cfg.Billing.OpenAPIBaseURL,
-			BearerToken:    cfg.Billing.OpenAPIBearerToken,
-			FiscalID:       cfg.Billing.OpenAPIFiscalID,
-			RecipientCode:  cfg.Billing.OpenAPIRecipientCode,
-			ApplySignature: cfg.Billing.ApplySignature,
-			ApplyStorage:   cfg.Billing.ApplyStorage,
-			Timeout:        cfg.Billing.Timeout,
-			RetryAttempts:  cfg.Billing.RetryAttempts,
-			SandboxMode:    cfg.Billing.SandboxMode,
-		}
-
-		// Create repositories
-		invoiceRepo := billingRepo.NewInvoiceRepository(db)
-		customerRepo := billingRepo.NewCustomerRepository(db)
-		supplierRepo := billingRepo.NewSupplierRepository(db)
-		companyRepo := billingRepo.NewCompanyRepository(db)
-		notificationRepo := billingRepo.NewNotificationRepository(db)
-
-		// Create OpenAPI client with Redis caching and XML builder
-		openAPIClient = billingSvc.NewOpenAPIClientWithCache(openAPIConfig, logger, redisClientAdapter)
-		xmlBuilder := billingSvc.NewXMLBuilder(openAPIConfig)
-
-		// Create services (pdfSvc can be nil if documents module is disabled, xmlParser nil uses default)
-		invoiceSvc := billingSvc.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, openAPIClient, xmlBuilder, nil, pdfSvc, logger)
-		customerSvc := billingSvc.NewCustomerService(customerRepo, logger)
-		supplierSvc := billingSvc.NewSupplierService(supplierRepo, logger)
-		companySvc := billingSvc.NewCompanyService(companyRepo, openAPIClient, logger)
-		notificationSvc := billingSvc.NewNotificationService(notificationRepo, logger)
-
-		// Create handlers
-		billingInvoiceHandler = billingHandlers.NewInvoiceHandler(invoiceSvc)
-		billingCustomerHandler = billingHandlers.NewCustomerHandler(customerSvc)
-		billingSupplierHandler = billingHandlers.NewSupplierHandler(supplierSvc)
-		billingCompanyHandler = billingHandlers.NewCompanyHandler(companySvc)
-		billingNotificationHandler = billingHandlers.NewNotificationHandler(notificationSvc)
-		billingBusinessRegistryHandler = billingHandlers.NewBusinessRegistryHandler(openAPIClient)
-
-		// Create polling job
-		billingPollingJob = billingJobs.NewPollingJob(
-			openAPIClient,
-			invoiceRepo,
-			notificationRepo,
-			logger,
-			cfg.Billing.PollingInterval,
-		)
-
-		// Create sync handler for manual sync endpoints
-		billingSyncHandler = billingHandlers.NewSyncHandler(billingPollingJob)
-
-		// Create webhook handler for SDI callbacks
-		if cfg.Billing.WebhookURL != "" {
-			billingWebhookHandler = billingHandlers.NewWebhookHandler(
-				billingPollingJob,
-				cfg.Billing.WebhookSecret,
-				logger,
-			)
-		}
-
-		logger.Info("Billing module initialized",
-			slog.String("baseURL", cfg.Billing.OpenAPIBaseURL),
-			slog.Bool("sandbox", cfg.Billing.SandboxMode),
-		)
-	} else {
-		logger.Warn("Billing module disabled: OPENAPI_BILLING_BEARER_TOKEN not configured")
 	}
 
 	// Initialize graph database module (Memgraph)
@@ -654,33 +563,6 @@ func main() {
 		APIConfig:        apiConfig,
 	})
 
-	// Billing routes - manager role and above
-	// Only register if billing module is enabled
-	if billingEnabled {
-		protectedRouter.Group(func(r chi.Router) {
-			r.Use(authMiddlewareHandler.RequireHierarchicalRole("manager"))
-			billingAPI := humachi.New(r, apiConfig)
-			billing.RegisterRoutes(
-				billingAPI,
-				billingInvoiceHandler,
-				billingCustomerHandler,
-				billingSupplierHandler,
-				billingCompanyHandler,
-				billingNotificationHandler,
-				billingBusinessRegistryHandler,
-				billingSyncHandler,
-			)
-		})
-	}
-
-	// Billing webhook routes - PUBLIC (no JWT, authenticated via webhook secret)
-	if billingEnabled && billingWebhookHandler != nil {
-		billing.RegisterWebhookRoutes(publicAPI, billingWebhookHandler)
-		logger.Info("Billing webhook routes registered",
-			slog.String("webhookURL", cfg.Billing.WebhookURL),
-		)
-	}
-
 	// Graph database routes - administrator role and above
 	// Provides raw Cypher execution, restricted to trusted roles
 	if graphEnabled {
@@ -916,50 +798,6 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1MB max header size
 	}
 
-	// Start billing polling job if enabled and polling is configured
-	if billingEnabled && billingPollingJob != nil && cfg.Billing.PollingEnabled {
-		pollingCtx, pollingCancel := context.WithCancel(context.Background())
-		defer pollingCancel()
-
-		go func() {
-			logger.Info("Starting SDI notification polling job",
-				slog.Duration("interval", cfg.Billing.PollingInterval),
-			)
-			billingPollingJob.Start(pollingCtx)
-		}()
-	} else if billingEnabled && !cfg.Billing.PollingEnabled {
-		logger.Info("SDI polling job disabled - use manual sync endpoints instead (POST /v1/billing/sync)")
-	}
-
-	// Auto-configure API callbacks on OpenAPI.it for webhook reception
-	if billingEnabled && cfg.Billing.WebhookURL != "" && openAPIClient != nil {
-		go func() {
-			configCtx, configCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer configCancel()
-
-			authHeader := "Bearer " + cfg.Billing.WebhookSecret
-			err := openAPIClient.ConfigureAPICallbacks(configCtx, billingSvc.APICallbackConfig{
-				FiscalID: cfg.Billing.OpenAPIFiscalID,
-				Callbacks: []billingSvc.CallbackConfig{
-					{Event: "supplier-invoice", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
-					{Event: "customer-notification", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
-					{Event: "legal-storage-receipt", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
-				},
-			})
-			if err != nil {
-				logger.Error("Failed to configure API callbacks on OpenAPI.it",
-					slog.String("error", err.Error()),
-					slog.String("webhookURL", cfg.Billing.WebhookURL),
-				)
-			} else {
-				logger.Info("API callbacks configured on OpenAPI.it",
-					slog.String("webhookURL", cfg.Billing.WebhookURL),
-					slog.String("fiscalID", cfg.Billing.OpenAPIFiscalID),
-				)
-			}
-		}()
-	}
-
 	// Start background jobs for migrated modules
 	if err := modRegistry.StartAll(context.Background()); err != nil {
 		log.Fatalf("Failed to start modules: %v", err)
@@ -990,12 +828,6 @@ func main() {
 
 	// Stop migrated modules
 	modRegistry.StopAll(context.Background())
-
-	// Stop billing polling job
-	if billingEnabled && billingPollingJob != nil {
-		logger.Info("Stopping SDI notification polling job")
-		billingPollingJob.Stop()
-	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
