@@ -10,6 +10,9 @@ type ServiceKey string
 
 // Well-known service keys for cross-module communication.
 const (
+	ServiceNavItems        ServiceKey = "system.nav_items"   // []NavItemSpec from registry
+	ServiceConfigService   ServiceKey = "system.config_svc"  // *ModuleConfigService
+
 	ServiceUserService     ServiceKey = "user.service"
 	ServiceAuthService     ServiceKey = "auth.service"
 	ServiceJWTService      ServiceKey = "auth.jwt"

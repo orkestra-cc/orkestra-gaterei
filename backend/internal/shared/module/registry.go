@@ -64,7 +64,18 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 				slog.String("error", err.Error()),
 			)
 		}
+
+		// Register config service so navigation module can filter by enabled status.
+		deps.Services.Register(ServiceConfigService, r.configService)
 	}
+
+	// Collect ALL NavItems from ALL modules (not just enabled) upfront.
+	// The navigation service filters by enabled status at request time.
+	var allNavItems []NavItemSpec
+	for _, m := range r.modules {
+		allNavItems = append(allNavItems, m.NavItems()...)
+	}
+	deps.Services.Register(ServiceNavItems, allNavItems)
 
 	// Initialize modules in registration order.
 	for _, m := range r.modules {
