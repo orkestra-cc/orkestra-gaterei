@@ -48,6 +48,9 @@ func (r *ModuleRegistry) Register(m Module) {
 // Before initialization, it auto-creates MongoDB collections and seeds module configs.
 // Core modules that fail Init are fatal; non-core modules are skipped with a warning.
 func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
+	// Make config service available to modules via deps.GetConfig/GetSecret.
+	deps.ConfigService = r.configService
+
 	// Phase 2.3: Auto-create MongoDB collections + indexes from module declarations.
 	if err := r.ensureCollections(deps.DB); err != nil {
 		r.logger.Error("Failed to ensure collections (non-fatal)",

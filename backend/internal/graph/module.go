@@ -59,14 +59,12 @@ func (m *GraphModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *GraphModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
-
 	graphDriver, err := database.NewGraphConnection(context.Background(), database.GraphDBConfig{
-		URI:         cfg.Graph.URI,
-		Username:    cfg.Graph.Username,
-		Password:    cfg.Graph.Password,
-		Database:    cfg.Graph.Database,
-		MaxConnPool: cfg.Graph.MaxConnPool,
+		URI:         deps.GetConfig("graph", "uri"),
+		Username:    deps.GetConfig("graph", "username"),
+		Password:    deps.GetSecret("graph", "password"),
+		Database:    deps.GetConfig("graph", "database"),
+		MaxConnPool: deps.GetConfigInt("graph", "maxConnPool", 50),
 	})
 	if err != nil {
 		return err

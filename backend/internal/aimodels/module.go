@@ -57,14 +57,12 @@ func (m *AIModelsModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *AIModelsModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
-
 	repo := repository.NewModelRepository(deps.DB)
 	m.service = services.NewModelService(repo, services.AIModelsConfig{
-		OllamaBaseURL: cfg.AIModels.OllamaBaseURL,
-		OpenAIAPIKey:  cfg.AIModels.OpenAIAPIKey,
-		AnthropicKey:  cfg.AIModels.AnthropicKey,
-		GeminiKey:     cfg.AIModels.GeminiKey,
+		OllamaBaseURL: deps.GetConfig("aimodels", "ollamaBaseURL"),
+		OpenAIAPIKey:  deps.GetSecret("aimodels", "openaiKey"),
+		AnthropicKey:  deps.GetSecret("aimodels", "anthropicKey"),
+		GeminiKey:     deps.GetSecret("aimodels", "geminiKey"),
 	}, deps.Logger)
 
 	m.handler = handlers.NewModelHandler(m.service)

@@ -3,6 +3,8 @@ package module
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
@@ -93,11 +95,63 @@ func (BaseModule) HealthCheck(_ context.Context) error   { return nil }
 
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {
-	DB           *mongo.Database
-	RedisAdapter *database.RedisClientAdapter
-	Config       *config.Config
-	Logger       *slog.Logger
-	Services     *ServiceRegistry
+	DB            *mongo.Database
+	RedisAdapter  *database.RedisClientAdapter
+	Config        *config.Config
+	Logger        *slog.Logger
+	Services      *ServiceRegistry
+	ConfigService *ModuleConfigService // set by registry before InitAll
+}
+
+// GetConfig returns a plain config value for a module. DB → env var → default.
+func (d *Dependencies) GetConfig(module, key string) string {
+	if d.ConfigService == nil {
+		return ""
+	}
+	return d.ConfigService.GetValue(context.Background(), module, key)
+}
+
+// GetSecret returns a decrypted secret config value. DB → env var → default.
+func (d *Dependencies) GetSecret(module, key string) string {
+	if d.ConfigService == nil {
+		return ""
+	}
+	return d.ConfigService.GetSecret(context.Background(), module, key)
+}
+
+// GetConfigBool returns a boolean config value with fallback.
+func (d *Dependencies) GetConfigBool(module, key string, fallback bool) bool {
+	v := d.GetConfig(module, key)
+	if v == "" {
+		return fallback
+	}
+	return v == "true" || v == "1" || v == "yes"
+}
+
+// GetConfigInt returns an integer config value with fallback.
+func (d *Dependencies) GetConfigInt(module, key string, fallback int) int {
+	v := d.GetConfig(module, key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+// GetConfigDuration returns a time.Duration config value with fallback.
+func (d *Dependencies) GetConfigDuration(module, key string, fallback time.Duration) time.Duration {
+	v := d.GetConfig(module, key)
+	if v == "" {
+		return fallback
+	}
+	dur, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+	return dur
 }
 
 // RouteInfo provides the routing infrastructure for module route registration.

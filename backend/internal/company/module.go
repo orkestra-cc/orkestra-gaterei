@@ -3,6 +3,7 @@ package company
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
@@ -60,11 +61,11 @@ func (m *CompanyModule) NavItems() []module.NavItemSpec {
 
 func (m *CompanyModule) Init(deps *module.Dependencies) error {
 	companyCfg := &config.CompanyAPIConfig{
-		BaseURL:       deps.Config.Company.BaseURL,
-		BearerToken:   deps.Config.Company.BearerToken,
-		Timeout:       deps.Config.Company.Timeout,
-		RetryAttempts: deps.Config.Company.RetryAttempts,
-		CacheTTL:      deps.Config.Company.CacheTTL,
+		BaseURL:       deps.GetConfig("company", "baseURL"),
+		BearerToken:   deps.GetSecret("company", "bearerToken"),
+		Timeout:       deps.GetConfigDuration("company", "timeout", 15*time.Second),
+		RetryAttempts: deps.GetConfigInt("company", "retryAttempts", 3),
+		CacheTTL:      deps.GetConfigDuration("company", "cacheTTL", 24*time.Hour),
 	}
 
 	repo := repository.NewCompanyRepository(deps.DB)
@@ -73,7 +74,7 @@ func (m *CompanyModule) Init(deps *module.Dependencies) error {
 	m.handler = handlers.NewCompanyHandler(svc)
 
 	deps.Logger.Info("Company lookup module initialized",
-		slog.String("baseURL", deps.Config.Company.BaseURL),
+		slog.String("baseURL", companyCfg.BaseURL),
 	)
 	return nil
 }

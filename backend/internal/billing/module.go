@@ -52,10 +52,14 @@ func (m *BillingModule) ConfigSchema() []module.ConfigField {
 		{Key: "bearerToken", Label: "OpenAPI Bearer Token", Type: module.FieldSecret, Required: true, EnvVar: "OPENAPI_BILLING_BEARER_TOKEN"},
 		{Key: "baseURL", Label: "API Base URL", Type: module.FieldString, Default: "https://test.sdi.openapi.it", EnvVar: "OPENAPI_BILLING_BASE_URL"},
 		{Key: "fiscalID", Label: "Codice Fiscale", Type: module.FieldString, Required: true, EnvVar: "OPENAPI_BILLING_FISCAL_ID"},
-		{Key: "recipientCode", Label: "Codice Destinatario", Type: module.FieldString, EnvVar: "OPENAPI_BILLING_RECIPIENT_CODE"},
+		{Key: "recipientCode", Label: "Codice Destinatario", Type: module.FieldString, Default: "JKKZDGR", EnvVar: "OPENAPI_BILLING_RECIPIENT_CODE"},
+		{Key: "applySignature", Label: "Apply Digital Signature", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_BILLING_APPLY_SIGNATURE"},
+		{Key: "applyStorage", Label: "Apply Legal Storage", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_BILLING_APPLY_STORAGE"},
+		{Key: "timeout", Label: "HTTP Timeout", Type: module.FieldDuration, Default: "30s", EnvVar: "OPENAPI_BILLING_TIMEOUT"},
+		{Key: "retryAttempts", Label: "Retry Attempts", Type: module.FieldInt, Default: "3", EnvVar: "OPENAPI_BILLING_RETRY_ATTEMPTS"},
 		{Key: "sandboxMode", Label: "Sandbox Mode", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_SANDBOX_MODE"},
-		{Key: "pollingEnabled", Label: "Enable SDI Polling", Type: module.FieldBool, Default: "true"},
-		{Key: "pollingInterval", Label: "Polling Interval", Type: module.FieldDuration, Default: "12h"},
+		{Key: "pollingEnabled", Label: "Enable SDI Polling", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_BILLING_POLLING_ENABLED"},
+		{Key: "pollingInterval", Label: "Polling Interval", Type: module.FieldDuration, Default: "12h", EnvVar: "OPENAPI_BILLING_POLLING_INTERVAL"},
 		{Key: "webhookURL", Label: "Webhook URL", Type: module.FieldString, EnvVar: "BILLING_WEBHOOK_URL"},
 		{Key: "webhookSecret", Label: "Webhook Secret", Type: module.FieldSecret, EnvVar: "BILLING_WEBHOOK_SECRET"},
 	}
@@ -88,20 +92,19 @@ func (m *BillingModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *BillingModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
-	m.cfg = cfg
+	m.cfg = deps.Config
 	m.logger = deps.Logger
 
 	openAPIConfig := &billingConfig.OpenAPIConfig{
-		BaseURL:        cfg.Billing.OpenAPIBaseURL,
-		BearerToken:    cfg.Billing.OpenAPIBearerToken,
-		FiscalID:       cfg.Billing.OpenAPIFiscalID,
-		RecipientCode:  cfg.Billing.OpenAPIRecipientCode,
-		ApplySignature: cfg.Billing.ApplySignature,
-		ApplyStorage:   cfg.Billing.ApplyStorage,
-		Timeout:        cfg.Billing.Timeout,
-		RetryAttempts:  cfg.Billing.RetryAttempts,
-		SandboxMode:    cfg.Billing.SandboxMode,
+		BaseURL:        deps.GetConfig("billing", "baseURL"),
+		BearerToken:    deps.GetSecret("billing", "bearerToken"),
+		FiscalID:       deps.GetConfig("billing", "fiscalID"),
+		RecipientCode:  deps.GetConfig("billing", "recipientCode"),
+		ApplySignature: deps.GetConfigBool("billing", "applySignature", true),
+		ApplyStorage:   deps.GetConfigBool("billing", "applyStorage", true),
+		Timeout:        deps.GetConfigDuration("billing", "timeout", 30*time.Second),
+		RetryAttempts:  deps.GetConfigInt("billing", "retryAttempts", 3),
+		SandboxMode:    deps.GetConfigBool("billing", "sandboxMode", true),
 	}
 
 	invoiceRepo := repository.NewInvoiceRepository(deps.DB)
@@ -137,22 +140,23 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 		invoiceRepo,
 		notificationRepo,
 		deps.Logger,
-		cfg.Billing.PollingInterval,
+		deps.GetConfigDuration("billing", "pollingInterval", 12*time.Hour),
 	)
 
 	m.syncHandler = handlers.NewSyncHandler(m.pollingJob)
 
-	if cfg.Billing.WebhookURL != "" {
+	webhookURL := deps.GetConfig("billing", "webhookURL")
+	if webhookURL != "" {
 		m.webhookHandler = handlers.NewWebhookHandler(
 			m.pollingJob,
-			cfg.Billing.WebhookSecret,
+			deps.GetSecret("billing", "webhookSecret"),
 			deps.Logger,
 		)
 	}
 
 	deps.Logger.Info("Billing module initialized",
-		slog.String("baseURL", cfg.Billing.OpenAPIBaseURL),
-		slog.Bool("sandbox", cfg.Billing.SandboxMode),
+		slog.String("baseURL", deps.GetConfig("billing", "baseURL")),
+		slog.Bool("sandbox", deps.GetConfigBool("billing", "sandboxMode", true)),
 	)
 	return nil
 }

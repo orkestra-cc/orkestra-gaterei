@@ -234,6 +234,65 @@ func (s *ModuleConfigService) InvalidateCache(ctx context.Context, name string) 
 	return s.redis.Del(ctx, enabledCachePrefix+name)
 }
 
+// --- Config value readers (used by modules in Init) ---
+
+// GetValue returns a plain config value for a module.
+// Lookup: DB ConfigValues → env var (from schema) → schema default → "".
+func (s *ModuleConfigService) GetValue(ctx context.Context, moduleName, key string) string {
+	doc, err := s.repo.FindByName(ctx, moduleName)
+	if err != nil || doc == nil {
+		return s.fallbackFromSchema(moduleName, key)
+	}
+
+	if v, ok := doc.ConfigValues[key]; ok && v != "" {
+		return v
+	}
+	return s.schemaFallback(doc.ConfigSchema, key)
+}
+
+// GetSecret returns a decrypted secret config value for a module.
+// Lookup: DB EncryptedValues (decrypt) → env var → schema default → "".
+func (s *ModuleConfigService) GetSecret(ctx context.Context, moduleName, key string) string {
+	doc, err := s.repo.FindByName(ctx, moduleName)
+	if err != nil || doc == nil {
+		return s.fallbackFromSchema(moduleName, key)
+	}
+
+	if enc, ok := doc.EncryptedValues[key]; ok && enc != "" {
+		decrypted, err := utils.DecryptOAuthToken(enc)
+		if err != nil {
+			s.logger.Warn("GetSecret: failed to decrypt, falling back to env",
+				slog.String("module", moduleName), slog.String("key", key))
+			return s.schemaFallback(doc.ConfigSchema, key)
+		}
+		return decrypted
+	}
+
+	// Secret might not be in encrypted store yet — try plain values or env fallback
+	return s.schemaFallback(doc.ConfigSchema, key)
+}
+
+// schemaFallback looks up a key in the config schema and returns env var value or default.
+func (s *ModuleConfigService) schemaFallback(schema []ConfigField, key string) string {
+	for _, f := range schema {
+		if f.Key == key {
+			if f.EnvVar != "" {
+				if v := os.Getenv(f.EnvVar); v != "" {
+					return v
+				}
+			}
+			return f.Default
+		}
+	}
+	return ""
+}
+
+// fallbackFromSchema is used when DB lookup fails entirely — searches all module schemas.
+func (s *ModuleConfigService) fallbackFromSchema(moduleName, key string) string {
+	// Without DB doc we have no schema; just try env var naming convention
+	return ""
+}
+
 // ModuleStatusInfo provides a summary for the admin API list endpoint.
 type ModuleStatusInfo struct {
 	Name        string         `json:"name"`

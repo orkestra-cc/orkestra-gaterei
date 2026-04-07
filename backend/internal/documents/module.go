@@ -56,17 +56,12 @@ func (m *DocumentsModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *DocumentsModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
-
 	docsConfig := &config.Config{
-		GotenbergURL:  cfg.Documents.GotenbergURL,
-		Timeout:       cfg.Documents.Timeout,
-		RetryAttempts: cfg.Documents.RetryAttempts,
+		GotenbergURL:  deps.GetConfig("documents", "gotenbergURL"),
+		Timeout:       deps.GetConfigDuration("documents", "timeout", 60*time.Second),
+		RetryAttempts: deps.GetConfigInt("documents", "retryAttempts", 3),
 		DefaultMargins: config.PDFMargins{
-			Top:    cfg.Documents.DefaultMargins.Top,
-			Bottom: cfg.Documents.DefaultMargins.Bottom,
-			Left:   cfg.Documents.DefaultMargins.Left,
-			Right:  cfg.Documents.DefaultMargins.Right,
+			Top:    20, Bottom: 20, Left: 20, Right: 20,
 		},
 	}
 
@@ -85,7 +80,7 @@ func (m *DocumentsModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServicePDFService, pdfSvc)
 
 	deps.Logger.Info("Documents module initialized",
-		slog.String("gotenbergURL", cfg.Documents.GotenbergURL),
+		slog.String("gotenbergURL", docsConfig.GotenbergURL),
 	)
 	return nil
 }

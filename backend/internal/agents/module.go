@@ -34,6 +34,13 @@ func (m *AgentsModule) OptionalServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceRAGQuery}
 }
 
+func (m *AgentsModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "hindsightURL", Label: "Hindsight URL", Type: module.FieldString, Default: "http://orkestra-hindsight:8888", EnvVar: "HINDSIGHT_URL"},
+		{Key: "hindsightNamespace", Label: "Hindsight Namespace", Type: module.FieldString, Default: "orkestra", EnvVar: "HINDSIGHT_NAMESPACE"},
+	}
+}
+
 func (m *AgentsModule) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
 		{Name: "agent_projects", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
@@ -49,31 +56,31 @@ func (m *AgentsModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *AgentsModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
-
 	projectRepo := repository.NewProjectRepository(deps.DB)
 	conversationRepo := repository.NewConversationRepository(deps.DB)
 
-	hsClient := services.NewHindsightClient(cfg.Agents.HindsightURL, deps.Logger)
+	hindsightURL := deps.GetConfig("agents", "hindsightURL")
+	hindsightNS := deps.GetConfig("agents", "hindsightNamespace")
+	hsClient := services.NewHindsightClient(hindsightURL, deps.Logger)
 
 	// Create RAG bridge if RAG query service is available
 	var ragBridge services.RAGBridge
 	if svc := deps.Services.Get(module.ServiceRAGQuery); svc != nil {
 		ragQueryService := svc.(ragSvc.QueryService)
-		ragBridge = services.NewRAGBridge(ragQueryService, cfg.RAG.DefaultTopK, deps.Logger)
+		ragBridge = services.NewRAGBridge(ragQueryService, deps.Config.RAG.DefaultTopK, deps.Logger)
 	}
 
-	projectService := services.NewProjectService(projectRepo, hsClient, cfg.Agents.HindsightNamespace, deps.Logger)
+	projectService := services.NewProjectService(projectRepo, hsClient, hindsightNS, deps.Logger)
 	agentService := services.NewAgentService(projectRepo, conversationRepo, hsClient, ragBridge, deps.Logger)
 
 	m.projectHandler = handlers.NewProjectHandler(projectService)
 	m.agentHandler = handlers.NewAgentHandler(agentService)
 
-	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, cfg.Agents.HindsightNamespace, deps.Logger)
+	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, hindsightNS, deps.Logger)
 	m.personalAgentHandler = handlers.NewPersonalAgentHandler(personalAgentService)
 
 	deps.Logger.Info("Agents module initialized",
-		slog.String("hindsightURL", cfg.Agents.HindsightURL),
+		slog.String("hindsightURL", hindsightURL),
 	)
 	return nil
 }
