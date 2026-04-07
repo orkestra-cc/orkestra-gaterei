@@ -3,6 +3,8 @@ package module
 import (
 	"context"
 	"fmt"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 // ModuleAdminHandler provides Huma-compatible handlers for the admin module API.
@@ -94,7 +96,7 @@ func (h *ModuleAdminHandler) GetModule(ctx context.Context, input *GetModuleInpu
 		return nil, err
 	}
 	if config == nil {
-		return nil, fmt.Errorf("%w: module %q not found", ErrModuleNotFound, input.Name)
+		return nil, huma.Error404NotFound(fmt.Sprintf("module %q not found", input.Name))
 	}
 
 	return &GetModuleOutput{Body: toConfigResponse(*config)}, nil
@@ -108,12 +110,16 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 		return nil, err
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("%w: module %q not found", ErrModuleNotFound, input.Name)
+		return nil, huma.Error404NotFound(fmt.Sprintf("module %q not found", input.Name))
 	}
 
 	// Toggle enabled state
 	if input.Body.Enabled != nil {
 		if err := h.configService.UpdateEnabled(ctx, input.Name, *input.Body.Enabled); err != nil {
+			// Core module disable attempt returns a user-facing 400 error
+			if existing.Category == CategoryCore {
+				return nil, huma.Error400BadRequest(err.Error())
+			}
 			return nil, err
 		}
 	}
@@ -142,11 +148,6 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 
 	return &UpdateModuleOutput{Body: toConfigResponse(*updated)}, nil
 }
-
-// --- Errors ---
-
-// ErrModuleNotFound is returned when a module config doesn't exist.
-var ErrModuleNotFound = fmt.Errorf("module not found")
 
 // --- Helpers ---
 

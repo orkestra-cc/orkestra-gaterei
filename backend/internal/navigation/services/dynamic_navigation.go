@@ -62,10 +62,17 @@ func (s *dynamicNavigationService) GetNavigationForUser(ctx context.Context, use
 	}, nil
 }
 
-// filterAndConvert converts NavItemSpecs to NavItems, filtering by role access.
+// filterAndConvert converts NavItemSpecs to NavItems, filtering by module enabled status and role access.
 func (s *dynamicNavigationService) filterAndConvert(ctx context.Context, specs []module.NavItemSpec, userRole string) []models.NavItem {
 	var result []models.NavItem
 	for _, spec := range specs {
+		// Check module enabled status (skip items belonging to disabled modules).
+		if spec.ModuleName != "" && s.enabledChecker != nil {
+			if !s.enabledChecker.IsEnabled(ctx, spec.ModuleName) {
+				continue
+			}
+		}
+
 		// Check role access.
 		if spec.MinRole != "" && !s.roleHierarchy.HasPermission(userRole, spec.MinRole) {
 			continue

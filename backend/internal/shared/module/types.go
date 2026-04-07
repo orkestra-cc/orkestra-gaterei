@@ -64,11 +64,12 @@ type IndexSpec struct {
 // NavItemSpec declares a navigation menu entry that a module contributes.
 // The base system collects these from all modules and builds the menu dynamically.
 type NavItemSpec struct {
-	Group    string        `json:"group"`              // menu group: "Administration", "AI", etc.
-	Name     string        `json:"name"`
-	Icon     string        `json:"icon,omitempty"`
-	Path     string        `json:"path,omitempty"`     // frontend route
-	MinRole  string        `json:"minRole,omitempty"`  // minimum role required
-	Active   bool          `json:"active"`
-	Children []NavItemSpec `json:"children,omitempty"`
+	Group      string        `json:"group"`              // menu group: "Administration", "AI", etc.
+	Name       string        `json:"name"`
+	Icon       string        `json:"icon,omitempty"`
+	Path       string        `json:"path,omitempty"`     // frontend route
+	MinRole    string        `json:"minRole,omitempty"`  // minimum role required
+	Active     bool          `json:"active"`
+	ModuleName string        `json:"moduleName,omitempty"` // owning module — set by registry for enabled filtering
+	Children   []NavItemSpec `json:"children,omitempty"`
 }

@@ -70,10 +70,14 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 	}
 
 	// Collect ALL NavItems from ALL modules (not just enabled) upfront.
-	// The navigation service filters by enabled status at request time.
+	// Stamp each item with its owning module name for enabled filtering at request time.
 	var allNavItems []NavItemSpec
 	for _, m := range r.modules {
-		allNavItems = append(allNavItems, m.NavItems()...)
+		for _, item := range m.NavItems() {
+			item.ModuleName = m.Name()
+			stampChildren(item.Children, m.Name())
+			allNavItems = append(allNavItems, item)
+		}
 	}
 	deps.Services.Register(ServiceNavItems, allNavItems)
 
@@ -267,4 +271,12 @@ func buildIndexModels(specs []IndexSpec) []mongo.IndexModel {
 		models = append(models, mongo.IndexModel{Keys: keys, Options: opts})
 	}
 	return models
+}
+
+// stampChildren recursively sets ModuleName on child NavItemSpecs.
+func stampChildren(children []NavItemSpec, moduleName string) {
+	for i := range children {
+		children[i].ModuleName = moduleName
+		stampChildren(children[i].Children, moduleName)
+	}
 }
