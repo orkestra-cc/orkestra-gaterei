@@ -77,9 +77,14 @@ func main() {
 
 	redisAdapter := database.NewRedisClientAdapter(redisClient)
 
+	// Module config infrastructure (DB-backed module management)
+	configRepo := module.NewModuleConfigRepository(db)
+	configService := module.NewModuleConfigService(configRepo, redisAdapter, logger)
+
 	// Initialize module registry
 	svcRegistry := module.NewServiceRegistry()
 	modRegistry := module.NewModuleRegistry(logger)
+	modRegistry.SetConfigService(configService)
 	modDeps := &module.Dependencies{
 		DB:           db,
 		RedisAdapter: redisAdapter,
@@ -148,6 +153,7 @@ func main() {
 		Router:           router,
 		AuthMW:           authMW,
 		APIConfig:        apiConfig,
+		ConfigService:    configService,
 	})
 
 	router.Mount("/", protectedRouter)

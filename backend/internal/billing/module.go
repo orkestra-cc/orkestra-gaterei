@@ -14,6 +14,7 @@ import (
 	"github.com/orkestra/backend/internal/billing/services"
 	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -159,6 +160,7 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
 	// Protected billing routes: manager role and above
 	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(

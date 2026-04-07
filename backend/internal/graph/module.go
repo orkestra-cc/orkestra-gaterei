@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/graph/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
+	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -93,6 +94,7 @@ func (m *GraphModule) Init(deps *module.Dependencies) error {
 
 func (m *GraphModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)

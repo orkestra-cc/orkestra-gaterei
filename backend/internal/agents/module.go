@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/agents/services"
 	ragSvc "github.com/orkestra/backend/internal/rag/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -78,32 +79,36 @@ func (m *AgentsModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Personal agent: any authenticated user (guest and above)
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("guest"))
-		api := humachi.New(r, ri.APIConfig)
-		RegisterPersonalAgentRoutes(api, m.personalAgentHandler)
-	})
+	ri.ProtectedRouter.Group(func(gated chi.Router) {
+		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 
-	// Project management: manager role and above
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
-		api := humachi.New(r, ri.APIConfig)
-		RegisterProjectRoutes(api, m.projectHandler)
-	})
+		// Personal agent: any authenticated user (guest and above)
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireHierarchicalRole("guest"))
+			api := humachi.New(r, ri.APIConfig)
+			RegisterPersonalAgentRoutes(api, m.personalAgentHandler)
+		})
 
-	// Agent querying and conversations: operator role and above
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("operator"))
-		api := humachi.New(r, ri.APIConfig)
-		RegisterQueryRoutes(api, m.agentHandler)
-	})
+		// Project management: manager role and above
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+			api := humachi.New(r, ri.APIConfig)
+			RegisterProjectRoutes(api, m.projectHandler)
+		})
 
-	// Agent admin: administrator role and above
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
-		api := humachi.New(r, ri.APIConfig)
-		RegisterAdminRoutes(api, m.agentHandler)
+		// Agent querying and conversations: operator role and above
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireHierarchicalRole("operator"))
+			api := humachi.New(r, ri.APIConfig)
+			RegisterQueryRoutes(api, m.agentHandler)
+		})
+
+		// Agent admin: administrator role and above
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+			api := humachi.New(r, ri.APIConfig)
+			RegisterAdminRoutes(api, m.agentHandler)
+		})
 	})
 }
 

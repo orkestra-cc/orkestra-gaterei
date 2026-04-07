@@ -43,13 +43,22 @@ type CollectionSpec struct {
 	Indexes []IndexSpec `json:"indexes,omitempty"`
 }
 
+// IndexKey represents a single field in a compound index with deterministic ordering.
+type IndexKey struct {
+	Field     string `json:"field"`
+	Direction int    `json:"direction"` // 1 = asc, -1 = desc
+}
+
 // IndexSpec declares a MongoDB index.
+// For single-field indexes, use Keys map. For compound indexes where field order matters,
+// use OrderedKeys instead (takes precedence over Keys when non-empty).
 type IndexSpec struct {
-	Keys   map[string]int `json:"keys"`             // field → 1 (asc) or -1 (desc)
-	Unique bool           `json:"unique,omitempty"`
-	Sparse bool           `json:"sparse,omitempty"`
-	TTL    time.Duration  `json:"ttl,omitempty"`    // 0 = no TTL
-	Text   bool           `json:"text,omitempty"`   // text index (overrides Keys)
+	Keys        map[string]int `json:"keys,omitempty"`        // single-field shorthand
+	OrderedKeys []IndexKey     `json:"orderedKeys,omitempty"` // compound indexes with deterministic order
+	Unique      bool           `json:"unique,omitempty"`
+	Sparse      bool           `json:"sparse,omitempty"`
+	TTL         time.Duration  `json:"ttl,omitempty"`         // 0 = no TTL
+	Text        bool           `json:"text,omitempty"`        // text index (overrides Keys)
 }
 
 // NavItemSpec declares a navigation menu entry that a module contributes.

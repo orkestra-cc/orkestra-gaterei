@@ -2,26 +2,40 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/orkestra/backend/internal/shared/config"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // ModuleRegistry manages the lifecycle of all application modules.
 // Modules are processed in registration order, so producers must be
 // registered before their consumers.
 type ModuleRegistry struct {
-	modules []Module
-	enabled []Module // populated by InitAll
-	logger  *slog.Logger
+	modules       []Module
+	enabled       []Module           // populated by InitAll
+	failed        map[string]error   // non-core modules that failed Init
+	configService *ModuleConfigService
+	logger        *slog.Logger
 }
 
 // NewModuleRegistry creates a new registry.
 func NewModuleRegistry(logger *slog.Logger) *ModuleRegistry {
 	return &ModuleRegistry{
 		logger: logger,
+		failed: make(map[string]error),
 	}
+}
+
+// SetConfigService configures the registry to use a ModuleConfigService
+// for seeding configs and checking module enabled state. Must be called before InitAll.
+func (r *ModuleRegistry) SetConfigService(cs *ModuleConfigService) {
+	r.configService = cs
 }
 
 // Register adds a module to the registry. Registration order determines
@@ -31,8 +45,28 @@ func (r *ModuleRegistry) Register(m Module) {
 }
 
 // InitAll initializes all enabled modules in registration order.
-// Disabled modules are skipped and logged as warnings.
+// Before initialization, it auto-creates MongoDB collections and seeds module configs.
+// Core modules that fail Init are fatal; non-core modules are skipped with a warning.
 func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
+	// Phase 2.3: Auto-create MongoDB collections + indexes from module declarations.
+	if err := r.ensureCollections(deps.DB); err != nil {
+		r.logger.Error("Failed to ensure collections (non-fatal)",
+			slog.String("error", err.Error()),
+		)
+	}
+
+	// Phase 2.2: Seed module configs from ConfigSchema on first boot.
+	if r.configService != nil {
+		if err := r.configService.SeedFromModules(
+			context.Background(), r.modules, cfg,
+		); err != nil {
+			r.logger.Error("Failed to seed module configs (non-fatal)",
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
+	// Initialize modules in registration order.
 	for _, m := range r.modules {
 		if !m.Enabled(cfg) {
 			r.logger.Warn(fmt.Sprintf("Module %s disabled", m.Name()))
@@ -40,7 +74,19 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 		}
 
 		if err := m.Init(deps); err != nil {
-			return fmt.Errorf("module %s init: %w", m.Name(), err)
+			if m.Category() == CategoryCore {
+				// Core module failure is fatal — server cannot start without it.
+				return fmt.Errorf("core module %s init: %w", m.Name(), err)
+			}
+
+			// Non-core module failure: warn and skip.
+			r.logger.Error("Non-core module init failed, skipping",
+				slog.String("module", m.Name()),
+				slog.String("category", string(m.Category())),
+				slog.String("error", err.Error()),
+			)
+			r.failed[m.Name()] = err
+			continue
 		}
 
 		r.enabled = append(r.enabled, m)
@@ -95,4 +141,119 @@ func (r *ModuleRegistry) EnabledModules() []string {
 		names[i] = m.Name()
 	}
 	return names
+}
+
+// FailedModules returns modules that failed initialization with their errors.
+func (r *ModuleRegistry) FailedModules() map[string]error {
+	return r.failed
+}
+
+// CollectNavItems aggregates NavItemSpec from all enabled modules.
+// Used by the navigation module to build the dynamic menu.
+func (r *ModuleRegistry) CollectNavItems() []NavItemSpec {
+	var items []NavItemSpec
+	for _, m := range r.enabled {
+		items = append(items, m.NavItems()...)
+	}
+	return items
+}
+
+// --- Collection auto-setup ---
+
+// ensureCollections creates MongoDB collections and indexes declared by all registered modules.
+// Errors are logged as warnings — collection creation is idempotent and non-fatal.
+func (r *ModuleRegistry) ensureCollections(db *mongo.Database) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, m := range r.modules {
+		for _, coll := range m.Collections() {
+			if err := ensureCollection(ctx, db, coll, m.Name(), r.logger); err != nil {
+				r.logger.Warn("Failed to ensure collection",
+					slog.String("module", m.Name()),
+					slog.String("collection", coll.Name),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+	}
+	return nil
+}
+
+// ensureCollection creates a single collection and its indexes if they don't exist.
+func ensureCollection(ctx context.Context, db *mongo.Database, coll CollectionSpec, moduleName string, logger *slog.Logger) error {
+	// Create collection — ignore "already exists" error (MongoDB code 48).
+	err := db.CreateCollection(ctx, coll.Name)
+	if err != nil && !isCollectionAlreadyExists(err) {
+		return fmt.Errorf("create collection %q: %w", coll.Name, err)
+	}
+
+	// Ensure indexes.
+	if len(coll.Indexes) > 0 {
+		indexModels := buildIndexModels(coll.Indexes)
+		if _, err := db.Collection(coll.Name).Indexes().CreateMany(ctx, indexModels); err != nil {
+			return fmt.Errorf("create indexes for %q: %w", coll.Name, err)
+		}
+	}
+
+	logger.Debug("Collection ensured",
+		slog.String("module", moduleName),
+		slog.String("collection", coll.Name),
+		slog.Int("indexes", len(coll.Indexes)),
+	)
+	return nil
+}
+
+// isCollectionAlreadyExists checks for MongoDB error code 48 (NamespaceExists).
+func isCollectionAlreadyExists(err error) bool {
+	var cmdErr mongo.CommandError
+	if errors.As(err, &cmdErr) {
+		return cmdErr.Code == 48
+	}
+	return false
+}
+
+// buildIndexModels converts module IndexSpec declarations to MongoDB index models.
+func buildIndexModels(specs []IndexSpec) []mongo.IndexModel {
+	models := make([]mongo.IndexModel, 0, len(specs))
+	for _, spec := range specs {
+		var keys bson.D
+
+		if spec.Text {
+			// Text index: all keys become "text" type.
+			if len(spec.OrderedKeys) > 0 {
+				for _, k := range spec.OrderedKeys {
+					keys = append(keys, bson.E{Key: k.Field, Value: "text"})
+				}
+			} else {
+				for field := range spec.Keys {
+					keys = append(keys, bson.E{Key: field, Value: "text"})
+				}
+			}
+		} else if len(spec.OrderedKeys) > 0 {
+			// Compound index with deterministic field order.
+			for _, k := range spec.OrderedKeys {
+				keys = append(keys, bson.E{Key: k.Field, Value: k.Direction})
+			}
+		} else {
+			// Single-field index (map is fine for one key).
+			for field, direction := range spec.Keys {
+				keys = append(keys, bson.E{Key: field, Value: direction})
+			}
+		}
+
+		opts := options.Index()
+		if spec.Unique {
+			opts.SetUnique(true)
+		}
+		if spec.Sparse {
+			opts.SetSparse(true)
+		}
+		if spec.TTL > 0 {
+			opts.SetExpireAfterSeconds(int32(spec.TTL.Seconds()))
+		}
+
+		models = append(models, mongo.IndexModel{Keys: keys, Options: opts})
+	}
+	return models
 }
