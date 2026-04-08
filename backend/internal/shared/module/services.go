@@ -69,3 +69,26 @@ func (r *ServiceRegistry) MustGet(key ServiceKey) any {
 	}
 	return svc
 }
+
+// GetTyped retrieves a service and asserts it to type T.
+// Returns the zero value and false if the service is not registered or has the wrong type.
+func GetTyped[T any](r *ServiceRegistry, key ServiceKey) (T, bool) {
+	svc := r.Get(key)
+	if svc == nil {
+		var zero T
+		return zero, false
+	}
+	typed, ok := svc.(T)
+	return typed, ok
+}
+
+// MustGetTyped retrieves a service and asserts it to type T.
+// Panics if the service is not registered or has the wrong type.
+func MustGetTyped[T any](r *ServiceRegistry, key ServiceKey) T {
+	svc := r.MustGet(key)
+	typed, ok := svc.(T)
+	if !ok {
+		panic(fmt.Sprintf("module: service %q has wrong type: got %T", key, svc))
+	}
+	return typed
+}

@@ -8,9 +8,9 @@ import (
 
 	"github.com/orkestra/backend/internal/auth/models"
 	"github.com/orkestra/backend/internal/auth/repository"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
 	userModels "github.com/orkestra/backend/internal/user/models"
-	userServices "github.com/orkestra/backend/internal/user/services"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -70,7 +70,7 @@ type AuthService interface {
 // AuthConfig holds configuration for the auth service
 type AuthConfig struct {
 	AuthRepo          repository.AuthRepository
-	UserService       userServices.UserService
+	UserService       iface.UserProvider
 	OAuthProviderRepo repository.OAuthProviderRepository
 	RefreshTokenRepo  repository.RefreshTokenRepository
 	AuthSessionRepo   repository.AuthSessionRepository
@@ -79,7 +79,7 @@ type AuthConfig struct {
 
 type authService struct {
 	authRepo          repository.AuthRepository
-	userService       userServices.UserService
+	userService       iface.UserProvider
 	oauthProviderRepo repository.OAuthProviderRepository
 	refreshTokenRepo  repository.RefreshTokenRepository
 	authSessionRepo   repository.AuthSessionRepository

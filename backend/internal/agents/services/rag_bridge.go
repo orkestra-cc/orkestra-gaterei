@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/orkestra/backend/internal/agents/models"
-	ragSvc "github.com/orkestra/backend/internal/rag/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // RAGBridge provides a scoped interface to the RAG query system for the agents module.
@@ -24,13 +24,13 @@ type RAGBridgeResult struct {
 }
 
 type ragBridge struct {
-	queryService ragSvc.QueryService
+	queryService iface.RAGQueryProvider
 	defaultTopK  int
 	logger       *slog.Logger
 }
 
 // NewRAGBridge creates a RAGBridge wrapping the existing RAG QueryService
-func NewRAGBridge(queryService ragSvc.QueryService, defaultTopK int, logger *slog.Logger) RAGBridge {
+func NewRAGBridge(queryService iface.RAGQueryProvider, defaultTopK int, logger *slog.Logger) RAGBridge {
 	return &ragBridge{
 		queryService: queryService,
 		defaultTopK:  defaultTopK,

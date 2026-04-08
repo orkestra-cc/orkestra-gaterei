@@ -8,8 +8,8 @@ import (
 	"time"
 
 	aimodelsProviders "github.com/orkestra/backend/internal/aimodels/providers"
-	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	"github.com/orkestra/backend/internal/rag/models"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 const ragSystemPrompt = `You are an expert assistant for ISO standards, laws, and regulatory compliance. Answer the question based ONLY on the provided context.
@@ -43,14 +43,14 @@ type QueryService interface {
 }
 
 type queryService struct {
-	graphRepo     graphRepo.GraphRepository
+	graphRepo     iface.GraphProvider
 	modelProvider AIModelProvider
 	defaultTopK   int
 	logger        *slog.Logger
 }
 
 // NewQueryService creates a new QueryService
-func NewQueryService(gr graphRepo.GraphRepository, modelProvider AIModelProvider, defaultTopK int, logger *slog.Logger) QueryService {
+func NewQueryService(gr iface.GraphProvider, modelProvider AIModelProvider, defaultTopK int, logger *slog.Logger) QueryService {
 	return &queryService{
 		graphRepo:     gr,
 		modelProvider: modelProvider,

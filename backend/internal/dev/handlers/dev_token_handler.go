@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/orkestra/backend/internal/auth/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	userModels "github.com/orkestra/backend/internal/user/models"
 )
 
 // DevTokenHandler handles development token generation endpoints
 type DevTokenHandler struct {
-	jwtService services.JWTService
+	jwtService iface.JWTProvider
 	cfg        *config.Config
 	logger     *slog.Logger
 }
 
 // NewDevTokenHandler creates a new DevTokenHandler
-func NewDevTokenHandler(jwtService services.JWTService, cfg *config.Config) *DevTokenHandler {
+func NewDevTokenHandler(jwtService iface.JWTProvider, cfg *config.Config) *DevTokenHandler {
 	return &DevTokenHandler{
 		jwtService: jwtService,
 		cfg:        cfg,

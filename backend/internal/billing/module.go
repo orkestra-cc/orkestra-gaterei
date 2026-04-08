@@ -12,8 +12,8 @@ import (
 	"github.com/orkestra/backend/internal/billing/jobs"
 	"github.com/orkestra/backend/internal/billing/repository"
 	"github.com/orkestra/backend/internal/billing/services"
-	documentsSvc "github.com/orkestra/backend/internal/documents/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -117,10 +117,7 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	xmlBuilder := services.NewXMLBuilder(openAPIConfig)
 
 	// Retrieve PDFService from ServiceRegistry (can be nil if documents module is disabled)
-	var pdfSvc documentsSvc.PDFService
-	if svc := deps.Services.Get(module.ServicePDFService); svc != nil {
-		pdfSvc = svc.(documentsSvc.PDFService)
-	}
+	pdfSvc, _ := module.GetTyped[iface.PDFProvider](deps.Services, module.ServicePDFService)
 
 	invoiceSvc := services.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, m.openAPIClient, xmlBuilder, nil, pdfSvc, deps.Logger)
 	customerSvc := services.NewCustomerService(customerRepo, deps.Logger)

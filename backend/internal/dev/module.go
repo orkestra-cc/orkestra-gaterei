@@ -3,9 +3,9 @@ package dev
 import (
 	"log/slog"
 
-	"github.com/orkestra/backend/internal/auth/services"
 	"github.com/orkestra/backend/internal/dev/handlers"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -27,7 +27,7 @@ func (m *DevModule) Dependencies() []string           { return []string{"auth"} 
 func (m *DevModule) RequiredServices() []module.ServiceKey { return []module.ServiceKey{module.ServiceJWTService} }
 
 func (m *DevModule) Init(deps *module.Dependencies) error {
-	jwtService := deps.Services.MustGet(module.ServiceJWTService).(services.JWTService)
+	jwtService := module.MustGetTyped[iface.JWTProvider](deps.Services, module.ServiceJWTService)
 	m.handler = handlers.NewDevTokenHandler(jwtService, deps.Config)
 	m.logger = deps.Logger
 	return nil

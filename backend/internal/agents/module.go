@@ -9,8 +9,8 @@ import (
 	"github.com/orkestra/backend/internal/agents/handlers"
 	"github.com/orkestra/backend/internal/agents/repository"
 	"github.com/orkestra/backend/internal/agents/services"
-	ragSvc "github.com/orkestra/backend/internal/rag/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -65,9 +65,8 @@ func (m *AgentsModule) Init(deps *module.Dependencies) error {
 
 	// Create RAG bridge if RAG query service is available
 	var ragBridge services.RAGBridge
-	if svc := deps.Services.Get(module.ServiceRAGQuery); svc != nil {
-		ragQueryService := svc.(ragSvc.QueryService)
-		ragBridge = services.NewRAGBridge(ragQueryService, deps.Config.RAG.DefaultTopK, deps.Logger)
+	if ragQuery, ok := module.GetTyped[iface.RAGQueryProvider](deps.Services, module.ServiceRAGQuery); ok {
+		ragBridge = services.NewRAGBridge(ragQuery, deps.Config.RAG.DefaultTopK, deps.Logger)
 	}
 
 	projectService := services.NewProjectService(projectRepo, hsClient, hindsightNS, deps.Logger)

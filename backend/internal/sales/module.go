@@ -7,11 +7,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
-	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
 	"github.com/orkestra/backend/internal/sales/handlers"
 	"github.com/orkestra/backend/internal/sales/repository"
 	"github.com/orkestra/backend/internal/sales/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -68,8 +68,8 @@ func (m *SalesModule) Init(deps *module.Dependencies) error {
 
 	// Use AI model provider if available
 	var salesModelProvider services.AIModelProvider
-	if svc := deps.Services.Get(module.ServiceAIModelProvider); svc != nil {
-		salesModelProvider = svc.(aimodelsSvc.AIModelService)
+	if mp, ok := module.GetTyped[iface.AIModelProvider](deps.Services, module.ServiceAIModelProvider); ok {
+		salesModelProvider = mp
 	}
 
 	// Optional: company enrichment for Italian business registry

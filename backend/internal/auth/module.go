@@ -6,8 +6,8 @@ import (
 	"github.com/orkestra/backend/internal/auth/models"
 	"github.com/orkestra/backend/internal/auth/repository"
 	"github.com/orkestra/backend/internal/auth/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/module"
-	userServices "github.com/orkestra/backend/internal/user/services"
 )
 
 type AuthModule struct {
@@ -107,7 +107,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	oauthStateService := services.NewOAuthStateService(redisStore)
 
 	// Get user service from registry
-	userService := deps.Services.MustGet(module.ServiceUserService).(userServices.UserService)
+	userService := module.MustGetTyped[iface.UserProvider](deps.Services, module.ServiceUserService)
 
 	// Auth service
 	authService, err := services.NewAuthService(&services.AuthConfig{

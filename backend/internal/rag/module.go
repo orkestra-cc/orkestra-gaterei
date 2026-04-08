@@ -6,12 +6,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
-	aimodelsSvc "github.com/orkestra/backend/internal/aimodels/services"
-	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	"github.com/orkestra/backend/internal/rag/handlers"
 	"github.com/orkestra/backend/internal/rag/repository"
 	"github.com/orkestra/backend/internal/rag/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -63,8 +62,8 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 
 	// Use aimodels service if available, otherwise create a standalone model service
 	var ragModelProvider services.AIModelProvider
-	if svc := deps.Services.Get(module.ServiceAIModelProvider); svc != nil {
-		ragModelProvider = svc.(aimodelsSvc.AIModelService)
+	if mp, ok := module.GetTyped[iface.AIModelProvider](deps.Services, module.ServiceAIModelProvider); ok {
+		ragModelProvider = mp
 	} else {
 		modelRepository := repository.NewModelRepository(deps.DB)
 		localModelService := services.NewModelService(modelRepository, cfg.RAG, deps.Logger)
@@ -78,16 +77,14 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 	textExtractor := services.NewTextExtractor(cfg.Documents.GotenbergURL)
 
 	// Ingestion + query services require graph repository
-	if graphSvc := deps.Services.Get(module.ServiceGraphRepo); graphSvc != nil {
-		graphRepository := graphSvc.(graphRepo.GraphRepository)
-
+	if graphProvider, ok := module.GetTyped[iface.GraphProvider](deps.Services, module.ServiceGraphRepo); ok {
 		ingestionService := services.NewIngestionService(
-			documentRepository, relTypeRepo, graphRepository, ragModelProvider, textExtractor,
+			documentRepository, relTypeRepo, graphProvider, ragModelProvider, textExtractor,
 			cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, deps.Logger,
 		)
 		m.documentHandler = handlers.NewDocumentHandler(ingestionService)
 
-		ragQueryService := services.NewQueryService(graphRepository, ragModelProvider, cfg.RAG.DefaultTopK, deps.Logger)
+		ragQueryService := services.NewQueryService(graphProvider, ragModelProvider, cfg.RAG.DefaultTopK, deps.Logger)
 		m.queryHandler = handlers.NewQueryHandler(ragQueryService)
 		m.streamHandler = handlers.NewStreamHandler(ragQueryService, deps.Logger)
 

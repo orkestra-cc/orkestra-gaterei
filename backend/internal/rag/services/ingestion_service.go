@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	aimodelsProviders "github.com/orkestra/backend/internal/aimodels/providers"
-	graphRepo "github.com/orkestra/backend/internal/graph/repository"
 	"github.com/orkestra/backend/internal/rag/models"
 	"github.com/orkestra/backend/internal/rag/repository"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // IngestionService manages document ingestion into the knowledge graph
@@ -32,7 +32,7 @@ type IngestionService interface {
 type ingestionService struct {
 	docRepo             repository.DocumentRepository
 	relTypeRepo         repository.RelationshipTypeRepository
-	graphRepo           graphRepo.GraphRepository
+	graphRepo           iface.GraphProvider
 	modelProvider       AIModelProvider
 	extractor           TextExtractor
 	defaultChunk        int
@@ -45,7 +45,7 @@ type ingestionService struct {
 func NewIngestionService(
 	docRepo repository.DocumentRepository,
 	relTypeRepo repository.RelationshipTypeRepository,
-	gr graphRepo.GraphRepository,
+	gr iface.GraphProvider,
 	modelProvider AIModelProvider,
 	extractor TextExtractor,
 	defaultChunk, defaultOverlap int,

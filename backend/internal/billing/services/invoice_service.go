@@ -14,7 +14,7 @@ import (
 
 	"github.com/orkestra/backend/internal/billing/models"
 	"github.com/orkestra/backend/internal/billing/repository"
-	documentsSvc "github.com/orkestra/backend/internal/documents/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // Common errors
@@ -68,7 +68,7 @@ type invoiceService struct {
 	openAPIClient OpenAPIClient
 	xmlBuilder    XMLBuilder
 	xmlParser     XMLParser
-	pdfService    documentsSvc.PDFService // Optional: nil if documents module disabled
+	pdfService    iface.PDFProvider // Optional: nil if documents module disabled
 	logger        *slog.Logger
 }
 
@@ -81,7 +81,7 @@ func NewInvoiceService(
 	openAPIClient OpenAPIClient,
 	xmlBuilder XMLBuilder,
 	xmlParser XMLParser, // Can be nil, will be created if not provided
-	pdfService documentsSvc.PDFService, // Can be nil if documents module is disabled
+	pdfService iface.PDFProvider, // Can be nil if documents module is disabled
 	logger *slog.Logger,
 ) InvoiceService {
 	if xmlParser == nil {
