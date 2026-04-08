@@ -174,6 +174,7 @@ const Dashboard = lazy(() => import('reference/dashboards/DefaultDashboard'));
 import Faq from 'reference/documentation/Faq';
 const SupportDesk = lazy(() => import('reference/dashboards/SupportDeskDashboard'));
 const UserManagement = lazy(() => import('pages/admin/users'));
+const ModuleManagement = lazy(() => import('pages/admin/modules'));
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
@@ -582,6 +583,23 @@ const routes: RouteObject[] = [
                       fallback={<FalconLoader />}
                     >
                       <UserManagement />
+                    </Suspense>
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'modules',
+                element: (
+                  <ProtectedRoute
+                    requiredPermissions={[
+                      ['developer', 'ceo', 'administrator']
+                    ]}
+                  >
+                    <Suspense
+                      key="admin-modules"
+                      fallback={<FalconLoader />}
+                    >
+                      <ModuleManagement />
                     </Suspense>
                   </ProtectedRoute>
                 )

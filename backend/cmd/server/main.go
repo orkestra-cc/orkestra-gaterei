@@ -160,7 +160,7 @@ func main() {
 	protectedRouter.Group(func(r chi.Router) {
 		r.Use(authMW.RequireHierarchicalRole("administrator"))
 		adminAPI := humachi.New(r, apiConfig)
-		moduleAdminHandler := module.NewModuleAdminHandler(configService)
+		moduleAdminHandler := module.NewModuleAdminHandler(configService, modRegistry)
 		module.RegisterAdminModuleRoutes(adminAPI, moduleAdminHandler)
 	})
 

@@ -38,4 +38,14 @@ func RegisterAdminModuleRoutes(api huma.API, handler *ModuleAdminHandler) {
 		Tags:        []string{"Admin - Modules"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.UpdateModule)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "modules-health",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/modules/health",
+		Summary:     "Check module health",
+		Description: "Runs health checks on all registered modules and returns per-module status.",
+		Tags:        []string{"Admin - Modules"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.HealthCheck)
 }

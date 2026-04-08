@@ -3,6 +3,7 @@ package module
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -10,11 +11,12 @@ import (
 // ModuleAdminHandler provides Huma-compatible handlers for the admin module API.
 type ModuleAdminHandler struct {
 	configService *ModuleConfigService
+	registry      *ModuleRegistry
 }
 
 // NewModuleAdminHandler creates a new admin handler.
-func NewModuleAdminHandler(cs *ModuleConfigService) *ModuleAdminHandler {
-	return &ModuleAdminHandler{configService: cs}
+func NewModuleAdminHandler(cs *ModuleConfigService, registry *ModuleRegistry) *ModuleAdminHandler {
+	return &ModuleAdminHandler{configService: cs, registry: registry}
 }
 
 // --- DTOs ---
@@ -51,21 +53,41 @@ type UpdateModuleOutput struct {
 	Body ModuleConfigResponse
 }
 
+// ModuleHealthOutput is the response for GET /v1/admin/modules/health.
+type ModuleHealthOutput struct {
+	Body struct {
+		Modules   []ModuleHealthStatus `json:"modules"`
+		CheckedAt string               `json:"checkedAt"`
+	}
+}
+
+// ModuleHealthStatus represents the health of a single module.
+type ModuleHealthStatus struct {
+	ModuleName string `json:"moduleName"`
+	Status     string `json:"status"` // "healthy" | "unhealthy" | "disabled" | "failed"
+	Error      string `json:"error,omitempty"`
+}
+
 // ModuleConfigResponse is the API representation of a module config.
 // Secrets are never returned — only a per-field indicator of whether a value exists.
 type ModuleConfigResponse struct {
-	ModuleName   string            `json:"moduleName"`
-	DisplayName  string            `json:"displayName"`
-	Description  string            `json:"description"`
-	Category     ModuleCategory    `json:"category"`
-	Enabled      bool              `json:"enabled"`
-	NeedsRestart bool              `json:"needsRestart"`
-	ConfigValues map[string]string `json:"configValues"`
-	SecretStatus map[string]bool   `json:"secretStatus"` // key → true if a value is stored
-	ConfigSchema []ConfigField     `json:"configSchema"`
-	DependsOn    []string          `json:"dependsOn,omitempty"`
-	CreatedAt    string            `json:"createdAt"`
-	UpdatedAt    string            `json:"updatedAt"`
+	ModuleName       string            `json:"moduleName"`
+	DisplayName      string            `json:"displayName"`
+	Description      string            `json:"description"`
+	Category         ModuleCategory    `json:"category"`
+	Enabled          bool              `json:"enabled"`
+	Status           string            `json:"status"` // "running" | "failed" | "disabled"
+	Error            string            `json:"error,omitempty"`
+	NeedsRestart     bool              `json:"needsRestart"`
+	ConfigValues     map[string]string `json:"configValues"`
+	SecretStatus     map[string]bool   `json:"secretStatus"`
+	ConfigSchema     []ConfigField     `json:"configSchema"`
+	DependsOn        []string          `json:"dependsOn,omitempty"`
+	ProvidedServices []string          `json:"providedServices,omitempty"`
+	RequiredServices []string          `json:"requiredServices,omitempty"`
+	OptionalServices []string          `json:"optionalServices,omitempty"`
+	CreatedAt        string            `json:"createdAt"`
+	UpdatedAt        string            `json:"updatedAt"`
 }
 
 // --- Handlers ---
@@ -79,7 +101,7 @@ func (h *ModuleAdminHandler) ListModules(ctx context.Context, _ *struct{}) (*Lis
 
 	resp := make([]ModuleConfigResponse, len(configs))
 	for i, c := range configs {
-		resp[i] = toConfigResponse(c)
+		resp[i] = h.toConfigResponse(c)
 	}
 
 	return &ListModulesOutput{
@@ -99,7 +121,7 @@ func (h *ModuleAdminHandler) GetModule(ctx context.Context, input *GetModuleInpu
 		return nil, huma.Error404NotFound(fmt.Sprintf("module %q not found", input.Name))
 	}
 
-	return &GetModuleOutput{Body: toConfigResponse(*config)}, nil
+	return &GetModuleOutput{Body: h.toConfigResponse(*config)}, nil
 }
 
 // UpdateModule updates a module's enabled state and/or configuration.
@@ -146,12 +168,66 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 		return nil, err
 	}
 
-	return &UpdateModuleOutput{Body: toConfigResponse(*updated)}, nil
+	return &UpdateModuleOutput{Body: h.toConfigResponse(*updated)}, nil
+}
+
+// HealthCheck runs health checks on all enabled modules.
+func (h *ModuleAdminHandler) HealthCheck(ctx context.Context, _ *struct{}) (*ModuleHealthOutput, error) {
+	failedModules := h.registry.FailedModules()
+	enabledSet := make(map[string]bool)
+	for _, name := range h.registry.EnabledModules() {
+		enabledSet[name] = true
+	}
+
+	var statuses []ModuleHealthStatus
+	for _, m := range h.registry.AllModules() {
+		name := m.Name()
+
+		if failErr, isFailed := failedModules[name]; isFailed {
+			statuses = append(statuses, ModuleHealthStatus{
+				ModuleName: name,
+				Status:     "failed",
+				Error:      failErr.Error(),
+			})
+			continue
+		}
+
+		if !enabledSet[name] {
+			statuses = append(statuses, ModuleHealthStatus{
+				ModuleName: name,
+				Status:     "disabled",
+			})
+			continue
+		}
+
+		if err := m.HealthCheck(ctx); err != nil {
+			statuses = append(statuses, ModuleHealthStatus{
+				ModuleName: name,
+				Status:     "unhealthy",
+				Error:      err.Error(),
+			})
+		} else {
+			statuses = append(statuses, ModuleHealthStatus{
+				ModuleName: name,
+				Status:     "healthy",
+			})
+		}
+	}
+
+	return &ModuleHealthOutput{
+		Body: struct {
+			Modules   []ModuleHealthStatus `json:"modules"`
+			CheckedAt string               `json:"checkedAt"`
+		}{
+			Modules:   statuses,
+			CheckedAt: time.Now().UTC().Format(time.RFC3339),
+		},
+	}, nil
 }
 
 // --- Helpers ---
 
-func toConfigResponse(c ModuleConfig) ModuleConfigResponse {
+func (h *ModuleAdminHandler) toConfigResponse(c ModuleConfig) ModuleConfigResponse {
 	secretStatus := make(map[string]bool)
 	for _, field := range c.ConfigSchema {
 		if field.Type == FieldSecret {
@@ -173,6 +249,33 @@ func toConfigResponse(c ModuleConfig) ModuleConfigResponse {
 		DependsOn:    c.DependsOn,
 	}
 
+	// Derive runtime status from registry state
+	failedModules := h.registry.FailedModules()
+	if failErr, isFailed := failedModules[c.ModuleName]; isFailed {
+		resp.Status = "failed"
+		resp.Error = failErr.Error()
+	} else if !c.Enabled {
+		resp.Status = "disabled"
+	} else {
+		resp.Status = "running"
+	}
+
+	// Populate service declarations from the registered module
+	for _, m := range h.registry.AllModules() {
+		if m.Name() == c.ModuleName {
+			for _, k := range m.ProvidedServices() {
+				resp.ProvidedServices = append(resp.ProvidedServices, string(k))
+			}
+			for _, k := range m.RequiredServices() {
+				resp.RequiredServices = append(resp.RequiredServices, string(k))
+			}
+			for _, k := range m.OptionalServices() {
+				resp.OptionalServices = append(resp.OptionalServices, string(k))
+			}
+			break
+		}
+	}
+
 	if !c.CreatedAt.IsZero() {
 		resp.CreatedAt = c.CreatedAt.Format("2006-01-02T15:04:05Z")
 	}
@@ -182,4 +285,3 @@ func toConfigResponse(c ModuleConfig) ModuleConfigResponse {
 
 	return resp
 }
-

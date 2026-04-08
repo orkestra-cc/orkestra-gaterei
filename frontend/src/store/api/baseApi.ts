@@ -137,6 +137,8 @@ export const baseApi = createApi({
     // Personal Agent tags
     'PersonalAgent',
     'PersonalConversation',
+    // Admin module management tags
+    'Module',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

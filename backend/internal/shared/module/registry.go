@@ -149,6 +149,11 @@ func (r *ModuleRegistry) HealthCheckAll(ctx context.Context) error {
 	return nil
 }
 
+// AllModules returns all registered modules (enabled, failed, and disabled).
+func (r *ModuleRegistry) AllModules() []Module {
+	return r.modules
+}
+
 // EnabledModules returns the names of all enabled modules.
 func (r *ModuleRegistry) EnabledModules() []string {
 	names := make([]string, len(r.enabled))
