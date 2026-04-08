@@ -81,7 +81,7 @@ Format and explain the API response to the user.
 - `GET /api/v1/billing/invoices` - List invoices
 - `GET /api/v1/billing/customers` - List customers
 - `GET /api/v1/documents/templates` - List document templates
-- `GET /api/v1/reports/deadlines` - Get deadline reports
+
 
 ### Any Authenticated User
 - `GET /api/v1/navigation` - Get navigation menu

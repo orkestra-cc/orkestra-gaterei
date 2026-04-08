@@ -1802,13 +1802,6 @@ export const adminRoutes: RouteGroup = {
   label: 'Administration',
   roles: ['administrator'], // Administrator and above
   children: [
-    {
-      name: 'Deadlines',
-      to: paths.deadlineReports,
-      active: true,
-      icon: 'calendar-check',
-      roles: ['manager']
-    }
     // {
     //   name: 'Analisi',
     //   to: paths.analytics,

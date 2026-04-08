@@ -343,7 +343,7 @@ export VERSION=$VERSION
 
 # Push Docker images
 echo "Pushing Docker images..."
-for service in auth user operator tracking task reporting; do
+for service in auth user operator tracking task; do
     docker push orkestra/$service:$VERSION
 done
 docker push orkestra/frontend:$VERSION

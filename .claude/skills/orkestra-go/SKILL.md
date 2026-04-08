@@ -32,7 +32,7 @@ type Module interface {
 The `Dependencies` struct provides shared infrastructure (DB, Redis, Config, EventBus, Logger) plus **cross-module service interfaces** (`UserLookup`, `AIModelProvider`, `PDFService`, `GraphRepository`). Modules never import each other — they consume interfaces.
 
 **Module initialization order** (topologically sorted by dependencies):
-navigation → reporting → company → documents → aimodels → billing → graph → rag → sales → agents → user → auth
+navigation → company → documents → aimodels → billing → graph → rag → sales → agents → user → auth
 
 ### Project Layout
 
@@ -43,7 +43,7 @@ internal/
   auth/                      # OAuth 2.1 PKCE (Google/Apple/GitHub/Discord), RS256 JWT, 6-role RBAC
   user/                      # User management, profile, document expiry tracking
   navigation/                # Menu configuration (simplest module — zero data deps)
-  reporting/                 # MongoDB aggregation pipelines, read from secondaries
+
   billing/                   # FatturaPA/SDI XML, OpenAPI.it integration, PDF invoicing
   company/                   # Italian company registry lookups (external API)
   documents/                 # Gotenberg PDF generation, template management
@@ -104,7 +104,7 @@ internal/<module>/
 - Publishers emit events after successful operations
 - Subscribers registered via `RegisterEvents(bus *events.Bus)`
 - Dead-letter queues for failed event processing
-- Start with non-critical events (reporting, analytics); keep synchronous calls for data integrity
+- Start with non-critical events (analytics); keep synchronous calls for data integrity
 
 ### Graph: Memgraph
 

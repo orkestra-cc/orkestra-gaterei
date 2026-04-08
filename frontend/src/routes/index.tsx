@@ -178,9 +178,7 @@ const ModuleManagement = lazy(() => import('pages/admin/modules'));
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
-const DeadlineReports = lazy(
-  () => import('pages/admin/Reports/DeadlineReports')
-);
+
 const AdminSettings = lazy(
   () => import('pages/admin/settings/AdminSettings')
 );
@@ -617,23 +615,6 @@ const routes: RouteObject[] = [
                       fallback={<FalconLoader />}
                     >
                       <AdminUserProfile />
-                    </Suspense>
-                  </ProtectedRoute>
-                )
-              },
-              {
-                path: 'reports/deadlines',
-                element: (
-                  <ProtectedRoute
-                    requiredPermissions={[
-                      ['developer', 'ceo', 'administrator', 'manager']
-                    ]}
-                  >
-                    <Suspense
-                      key="admin-deadlineReports"
-                      fallback={<FalconLoader />}
-                    >
-                      <DeadlineReports />
                     </Suspense>
                   </ProtectedRoute>
                 )

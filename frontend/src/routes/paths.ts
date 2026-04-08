@@ -124,7 +124,7 @@ export interface AppPaths {
   userManagement: string;
   moduleManagement: string;
   adminUserProfile: string;
-  deadlineReports: string;
+
   operatorProfile: string;
   documentTemplates: string;
   verticalNavLayout: string;
@@ -455,7 +455,7 @@ const paths: AppPaths = {
   userManagement: `/${rootPaths.adminRoot}/users`,
   moduleManagement: `/${rootPaths.adminRoot}/modules`,
   adminUserProfile: `/${rootPaths.adminRoot}/user/profile/:userId`,
-  deadlineReports: `/${rootPaths.adminRoot}/reports/deadlines`,
+
   operatorProfile: `/${rootPaths.adminRoot}/operator/profile/:operatorId`,
   documentTemplates: `/${rootPaths.adminRoot}/templates`,
   verticalNavLayout: `/${rootPaths.layoutRoot}/vertical-nav-layout`,

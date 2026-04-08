@@ -1,12 +1,12 @@
 # ORKESTRA
 
-Professional business and service management system — electronic invoicing, AI sales intelligence, RAG pipeline, document generation, and operational reporting.
+Professional business and service management system — electronic invoicing, AI sales intelligence, RAG pipeline, and document generation.
 
 ## Tech Stack
 
 | Layer              | Technology                                                         |
 | ------------------ | ------------------------------------------------------------------ |
-| **Backend**        | Go 1.25.1, Huma v2 (OpenAPI-first), 13 self-contained modules      |
+| **Backend**        | Go 1.25.1, Huma v2 (OpenAPI-first), 12 self-contained modules      |
 | **Frontend**       | React 19, TypeScript 5.9, Vite 7, Redux Toolkit, TanStack Table    |
 | **Mobile**         | Flutter 3.35+, Dart, Riverpod                                      |
 | **Database**       | MongoDB 8.0, Redis 8.2                                             |
@@ -15,7 +15,7 @@ Professional business and service management system — electronic invoicing, AI
 
 ## Architecture
 
-Single Go binary with **13 self-contained modules** managed by a module registry. Each module declares its own routes, collections, config schema, nav items, health checks, and service dependencies. Modules communicate through a `ServiceRegistry` using interfaces defined in `shared/iface/`.
+Single Go binary with **12 self-contained modules** managed by a module registry. Each module declares its own routes, collections, config schema, nav items, health checks, and service dependencies. Modules communicate through a `ServiceRegistry` using interfaces defined in `shared/iface/`.
 
 **Key components** (`backend/internal/shared/module/`):
 
@@ -36,7 +36,6 @@ Single Go binary with **13 self-contained modules** managed by a module registry
 | **auth**       | OAuth 2.1, JWT, sessions, RBAC                                                                               | core       |
 | **user**       | User CRUD, role management, document tracking                                                                | core       |
 | **navigation** | Dynamic menu from module NavItems                                                                            | core       |
-| **reporting**  | Analytics dashboards and aggregations                                                                        | core       |
 | **billing**    | Italian electronic invoicing (FatturaPA/SDI) — [docs](backend/internal/billing/CLAUDE.md)                    | external   |
 | **documents**  | PDF generation via Gotenberg — [docs](backend/internal/documents/CLAUDE.md)                                  | external   |
 | **company**    | Italian business registry lookup (OpenAPI) — [docs](backend/internal/company/CLAUDE.md)                      | external   |

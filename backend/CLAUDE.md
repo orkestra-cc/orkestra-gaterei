@@ -1,6 +1,6 @@
 # Backend — Go Modular Server
 
-Single Go binary, 13 self-contained modules, ~226-line `main.go`. Port 3000.
+Single Go binary, 12 self-contained modules, ~226-line `main.go`. Port 3000.
 
 ## Stack
 
@@ -27,12 +27,12 @@ Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 
 ```
 backend/
-├── cmd/server/main.go              # ~226 lines: boot, register 13 modules, start
+├── cmd/server/main.go              # ~226 lines: boot, register 12 modules, start
 ├── internal/
 │   ├── auth/                       # OAuth 2.1, JWT, sessions, RBAC (core)
 │   ├── user/                       # User CRUD, roles, documents (core)
 │   ├── navigation/                 # Dynamic menu from module NavItems (core)
-│   ├── reporting/                  # Analytics dashboards (core)
+
 │   ├── billing/                    # FatturaPA/SDI invoicing (external)
 │   ├── documents/                  # PDF generation via Gotenberg (external)
 │   ├── company/                    # Business registry lookup (external)

@@ -26,7 +26,6 @@ import (
 	"github.com/orkestra/backend/internal/graph"
 	"github.com/orkestra/backend/internal/navigation"
 	"github.com/orkestra/backend/internal/rag"
-	"github.com/orkestra/backend/internal/reporting"
 	"github.com/orkestra/backend/internal/sales"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
@@ -97,7 +96,6 @@ func main() {
 	modRegistry.Register(user.NewModule())       // produces UserService
 	modRegistry.Register(auth.NewModule())        // consumes UserService → produces JWTService + AuthService
 	modRegistry.Register(navigation.NewModule())
-	modRegistry.Register(reporting.NewModule())
 	modRegistry.Register(documents.NewModule())   // produces PDFService
 	modRegistry.Register(aimodels.NewModule())    // produces AIModelProvider
 	modRegistry.Register(company.NewModule())

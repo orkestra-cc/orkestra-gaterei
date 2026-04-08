@@ -78,7 +78,7 @@ src/
 │   ├── test/           # Testing utilities
 │   └── utilities/      # Bootstrap utility examples
 ├── pages/             # 📄 Production Page Components
-│   ├── admin/         # Admin management (reports, users)
+│   ├── admin/         # Admin management (users)
 │   ├── fleet/         # Fleet management (vehicles, cranes, tachographs)
 │   ├── operator/      # Operator profile
 │   └── user/          # User settings and profile
@@ -135,7 +135,7 @@ The project now maintains crystal clear boundaries between different types of co
 
 #### 📄 Production Pages (`src/pages/`)
 **Backend-connected production pages:**
-- **`admin/`** - Admin management (reports, user profiles, user table)
+- **`admin/`** - Admin management (user profiles, user table)
 - **`fleet/`** - Fleet management (vehicles, cranes, tachographs with profiles)
 - **`operator/`** - Operator profile pages
 - **`user/`** - User profile and settings pages
