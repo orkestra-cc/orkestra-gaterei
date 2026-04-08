@@ -40,7 +40,7 @@ func (m *UserModule) NavItems() []module.NavItemSpec {
 		{Group: "Operators", Name: "Profile", Icon: "user", Path: "/user/profile", MinRole: "guest", Active: true},
 		{Group: "Operators", Name: "Calendar", Icon: "calendar-alt", Path: "/user/calendar", MinRole: "guest", Active: true},
 		{Group: "System Administration", Name: "User Management", Icon: "users-cog", Path: "/admin/users", MinRole: "administrator", Active: true},
-		{Group: "System Administration", Name: "Module Management", Icon: "cubes", Path: "/admin/modules", MinRole: "administrator", Active: true},
+		{Group: "System Administration", Name: "Module Management", Icon: "puzzle-piece", Path: "/admin/modules", MinRole: "administrator", Active: true},
 	}
 }
 
