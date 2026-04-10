@@ -116,37 +116,43 @@ ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and *
 
 ### Core Philosophy
 
-Separate infrastructure from applications across four compose files:
+Separate infrastructure from applications across five compose files:
 
-1. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis)
-2. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
-3. **`docker-compose.staging.yml`** - Application services in staging mode (production-like)
-4. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
+1. **`docker-compose.minimal.yml`** — Self-contained 4-container stack (mongo, redis, backend, frontend) using only public images. Recommended for first boot on a modest VM or when you don't have `dhi.io` registry access.
+2. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
+3. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
+4. **`docker-compose.staging.yml`** - Application services in staging mode (production-like)
+5. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
+
+The minimal profile is **self-contained** — it does NOT layer on top of `docker-compose.infra.yml`. It brings its own mongo/redis containers (on non-standard ports to avoid colliding with the dev stack's infra containers) and only starts the core module chain.
 
 ### File Organization
 
 ```
 /                              # Project root
-├── deploy.sh                  # Interactive deployment manager
+├── README.md                  # Leads with the minimal bootstrap path
+├── deploy.sh                  # Interactive deployment manager (full stacks only)
 ├── logs.sh                    # Interactive log viewer
 └── docker/
-    ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis
+    ├── docker-compose.minimal.yml # Minimal: self-contained 4-container stack
+    ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
     ├── docker-compose.dev.yml     # Development: Backend, Frontend with hot reload
     ├── docker-compose.staging.yml # Staging: Production-like behavior
     ├── docker-compose.prod.yml    # Production: Optimized Backend, Frontend
+    ├── docker-compose.ai.yml      # Optional AI sidecar (graph, rag, agents, aimodels)
     ├── .env.example               # Template for environment files
-    ├── .env.development           # Development environment variables
-    ├── .env.staging               # Staging environment variables
-    ├── .env.production            # Production environment variables
+    ├── .env.minimal               # Tracked dev-only env for the minimal profile
+    ├── .env                       # Active env (gitignored) - contains ENV=development|staging|production
     ├── keys/                      # JWT and OAuth keys (gitignored)
     └── mongo-init/                # MongoDB initialization scripts
 ```
 
 ### Environment Combinations
 
-- **Development**: `docker-compose.infra.yml` + `docker-compose.dev.yml` + `.env.development`
-- **Staging**: `docker-compose.infra.yml` + `docker-compose.staging.yml` + `.env.staging`
-- **Production**: `docker-compose.infra.yml` + `docker-compose.prod.yml` + `.env.production`
+- **Minimal**: `docker-compose.minimal.yml` + `.env.minimal` — one-command boot with core modules only, uses public images
+- **Development**: `docker-compose.infra.yml` + `docker-compose.dev.yml` + `.env` (with `ENV=development`)
+- **Staging**: `docker-compose.infra.yml` + `docker-compose.staging.yml` + `.env` (with `ENV=staging`)
+- **Production**: `docker-compose.infra.yml` + `docker-compose.prod.yml` + `.env` (with `ENV=production`)
 
 **IMPORTANT**: All Docker files must remain in `/docker` directory for proper build contexts.
 
@@ -206,35 +212,63 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 ## Service Architecture
 
+### Minimal Profile (`docker-compose.minimal.yml`)
+
+**Self-contained 4-container stack using only public images — recommended for first boot**
+
+| Service      | Host port | Purpose       | Features                                                              |
+| ------------ | --------- | ------------- | --------------------------------------------------------------------- |
+| **mongodb**  | 27050     | Primary DB    | `mongo:8.0`, authenticated healthcheck                                |
+| **redis**    | 6350      | Cache         | `redis:8.2-alpine`                                                    |
+| **backend**  | 3050      | Go API server | Built from `backend/Dockerfile.minimal` (public `golang:1.25-alpine`) |
+| **frontend** | 8050      | React web app | Built from `frontend/Dockerfile` (`nginx:alpine` static serving)      |
+
+The minimal profile:
+
+- Uses **only publicly available images** (no `dhi.io` Chainguard registry required)
+- Runs on **non-standard host ports** (3050/8050/27050/6350) so it coexists with the dev/staging/prod stacks without colliding
+- Boots **only the core modules** (auth, user, navigation) plus the `dev` token generator — no Gotenberg, Memgraph, Hindsight, Ollama, or AI sidecar
+- Has its own `.env.minimal` file (tracked in git, all values are dev placeholders)
+- Is a **self-contained compose file** — do NOT layer `docker-compose.infra.yml` on top of it
+
+```bash
+cd docker
+docker network create orkestra-network   # once, if it does not exist
+docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+```
+
+To enable additional modules, edit `MODULES` in `.env.minimal` (comma-separated, e.g. `MODULES=dev,billing`). Dependencies are auto-included by the backend module registry.
+
 ### Infrastructure Services (`docker-compose.infra.yml`)
 
-**Shared across all environments - start once, use everywhere**
+**Shared across dev/staging/prod environments — start once, use everywhere**
 
 | Service       | Port  | Purpose             | Health Check     |
 | ------------- | ----- | ------------------- | ---------------- |
-| **mongodb**   | 27017 | Primary database    | mongosh ping     |
-| **redis**     | 6379  | Cache & sessions    | redis-cli ping   |
+| **mongodb**   | 27027 | Primary database    | mongosh ping     |
+| **redis**     | 6387  | Cache & sessions    | redis-cli ping   |
 | **gotenberg** | 3030  | PDF generation      | curl /health     |
+| **hindsight** | 8888  | AI agents backend   | curl /health     |
 
 ### Application Services
 
 #### Development (`docker-compose.dev.yml`)
 
-**Lightweight development with hot reload**
+**Lightweight development with hot reload. Uses `dhi.io` Chainguard hardened base images.**
 
-| Service      | Port | Purpose       | Features                     |
-| ------------ | ---- | ------------- | ---------------------------- |
-| **backend**  | 3000 | Go API server | Hot reload (Air), debug logs |
-| **frontend** | 8080 | React web app | Vite dev server, HMR         |
+| Service      | Host port | Purpose       | Features                     |
+| ------------ | --------- | ------------- | ---------------------------- |
+| **backend**  | 3007      | Go API server | Hot reload (AIR), debug logs |
+| **frontend** | 8087      | React web app | Vite dev server, HMR         |
 
 #### Production (`docker-compose.prod.yml`)
 
 **Optimized production services**
 
-| Service      | Port | Purpose       | Features                       |
-| ------------ | ---- | ------------- | ------------------------------ |
-| **backend**  | 3000 | Go API server | Optimized build, health checks |
-| **frontend** | 8080 | React web app | Nginx static serving           |
+| Service      | Host port | Purpose       | Features                       |
+| ------------ | --------- | ------------- | ------------------------------ |
+| **backend**  | 3000      | Go API server | Optimized build, health checks |
+| **frontend** | 8080      | React web app | Nginx static serving           |
 
 ## Network Architecture
 
@@ -247,15 +281,26 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 ### Port Mapping Strategy
 
-```
-Infrastructure (docker-compose.infra.yml):
-27017 → mongodb:27017     # Database access
-6379  → redis:6379        # Cache access
-3030  → gotenberg:3000    # PDF generation (Chromium-based)
+Host ports vary per profile so multiple stacks can coexist on the same machine. Container-internal ports stay standard.
 
-Application Services (dev/prod):
+```
+Minimal profile (docker-compose.minimal.yml):
+3050  → backend:3000      # API server
+8050  → frontend:80       # Web application
+27050 → mongodb:27017     # Dedicated mongo for minimal
+6350  → redis:6379        # Dedicated redis for minimal
+
+Dev stack (docker-compose.infra.yml + docker-compose.dev.yml):
+3007  → backend:3000      # API server
+8087  → frontend:5173     # Vite dev server
+27027 → mongodb:27017     # Shared infra mongo
+6387  → redis:6379        # Shared infra redis
+3030  → gotenberg:3000    # PDF generation
+8888  → hindsight:8888    # AI agents backend
+
+Production (docker-compose.prod.yml):
 3000  → backend:3000      # API server
-8080  → frontend:8080     # Web application
+8080  → frontend:80       # Nginx static
 ```
 
 ### Security & Secrets Management

@@ -1,6 +1,6 @@
 # Backend — Go Modular Server
 
-Single Go binary, 12 self-contained modules, ~226-line `main.go`. Port 3000.
+Single Go binary. 3 core modules (always loaded) + 9 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
 
 ## Stack
 
@@ -17,11 +17,13 @@ ProvidedServices, RequiredServices, OptionalServices
 Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 ```
 
-**Registration** (`cmd/server/main.go`): modules are registered in dependency order — producers before consumers. The `ModuleRegistry` initializes them, auto-creates MongoDB collections, seeds configs, collects nav items, and gates routes for disabled modules.
+**Registration** (`cmd/server/catalog.go`): core modules (user → auth → navigation) are always loaded. Optional modules come from `MODULES=billing,sales,...` or from per-module `Enabled()` env vars, and dependencies are auto-included (e.g. enabling `rag` auto-pulls `graph` and `aimodels`). The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules.
 
 **Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
 
 **Runtime config**: `ModuleConfigService` stores module state in MongoDB (`module_configs` collection), cached in Redis (30s TTL). Secrets encrypted with AES-256-GCM. Admin API at `GET/PATCH /v1/admin/modules`.
+
+**Startup reliability**: `NewMongoConnection` and `NewRedisConnection` (in `internal/shared/database/`) retry with exponential backoff (up to 20 attempts, 500ms → 5s) to wait out first-boot auth races — container servers start accepting TCP before SCRAM user / `--requirepass` provisioning completes. The Mongo readiness probe uses `ListDatabaseNames`, not `Ping`, because `Ping` bypasses the auth path and can pass prematurely. `ensureCollection` in the registry also retries transient Mongo errors (pool cleared, `AuthenticationFailed` code 18) because the driver's background monitoring connections re-authenticate for several seconds after the main client succeeds. If you see `Transient mongo error, retrying` at debug level during startup, that's this mechanism working as intended.
 
 ## Project Structure
 
@@ -57,7 +59,8 @@ backend/
 │       ├── remote/                 # Remote service clients (HTTP)
 │       ├── errors/                 # Error management
 │       └── utils/                  # Utilities
-├── Dockerfile                      # Multi-stage: dev (AIR) / production
+├── Dockerfile                      # Multi-stage: dev (AIR) / production — Chainguard hardened base
+├── Dockerfile.minimal              # Public-image build (golang:1.25-alpine → alpine:3.20) used by the minimal compose profile
 ├── Dockerfile.ai-service           # AI service build
 └── go.mod
 ```
@@ -100,12 +103,24 @@ Disabled in production. Creates synthetic users (no DB writes).
 
 ## Development
 
-All services run in Docker. Never start the server manually.
+All services run in Docker. Never start the server manually. Two workflows depending on what you need:
 
+**Full dev stack (Chainguard hardened images, AIR hot reload):**
 ```bash
-docker compose logs -f orkestra-backend   # Follow logs
-docker compose restart orkestra-backend   # Restart if needed
+cd docker
+docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.dev.yml up -d
+docker compose logs -f orkestra-backend-dev
 ```
+
+**Minimal stack (public images only, core modules only, no hot reload):**
+```bash
+cd docker
+docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+docker compose -f docker-compose.minimal.yml logs -f backend
+```
+
+The minimal stack builds from `backend/Dockerfile.minimal` which uses `golang:1.25-alpine` → `alpine:3.20`. It's the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend with `MODULES=dev` (auth + user + navigation + dev token generator). Runs on host ports 3050/8050/27050/6350 to avoid colliding with the dev stack.
 
 **WSL2 caveat**: AIR doesn't detect file changes on Windows mounts. Rebuild manually:
 ```bash
