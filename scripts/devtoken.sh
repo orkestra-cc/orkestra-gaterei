@@ -161,7 +161,7 @@ fi
 
 if ! curl -s --fail "$API_URL/health" > /dev/null 2>&1; then
     echo -e "${RED}Error: Cannot reach API at $API_URL${NC}" >&2
-    echo "Make sure the backend is running (./deploy.sh)" >&2
+    echo "Make sure the backend is running (./orkestra.sh)" >&2
     exit 1
 fi
 

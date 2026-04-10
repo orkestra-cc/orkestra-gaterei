@@ -159,8 +159,8 @@ Enable additional modules by editing `MODULES` in `docker/.env.minimal` (comma-s
 Adds Gotenberg (PDF), optionally Memgraph/Hindsight, and uses the Chainguard hardened images with AIR hot reload for Go development. Requires access to the `dhi.io` registry.
 
 ```bash
-# From project root — interactive deployment
-./deploy.sh
+# From project root — interactive TUI (pick "Full stack" from the profile menu)
+./orkestra.sh
 
 # Or manually:
 cd docker

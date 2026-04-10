@@ -53,7 +53,7 @@ detect_environment() {
         echo -e "${_YELLOW}Create one by copying from .env.example or setting ENV variable:${_NC}"
         echo -e "  cp $DOCKER_DIR_ENV/.env.example $ENV_FILE_PATH"
         echo -e "  # or"
-        echo -e "  ENV=development ./deploy.sh"
+        echo -e "  ENV=development ./orkestra.sh"
         return 1
     fi
 
@@ -65,7 +65,7 @@ detect_environment() {
         "")
             echo -e "${_RED}ERROR: ENV variable is empty or not set${_NC}"
             echo -e "${_YELLOW}Set ENV=development|staging|production in $ENV_FILE_PATH${_NC}"
-            echo -e "${_YELLOW}Or pass as environment variable: ENV=development ./deploy.sh${_NC}"
+            echo -e "${_YELLOW}Or pass as environment variable: ENV=development ./orkestra.sh${_NC}"
             return 1
             ;;
         *)

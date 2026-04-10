@@ -28,33 +28,47 @@ The scripts module contains **automation scripts, development tools, and utiliti
 
 This module contains automation scripts, development tools, and utilities for managing the Orkestra monorepo. All scripts should be idempotent and include proper error handling.
 
-## 🚫 CRITICAL: Development Workflow Change
+## 🚫 CRITICAL: Development Workflow
 
-**The development workflow has moved to centralized scripts at project root.** Most deployment/management scripts in this module have been consolidated.
+**All stack management lives at project root in `orkestra.sh`.** No management scripts belong in this directory — only utilities called by the main script.
 
 ### ✅ Current Development Workflow
 
 ```bash
-# From project root - Interactive deployment manager
-./deploy.sh                    # Select environment, deploy/stop/status
+# Single entry point — interactive TUI
+./orkestra.sh                         # Profile menu: minimal or full stack
 
-# From project root - Interactive log viewer
-./logs.sh                      # Select service and view logs
-
-# These scripts handle all docker compose operations automatically
+# Same operations via CLI (scriptable)
+./orkestra.sh minimal deploy --build
+./orkestra.sh minimal logs backend -f
+./orkestra.sh minimal reset --yes
+ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
+./orkestra.sh logs orkestra-backend-dev -f
+./orkestra.sh --help                  # Full command surface
 ```
 
-### 🚫 Removed Scripts (Now in deploy.sh)
-- **docker-manage.sh**: Removed - use `./deploy.sh` instead
-- **env-switch.sh**: Removed - use `./deploy.sh` instead
-- **start-infra.sh**: Removed - use `./deploy.sh` instead
+`orkestra.sh` handles every docker compose operation for both the minimal profile (`docker-compose.minimal.yml`) and the full-stack dev/staging/prod profiles (`docker-compose.infra.yml` + `docker-compose.{dev,staging,prod}.yml`). See [docker/CLAUDE.md](../docker/CLAUDE.md) for compose-file details.
 
-### ✅ Remaining Utility Scripts
-- **env-validate.sh**: Validates environment files
-- **generate-jwt-keys.sh**: Generates JWT keys
-- **install-air.sh**: Installs Air hot reload tool
+### 🚫 Removed / Consolidated Scripts
 
-See [docker/CLAUDE.md](../docker/CLAUDE.md) for Docker configuration details.
+The following scripts used to exist and have been folded into `./orkestra.sh`:
+
+- **deploy.sh** (project root): deploy/stop/status for dev/staging/prod → `./orkestra.sh deploy|stop|status`
+- **logs.sh** (project root): interactive log viewer → `./orkestra.sh logs`
+- **docker-manage.sh** (scripts/): removed earlier, now `./orkestra.sh`
+- **env-switch.sh** (scripts/): removed earlier, now edit `docker/.env` and rerun `./orkestra.sh`
+- **start-infra.sh** (scripts/): removed earlier, handled automatically by `./orkestra.sh deploy`
+
+### ✅ Utility Scripts (still in this directory)
+
+These are called by `orkestra.sh` or used directly during development:
+
+- **env-detect.sh**: Sourced by `orkestra.sh` to detect ENV from `docker/.env`
+- **env-validate.sh**: Validates environment files (`./scripts/env-validate.sh all`)
+- **generate-jwt-keys.sh**: Generates the RS256 JWT key pair
+- **install-air.sh**: Installs AIR hot-reload tool
+- **devtoken.sh**: Generates dev JWT tokens for testing (`ORKESTRA_API_URL=... ./scripts/devtoken.sh administrator`)
+- **health-check.sh** *(if present)*: Called by `orkestra.sh deploy` post-deployment
 
 ## Script Categories
 

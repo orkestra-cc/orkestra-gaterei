@@ -59,12 +59,34 @@ Addons with external dependencies (Gotenberg for PDFs, Memgraph for graph, Hinds
 For hot-reload Go development with AIR and the full addon fleet (Gotenberg, Hindsight, etc.), use the dev compose. Note that this stack uses Chainguard hardened images (`dhi.io/*`) and requires registry access.
 
 ```bash
-./deploy.sh                                     # interactive deployment manager
+./orkestra.sh                                   # interactive TUI — pick "Full stack"
 # or manually:
 cd docker
 docker compose -f docker-compose.infra.yml up -d
 docker compose -f docker-compose.dev.yml up -d
 ```
+
+## Managing the stack
+
+`orkestra.sh` at the project root is the single entry point for every stack operation. It replaces the old `deploy.sh` and `logs.sh`.
+
+Two ways to use it:
+
+**Interactive TUI** — `./orkestra.sh` launches a profile menu (minimal / full stack) followed by a per-profile operations menu with deploy, stop, reset, status, logs, and info.
+
+**CLI mode** — every operation also works as a non-interactive command for scripting:
+
+```bash
+./orkestra.sh minimal deploy --build
+./orkestra.sh minimal logs backend -f
+./orkestra.sh minimal reset --yes
+
+ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
+./orkestra.sh status
+./orkestra.sh logs orkestra-backend-dev -f
+```
+
+Run `./orkestra.sh --help` for the full command surface.
 
 ## Adding a new module
 

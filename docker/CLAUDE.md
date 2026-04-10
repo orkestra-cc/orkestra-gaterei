@@ -85,11 +85,16 @@ ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and *
 ### Quick Commands
 
 ```bash
-# Interactive deployment manager (from project root)
-./deploy.sh                        # Select environment and operation interactively
+# Interactive TUI — single entry point for every stack operation
+./orkestra.sh                      # Profile menu: minimal or full stack
 
-# Interactive log viewer (from project root)
-./logs.sh                          # Select service and view logs interactively
+# CLI mode (scriptable, same operations)
+./orkestra.sh minimal deploy --build
+./orkestra.sh minimal logs backend -f
+./orkestra.sh minimal reset --yes
+ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
+./orkestra.sh logs orkestra-backend-dev -f
+./orkestra.sh --help               # Full command surface
 
 # Validate environment files
 ./scripts/env-validate.sh all      # Validate all
@@ -131,8 +136,7 @@ The minimal profile is **self-contained** — it does NOT layer on top of `docke
 ```
 /                              # Project root
 ├── README.md                  # Leads with the minimal bootstrap path
-├── deploy.sh                  # Interactive deployment manager (full stacks only)
-├── logs.sh                    # Interactive log viewer
+├── orkestra.sh                # Unified TUI + CLI for the whole stack (replaces deploy.sh and logs.sh)
 └── docker/
     ├── docker-compose.minimal.yml # Minimal: self-contained 4-container stack
     ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
@@ -172,28 +176,40 @@ cp .env.example .env.production
 # Edit each file with appropriate values
 ```
 
-### Using deploy.sh (Recommended)
+### Using orkestra.sh (Recommended)
+
+`orkestra.sh` is the single entry point for every stack operation. It works as both an interactive TUI and a scriptable CLI, and knows about all five profiles (minimal, infra+dev, infra+staging, infra+prod, ai sidecar).
 
 ```bash
-# From project root - interactive deployment manager
-./deploy.sh
+# Interactive TUI — profile menu appears, then a per-profile op menu
+./orkestra.sh
 
-# The script will:
-# 1. Show available environments with status (✓/✗)
-# 2. Prompt for environment selection
-# 3. Show operation menu (Deploy, Stop, Status)
-# 4. Handle all docker compose operations automatically
+# The TUI flow:
+# 1. Pick profile: "Minimal" or "Full stack"
+# 2. Minimal: Deploy / Stop / Reset (wipe volumes) / Status / Logs / Info / Back
+# 3. Full stack: Deploy (with scope selection) / Stop / Status / Logs / Back
+# 4. ENV is autodetected from docker/.env for the full-stack path
 ```
 
-### Using logs.sh
+**CLI mode** — same operations, non-interactive, suitable for scripting and CI:
 
 ```bash
-# From project root - interactive log viewer
-./logs.sh              # Interactive service selection
-./logs.sh -f           # Follow logs
-./logs.sh -n 50        # Show last 50 lines
-./logs.sh -t           # Show timestamps
+# Minimal profile
+./orkestra.sh minimal deploy [--build]
+./orkestra.sh minimal stop
+./orkestra.sh minimal reset [--yes]
+./orkestra.sh minimal status
+./orkestra.sh minimal info
+./orkestra.sh minimal logs <service> [-f] [-n N] [-t]
+
+# Full stack (uses ENV from docker/.env, or ENV=... prefix)
+./orkestra.sh deploy [--scope all|backend|frontend|frontend+backend|infra] [--rebuild] [--yes]
+./orkestra.sh stop [--with-infra]
+./orkestra.sh status
+./orkestra.sh logs <service> [-f] [-n N] [-t]
 ```
+
+**Backward-compat shortcut**: `ENV=development ./orkestra.sh` skips the profile menu and opens the full-stack TUI directly (same convention the old deploy.sh used). Any existing scripted usage along those lines keeps working.
 
 ### Manual Docker Compose (Alternative)
 
