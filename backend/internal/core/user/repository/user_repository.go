@@ -38,6 +38,12 @@ type UserRepository interface {
 	Delete(ctx context.Context, id string) error
 	DeleteByObjectID(ctx context.Context, id primitive.ObjectID) error
 
+	// Password-auth operations
+	UpdatePasswordHash(ctx context.Context, userUUID, hash string) error
+	MarkEmailVerified(ctx context.Context, userUUID string) error
+	RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error
+	ClearFailedLogins(ctx context.Context, userUUID string) error
+
 	// OAuth Operations
 	GetByOAuthID(ctx context.Context, provider models.OAuthProvider, oauthID string) (*models.User, error)
 	GetByOAuthLink(ctx context.Context, provider models.OAuthProvider, providerID string) (*models.User, error)
@@ -872,6 +878,91 @@ func (r *mongoUserRepository) CountWithFilter(ctx context.Context, filter bson.M
 	}
 
 	return count, nil
+}
+
+// UpdatePasswordHash stores a new argon2id hash and bumps PasswordUpdatedAt.
+func (r *mongoUserRepository) UpdatePasswordHash(ctx context.Context, userUUID, hash string) error {
+	now := time.Now()
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"passwordHash":      hash,
+			"passwordUpdatedAt": now,
+			"updatedAt":         now,
+		},
+	}
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("update password hash: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// MarkEmailVerified flips emailVerified to true.
+func (r *mongoUserRepository) MarkEmailVerified(ctx context.Context, userUUID string) error {
+	now := time.Now()
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"emailVerified": true,
+			"updatedAt":     now,
+		},
+	}
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("mark email verified: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// RecordFailedLogin increments the failed counter and optionally sets a lockout.
+func (r *mongoUserRepository) RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error {
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	set := bson.M{"updatedAt": time.Now()}
+	if lockUntil != nil {
+		set["lockedUntil"] = *lockUntil
+	}
+	update := bson.M{
+		"$inc": bson.M{"failedLoginCount": 1},
+		"$set": set,
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("record failed login: %w", err)
+	}
+	return nil
+}
+
+// ClearFailedLogins resets the counter and removes the lockout.
+func (r *mongoUserRepository) ClearFailedLogins(ctx context.Context, userUUID string) error {
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	update := bson.M{
+		"$set":   bson.M{"failedLoginCount": 0, "updatedAt": time.Now()},
+		"$unset": bson.M{"lockedUntil": ""},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("clear failed logins: %w", err)
+	}
+	return nil
 }
 
 // ExistsByUsername checks if a user exists by username

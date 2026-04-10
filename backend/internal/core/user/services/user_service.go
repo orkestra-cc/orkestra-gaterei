@@ -31,6 +31,12 @@ type UserService interface {
 	CreateUser(ctx context.Context, input *models.CreateUserInput) (*models.UserManagementResponse, error)
 	GetUser(ctx context.Context, id string) (*models.UserManagementResponse, error)
 	GetUserByEmail(ctx context.Context, email string) (*models.UserManagementResponse, error)
+	GetUserForAuth(ctx context.Context, email string) (*models.User, error)
+	CreateUserWithPassword(ctx context.Context, input *models.CreateUserInput) (*models.User, error)
+	UpdatePasswordHash(ctx context.Context, userUUID, hash string) error
+	MarkEmailVerified(ctx context.Context, userUUID string) error
+	RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error
+	ClearFailedLogins(ctx context.Context, userUUID string) error
 	UpdateUser(ctx context.Context, id string, input *models.UpdateUserInput) (*models.UserManagementResponse, error)
 	DeleteUser(ctx context.Context, id string) error
 
@@ -788,6 +794,96 @@ func (s *userService) ValidateUserExists(ctx context.Context, id string) (bool, 
 	}
 
 	return s.userRepo.ExistsByUUID(ctx, id)
+}
+
+// GetUserForAuth returns the raw user model for authentication flows,
+// including the password hash and lockout fields. Never use this for
+// general user lookups — use GetUserByEmail instead.
+func (s *userService) GetUserForAuth(ctx context.Context, email string) (*models.User, error) {
+	if email == "" {
+		return nil, ErrInvalidInput
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		if err == repository.ErrUserNotFound {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("get user for auth: %w", err)
+	}
+	return user, nil
+}
+
+// CreateUserWithPassword creates a new user from a password signup flow.
+// The caller must hash the password before calling — this service does
+// not hash (that lives in the auth module's password service).
+func (s *userService) CreateUserWithPassword(ctx context.Context, input *models.CreateUserInput) (*models.User, error) {
+	if input == nil {
+		return nil, ErrInvalidInput
+	}
+	if input.Email == "" || input.FullName == "" || input.Role == "" {
+		return nil, ErrInvalidInput
+	}
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
+
+	exists, err := s.userRepo.ExistsByEmail(ctx, input.Email)
+	if err != nil {
+		return nil, fmt.Errorf("check user existence: %w", err)
+	}
+	if exists {
+		return nil, ErrEmailNotUnique
+	}
+
+	user := models.NewUser()
+	user.Email = input.Email
+	user.Username = input.Username
+	user.FullName = input.FullName
+	user.Avatar = input.Avatar
+	user.Phone = input.Phone
+	user.Role = input.Role
+	user.PasswordHash = input.PasswordHash
+	now := time.Now()
+	user.PasswordUpdatedAt = &now
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		if err == repository.ErrUserAlreadyExists {
+			return nil, ErrEmailNotUnique
+		}
+		return nil, fmt.Errorf("create user with password: %w", err)
+	}
+	return user, nil
+}
+
+// UpdatePasswordHash delegates to the repository.
+func (s *userService) UpdatePasswordHash(ctx context.Context, userUUID, hash string) error {
+	if userUUID == "" || hash == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.UpdatePasswordHash(ctx, userUUID, hash)
+}
+
+// MarkEmailVerified delegates to the repository.
+func (s *userService) MarkEmailVerified(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.MarkEmailVerified(ctx, userUUID)
+}
+
+// RecordFailedLogin delegates to the repository.
+func (s *userService) RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.RecordFailedLogin(ctx, userUUID, lockUntil)
+}
+
+// ClearFailedLogins delegates to the repository.
+func (s *userService) ClearFailedLogins(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.ClearFailedLogins(ctx, userUUID)
 }
 
 // ValidateUserActive checks if a user is active

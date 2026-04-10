@@ -93,6 +93,12 @@ type User struct {
 	TachigrafExpiry  *time.Time     `bson:"tachigrafExpiry,omitempty" json:"tachigrafExpiry,omitempty"`
 	MedicalChecks    []MedicalCheck `bson:"medicalChecks,omitempty" json:"medicalChecks,omitempty"`
 
+	// Password authentication (argon2id hash). Never serialized.
+	PasswordHash      string     `bson:"passwordHash,omitempty" json:"-"`
+	PasswordUpdatedAt *time.Time `bson:"passwordUpdatedAt,omitempty" json:"-"`
+	FailedLoginCount  int        `bson:"failedLoginCount,omitempty" json:"-"`
+	LockedUntil       *time.Time `bson:"lockedUntil,omitempty" json:"-"`
+
 	// Status and metadata
 	IsActive      bool       `bson:"isActive" json:"isActive"`
 	EmailVerified bool       `bson:"emailVerified" json:"emailVerified"`
@@ -110,6 +116,7 @@ type CreateUserInput struct {
 	Avatar           string                 `json:"avatar,omitempty"`
 	Phone            string                 `json:"phone" validate:"omitempty,e164"`
 	PIN              string                 `json:"pin" validate:"omitempty,len=4,numeric"`
+	PasswordHash     string                 `json:"-"` // set by auth service, never from external input
 	Role             string                 `json:"role" validate:"required,oneof=developer ceo administrator manager operator guest"`
 	OAuthProvider    OAuthProvider          `json:"oauthProvider,omitempty" validate:"omitempty,oneof=google apple discord github"`
 	OAuthID          string                 `json:"oauthId,omitempty"`
