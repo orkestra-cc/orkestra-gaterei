@@ -47,9 +47,19 @@ func (m *RAGModule) Collections() []module.CollectionSpec {
 
 func (m *RAGModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "AI", Name: "Documents", Icon: "file-alt", Path: "/graph/documents", MinRole: "administrator", Active: true},
-		{Group: "AI", Name: "Relationships", Icon: "project-diagram", Path: "/graph/relationships", MinRole: "administrator", Active: true},
-		{Group: "AI", Name: "RAG Query", Icon: "search", Path: "/graph/rag", MinRole: "administrator", Active: true},
+		{Group: "AI", Name: "Documents", Icon: "file-alt", Path: "/graph/documents", Active: true},
+		{Group: "AI", Name: "Relationships", Icon: "project-diagram", Path: "/graph/relationships", Active: true},
+		{Group: "AI", Name: "RAG Query", Icon: "search", Path: "/graph/rag", Active: true},
+	}
+}
+
+func (m *RAGModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "rag.document.read", Module: "rag", Description: "List and view ingested documents"},
+		{Key: "rag.document.ingest", Module: "rag", Description: "Upload and ingest new documents"},
+		{Key: "rag.document.delete", Module: "rag", Description: "Delete documents and their graph data"},
+		{Key: "rag.query", Module: "rag", Description: "Run RAG queries"},
+		{Key: "rag.admin", Module: "rag", Description: "Manage relationship types and model configs"},
 	}
 }
 
@@ -101,7 +111,8 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 func (m *RAGModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+		r.Use(ri.AuthMW.RequireEntitlement("rag"))
+		r.Use(ri.AuthMW.RequirePermission("rag.document.read"))
 		api := humachi.New(r, ri.APIConfig)
 		if m.documentHandler != nil {
 			RegisterDocumentRoutes(api, m.documentHandler)

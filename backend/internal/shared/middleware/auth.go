@@ -11,12 +11,35 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
+
+// Context keys used by the auth middleware to carry identity and the
+// resolved current-org context into downstream handlers. Kept as plain
+// string constants so existing handlers that read ctx.Value("userUUID")
+// directly keep working — they can migrate to the typed helpers below
+// incrementally.
+const (
+	ctxUserUUID       = "userUUID"
+	ctxUserEmail      = "userEmail"
+	ctxSystemRole     = "userRole" // legacy key name: "userRole" still holds the system role
+	ctxClaims         = "claims"
+	ctxOrgID          = "orgID"
+	ctxOrgMemberships = "orgMemberships"
+	ctxOrgRoles       = "orgRoles"
+)
+
+// OrgIDHeader is the HTTP header clients use to pick the current tenant
+// for every request. The value must be an org UUID that the user is a
+// member of, otherwise the request is rejected with 403.
+const OrgIDHeader = "X-Org-ID"
 
 type AuthMiddleware struct {
 	jwtService   services.JWTService
 	authService  services.AuthService
+	tenant       iface.TenantProvider
+	authz        iface.AuthzProvider
 	errorManager *errors.Manager
 	cookieName   string
 	config       *config.Config
@@ -25,9 +48,9 @@ type AuthMiddleware struct {
 func NewAuthMiddleware(jwtService services.JWTService, errorManager *errors.Manager) *AuthMiddleware {
 	return &AuthMiddleware{
 		jwtService:   jwtService,
-		authService:  nil, // No auth service for backward compatibility
+		authService:  nil,
 		errorManager: errorManager,
-		cookieName:   "access_token", // Default cookie name for backward compatibility
+		cookieName:   "access_token",
 		config:       nil,
 	}
 }
@@ -35,39 +58,46 @@ func NewAuthMiddleware(jwtService services.JWTService, errorManager *errors.Mana
 func NewAuthMiddlewareWithConfig(jwtService services.JWTService, errorManager *errors.Manager, cfg *config.Config) *AuthMiddleware {
 	cookieName := cfg.Auth.Cookie.Name
 	if cookieName == "" {
-		cookieName = "access_token" // Fallback to default
+		cookieName = "access_token"
 	}
 	return &AuthMiddleware{
 		jwtService:   jwtService,
-		authService:  nil, // Will be set with SetAuthService
+		authService:  nil,
 		errorManager: errorManager,
 		cookieName:   cookieName,
 		config:       cfg,
 	}
 }
 
-// SetAuthService sets the auth service for auto-refresh functionality
+// SetAuthService sets the auth service for auto-refresh functionality.
 func (m *AuthMiddleware) SetAuthService(authService services.AuthService) {
 	m.authService = authService
 }
 
+// SetTenantProvider wires the tenant provider for org membership verification
+// and entitlement checks. Called from main.go after all modules initialize.
+func (m *AuthMiddleware) SetTenantProvider(t iface.TenantProvider) {
+	m.tenant = t
+}
+
+// SetAuthzProvider wires the authz provider for permission evaluation.
+// Called from main.go after all modules initialize.
+func (m *AuthMiddleware) SetAuthzProvider(a iface.AuthzProvider) {
+	m.authz = a
+}
+
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// First try to get and validate Bearer token
 		token := m.extractBearerToken(r)
 
 		if token != "" {
-			// Try to validate the access token
 			claims, err := m.jwtService.ValidateAccessToken(token)
 			if err == nil {
-				// Valid access token, proceed with request
 				m.setUserContext(w, r, claims, next)
 				return
 			}
 
-			// If token is expired or invalid, we'll try auto-refresh below
 			if err != services.ErrTokenExpired && err != services.ErrInvalidToken {
-				// Some other error, fail immediately
 				m.sendErrorResponse(w, r, errors.TokenInvalidError().
 					WithOperation("require_auth").
 					WithInternal(err).
@@ -76,30 +106,23 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 			}
 		}
 
-		// No valid Bearer token, try auto-refresh with cookie (but not for logout or OAuth callback endpoints)
 		if m.authService != nil && m.config != nil && !isLogoutRequest(r) && !isOAuthCallbackRequest(r) {
-			// Check if we have a refresh token in cookie
 			refreshToken := m.extractRefreshTokenFromCookie(r)
 			if refreshToken != "" {
-				// Prepare security context
 				securityCtx := &models.SecurityContext{
 					IPAddress: utils.GetClientIP(r),
 					Timestamp: time.Now(),
 				}
 
-				// Try to refresh the tokens
 				tokenResponse, err := m.authService.RefreshTokensWithRiskAssessment(r.Context(), refreshToken, securityCtx)
 				if err == nil {
-					// Set new refresh token in cookie
 					cookieDomain := m.config.Auth.Cookie.Domain
 					isSecure := m.config.Auth.Cookie.Secure
 					utils.SetRefreshTokenCookie(w, m.cookieName, tokenResponse.RefreshToken, 7*24*3600, cookieDomain, isSecure)
 
-					// Add new access token to response header for client to use
 					w.Header().Set("X-New-Access-Token", tokenResponse.AccessToken)
 					w.Header().Set("X-Token-Refreshed", "true")
 
-					// Validate the new access token and proceed
 					claims, err := m.jwtService.ValidateAccessToken(tokenResponse.AccessToken)
 					if err == nil {
 						m.setUserContext(w, r, claims, next)
@@ -109,31 +132,70 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 			}
 		}
 
-		// All attempts failed, return unauthorized
 		m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 			WithOperation("require_auth").
 			Build())
 	})
 }
 
-// Helper method to set user context
+// setUserContext injects user identity and the resolved current-org context
+// into the request. Org resolution order:
+//  1. X-Org-ID header, if present — must match one of the claims.Memberships
+//  2. claims.DefaultOrgID — falls back to the user's default org
+//  3. empty — only allowed on RequireGlobal() routes
 func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, next http.Handler) {
-	// Use UUID as primary identifier, keep ObjectID for backward compatibility
-	userIdentifier := claims.UserUUID
-	if userIdentifier == "" {
-		userIdentifier = claims.UserID // Fall back to legacy ObjectID
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
+	ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
+	ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+	ctx = context.WithValue(ctx, ctxClaims, claims)
+	ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
+
+	orgID, roles, ok := resolveCurrentOrg(r, claims)
+	if ok {
+		ctx = context.WithValue(ctx, ctxOrgID, orgID)
+		ctx = context.WithValue(ctx, ctxOrgRoles, roles)
 	}
 
-	ctx := context.WithValue(r.Context(), "userUUID", userIdentifier)
-	ctx = context.WithValue(ctx, "userID", claims.UserID) // Keep for backward compatibility
-	ctx = context.WithValue(ctx, "userEmail", claims.Email)
-	ctx = context.WithValue(ctx, "userRole", claims.Role)
-	ctx = context.WithValue(ctx, "claims", claims)
+	// If the client sent X-Org-ID but it doesn't match any membership,
+	// reject immediately so a stale header can't leak data from another
+	// tenant. Missing header is fine — downstream middleware decides.
+	if h := r.Header.Get(OrgIDHeader); h != "" && !ok {
+		m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested organization").
+			WithOperation("resolve_org").
+			WithDetail("orgId", h).
+			Build())
+		return
+	}
 
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// Extract Bearer token from Authorization header
+// resolveCurrentOrg picks the current org for this request. Returns the
+// resolved orgID, the user's roles in that org, and ok=false when no org
+// can be resolved (either the header is missing and there is no default,
+// or the header points to an org the user does not belong to).
+func resolveCurrentOrg(r *http.Request, claims *models.JWTClaims) (string, []string, bool) {
+	requested := r.Header.Get(OrgIDHeader)
+	if requested != "" {
+		for _, mbr := range claims.Memberships {
+			if mbr.OrgUUID == requested {
+				return mbr.OrgUUID, mbr.Roles, true
+			}
+		}
+		return "", nil, false
+	}
+	if claims.DefaultOrgID != "" {
+		for _, mbr := range claims.Memberships {
+			if mbr.OrgUUID == claims.DefaultOrgID {
+				return mbr.OrgUUID, mbr.Roles, true
+			}
+		}
+	}
+	return "", nil, false
+}
+
+// Extract Bearer token from Authorization header.
 func (m *AuthMiddleware) extractBearerToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader != "" {
@@ -145,11 +207,10 @@ func (m *AuthMiddleware) extractBearerToken(r *http.Request) string {
 	return ""
 }
 
-// Extract refresh token from cookie
+// Extract refresh token from cookie.
 func (m *AuthMiddleware) extractRefreshTokenFromCookie(r *http.Request) string {
 	cookie, err := r.Cookie(m.cookieName)
 	if err == nil && cookie.Value != "" {
-		// Check if it's a refresh token by trying to parse it
 		claims, err := m.jwtService.ParseUnverifiedClaims(cookie.Value)
 		if err == nil && claims.TokenType == "refresh" {
 			return cookie.Value
@@ -158,37 +219,9 @@ func (m *AuthMiddleware) extractRefreshTokenFromCookie(r *http.Request) string {
 	return ""
 }
 
-func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userRole := r.Context().Value("userRole")
-			if userRole == nil {
-				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
-					WithOperation("require_role").
-					Build())
-				return
-			}
-
-			role := userRole.(string)
-			for _, allowedRole := range allowedRoles {
-				if role == allowedRole {
-					next.ServeHTTP(w, r)
-					return
-				}
-			}
-
-			m.sendErrorResponse(w, r, errors.AuthorizationError("insufficient permissions").
-				WithOperation("require_role").
-				WithDetail("user_role", role).
-				WithDetail("required_roles", allowedRoles).
-				Build())
-		})
-	}
-}
-
 func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := m.extractToken(r)
+		token := m.extractBearerToken(r)
 		if token == "" {
 			next.ServeHTTP(w, r)
 			return
@@ -196,17 +229,16 @@ func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 
 		claims, err := m.jwtService.ValidateAccessToken(token)
 		if err == nil {
-			// Use UUID as primary identifier, keep ObjectID for backward compatibility
-			userIdentifier := claims.UserUUID
-			if userIdentifier == "" {
-				userIdentifier = claims.UserID // Fall back to legacy ObjectID
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
+			ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
+			ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+			ctx = context.WithValue(ctx, ctxClaims, claims)
+			ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
+			if orgID, roles, ok := resolveCurrentOrg(r, claims); ok {
+				ctx = context.WithValue(ctx, ctxOrgID, orgID)
+				ctx = context.WithValue(ctx, ctxOrgRoles, roles)
 			}
-
-			ctx := context.WithValue(r.Context(), "userUUID", userIdentifier)
-			ctx = context.WithValue(ctx, "userID", claims.UserID) // Keep for backward compatibility
-			ctx = context.WithValue(ctx, "userEmail", claims.Email)
-			ctx = context.WithValue(ctx, "userRole", claims.Role)
-			ctx = context.WithValue(ctx, "claims", claims)
 			r = r.WithContext(ctx)
 		}
 
@@ -214,18 +246,12 @@ func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 	})
 }
 
-func (m *AuthMiddleware) extractToken(r *http.Request) string {
-	// Only extract Bearer token for backward compatibility
-	// Cookie handling is now done separately for refresh tokens
-	return m.extractBearerToken(r)
-}
-
-// isLogoutRequest checks if the current request is a logout request
+// isLogoutRequest checks if the current request is a logout request.
 func isLogoutRequest(r *http.Request) bool {
 	return r.Method == "POST" && (r.URL.Path == "/v1/auth/logout" || r.URL.Path == "/auth/logout")
 }
 
-// isOAuthCallbackRequest checks if the current request is an OAuth callback request
+// isOAuthCallbackRequest checks if the current request is an OAuth callback.
 func isOAuthCallbackRequest(r *http.Request) bool {
 	return r.Method == "GET" && (strings.Contains(r.URL.Path, "/auth/callback") ||
 		strings.Contains(r.URL.Path, "/oauth/callback") ||
@@ -235,96 +261,180 @@ func isOAuthCallbackRequest(r *http.Request) bool {
 		r.URL.Path == "/v1/auth/github/callback")
 }
 
-// GetUserUUID extracts the user UUID from the request context
+// --- Context accessors ---
+
+// GetUserUUID extracts the user UUID from the request context.
 func GetUserUUID(ctx context.Context) (string, bool) {
-	userUUID, ok := ctx.Value("userUUID").(string)
+	userUUID, ok := ctx.Value(ctxUserUUID).(string)
 	return userUUID, ok
 }
 
-// GetUserID extracts the legacy user ID from the request context (deprecated)
-func GetUserID(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value("userID").(string)
-	return userID, ok
-}
-
-// GetUserEmail extracts the user email from the request context
+// GetUserEmail extracts the user email from the request context.
 func GetUserEmail(ctx context.Context) (string, bool) {
-	email, ok := ctx.Value("userEmail").(string)
+	email, ok := ctx.Value(ctxUserEmail).(string)
 	return email, ok
 }
 
-// GetUserRole extracts the user role from the request context
-func GetUserRole(ctx context.Context) (string, bool) {
-	role, ok := ctx.Value("userRole").(string)
+// GetSystemRole extracts the user's global system role from the context.
+func GetSystemRole(ctx context.Context) (string, bool) {
+	role, ok := ctx.Value(ctxSystemRole).(string)
 	return role, ok
 }
 
-type RoleHierarchy map[string][]string
-
-var DefaultRoleHierarchy = RoleHierarchy{
-	"developer":     {"developer", "ceo", "administrator", "manager", "operator", "guest"},
-	"ceo":           {"ceo", "administrator", "manager", "operator", "guest"},
-	"administrator": {"administrator", "manager", "operator", "guest"},
-	"manager":       {"manager", "operator", "guest"},
-	"operator":      {"operator", "guest"},
-	"guest":         {"guest"},
+// GetOrgID extracts the current org UUID from the request context.
+// Returns ok=false when the request has no resolved org (global routes).
+func GetOrgID(ctx context.Context) (string, bool) {
+	orgID, ok := ctx.Value(ctxOrgID).(string)
+	if !ok || orgID == "" {
+		return "", false
+	}
+	return orgID, true
 }
 
-func (h RoleHierarchy) HasPermission(userRole string, requiredRole string) bool {
-	permissions, exists := h[userRole]
-	if !exists {
-		return false
-	}
-
-	for _, perm := range permissions {
-		if perm == requiredRole {
-			return true
-		}
-	}
-
-	return false
+// GetOrgRoles extracts the user's roles in the current org.
+func GetOrgRoles(ctx context.Context) ([]string, bool) {
+	roles, ok := ctx.Value(ctxOrgRoles).([]string)
+	return roles, ok
 }
 
-func (m *AuthMiddleware) RequireHierarchicalRole(requiredRole string) func(http.Handler) http.Handler {
+// GetMemberships returns all org memberships the user has.
+func GetMemberships(ctx context.Context) ([]models.OrgMembership, bool) {
+	mbrs, ok := ctx.Value(ctxOrgMemberships).([]models.OrgMembership)
+	return mbrs, ok
+}
+
+// --- RoleMiddleware implementation ---
+
+func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userRole := r.Context().Value("userRole")
-			if userRole == nil {
+			if m.authz == nil {
+				m.sendErrorResponse(w, r, errors.InternalError("authorization service not ready").
+					WithOperation("require_permission").Build())
+				return
+			}
+			userUUID, ok := GetUserUUID(r.Context())
+			if !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
-					WithOperation("require_hierarchical_role").
-					Build())
+					WithOperation("require_permission").Build())
 				return
 			}
-
-			if !DefaultRoleHierarchy.HasPermission(userRole.(string), requiredRole) {
+			orgID, hasOrg := GetOrgID(r.Context())
+			if !hasOrg {
+				m.sendErrorResponse(w, r, errors.AuthorizationError("org context required").
+					WithOperation("require_permission").
+					WithDetail("permission", permission).Build())
+				return
+			}
+			allowed, err := m.authz.HasPermission(r.Context(), userUUID, orgID, permission)
+			if err != nil {
+				m.sendErrorResponse(w, r, errors.InternalError("permission check failed").
+					WithOperation("require_permission").
+					WithInternal(err).Build())
+				return
+			}
+			if !allowed {
 				m.sendErrorResponse(w, r, errors.AuthorizationError("insufficient permissions").
-					WithOperation("require_hierarchical_role").
-					WithDetail("user_role", userRole.(string)).
-					WithDetail("required_role", requiredRole).
-					Build())
+					WithOperation("require_permission").
+					WithDetail("permission", permission).
+					WithDetail("orgId", orgID).Build())
 				return
 			}
-
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// sendErrorResponse sends a structured error response using the error manager
+func (m *AuthMiddleware) RequireSystemPermission(permission string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if m.authz == nil {
+				m.sendErrorResponse(w, r, errors.InternalError("authorization service not ready").
+					WithOperation("require_system_permission").Build())
+				return
+			}
+			userUUID, ok := GetUserUUID(r.Context())
+			if !ok {
+				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
+					WithOperation("require_system_permission").Build())
+				return
+			}
+			allowed, err := m.authz.HasPermission(r.Context(), userUUID, "", permission)
+			if err != nil {
+				m.sendErrorResponse(w, r, errors.InternalError("permission check failed").
+					WithOperation("require_system_permission").
+					WithInternal(err).Build())
+				return
+			}
+			if !allowed {
+				m.sendErrorResponse(w, r, errors.AuthorizationError("insufficient system permissions").
+					WithOperation("require_system_permission").
+					WithDetail("permission", permission).Build())
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (m *AuthMiddleware) RequireEntitlement(feature string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if m.tenant == nil {
+				m.sendErrorResponse(w, r, errors.InternalError("tenant service not ready").
+					WithOperation("require_entitlement").Build())
+				return
+			}
+			orgID, ok := GetOrgID(r.Context())
+			if !ok {
+				m.sendErrorResponse(w, r, errors.AuthorizationError("org context required").
+					WithOperation("require_entitlement").
+					WithDetail("feature", feature).Build())
+				return
+			}
+			allowed, err := m.tenant.HasEntitlement(r.Context(), orgID, feature)
+			if err != nil {
+				m.sendErrorResponse(w, r, errors.InternalError("entitlement check failed").
+					WithOperation("require_entitlement").
+					WithInternal(err).Build())
+				return
+			}
+			if !allowed {
+				m.sendPlanLimitResponse(w, r, feature, orgID)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireGlobal is a pass-through for routes that don't need an org context
+// (auth flows, org listing, user self-service). It just verifies the request
+// is authenticated; RequireAuth on the parent router already handles that.
+func (m *AuthMiddleware) RequireGlobal() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := GetUserUUID(r.Context()); !ok {
+				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
+					WithOperation("require_global").Build())
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// sendErrorResponse sends a structured error response using the error manager.
 func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Request, appErr *errors.AppError) {
-	// Add correlation ID from context if available
 	if correlationID := errors.GetCorrelationID(r.Context()); correlationID != "" {
 		appErr.CorrelationID = correlationID
 	}
 
-	// Use the error manager to handle the error
 	humaErr := m.errorManager.HandleError(r.Context(), appErr)
 
-	// Set headers
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(humaErr.GetStatus())
 
-	// Send JSON response
 	response := map[string]interface{}{
 		"status": humaErr.GetStatus(),
 		"title":  appErr.Message,
@@ -340,4 +450,25 @@ func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Reques
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+// sendPlanLimitResponse returns a 402 Payment Required when a feature isn't
+// included in the tenant's plan. This is a first-class error distinct from
+// 403 Forbidden so the frontend can surface an "upgrade your plan" UI.
+func (m *AuthMiddleware) sendPlanLimitResponse(w http.ResponseWriter, r *http.Request, feature, orgID string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusPaymentRequired)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": http.StatusPaymentRequired,
+		"title":  "plan limit",
+		"detail": "feature not included in plan",
+		"type":   "about:blank",
+		"errors": []map[string]interface{}{{
+			"message":  "feature not included in plan",
+			"location": "require_entitlement",
+			"value":    "PLAN_LIMIT",
+		}},
+		"feature": feature,
+		"orgId":   orgID,
+	})
 }

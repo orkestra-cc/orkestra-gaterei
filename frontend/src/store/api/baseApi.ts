@@ -9,37 +9,65 @@ export const setNavigateToLogin = (fn: (location?: string) => void) => {
   navigateToLogin = fn;
 };
 
-// Enhanced base query with error handling and authentication
+// Endpoints that must NOT carry X-Org-ID because they run before the current
+// org is known (login, refresh, org listing, org creation, invite accept).
+const ORG_AGNOSTIC_PATHS = [
+  '/v1/auth/',
+  '/v1/orgs',                 // GET list, POST create
+  '/v1/orgs/accept-invite',
+  '/v1/notifications/preferences',
+];
+
+function isOrgAgnostic(url: string): boolean {
+  // Exact-match /v1/orgs (listing/creation) but pass through for /v1/orgs/{orgId}/...
+  if (url === '/v1/orgs' || url.startsWith('/v1/orgs?')) return true;
+  if (url === '/v1/orgs/accept-invite') return true;
+  return ORG_AGNOSTIC_PATHS.some((p) => p !== '/v1/orgs' && url.startsWith(p));
+}
+
+// Base fetch with cookies + Bearer token. Tenant context (X-Org-ID) is
+// injected by baseQueryWithRetry below, where we have access to the request
+// args and can decide whether the endpoint is org-scoped.
 const baseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}`,
-  credentials: 'include', // Cookie-based authentication only
+  credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
-    // Set standard headers for API requests
     headers.set('Content-Type', 'application/json');
 
-    // Add Bearer token from Redux state if available
     const state = getState() as RootState;
     const accessToken = state.auth?.accessToken;
 
     if (accessToken) {
-      // Check if token is not expired
       const tokenExpiry = state.auth?.tokenExpiry;
       if (tokenExpiry && new Date(tokenExpiry) > new Date()) {
         headers.set('Authorization', `Bearer ${accessToken}`);
       }
     }
 
-    // Note: Also uses HttpOnly cookies for refresh token
     return headers;
   },
 });
 
-// Enhanced base query with automatic retry and error handling
+// Enhanced base query with automatic retry, error handling, and tenant context.
 const baseQueryWithRetry: BaseQueryFn<
   string | FetchArgs,
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
+  // Inject X-Org-ID for every tenant-scoped request. The backend validates
+  // the header against the caller's JWT memberships and rejects mismatches.
+  const state = api.getState() as RootState;
+  const currentOrgId = state.tenant?.currentOrgId;
+  if (currentOrgId) {
+    const url = typeof args === 'string' ? args : args.url;
+    if (!isOrgAgnostic(url)) {
+      const merged: FetchArgs = typeof args === 'string'
+        ? { url: args, headers: { 'X-Org-ID': currentOrgId } }
+        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Org-ID': currentOrgId } };
+      args = merged;
+    }
+  }
+
   let result = await baseQuery(args, api, extraOptions);
 
   // Handle authentication errors
@@ -139,6 +167,13 @@ export const baseApi = createApi({
     'PersonalConversation',
     // Admin module management tags
     'Module',
+    // Tenant + authz tags
+    'Org',
+    'Membership',
+    'Role',
+    'Binding',
+    'Permission',
+    'EffectivePermissions',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

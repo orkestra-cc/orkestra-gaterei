@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -173,6 +174,45 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 		r.enabled = append(r.enabled, m)
 		r.logger.Info(fmt.Sprintf("Module %s initialized", m.Name()))
 	}
+
+	// Phase 4: Collect Permissions() from every enabled module and hand
+	// them to the authz provider. This seeds the catalog that admins see
+	// in the role editor and that the evaluator checks against. Running
+	// after InitAll ensures addons have had a chance to declare their
+	// permissions too.
+	if authz, ok := GetTyped[iface.AuthzProvider](deps.Services, ServiceAuthzProvider); ok {
+		var allPerms []iface.PermissionSpec
+		for _, m := range r.enabled {
+			allPerms = append(allPerms, m.Permissions()...)
+		}
+		if err := authz.RegisterPermissions(context.Background(), allPerms); err != nil {
+			r.logger.Warn("Failed to register permissions catalog",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			r.logger.Info("Registered permissions catalog",
+				slog.Int("count", len(allPerms)),
+			)
+		}
+		// Seed the six system roles using the now-complete catalog.
+		if seeder, ok := authz.(interface {
+			SeedSystemRoles(ctx context.Context) error
+		}); ok {
+			if err := seeder.SeedSystemRoles(context.Background()); err != nil {
+				r.logger.Warn("Failed to seed system roles",
+					slog.String("error", err.Error()),
+				)
+			} else {
+				r.logger.Info("Seeded system roles")
+			}
+		} else {
+			r.logger.Warn("authz provider does not implement SeedSystemRoles",
+				slog.String("dynamic_type", fmt.Sprintf("%T", authz)))
+		}
+	} else {
+		r.logger.Warn("authz provider not registered — permission catalog not seeded")
+	}
+
 	return nil
 }
 

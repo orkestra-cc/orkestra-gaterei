@@ -162,3 +162,68 @@ type NotificationSender interface {
 	// unsubscribe variables, and dispatches it.
 	SendTemplated(ctx context.Context, req TemplatedNotificationRequest) (*NotificationResult, error)
 }
+
+// ---------------------------------------------------------------------------
+// TenantProvider — consumed by: authz, auth (JWT issuance), middleware,
+// every data module via the tenantrepo helper.
+//
+// The tenant module owns organizations, per-user memberships, and plan-based
+// entitlements. Users have a global identity and belong to many orgs with
+// possibly different roles in each.
+// ---------------------------------------------------------------------------
+
+type Org struct {
+	UUID     string
+	Name     string
+	Slug     string
+	Plan     string
+	Features []string
+}
+
+type Membership struct {
+	OrgUUID string
+	OrgName string
+	OrgSlug string
+	Roles   []string // authz role names the user holds in this org
+	IsOwner bool
+}
+
+type TenantProvider interface {
+	GetOrg(ctx context.Context, orgUUID string) (*Org, error)
+	ListUserMemberships(ctx context.Context, userUUID string) ([]Membership, error)
+	IsMember(ctx context.Context, userUUID, orgUUID string) (bool, error)
+	HasEntitlement(ctx context.Context, orgUUID, feature string) (bool, error)
+}
+
+// ---------------------------------------------------------------------------
+// AuthzProvider — consumed by: middleware (RequirePermission checks),
+// auth (populating JWT with default system permissions).
+//
+// The authz module owns the permissions catalog, roles (system + custom per
+// tenant), and role bindings with optional expiresAt. Permissions are not
+// embedded in JWTs — they are resolved per-request so revocation is instant.
+// ---------------------------------------------------------------------------
+
+type PermissionSpec struct {
+	Key         string // dot-notation: "billing.invoice.create"
+	Module      string // owning module name
+	Description string
+	// System marks the permission as granted globally by system roles
+	// (platform-wide, not org-scoped). E.g. "system.modules.admin".
+	System bool
+}
+
+type AuthzProvider interface {
+	// HasPermission checks whether the user has the permission in the given org.
+	// If orgUUID is empty, only system-level grants are checked.
+	HasPermission(ctx context.Context, userUUID, orgUUID, permission string) (bool, error)
+
+	// GetEffectivePermissions returns the union of permissions from all
+	// non-expired role bindings for (userUUID, orgUUID), plus any system
+	// permissions granted globally by the user's system role.
+	GetEffectivePermissions(ctx context.Context, userUUID, orgUUID string) ([]string, error)
+
+	// RegisterPermissions upserts a module's permission catalog. Called by
+	// the module registry during boot after the authz module is initialized.
+	RegisterPermissions(ctx context.Context, specs []PermissionSpec) error
+}

@@ -19,6 +19,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
+	"github.com/orkestra/backend/internal/shared/iface"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/remote"
@@ -136,9 +137,12 @@ func main() {
 	errorManager := errors.NewManager(logger, cfg.Server.Environment != "production")
 	defer errorManager.Close()
 
-	// Auth middleware
+	// Auth middleware. The tenant and authz providers are wired after
+	// InitAll so both are guaranteed registered in the ServiceRegistry.
 	authMW := authMiddleware.NewAuthMiddlewareWithConfig(jwtService, errorManager, cfg)
 	authMW.SetAuthService(authService)
+	authMW.SetTenantProvider(module.MustGetTyped[iface.TenantProvider](svcRegistry, module.ServiceTenantProvider))
+	authMW.SetAuthzProvider(module.MustGetTyped[iface.AuthzProvider](svcRegistry, module.ServiceAuthzProvider))
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 
 	// Router + middleware
@@ -172,9 +176,9 @@ func main() {
 		ConfigService:    configService,
 	})
 
-	// Admin module management routes (administrator role)
+	// Admin module management routes: platform-level, not per-org.
 	protectedRouter.Group(func(r chi.Router) {
-		r.Use(authMW.RequireHierarchicalRole("administrator"))
+		r.Use(authMW.RequireSystemPermission("system.modules.admin"))
 		adminAPI := humachi.New(r, apiConfig)
 		moduleAdminHandler := module.NewModuleAdminHandler(configService, modRegistry)
 		module.RegisterAdminModuleRoutes(adminAPI, moduleAdminHandler)

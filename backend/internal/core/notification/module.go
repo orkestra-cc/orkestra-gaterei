@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/core/notification/models"
 	"github.com/orkestra/backend/internal/core/notification/repository"
 	"github.com/orkestra/backend/internal/core/notification/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -31,6 +32,15 @@ func (m *NotificationModule) Category() module.ModuleCategory { return module.Ca
 
 func (m *NotificationModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceNotificationSender}
+}
+
+func (m *NotificationModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "notification.preferences.self", Module: "notification", Description: "View and edit your own notification preferences"},
+		{Key: "notification.log.read", Module: "notification", Description: "Read the delivery log", System: true},
+		{Key: "notification.template.manage", Module: "notification", Description: "Create and override email templates", System: true},
+		{Key: "notification.test", Module: "notification", Description: "Send test emails", System: true},
+	}
 }
 
 func (m *NotificationModule) Collections() []module.CollectionSpec {
@@ -177,16 +187,16 @@ func (m *NotificationModule) RegisterRoutes(ri *module.RouteInfo) {
 	// Public unsubscribe endpoint — no auth required.
 	m.handler.RegisterPublicRoutes(ri.PublicAPI)
 
-	// User-facing preference endpoints — any authenticated user (guest+).
+	// User-facing preference endpoints: self-service, no org context needed.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("guest"))
+		r.Use(ri.AuthMW.RequireGlobal())
 		api := humachi.New(r, ri.APIConfig)
 		m.handler.RegisterUserRoutes(api)
 	})
 
-	// Admin endpoints — delivery log, templates, test email.
+	// Admin endpoints: platform-level (delivery log, templates, test email).
 	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+		r.Use(ri.AuthMW.RequireSystemPermission("notification.log.read"))
 		api := humachi.New(r, ri.APIConfig)
 		m.handler.RegisterAdminRoutes(api)
 	})

@@ -16,19 +16,29 @@ type TokenPair struct {
 	RefreshCount int       `json:"refreshCount,omitempty"`
 }
 
+// OrgMembership is the subset of a tenant membership embedded in JWT claims.
+// Only org id and role names are embedded — permissions are resolved per
+// request by the authz module so revocation is instant.
+type OrgMembership struct {
+	OrgUUID string   `json:"oid"`
+	Roles   []string `json:"r"`
+}
+
 type JWTClaims struct {
 	// Standard JWT claims
-	UserUUID    string   `json:"sub"`              // User UUID (subject)
-	Email       string   `json:"email"`            // User email
-	Role        string   `json:"role"`             // User role
-	Groups      []string `json:"groups,omitempty"` // User groups (for future use)
-	Permissions []string `json:"perms,omitempty"`  // Granular permissions
-	TokenType   string   `json:"type"`             // "access" or "refresh"
-	ExpiresAt   int64    `json:"exp"`              // Expiration timestamp
-	IssuedAt    int64    `json:"iat"`              // Issued at timestamp
-	NotBefore   int64    `json:"nbf,omitempty"`    // Not before timestamp
-	Issuer      string   `json:"iss"`              // Token issuer
-	Audience    string   `json:"aud,omitempty"`    // Token audience
+	UserUUID   string `json:"sub"`           // User UUID (subject)
+	Email      string `json:"email"`         // User email
+	SystemRole string `json:"srole"`         // Global system role (developer/administrator/user)
+	TokenType  string `json:"type"`          // "access" or "refresh"
+	ExpiresAt  int64  `json:"exp"`           // Expiration timestamp
+	IssuedAt   int64  `json:"iat"`           // Issued at timestamp
+	NotBefore  int64  `json:"nbf,omitempty"` // Not before timestamp
+	Issuer     string `json:"iss"`           // Token issuer
+	Audience   string `json:"aud,omitempty"` // Token audience
+
+	// Multi-tenancy claims
+	Memberships  []OrgMembership `json:"mbr,omitempty"`  // orgs the user belongs to
+	DefaultOrgID string          `json:"dorg,omitempty"` // selected when X-Org-ID header is absent
 
 	// Security and session claims
 	SessionID   string  `json:"sid"`            // Session identifier
@@ -41,12 +51,8 @@ type JWTClaims struct {
 	OAuthProvider string `json:"provider,omitempty"` // Primary OAuth provider
 	ProviderID    string `json:"pid,omitempty"`      // Provider user ID
 
-	// Scope and capabilities
-	Scope        []string `json:"scope,omitempty"` // OAuth 2.1 scopes
-	Capabilities []string `json:"caps,omitempty"`  // Token capabilities
-
-	// Legacy support (deprecated but kept for backward compatibility)
-	UserID string `json:"uid,omitempty"` // Legacy ObjectID hex (deprecated)
+	// OAuth scopes
+	Scope []string `json:"scope,omitempty"`
 }
 
 type RefreshTokenRequest struct {

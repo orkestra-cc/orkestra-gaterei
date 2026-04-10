@@ -51,7 +51,7 @@ func (m *SalesModule) Collections() []module.CollectionSpec {
 func (m *SalesModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
 		Group: "Sales Intelligence", Name: "Sales", Icon: "chart-line", Path: "/sales",
-		MinRole: "manager", Active: true,
+		Active: true,
 		Children: []module.NavItemSpec{
 			{Name: "Prospect Analysis", Icon: "search", Path: "/sales/prospect", Active: true},
 			{Name: "Jobs", Icon: "tasks", Path: "/sales/jobs", Active: true},
@@ -59,6 +59,14 @@ func (m *SalesModule) NavItems() []module.NavItemSpec {
 			{Name: "Settings", Icon: "cog", Path: "/sales/settings", Active: true},
 		},
 	}}
+}
+
+func (m *SalesModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "sales.job.read", Module: "sales", Description: "View sales jobs and reports"},
+		{Key: "sales.job.run", Module: "sales", Description: "Run prospect analysis jobs"},
+		{Key: "sales.admin", Module: "sales", Description: "Manage prompts and settings"},
+	}
 }
 
 func (m *SalesModule) Init(deps *module.Dependencies) error {
@@ -126,7 +134,8 @@ func (m *SalesModule) Init(deps *module.Dependencies) error {
 func (m *SalesModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+		r.Use(ri.AuthMW.RequireEntitlement("sales"))
+		r.Use(ri.AuthMW.RequirePermission("sales.job.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterSkillRoutes(api, m.skillHandler)
 		RegisterProspectRoutes(api, m.prospectHandler)

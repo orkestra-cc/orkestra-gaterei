@@ -35,7 +35,9 @@
       "Bash(npx tsc:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(docker restart:*)",
+      "Read(//tmp/**)"
     ]
   },
   "enableAllProjectMcpServers": true,

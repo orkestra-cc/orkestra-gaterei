@@ -1,14 +1,16 @@
 package services
 
 import (
+	"context"
 	"crypto/rsa"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 var (
@@ -20,29 +22,28 @@ var (
 )
 
 type JWTService interface {
-	// Check if JWT keys are loaded and service is functional
 	IsEnabled() bool
 
-	// Basic JWT interface compatibility
 	GenerateAccessToken(user *userModels.User) (string, error)
 	GenerateRefreshToken(user *userModels.User) (string, error)
 	ValidateAccessToken(tokenString string) (*models.JWTClaims, error)
 	ValidateRefreshToken(tokenString string) (*models.JWTClaims, error)
 	ParseUnverifiedClaims(tokenString string) (*models.JWTClaims, error)
 
-	// Token generation with enhanced security claims
 	GenerateEnhancedAccessToken(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (string, error)
 	GenerateEnhancedRefreshToken(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (string, error)
 
-	// Token validation with risk assessment
 	ValidateAccessTokenWithRisk(tokenString string) (*models.JWTClaims, error)
 	ValidateRefreshTokenWithRisk(tokenString string) (*models.JWTClaims, error)
 
-	// Token pair generation for complete authentication flow
 	GenerateTokenPair(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenPair, error)
 
-	// Token refresh with rotation support
 	RefreshTokensWithRotation(refreshToken string, deviceInfo *models.DeviceInfo) (*models.TokenPair, error)
+
+	// SetTenantProvider allows late wiring of the tenant provider so that
+	// token issuance can embed the user's current memberships in the JWT.
+	// Called by the auth module after the tenant module has initialized.
+	SetTenantProvider(tp iface.TenantProvider)
 }
 
 type jwtService struct {
@@ -52,20 +53,24 @@ type jwtService struct {
 	refreshExpiry time.Duration
 	issuer        string
 	audience      string
+	tenant        iface.TenantProvider
 }
 
 func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) JWTService {
 	return &jwtService{
 		privateKey:    privateKey,
 		publicKey:     publicKey,
-		accessExpiry:  15 * time.Minute,    // Short-lived access tokens
-		refreshExpiry: 30 * 24 * time.Hour, // Long-lived refresh tokens
+		accessExpiry:  15 * time.Minute,
+		refreshExpiry: 30 * 24 * time.Hour,
 		issuer:        "orkestra",
 		audience:      "orkestra-api",
 	}
 }
 
-// IsEnabled returns true if JWT keys are loaded and the service can sign/verify tokens
+func (s *jwtService) SetTenantProvider(tp iface.TenantProvider) {
+	s.tenant = tp
+}
+
 func (s *jwtService) IsEnabled() bool {
 	return s.privateKey != nil && s.publicKey != nil
 }
@@ -81,38 +86,32 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 	now := time.Now()
 	expiresAt := now.Add(s.accessExpiry)
 
-	// Get primary OAuth provider if available
 	primaryProvider := s.getPrimaryOAuthProvider(user)
 
+	memberships, defaultOrg := s.loadMemberships(user.UUID)
+
 	claims := &models.JWTClaims{
-		// Standard JWT claims - Using UUID as subject
-		UserUUID:  user.UUID,
-		Email:     user.Email,
-		Role:      user.Role,
-		TokenType: "access",
-		ExpiresAt: expiresAt.Unix(),
-		IssuedAt:  now.Unix(),
-		NotBefore: now.Unix(),
-		Issuer:    s.issuer,
-		Audience:  s.audience,
+		UserUUID:   user.UUID,
+		Email:      user.Email,
+		SystemRole: user.Role,
+		TokenType:  "access",
+		ExpiresAt:  expiresAt.Unix(),
+		IssuedAt:   now.Unix(),
+		NotBefore:  now.Unix(),
+		Issuer:     s.issuer,
+		Audience:   s.audience,
 
-		// Security and session claims
-		SessionID:   securityCtx.SessionID,
-		DeviceID:    deviceInfo.DeviceID,
-		IPAddress:   securityCtx.IPAddress,
-		Fingerprint: deviceInfo.Fingerprint,
-		RiskScore:   securityCtx.RiskScore,
+		Memberships:  memberships,
+		DefaultOrgID: defaultOrg,
 
-		// OAuth provider information
+		SessionID:     securityCtx.SessionID,
+		DeviceID:      deviceInfo.DeviceID,
+		IPAddress:     securityCtx.IPAddress,
+		Fingerprint:   deviceInfo.Fingerprint,
+		RiskScore:     securityCtx.RiskScore,
 		OAuthProvider: string(primaryProvider),
-
-		// Enhanced capabilities
-		Scope:        []string{"profile", "email", "api"},
-		Capabilities: s.getCapabilitiesForRole(user.Role),
+		Scope:         []string{"profile", "email", "api"},
 	}
-
-	// Add permissions based on role
-	claims.Permissions = s.getPermissionsForRole(user.Role)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, s.claimsToMap(claims))
 
@@ -122,6 +121,38 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 	}
 
 	return tokenString, nil
+}
+
+// loadMemberships fetches the user's org memberships via the tenant provider.
+// Returns an empty list if the tenant provider isn't wired yet (edge case
+// during startup) or if the user belongs to no orgs. DefaultOrgID picks the
+// first owned org, otherwise the first membership.
+func (s *jwtService) loadMemberships(userUUID string) ([]models.OrgMembership, string) {
+	if s.tenant == nil {
+		return nil, ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	list, err := s.tenant.ListUserMemberships(ctx, userUUID)
+	if err != nil || len(list) == 0 {
+		return nil, ""
+	}
+	out := make([]models.OrgMembership, 0, len(list))
+	var defaultOrg string
+	var firstOwned string
+	for _, m := range list {
+		out = append(out, models.OrgMembership{OrgUUID: m.OrgUUID, Roles: m.Roles})
+		if m.IsOwner && firstOwned == "" {
+			firstOwned = m.OrgUUID
+		}
+		if defaultOrg == "" {
+			defaultOrg = m.OrgUUID
+		}
+	}
+	if firstOwned != "" {
+		defaultOrg = firstOwned
+	}
+	return out, defaultOrg
 }
 
 func (s *jwtService) GenerateEnhancedRefreshToken(
@@ -135,7 +166,6 @@ func (s *jwtService) GenerateEnhancedRefreshToken(
 	now := time.Now()
 	expiresAt := now.Add(s.refreshExpiry)
 
-	// Refresh tokens have minimal claims for security
 	claims := &models.JWTClaims{
 		UserUUID:    user.UUID,
 		Email:       user.Email,
@@ -236,8 +266,6 @@ func (s *jwtService) validateTokenEnhanced(tokenString string, expectedType stri
 }
 
 func (s *jwtService) RefreshTokensWithRotation(refreshToken string, deviceInfo *models.DeviceInfo) (*models.TokenPair, error) {
-	// This would be implemented with the repository to validate and rotate tokens
-	// For now, returning an error to indicate it needs full implementation
 	return nil, errors.New("refresh token rotation not yet implemented - requires repository integration")
 }
 
@@ -259,16 +287,15 @@ func (s *jwtService) ParseUnverifiedClaims(tokenString string) (*models.JWTClaim
 
 func (s *jwtService) claimsToMap(claims *models.JWTClaims) jwt.MapClaims {
 	m := jwt.MapClaims{
-		"sub":   claims.UserUUID, // Using UUID as subject
+		"sub":   claims.UserUUID,
 		"email": claims.Email,
-		"role":  claims.Role,
+		"srole": claims.SystemRole,
 		"type":  claims.TokenType,
 		"exp":   claims.ExpiresAt,
 		"iat":   claims.IssuedAt,
 		"iss":   claims.Issuer,
 	}
 
-	// Add optional fields only if they have values
 	if claims.NotBefore > 0 {
 		m["nbf"] = claims.NotBefore
 	}
@@ -296,14 +323,18 @@ func (s *jwtService) claimsToMap(claims *models.JWTClaims) jwt.MapClaims {
 	if len(claims.Scope) > 0 {
 		m["scope"] = claims.Scope
 	}
-	if len(claims.Capabilities) > 0 {
-		m["caps"] = claims.Capabilities
+	if claims.DefaultOrgID != "" {
+		m["dorg"] = claims.DefaultOrgID
 	}
-	if len(claims.Permissions) > 0 {
-		m["perms"] = claims.Permissions
-	}
-	if len(claims.Groups) > 0 {
-		m["groups"] = claims.Groups
+	if len(claims.Memberships) > 0 {
+		mbrs := make([]map[string]any, 0, len(claims.Memberships))
+		for _, mb := range claims.Memberships {
+			mbrs = append(mbrs, map[string]any{
+				"oid": mb.OrgUUID,
+				"r":   mb.Roles,
+			})
+		}
+		m["mbr"] = mbrs
 	}
 
 	return m
@@ -313,7 +344,7 @@ func (s *jwtService) mapToClaims(m jwt.MapClaims) *models.JWTClaims {
 	claims := &models.JWTClaims{
 		UserUUID:      getStringClaim(m, "sub"),
 		Email:         getStringClaim(m, "email"),
-		Role:          getStringClaim(m, "role"),
+		SystemRole:    getStringClaim(m, "srole"),
 		TokenType:     getStringClaim(m, "type"),
 		ExpiresAt:     int64(getFloatClaim(m, "exp")),
 		IssuedAt:      int64(getFloatClaim(m, "iat")),
@@ -326,99 +357,50 @@ func (s *jwtService) mapToClaims(m jwt.MapClaims) *models.JWTClaims {
 		Fingerprint:   getStringClaim(m, "fp"),
 		RiskScore:     getFloatClaim(m, "risk"),
 		OAuthProvider: getStringClaim(m, "provider"),
+		DefaultOrgID:  getStringClaim(m, "dorg"),
 	}
 
-	// Handle array claims
 	if scope, ok := m["scope"].([]interface{}); ok {
 		claims.Scope = interfaceSliceToStringSlice(scope)
 	}
-	if caps, ok := m["caps"].([]interface{}); ok {
-		claims.Capabilities = interfaceSliceToStringSlice(caps)
-	}
-	if perms, ok := m["perms"].([]interface{}); ok {
-		claims.Permissions = interfaceSliceToStringSlice(perms)
-	}
-	if groups, ok := m["groups"].([]interface{}); ok {
-		claims.Groups = interfaceSliceToStringSlice(groups)
+	if mbrs, ok := m["mbr"].([]interface{}); ok {
+		claims.Memberships = make([]models.OrgMembership, 0, len(mbrs))
+		for _, raw := range mbrs {
+			obj, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			mb := models.OrgMembership{OrgUUID: getStr(obj, "oid")}
+			if roles, ok := obj["r"].([]interface{}); ok {
+				mb.Roles = interfaceSliceToStringSlice(roles)
+			}
+			claims.Memberships = append(claims.Memberships, mb)
+		}
 	}
 
 	return claims
 }
 
+func getStr(m map[string]any, k string) string {
+	v, _ := m[k].(string)
+	return v
+}
+
 func (s *jwtService) getPrimaryOAuthProvider(user *userModels.User) models.OAuthProvider {
-	// Check new OAuth links structure first
 	for _, link := range user.OAuthLinks {
 		if link.IsPrimary && link.IsActive {
 			return models.OAuthProvider(link.Provider)
 		}
 	}
-	// Fall back to legacy provider field
 	if user.OAuthProvider != "" {
 		return models.OAuthProvider(user.OAuthProvider)
 	}
-	// Default to first active link if no primary is set
 	for _, link := range user.OAuthLinks {
 		if link.IsActive {
 			return models.OAuthProvider(link.Provider)
 		}
 	}
 	return ""
-}
-
-func (s *jwtService) getCapabilitiesForRole(role string) []string {
-	capabilities := map[string][]string{
-		"admin": {
-			"users:manage",
-			"system:configure",
-			"reports:full",
-			"tracking:manage",
-			"tasks:manage",
-			"operators:manage",
-		},
-		"manager": {
-			"reports:full",
-			"tracking:view",
-			"tasks:manage",
-			"operators:manage",
-		},
-		"operator": {
-			"tracking:update",
-			"tasks:update",
-			"reports:self",
-		},
-		"viewer": {
-			"tracking:view",
-			"tasks:view",
-			"reports:view",
-		},
-	}
-
-	if caps, ok := capabilities[role]; ok {
-		return caps
-	}
-	return []string{}
-}
-
-func (s *jwtService) getPermissionsForRole(role string) []string {
-	permissions := map[string][]string{
-		"admin": {
-			"create", "read", "update", "delete", "manage",
-		},
-		"manager": {
-			"create", "read", "update",
-		},
-		"operator": {
-			"read", "update:self",
-		},
-		"viewer": {
-			"read",
-		},
-	}
-
-	if perms, ok := permissions[role]; ok {
-		return perms
-	}
-	return []string{"read"}
 }
 
 func interfaceSliceToStringSlice(slice []interface{}) []string {
@@ -432,8 +414,8 @@ func interfaceSliceToStringSlice(slice []interface{}) []string {
 }
 
 // Basic JWT interface implementation for compatibility
+
 func (s *jwtService) GenerateAccessToken(user *userModels.User) (string, error) {
-	// Use basic device info and security context for simple interface
 	deviceInfo := &models.DeviceInfo{
 		DeviceID:   "default",
 		DeviceType: "unknown",
@@ -447,7 +429,6 @@ func (s *jwtService) GenerateAccessToken(user *userModels.User) (string, error) 
 }
 
 func (s *jwtService) GenerateRefreshToken(user *userModels.User) (string, error) {
-	// Use basic device info and security context for simple interface
 	deviceInfo := &models.DeviceInfo{
 		DeviceID:   "default",
 		DeviceType: "unknown",
@@ -469,6 +450,7 @@ func (s *jwtService) ValidateRefreshToken(tokenString string) (*models.JWTClaims
 }
 
 // Helper functions for claim extraction
+
 func getStringClaim(claims jwt.MapClaims, key string) string {
 	if val, ok := claims[key]; ok {
 		if str, ok := val.(string); ok {

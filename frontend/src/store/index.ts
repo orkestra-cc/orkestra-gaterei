@@ -4,6 +4,7 @@ import storage from 'redux-persist/lib/storage';
 
 import authReducer from './slices/authSlice';
 import kanbanReducer from './slices/kanbanSlice';
+import tenantReducer from './slices/tenantSlice';
 import { baseApi } from './api/baseApi';
 
 const authPersistConfig = {
@@ -14,6 +15,7 @@ const authPersistConfig = {
 
 const rootReducer = combineReducers({
   auth: persistReducer(authPersistConfig, authReducer),
+  tenant: tenantReducer,
   kanban: kanbanReducer,
   // Add RTK Query API slice
   [baseApi.reducerPath]: baseApi.reducer,
@@ -23,8 +25,8 @@ const persistedReducer = persistReducer(
   {
     key: 'root',
     storage,
-    // Don't persist auth, kanban, or RTK Query cache
-    blacklist: ['auth', 'kanban', baseApi.reducerPath]
+    // Don't persist auth, tenant, kanban, or RTK Query cache
+    blacklist: ['auth', 'tenant', 'kanban', baseApi.reducerPath]
   },
   rootReducer
 );

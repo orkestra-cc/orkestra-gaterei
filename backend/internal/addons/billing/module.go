@@ -79,7 +79,7 @@ func (m *BillingModule) Collections() []module.CollectionSpec {
 func (m *BillingModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
 		Group: "Administration", Name: "Fatturazione", Icon: "file-invoice", Path: "/billing",
-		MinRole: "manager", Active: true,
+		Active: true,
 		Children: []module.NavItemSpec{
 			{Name: "Dashboard", Icon: "chart-pie", Path: "/billing/dashboard", Active: true},
 			{Name: "Fatture Emesse", Icon: "paper-plane", Path: "/billing/invoices/issued", Active: true},
@@ -158,11 +158,23 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	return nil
 }
 
+func (m *BillingModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "billing.invoice.read", Module: "billing", Description: "View invoices and notifications"},
+		{Key: "billing.invoice.create", Module: "billing", Description: "Create and update invoices"},
+		{Key: "billing.invoice.send", Module: "billing", Description: "Send invoices to SDI"},
+		{Key: "billing.invoice.delete", Module: "billing", Description: "Delete draft invoices"},
+		{Key: "billing.customer.manage", Module: "billing", Description: "Manage customers and suppliers"},
+	}
+}
+
 func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Protected billing routes: manager role and above
+	// Protected billing routes: require the billing permission and the
+	// "billing" feature on the tenant's plan.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+		r.Use(ri.AuthMW.RequireEntitlement("billing"))
+		r.Use(ri.AuthMW.RequirePermission("billing.invoice.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(
 			api,

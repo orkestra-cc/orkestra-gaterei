@@ -10,6 +10,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/aimodels/repository"
 	"github.com/orkestra/backend/internal/addons/aimodels/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -53,7 +54,14 @@ func (m *AIModelsModule) Collections() []module.CollectionSpec {
 
 func (m *AIModelsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "AI", Name: "AI Models", Icon: "microchip", Path: "/ai/models", MinRole: "administrator", Active: true},
+		{Group: "AI", Name: "AI Models", Icon: "microchip", Path: "/ai/models", Active: true},
+	}
+}
+
+func (m *AIModelsModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "aimodels.read", Module: "aimodels", Description: "List AI model configurations"},
+		{Key: "aimodels.admin", Module: "aimodels", Description: "Create, update, test, and delete AI models"},
 	}
 }
 
@@ -79,7 +87,8 @@ func (m *AIModelsModule) Init(deps *module.Dependencies) error {
 func (m *AIModelsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+		r.Use(ri.AuthMW.RequireEntitlement("aimodels"))
+		r.Use(ri.AuthMW.RequirePermission("aimodels.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
 		RegisterInternalRoutes(api, m.internalHandler)

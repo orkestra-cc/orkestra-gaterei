@@ -5,28 +5,37 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/agents"
 	"github.com/orkestra/backend/internal/addons/aimodels"
-	"github.com/orkestra/backend/internal/core/auth"
 	"github.com/orkestra/backend/internal/addons/billing"
 	"github.com/orkestra/backend/internal/addons/company"
 	"github.com/orkestra/backend/internal/addons/dev"
 	"github.com/orkestra/backend/internal/addons/documents"
 	"github.com/orkestra/backend/internal/addons/graph"
-	"github.com/orkestra/backend/internal/core/navigation"
-	"github.com/orkestra/backend/internal/core/notification"
 	"github.com/orkestra/backend/internal/addons/rag"
 	"github.com/orkestra/backend/internal/addons/sales"
+	"github.com/orkestra/backend/internal/core/auth"
+	"github.com/orkestra/backend/internal/core/authz"
+	"github.com/orkestra/backend/internal/core/navigation"
+	"github.com/orkestra/backend/internal/core/notification"
+	"github.com/orkestra/backend/internal/core/tenant"
+	"github.com/orkestra/backend/internal/core/user"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/module"
-	"github.com/orkestra/backend/internal/core/user"
 )
 
 // coreModules are always loaded — they provide the foundation
-// (auth, users, navigation, notifications, module management).
-// Order matters here: user before auth (hard dependency), notification
-// before auth so auth can consume the notification sender.
+// (users, notifications, tenancy, authorization, auth, navigation).
+// Order matters: each entry below depends on the previous ones.
+//  - user: base identity (no deps)
+//  - notification: email delivery (no hard deps)
+//  - tenant: orgs + memberships (depends on user)
+//  - authz: permissions + roles (depends on user + tenant)
+//  - auth: JWT + OAuth + password login (depends on user, notification, tenant, authz)
+//  - navigation: menu aggregation (no deps; reads others' NavItems at runtime)
 var coreModules = []func() module.Module{
 	func() module.Module { return user.NewModule() },
 	func() module.Module { return notification.NewModule() },
+	func() module.Module { return tenant.NewModule() },
+	func() module.Module { return authz.NewModule() },
 	func() module.Module { return auth.NewModule() },
 	func() module.Module { return navigation.NewModule() },
 }

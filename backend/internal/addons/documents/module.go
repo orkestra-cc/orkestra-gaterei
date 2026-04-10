@@ -12,6 +12,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/documents/repository"
 	"github.com/orkestra/backend/internal/addons/documents/services"
 	sharedConfig "github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -52,7 +53,15 @@ func (m *DocumentsModule) Collections() []module.CollectionSpec {
 
 func (m *DocumentsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "Administration", Name: "Template Documenti", Icon: "file-alt", Path: "/admin/templates", MinRole: "manager", Active: true},
+		{Group: "Administration", Name: "Template Documenti", Icon: "file-alt", Path: "/admin/templates", Active: true},
+	}
+}
+
+func (m *DocumentsModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "documents.template.read", Module: "documents", Description: "View document templates"},
+		{Key: "documents.template.manage", Module: "documents", Description: "Create, update, and delete templates"},
+		{Key: "documents.generate", Module: "documents", Description: "Generate PDFs from templates"},
 	}
 }
 
@@ -89,7 +98,8 @@ func (m *DocumentsModule) Init(deps *module.Dependencies) error {
 func (m *DocumentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+		r.Use(ri.AuthMW.RequireEntitlement("documents"))
+		r.Use(ri.AuthMW.RequirePermission("documents.template.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.templateHandler, m.documentHandler)
 	})

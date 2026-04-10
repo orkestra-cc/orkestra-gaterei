@@ -12,6 +12,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/company/repository"
 	"github.com/orkestra/backend/internal/addons/company/services"
 	sharedConfig "github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -50,12 +51,19 @@ func (m *CompanyModule) Collections() []module.CollectionSpec {
 func (m *CompanyModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
 		{Group: "Administration", Name: "Aziende", Icon: "building", Path: "/company",
-			MinRole: "manager", Active: true,
+			Active: true,
 			Children: []module.NavItemSpec{
 				{Name: "Ricerca CF/P.IVA", Icon: "search", Path: "/company/lookup", Active: true},
 				{Name: "Ricerca Avanzata", Icon: "search-plus", Path: "/company/search", Active: true},
 			},
 		},
+	}
+}
+
+func (m *CompanyModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "company.lookup.read", Module: "company", Description: "Search and view company lookups"},
+		{Key: "company.lookup.enrich", Module: "company", Description: "Fetch enrichment data for a company"},
 	}
 }
 
@@ -80,10 +88,12 @@ func (m *CompanyModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *CompanyModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Company routes: manager role and above
+	// Company is a global lookup cache shared across tenants (public
+	// business registry data), so routes require the permission but not
+	// a plan entitlement.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+		r.Use(ri.AuthMW.RequirePermission("company.lookup.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
 	})

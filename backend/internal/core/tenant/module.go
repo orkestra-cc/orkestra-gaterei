@@ -1,0 +1,99 @@
+// Package tenant is the multi-tenancy core module. It owns organizations,
+// per-user memberships, and plan-based entitlements. It implements
+// iface.TenantProvider so the middleware and other modules can resolve
+// the current org, check membership, and gate routes on plan features.
+package tenant
+
+import (
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
+	"github.com/orkestra/backend/internal/core/tenant/handlers"
+	"github.com/orkestra/backend/internal/core/tenant/repository"
+	"github.com/orkestra/backend/internal/core/tenant/services"
+	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/module"
+)
+
+type Module struct {
+	module.BaseModule
+	handler *handlers.Handler
+	svc     *services.Service
+}
+
+func NewModule() *Module { return &Module{} }
+
+func (m *Module) Name() string        { return "tenant" }
+func (m *Module) DisplayName() string { return "Organizations" }
+func (m *Module) Description() string { return "Multi-tenant organizations, memberships, and plan entitlements" }
+
+func (m *Module) Dependencies() []string { return []string{"user"} }
+
+func (m *Module) ProvidedServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceTenantProvider}
+}
+
+func (m *Module) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: repository.CollOrgs, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"slug": 1}, Unique: true, Sparse: true},
+			{Keys: map[string]int{"ownerUserUUID": 1}},
+		}},
+		{Name: repository.CollMemberships, Indexes: []module.IndexSpec{
+			{OrderedKeys: []module.IndexKey{
+				{Field: "userUUID", Direction: 1},
+				{Field: "orgId", Direction: 1},
+			}, Unique: true},
+			{Keys: map[string]int{"orgId": 1}},
+		}},
+		{Name: repository.CollInvites, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"token": 1}, Unique: true},
+			{Keys: map[string]int{"orgId": 1}},
+			// Auto-reap expired invites.
+			{Keys: map[string]int{"expiresAt": 1}},
+		}},
+	}
+}
+
+func (m *Module) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "tenant.org.read", Module: "tenant", Description: "Read org details"},
+		{Key: "tenant.org.update", Module: "tenant", Description: "Update org name, slug, settings"},
+		{Key: "tenant.org.delete", Module: "tenant", Description: "Soft-delete the org"},
+		{Key: "tenant.plan.update", Module: "tenant", Description: "Change plan and features"},
+		{Key: "tenant.member.read", Module: "tenant", Description: "List org members"},
+		{Key: "tenant.member.invite", Module: "tenant", Description: "Invite new members"},
+		{Key: "tenant.member.remove", Module: "tenant", Description: "Remove members from the org"},
+	}
+}
+
+func (m *Module) Init(deps *module.Dependencies) error {
+	repo := repository.New(deps.DB)
+	m.svc = services.New(repo)
+	m.handler = handlers.New(m.svc)
+	deps.Services.Register(module.ServiceTenantProvider, iface.TenantProvider(m.svc))
+	return nil
+}
+
+func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
+	// Global routes: list/create orgs, accept invites. These need auth but
+	// intentionally do not require a current-org context.
+	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.AuthMW.RequireGlobal())
+		api := humachi.New(r, ri.APIConfig)
+		m.handler.RegisterGlobalRoutes(api)
+	})
+
+	// Org-scoped routes: need the caller to be an administrator of the
+	// org in X-Org-ID. tenant.* permissions are granted by the system
+	// administrator role seeded by the authz module.
+	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.AuthMW.RequirePermission("tenant.org.read"))
+		api := humachi.New(r, ri.APIConfig)
+		m.handler.RegisterScopedRoutes(api)
+	})
+}
+
+// Service returns the tenant service — exposed so the authz module can
+// also consume it during its own initialization.
+func (m *Module) Service() *services.Service { return m.svc }

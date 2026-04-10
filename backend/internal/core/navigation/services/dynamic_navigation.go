@@ -9,25 +9,24 @@ import (
 )
 
 // dynamicNavigationService builds navigation from module-declared NavItems
-// and filters by user role + module enabled status at request time.
+// and filters by module enabled status. Permission-based menu filtering is
+// delegated to the frontend, which consults the authz provider's effective
+// permissions response to hide items the user cannot access.
 type dynamicNavigationService struct {
 	navItems       []module.NavItemSpec
 	enabledChecker middleware.ModuleEnabledChecker
-	roleHierarchy  middleware.RoleHierarchy
 }
 
-// NewDynamicNavigationService creates a navigation service that derives its menu
-// from module NavItemSpec declarations instead of a hardcoded menu config.
+// NewDynamicNavigationService creates a navigation service that derives its
+// menu from module NavItemSpec declarations instead of a hardcoded config.
 func NewDynamicNavigationService(items []module.NavItemSpec, checker middleware.ModuleEnabledChecker) NavigationService {
 	return &dynamicNavigationService{
 		navItems:       items,
 		enabledChecker: checker,
-		roleHierarchy:  middleware.DefaultRoleHierarchy,
 	}
 }
 
 func (s *dynamicNavigationService) GetNavigationForUser(ctx context.Context, userRole string) (*models.NavigationResponse, error) {
-	// Group NavItemSpecs by their Group field.
 	groupMap := make(map[string][]module.NavItemSpec)
 	var groupOrder []string
 	for _, item := range s.navItems {
@@ -41,11 +40,10 @@ func (s *dynamicNavigationService) GetNavigationForUser(ctx context.Context, use
 		groupMap[group] = append(groupMap[group], item)
 	}
 
-	// Build RouteGroups, filtering by role and enabled status.
 	var groups []models.RouteGroup
 	for _, groupLabel := range groupOrder {
 		items := groupMap[groupLabel]
-		children := s.filterAndConvert(ctx, items, userRole)
+		children := s.filterAndConvert(ctx, items)
 		if len(children) > 0 {
 			groups = append(groups, models.RouteGroup{
 				Label:    groupLabel,
@@ -62,20 +60,14 @@ func (s *dynamicNavigationService) GetNavigationForUser(ctx context.Context, use
 	}, nil
 }
 
-// filterAndConvert converts NavItemSpecs to NavItems, filtering by module enabled status and role access.
-func (s *dynamicNavigationService) filterAndConvert(ctx context.Context, specs []module.NavItemSpec, userRole string) []models.NavItem {
+// filterAndConvert converts NavItemSpecs to NavItems, filtering disabled modules.
+func (s *dynamicNavigationService) filterAndConvert(ctx context.Context, specs []module.NavItemSpec) []models.NavItem {
 	var result []models.NavItem
 	for _, spec := range specs {
-		// Check module enabled status (skip items belonging to disabled modules).
 		if spec.ModuleName != "" && s.enabledChecker != nil {
 			if !s.enabledChecker.IsEnabled(ctx, spec.ModuleName) {
 				continue
 			}
-		}
-
-		// Check role access.
-		if spec.MinRole != "" && !s.roleHierarchy.HasPermission(userRole, spec.MinRole) {
-			continue
 		}
 
 		item := models.NavItem{
@@ -85,11 +77,10 @@ func (s *dynamicNavigationService) filterAndConvert(ctx context.Context, specs [
 			Active: spec.Active,
 		}
 
-		// Recursively convert children.
 		if len(spec.Children) > 0 {
-			item.Children = s.filterAndConvert(ctx, spec.Children, userRole)
+			item.Children = s.filterAndConvert(ctx, spec.Children)
 			if len(item.Children) == 0 && item.To == "" {
-				continue // Skip parent with no visible children and no direct route.
+				continue
 			}
 		}
 

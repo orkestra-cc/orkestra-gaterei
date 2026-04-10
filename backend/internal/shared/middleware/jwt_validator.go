@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -11,27 +12,21 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	authModels "github.com/orkestra/backend/internal/core/auth/models"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
-// JWTValidator is a lightweight middleware that validates RS256 JWTs using only
-// the public key. It does not require the full auth module — designed for the
-// AI service sidecar where we only need to verify tokens, not issue them.
+// JWTValidator is a lightweight middleware that validates RS256 JWTs using
+// only the public key. It does not require the full auth module — designed
+// for the AI service sidecar where we only need to verify tokens, not issue
+// them.
 //
-// It populates the same context keys as AuthMiddleware.RequireAuth:
-//
-//	"userUUID", "userEmail", "userRole", "claims"
+// It satisfies module.RoleMiddleware so it can be dropped in wherever the
+// main monolith uses AuthMiddleware.
 type JWTValidator struct {
 	publicKey *rsa.PublicKey
-}
-
-// JWTClaims mirrors auth/models.JWTClaims with only the fields needed for
-// request context and RBAC checks. Avoids importing the auth module.
-type JWTClaims struct {
-	UserUUID string `json:"sub"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	Type     string `json:"type"`
-	UserID   string `json:"uid,omitempty"` // legacy
+	tenant    iface.TenantProvider
+	authz     iface.AuthzProvider
 }
 
 // NewJWTValidator creates a JWTValidator from a PEM-encoded RSA public key file.
@@ -59,13 +54,19 @@ func NewJWTValidator(publicKeyPath string) (*JWTValidator, error) {
 	return &JWTValidator{publicKey: rsaPub}, nil
 }
 
-// RequireAuth validates the Bearer token and populates the request context.
-// Returns 401 if the token is missing, invalid, expired, or not an access token.
+// SetTenantProvider wires the tenant provider for entitlement checks.
+func (v *JWTValidator) SetTenantProvider(t iface.TenantProvider) { v.tenant = t }
+
+// SetAuthzProvider wires the authz provider for permission evaluation.
+func (v *JWTValidator) SetAuthzProvider(a iface.AuthzProvider) { v.authz = a }
+
+// RequireAuth validates the Bearer token and populates the request context
+// with user identity plus the resolved current org (X-Org-ID header).
 func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenStr := extractBearer(r)
 		if tokenStr == "" {
-			http.Error(w, `{"title":"Unauthorized","status":401,"detail":"missing bearer token"}`, http.StatusUnauthorized)
+			writeErr(w, http.StatusUnauthorized, "missing bearer token")
 			return
 		}
 
@@ -76,54 +77,164 @@ func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 			return v.publicKey, nil
 		})
 		if err != nil || !token.Valid {
-			http.Error(w, `{"title":"Unauthorized","status":401,"detail":"invalid or expired token"}`, http.StatusUnauthorized)
+			writeErr(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
 
 		mapClaims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, `{"title":"Unauthorized","status":401,"detail":"invalid claims"}`, http.StatusUnauthorized)
+			writeErr(w, http.StatusUnauthorized, "invalid claims")
 			return
 		}
 
-		// Reject refresh tokens
 		if getStr(mapClaims, "type") == "refresh" {
-			http.Error(w, `{"title":"Unauthorized","status":401,"detail":"refresh tokens not accepted"}`, http.StatusUnauthorized)
+			writeErr(w, http.StatusUnauthorized, "refresh tokens not accepted")
 			return
 		}
 
-		claims := &JWTClaims{
-			UserUUID: getStr(mapClaims, "sub"),
-			Email:    getStr(mapClaims, "email"),
-			Role:     getStr(mapClaims, "role"),
-			Type:     getStr(mapClaims, "type"),
-			UserID:   getStr(mapClaims, "uid"),
-		}
+		claims := parseClaims(mapClaims)
 
-		userID := claims.UserUUID
-		if userID == "" {
-			userID = claims.UserID
-		}
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
+		ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
+		ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+		ctx = context.WithValue(ctx, ctxClaims, claims)
+		ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
 
-		ctx := context.WithValue(r.Context(), "userUUID", userID)
-		ctx = context.WithValue(ctx, "userID", claims.UserID)
-		ctx = context.WithValue(ctx, "userEmail", claims.Email)
-		ctx = context.WithValue(ctx, "userRole", claims.Role)
-		ctx = context.WithValue(ctx, "claims", claims)
+		orgID, roles, resolved := resolveCurrentOrg(r, claims)
+		if resolved {
+			ctx = context.WithValue(ctx, ctxOrgID, orgID)
+			ctx = context.WithValue(ctx, ctxOrgRoles, roles)
+		}
+		if h := r.Header.Get(OrgIDHeader); h != "" && !resolved {
+			writeErr(w, http.StatusForbidden, "not a member of requested organization")
+			return
+		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// RequireHierarchicalRole returns middleware that checks the user's role against a
-// minimum level. Same signature as AuthMiddleware.RequireHierarchicalRole so both
-// satisfy the module.RoleMiddleware interface.
-func (v *JWTValidator) RequireHierarchicalRole(minRole string) func(http.Handler) http.Handler {
+func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
+	c := &authModels.JWTClaims{
+		UserUUID:     getStr(m, "sub"),
+		Email:        getStr(m, "email"),
+		SystemRole:   getStr(m, "srole"),
+		TokenType:    getStr(m, "type"),
+		DefaultOrgID: getStr(m, "dorg"),
+	}
+	if mbrs, ok := m["mbr"].([]interface{}); ok {
+		for _, raw := range mbrs {
+			obj, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			mb := authModels.OrgMembership{OrgUUID: getStr(obj, "oid")}
+			if roles, ok := obj["r"].([]interface{}); ok {
+				for _, r := range roles {
+					if s, ok := r.(string); ok {
+						mb.Roles = append(mb.Roles, s)
+					}
+				}
+			}
+			c.Memberships = append(c.Memberships, mb)
+		}
+	}
+	return c
+}
+
+// --- RoleMiddleware implementation ---
+
+// RequirePermission evaluates a permission against the authz provider if
+// one is wired, otherwise falls back to a role-only check suitable for the
+// AI sidecar: the caller must either have a developer/administrator system
+// role or the "administrator" role on the current org (from the JWT).
+func (v *JWTValidator) RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role, _ := r.Context().Value("userRole").(string)
-			if !roleAtLeast(role, minRole) {
-				http.Error(w, `{"title":"Forbidden","status":403,"detail":"insufficient role"}`, http.StatusForbidden)
+			userUUID, ok := GetUserUUID(r.Context())
+			if !ok {
+				writeErr(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			orgID, hasOrg := GetOrgID(r.Context())
+			if v.authz != nil {
+				if !hasOrg {
+					writeErr(w, http.StatusForbidden, "org context required")
+					return
+				}
+				allowed, err := v.authz.HasPermission(r.Context(), userUUID, orgID, permission)
+				if err != nil || !allowed {
+					writeErr(w, http.StatusForbidden, "insufficient permissions")
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+			// Fallback: JWT-only evaluation.
+			if fallbackAllowedByRole(r.Context(), hasOrg) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeErr(w, http.StatusForbidden, "insufficient permissions")
+		})
+	}
+}
+
+// RequireSystemPermission falls back to checking that the caller has a
+// developer or administrator system role when authz is not wired.
+func (v *JWTValidator) RequireSystemPermission(permission string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userUUID, ok := GetUserUUID(r.Context())
+			if !ok {
+				writeErr(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			if v.authz != nil {
+				allowed, err := v.authz.HasPermission(r.Context(), userUUID, "", permission)
+				if err != nil || !allowed {
+					writeErr(w, http.StatusForbidden, "insufficient system permissions")
+					return
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
+			if role, _ := GetSystemRole(r.Context()); role == "developer" || role == "administrator" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeErr(w, http.StatusForbidden, "insufficient system permissions")
+		})
+	}
+}
+
+// RequireEntitlement is a pass-through when the sidecar has no tenant
+// provider wired — the monolith that issued the JWT already enforced plan
+// limits upstream, and the sidecar trusts valid tokens.
+func (v *JWTValidator) RequireEntitlement(feature string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if v.tenant == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			orgID, ok := GetOrgID(r.Context())
+			if !ok {
+				writeErr(w, http.StatusForbidden, "org context required")
+				return
+			}
+			allowed, err := v.tenant.HasEntitlement(r.Context(), orgID, feature)
+			if err != nil || !allowed {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusPaymentRequired)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status":  http.StatusPaymentRequired,
+					"title":   "plan limit",
+					"detail":  "feature not included in plan",
+					"feature": feature,
+					"orgId":   orgID,
+				})
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -131,18 +242,36 @@ func (v *JWTValidator) RequireHierarchicalRole(minRole string) func(http.Handler
 	}
 }
 
-// Role hierarchy: developer > ceo > administrator > manager > operator > guest
-var roleLevel = map[string]int{
-	"developer":     6,
-	"ceo":           5,
-	"administrator": 4,
-	"manager":       3,
-	"operator":      2,
-	"guest":         1,
+// fallbackAllowedByRole implements a minimal role check for the AI sidecar:
+// developer/administrator system roles bypass the check; otherwise the user
+// must have the "administrator" role in the current org. Used only when no
+// authz provider is wired.
+func fallbackAllowedByRole(ctx context.Context, hasOrg bool) bool {
+	if role, _ := GetSystemRole(ctx); role == "developer" || role == "administrator" {
+		return true
+	}
+	if !hasOrg {
+		return false
+	}
+	roles, _ := GetOrgRoles(ctx)
+	for _, r := range roles {
+		if r == "administrator" || r == "developer" {
+			return true
+		}
+	}
+	return false
 }
 
-func roleAtLeast(userRole, minRole string) bool {
-	return roleLevel[userRole] >= roleLevel[minRole]
+func (v *JWTValidator) RequireGlobal() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := GetUserUUID(r.Context()); !ok {
+				writeErr(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func extractBearer(r *http.Request) string {
@@ -164,4 +293,14 @@ func getStr(m jwt.MapClaims, key string) string {
 		}
 	}
 	return ""
+}
+
+func writeErr(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": status,
+		"title":  http.StatusText(status),
+		"detail": msg,
+	})
 }

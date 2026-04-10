@@ -7,8 +7,14 @@ import Footer from 'components/footer/Footer';
 import ModalAuth from 'components/authentication/modal/ModalAuth';
 
 import { useAppContext } from 'providers/AppProvider';
+import { useTenantBootstrap } from 'hooks/useTenantBootstrap';
 
 const MainLayout: React.FC = () => {
+  // Bootstraps org memberships + effective permissions on login and on
+  // every org switch. Must run inside the authenticated layout because it
+  // depends on selectIsAuthenticated.
+  useTenantBootstrap();
+
   const { hash, pathname } = useLocation();
   const isKanban = pathname.includes('kanban');
   // const isChat = pathname.includes('chat');

@@ -29,9 +29,19 @@ func (m *AgentsModule) DisplayName() string             { return "AI Agents" }
 func (m *AgentsModule) Description() string             { return "Hindsight-powered AI agents with RAG context" }
 func (m *AgentsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
 func (m *AgentsModule) Enabled(cfg *config.Config) bool { return cfg.Agents.Enabled }
-func (m *AgentsModule) Dependencies() []string          { return []string{"auth"} }
+func (m *AgentsModule) Dependencies() []string { return []string{"auth"} }
 func (m *AgentsModule) OptionalServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceRAGQuery}
+}
+
+func (m *AgentsModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "agents.personal", Module: "agents", Description: "Use your personal AI agent"},
+		{Key: "agents.project.read", Module: "agents", Description: "View agent projects and conversations"},
+		{Key: "agents.project.manage", Module: "agents", Description: "Create and manage agent projects"},
+		{Key: "agents.query", Module: "agents", Description: "Run queries against agents"},
+		{Key: "agents.admin", Module: "agents", Description: "Administer Hindsight banks and health"},
+	}
 }
 
 func (m *AgentsModule) ConfigSchema() []module.ConfigField {
@@ -50,8 +60,8 @@ func (m *AgentsModule) Collections() []module.CollectionSpec {
 
 func (m *AgentsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "AI", Name: "Personal Agent", Icon: "robot", Path: "/ai/personal-agent", MinRole: "guest", Active: true},
-		{Group: "AI", Name: "AI Agents", Icon: "users-cog", Path: "/ai/agents", MinRole: "manager", Active: true},
+		{Group: "AI", Name: "Personal Agent", Icon: "robot", Path: "/ai/personal-agent", Active: true},
+		{Group: "AI", Name: "AI Agents", Icon: "users-cog", Path: "/ai/agents", Active: true},
 	}
 }
 
@@ -87,31 +97,28 @@ func (m *AgentsModule) Init(deps *module.Dependencies) error {
 func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(ri.AuthMW.RequireEntitlement("agents"))
 
-		// Personal agent: any authenticated user (guest and above)
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireHierarchicalRole("guest"))
+			r.Use(ri.AuthMW.RequirePermission("agents.personal"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterPersonalAgentRoutes(api, m.personalAgentHandler)
 		})
 
-		// Project management: manager role and above
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireHierarchicalRole("manager"))
+			r.Use(ri.AuthMW.RequirePermission("agents.project.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterProjectRoutes(api, m.projectHandler)
 		})
 
-		// Agent querying and conversations: operator role and above
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireHierarchicalRole("operator"))
+			r.Use(ri.AuthMW.RequirePermission("agents.query"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterQueryRoutes(api, m.agentHandler)
 		})
 
-		// Agent admin: administrator role and above
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+			r.Use(ri.AuthMW.RequirePermission("agents.admin"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterAdminRoutes(api, m.agentHandler)
 		})

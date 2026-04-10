@@ -28,15 +28,21 @@ func (m *AuthModule) Name() string        { return "auth" }
 func (m *AuthModule) DisplayName() string  { return "Authentication" }
 func (m *AuthModule) Description() string  { return "OAuth 2.1, JWT, sessions, RBAC" }
 
-func (m *AuthModule) Dependencies() []string { return []string{"user", "notification"} }
+func (m *AuthModule) Dependencies() []string { return []string{"user", "notification", "tenant", "authz"} }
 func (m *AuthModule) RequiredServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceUserService}
+	return []module.ServiceKey{module.ServiceUserService, module.ServiceTenantProvider}
 }
 func (m *AuthModule) OptionalServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceNotificationSender}
 }
 func (m *AuthModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceAuthService, module.ServiceJWTService, module.ServicePasswordService}
+}
+
+func (m *AuthModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "auth.self", Module: "auth", Description: "Edit your own password and sessions"},
+	}
 }
 
 func (m *AuthModule) Collections() []module.CollectionSpec {
@@ -123,8 +129,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 
 	providerFactory := services.NewOAuthProviderFactory(providerConfigs, deps.RedisAdapter)
 
-	// JWT service
+	// JWT service. The tenant provider is wired in so that token issuance
+	// can embed the user's current memberships in the JWT.
 	jwtService := services.NewJWTService(cfg.Auth.JWT.PrivateKey, cfg.Auth.JWT.PublicKey)
+	tenantProvider := module.MustGetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
+	jwtService.SetTenantProvider(tenantProvider)
 
 	// OAuth state service
 	redisStore := services.NewRedisOAuthStateStore(deps.RedisAdapter)
@@ -216,11 +225,12 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	m.authHandler.RegisterRoutes(ri.PublicAPI, protectedAPI, ri.Router, ri.ProtectedRouter)
 
 	// Password auth endpoints: register/login/verify/reset/forgot live on the
-	// public API; change-password is protected.
+	// public API; change-password is protected and runs without an org
+	// context (it's a user self-service flow).
 	if m.passwordHandler != nil {
 		m.passwordHandler.RegisterPublicRoutes(ri.PublicAPI)
 		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireHierarchicalRole("guest"))
+			r.Use(ri.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.passwordHandler.RegisterProtectedRoutes(api)
 		})

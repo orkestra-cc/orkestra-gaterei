@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/graph/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -47,7 +48,7 @@ func (m *GraphModule) ConfigSchema() []module.ConfigField {
 func (m *GraphModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
 		{Group: "System Administration", Name: "Graph Database", Icon: "project-diagram", Path: "/graph",
-			MinRole: "administrator", Active: true,
+			Active: true,
 			Children: []module.NavItemSpec{
 				{Name: "Explorer", Icon: "search", Path: "/graph/explorer", Active: true},
 				{Name: "Algorithms", Icon: "brain", Path: "/graph/algorithms", Active: true},
@@ -55,6 +56,14 @@ func (m *GraphModule) NavItems() []module.NavItemSpec {
 				{Name: "Vector Search", Icon: "vector-square", Path: "/graph/vector", Active: true},
 			},
 		},
+	}
+}
+
+func (m *GraphModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "graph.query.read", Module: "graph", Description: "Run read-only Cypher and browse the graph"},
+		{Key: "graph.query.write", Module: "graph", Description: "Run mutating Cypher queries"},
+		{Key: "graph.admin", Module: "graph", Description: "Manage indexes, algorithms, and vector search"},
 	}
 }
 
@@ -96,7 +105,8 @@ func (m *GraphModule) Init(deps *module.Dependencies) error {
 func (m *GraphModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+		r.Use(ri.AuthMW.RequireEntitlement("graph"))
+		r.Use(ri.AuthMW.RequirePermission("graph.query.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
 	})

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -40,6 +41,10 @@ type Module interface {
 	// NavItems returns menu entries this module contributes to the navigation.
 	// The navigation module aggregates these from all enabled modules.
 	NavItems() []NavItemSpec
+	// Permissions returns the authorization permissions this module exposes.
+	// The registry collects these from every module at boot and upserts them
+	// into the authz catalog so administrators can bind them to custom roles.
+	Permissions() []iface.PermissionSpec
 	// Dependencies returns names of modules that must init before this one.
 	Dependencies() []string
 	// ProvidedServices returns ServiceKeys this module registers in the ServiceRegistry.
@@ -78,20 +83,21 @@ type Module interface {
 //	}
 type BaseModule struct{}
 
-func (BaseModule) DisplayName() string                   { return "" }
-func (BaseModule) Description() string                   { return "" }
-func (BaseModule) Category() ModuleCategory              { return CategoryCore }
-func (BaseModule) Enabled(_ *config.Config) bool         { return true }
-func (BaseModule) ConfigSchema() []ConfigField           { return nil }
-func (BaseModule) Collections() []CollectionSpec         { return nil }
-func (BaseModule) NavItems() []NavItemSpec               { return nil }
-func (BaseModule) Dependencies() []string                { return nil }
-func (BaseModule) ProvidedServices() []ServiceKey        { return nil }
-func (BaseModule) RequiredServices() []ServiceKey        { return nil }
-func (BaseModule) OptionalServices() []ServiceKey        { return nil }
-func (BaseModule) Start(_ context.Context) error         { return nil }
-func (BaseModule) Stop(_ context.Context) error          { return nil }
-func (BaseModule) HealthCheck(_ context.Context) error   { return nil }
+func (BaseModule) DisplayName() string                 { return "" }
+func (BaseModule) Description() string                 { return "" }
+func (BaseModule) Category() ModuleCategory            { return CategoryCore }
+func (BaseModule) Enabled(_ *config.Config) bool       { return true }
+func (BaseModule) ConfigSchema() []ConfigField         { return nil }
+func (BaseModule) Collections() []CollectionSpec       { return nil }
+func (BaseModule) NavItems() []NavItemSpec             { return nil }
+func (BaseModule) Permissions() []iface.PermissionSpec { return nil }
+func (BaseModule) Dependencies() []string              { return nil }
+func (BaseModule) ProvidedServices() []ServiceKey      { return nil }
+func (BaseModule) RequiredServices() []ServiceKey      { return nil }
+func (BaseModule) OptionalServices() []ServiceKey      { return nil }
+func (BaseModule) Start(_ context.Context) error       { return nil }
+func (BaseModule) Stop(_ context.Context) error        { return nil }
+func (BaseModule) HealthCheck(_ context.Context) error { return nil }
 
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {
@@ -154,10 +160,28 @@ func (d *Dependencies) GetConfigDuration(module, key string, fallback time.Durat
 	return dur
 }
 
-// RoleMiddleware is the interface modules use for RBAC route protection.
-// Implemented by both AuthMiddleware (monolith) and JWTValidator (AI service).
+// RoleMiddleware is the interface modules use for authorization route
+// protection. Implemented by both AuthMiddleware (monolith) and JWTValidator
+// (AI service sidecar). Permissions are checked against the current org in
+// the request context (set from the X-Org-ID header at auth time).
 type RoleMiddleware interface {
-	RequireHierarchicalRole(minRole string) func(http.Handler) http.Handler
+	// RequirePermission blocks the request unless the current user holds
+	// the given permission in the current org (from X-Org-ID).
+	RequirePermission(permission string) func(http.Handler) http.Handler
+
+	// RequireSystemPermission blocks the request unless the user's system
+	// role grants the given system-level permission (e.g. platform admin).
+	// Does not need an org context.
+	RequireSystemPermission(permission string) func(http.Handler) http.Handler
+
+	// RequireEntitlement blocks the request unless the current org's plan
+	// includes the given feature. Returns 402 Payment Required.
+	RequireEntitlement(feature string) func(http.Handler) http.Handler
+
+	// RequireGlobal allows the request without an org context. Use for
+	// auth flows, self-service, and org-list endpoints that run before a
+	// current org is selected.
+	RequireGlobal() func(http.Handler) http.Handler
 }
 
 // RouteInfo provides the routing infrastructure for module route registration.

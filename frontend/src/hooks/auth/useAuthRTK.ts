@@ -13,9 +13,9 @@ import {
   setAccessToken,
   logout as logoutAction,
   selectAuth,
-  selectPermissions,
   selectPreferences
 } from 'store/slices/authSlice';
+import { selectPermissions as selectTenantPermissions } from 'store/slices/tenantSlice';
 
 /**
  * Enhanced auth hook using RTK Query for server state and Redux for client state
@@ -25,9 +25,11 @@ export const useAuth = () => {
   const dispatch = useAppDispatch();
 
 
-  // Redux selectors for client-side auth state
+  // Redux selectors for client-side auth state. Permissions now live on
+  // the tenant slice (computed per-org by the authz module) rather than
+  // on the auth slice, since they are org-scoped.
   const auth = useAppSelector(selectAuth);
-  const permissions = useAppSelector(selectPermissions);
+  const permissions = useAppSelector(selectTenantPermissions);
   const preferences = useAppSelector(selectPreferences);
 
   // Check if logout is in progress (dynamic check)
@@ -181,12 +183,15 @@ export const useAuth = () => {
     throw new Error('Profile update functionality has been removed');
   }, []);
 
-  // Permission helpers
+  // Permission helpers. The `*` wildcard grants all permissions and is
+  // issued to users with the developer system role.
   const hasPermission = useCallback((permission: string) => {
+    if (permissions.includes('*')) return true;
     return permissions.includes(permission);
   }, [permissions]);
 
   const hasAnyPermission = useCallback((requiredPermissions: string[]) => {
+    if (permissions.includes('*')) return true;
     return requiredPermissions.some(p => permissions.includes(p));
   }, [permissions]);
 

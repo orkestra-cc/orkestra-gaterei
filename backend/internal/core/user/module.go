@@ -4,10 +4,11 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	authRepo "github.com/orkestra/backend/internal/core/auth/repository"
-	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/core/user/handlers"
 	"github.com/orkestra/backend/internal/core/user/repository"
 	"github.com/orkestra/backend/internal/core/user/services"
+	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type UserModule struct {
@@ -36,11 +37,20 @@ func (m *UserModule) Collections() []module.CollectionSpec {
 
 func (m *UserModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "Operators", Name: "Dashboard", Icon: "chart-pie", Path: "/user/dashboard", MinRole: "guest", Active: true},
-		{Group: "Operators", Name: "Profile", Icon: "user", Path: "/user/profile", MinRole: "guest", Active: true},
-		{Group: "Operators", Name: "Calendar", Icon: "calendar-alt", Path: "/user/calendar", MinRole: "guest", Active: true},
-		{Group: "System Administration", Name: "User Management", Icon: "users-cog", Path: "/admin/users", MinRole: "administrator", Active: true},
-		{Group: "System Administration", Name: "Module Management", Icon: "puzzle-piece", Path: "/admin/modules", MinRole: "administrator", Active: true},
+		{Group: "Operators", Name: "Dashboard", Icon: "chart-pie", Path: "/user/dashboard", Active: true},
+		{Group: "Operators", Name: "Profile", Icon: "user", Path: "/user/profile", Active: true},
+		{Group: "Operators", Name: "Calendar", Icon: "calendar-alt", Path: "/user/calendar", Active: true},
+		{Group: "System Administration", Name: "User Management", Icon: "users-cog", Path: "/admin/users", Active: true},
+		{Group: "System Administration", Name: "Module Management", Icon: "puzzle-piece", Path: "/admin/modules", Active: true},
+	}
+}
+
+func (m *UserModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "user.read", Module: "user", Description: "List users"},
+		{Key: "user.update", Module: "user", Description: "Update user profiles"},
+		{Key: "user.delete", Module: "user", Description: "Delete users"},
+		{Key: "user.self", Module: "user", Description: "Edit your own profile"},
 	}
 }
 
@@ -54,8 +64,11 @@ func (m *UserModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *UserModule) RegisterRoutes(ri *module.RouteInfo) {
+	// User management is a platform-level concern: users are global, so
+	// routes live on the system permission gate (administrators) rather
+	// than per-org.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireHierarchicalRole("administrator"))
+		r.Use(ri.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
 	})

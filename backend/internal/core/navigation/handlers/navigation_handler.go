@@ -30,10 +30,12 @@ type GetNavigationResponse struct {
 
 // GetNavigation handles GET /v1/navigation
 func (h *NavigationHandler) GetNavigation(ctx context.Context, req *GetNavigationRequest) (*GetNavigationResponse, error) {
-	// Get user role from context (set by auth middleware)
-	userRole, ok := middleware.GetUserRole(ctx)
+	// Use the user's global system role as the filter key. In the future
+	// this should be replaced with an authz.GetEffectivePermissions call
+	// so the menu only shows items the user can actually access.
+	userRole, ok := middleware.GetSystemRole(ctx)
 	if !ok || userRole == "" {
-		userRole = "guest" // Default to guest if no role found
+		userRole = "guest"
 	}
 
 	navigation, err := h.navigationService.GetNavigationForUser(ctx, userRole)

@@ -26,6 +26,9 @@ const (
 
 	ServiceNotificationSender ServiceKey = "notification.sender"
 	ServicePasswordService    ServiceKey = "auth.password"
+
+	ServiceTenantProvider ServiceKey = "tenant.provider"
+	ServiceAuthzProvider  ServiceKey = "authz.provider"
 )
 
 // ServiceRegistry is a typed key-value store for cross-module service sharing.
