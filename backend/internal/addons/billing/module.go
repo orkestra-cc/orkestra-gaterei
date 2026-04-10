@@ -67,7 +67,7 @@ func (m *BillingModule) ConfigSchema() []module.ConfigField {
 
 func (m *BillingModule) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
-		{Name: "invoices", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
+		{Name: "billing_invoices", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
 		{Name: "billing_customers", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
 		{Name: "billing_suppliers", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
 		{Name: "billing_companies", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},

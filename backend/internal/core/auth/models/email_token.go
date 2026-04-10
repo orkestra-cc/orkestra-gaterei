@@ -28,4 +28,4 @@ type EmailTokenDoc struct {
 	UsedAt    *time.Time         `bson:"usedAt,omitempty" json:"usedAt,omitempty"`
 }
 
-const EmailTokensCollection = "email_tokens"
+const EmailTokensCollection = "auth_email_tokens"

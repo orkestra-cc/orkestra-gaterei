@@ -105,7 +105,7 @@ type invoiceRepository struct {
 // NewInvoiceRepository creates a new InvoiceRepository
 func NewInvoiceRepository(db *mongo.Database) InvoiceRepository {
 	repo := &invoiceRepository{
-		collection: db.Collection("invoices"),
+		collection: db.Collection("billing_invoices"),
 	}
 	// Ensure indexes are created
 	repo.createIndexes(context.Background())

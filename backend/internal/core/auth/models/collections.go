@@ -116,10 +116,10 @@ type SecurityEventLog struct {
 // Collection names
 const (
 	UsersCollection          = "users"
-	OAuthProvidersCollection = "oauth_providers"
-	RefreshTokensCollection  = "refresh_tokens"
+	OAuthProvidersCollection = "auth_oauth_providers"
+	RefreshTokensCollection  = "auth_refresh_tokens"
 	AuthSessionsCollection   = "auth_sessions"
-	SecurityEventsCollection = "security_events"
+	SecurityEventsCollection = "auth_security_events"
 )
 
 // Indexes for collections

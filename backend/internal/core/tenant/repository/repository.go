@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	CollOrgs        = "orgs"
-	CollMemberships = "memberships"
-	CollInvites     = "org_invites"
+	CollOrgs        = "tenant_orgs"
+	CollMemberships = "tenant_memberships"
+	CollInvites     = "tenant_org_invites"
 )
 
 var ErrNotFound = errors.New("tenant: not found")

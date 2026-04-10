@@ -48,17 +48,17 @@ func (m *AuthModule) Permissions() []iface.PermissionSpec {
 func (m *AuthModule) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
 		{Name: "users"},
-		{Name: "oauth_providers", Indexes: []module.IndexSpec{
+		{Name: models.OAuthProvidersCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"userUuid": 1, "provider": 1}, Unique: true},
 		}},
-		{Name: "refresh_tokens", Indexes: []module.IndexSpec{
+		{Name: models.RefreshTokensCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"userUuid": 1}},
 		}},
-		{Name: "auth_sessions", Indexes: []module.IndexSpec{
+		{Name: models.AuthSessionsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 		}},
-		{Name: "security_events"},
+		{Name: models.SecurityEventsCollection},
 		{Name: models.EmailTokensCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"tokenHash": 1}, Unique: true},

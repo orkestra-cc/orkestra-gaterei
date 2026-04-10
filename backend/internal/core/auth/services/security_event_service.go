@@ -43,7 +43,7 @@ type securityEventService struct {
 
 // NewSecurityEventService creates a new security event service
 func NewSecurityEventService(db *mongo.Database) (SecurityEventService, error) {
-	collection := db.Collection("security_events")
+	collection := db.Collection(models.SecurityEventsCollection)
 
 	// Create indexes
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
