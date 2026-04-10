@@ -169,6 +169,10 @@ import Error404 from 'components/errors/Error404';
 import Error500 from 'components/errors/Error500';
 
 import Login from 'components/authentication/Login';
+import Register from 'components/authentication/Register';
+import ForgotPassword from 'components/authentication/ForgotPassword';
+import ResetPassword from 'components/authentication/ResetPassword';
+import VerifyEmailPage from 'components/authentication/VerifyEmailPage';
 import SocialAuthCallback from 'components/authentication/SocialAuthCallback';
 const Dashboard = lazy(() => import('reference/dashboards/DefaultDashboard'));
 import Faq from 'reference/documentation/Faq';
@@ -308,6 +312,22 @@ const routes: RouteObject[] = [
       {
         path: 'login',
         element: <Login />
+      },
+      {
+        path: 'register',
+        element: <Register />
+      },
+      {
+        path: 'forgot-password',
+        element: <ForgotPassword />
+      },
+      {
+        path: 'reset-password',
+        element: <ResetPassword />
+      },
+      {
+        path: 'verify-email',
+        element: <VerifyEmailPage />
       },
       {
         path: 'auth/callback',

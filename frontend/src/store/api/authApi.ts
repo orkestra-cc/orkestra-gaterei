@@ -50,6 +50,32 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface PasswordLoginResponse {
+  success: boolean;
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: BackendUser;
+}
+
+export interface RegisterInput {
+  email: string;
+  password: string;
+  fullName: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  userUuid: string;
+  message: string;
+  requiresVerification: boolean;
+}
+
+export interface SimpleMessageResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface LoginResponse {
   success: boolean;
   user: BackendUser;
@@ -93,15 +119,68 @@ export const authApi = baseApi.injectEndpoints({
       keepUnusedDataFor: 30, // 30 seconds
     }),
 
-    // User login
-    login: builder.mutation<LoginResponse, LoginCredentials>({
+    // Email/password login — returns access token + user
+    login: builder.mutation<PasswordLoginResponse, LoginCredentials>({
       query: (credentials) => ({
         url: 'v1/auth/login',
         method: 'POST',
         body: credentials,
       }),
-      // Invalidate navigation to fetch role-filtered menu for new user
       invalidatesTags: ['Auth', 'User', 'Navigation'],
+    }),
+
+    // Self-service registration with email/password
+    register: builder.mutation<RegisterResponse, RegisterInput>({
+      query: (input) => ({
+        url: 'v1/auth/register',
+        method: 'POST',
+        body: input,
+      }),
+    }),
+
+    // Verify email address with token from link
+    verifyEmail: builder.mutation<SimpleMessageResponse, { token: string }>({
+      query: (body) => ({
+        url: 'v1/auth/verify-email',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Resend the verification email
+    resendVerification: builder.mutation<SimpleMessageResponse, { email: string }>({
+      query: (body) => ({
+        url: 'v1/auth/verify-email/resend',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Request password reset email
+    forgotPassword: builder.mutation<SimpleMessageResponse, { email: string }>({
+      query: (body) => ({
+        url: 'v1/auth/forgot-password',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Consume a password reset token and set a new password
+    resetPassword: builder.mutation<SimpleMessageResponse, { token: string; newPassword: string }>({
+      query: (body) => ({
+        url: 'v1/auth/reset-password',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Change password while authenticated
+    changePassword: builder.mutation<SimpleMessageResponse, { currentPassword: string; newPassword: string }>({
+      query: (body) => ({
+        url: 'v1/auth/change-password',
+        method: 'POST',
+        body,
+      }),
     }),
 
     // User logout
@@ -186,6 +265,12 @@ export const authApi = baseApi.injectEndpoints({
 export const {
   useGetCurrentUserQuery,
   useLoginMutation,
+  useRegisterMutation,
+  useVerifyEmailMutation,
+  useResendVerificationMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
+  useChangePasswordMutation,
   useLogoutMutation,
   useInitiateOAuthMutation,
   useHandleOAuthCallbackMutation,
