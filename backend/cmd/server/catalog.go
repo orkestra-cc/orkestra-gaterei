@@ -12,6 +12,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/documents"
 	"github.com/orkestra/backend/internal/addons/graph"
 	"github.com/orkestra/backend/internal/core/navigation"
+	"github.com/orkestra/backend/internal/core/notification"
 	"github.com/orkestra/backend/internal/addons/rag"
 	"github.com/orkestra/backend/internal/addons/sales"
 	"github.com/orkestra/backend/internal/shared/config"
@@ -20,10 +21,12 @@ import (
 )
 
 // coreModules are always loaded — they provide the foundation
-// (auth, users, navigation, module management).
-// Order matters here: user before auth (hard dependency).
+// (auth, users, navigation, notifications, module management).
+// Order matters here: user before auth (hard dependency), notification
+// before auth so auth can consume the notification sender.
 var coreModules = []func() module.Module{
 	func() module.Module { return user.NewModule() },
+	func() module.Module { return notification.NewModule() },
 	func() module.Module { return auth.NewModule() },
 	func() module.Module { return navigation.NewModule() },
 }

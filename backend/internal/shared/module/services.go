@@ -23,6 +23,9 @@ const (
 	ServicePDFService      ServiceKey = "documents.pdf"
 	ServiceGraphRepo       ServiceKey = "graph.repository"
 	ServiceRAGQuery        ServiceKey = "rag.query"
+
+	ServiceNotificationSender ServiceKey = "notification.sender"
+	ServicePasswordService    ServiceKey = "auth.password"
 )
 
 // ServiceRegistry is a typed key-value store for cross-module service sharing.

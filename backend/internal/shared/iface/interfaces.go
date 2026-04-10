@@ -11,6 +11,7 @@ package iface
 
 import (
 	"context"
+	"time"
 
 	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
 	docModels "github.com/orkestra/backend/internal/addons/documents/models"
@@ -27,7 +28,21 @@ import (
 type UserProvider interface {
 	GetUserByID(ctx context.Context, id string) (*userModels.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*userModels.UserManagementResponse, error)
+	// GetUserForAuth returns the raw user (including password hash and
+	// lockout fields) for authentication flows. Do NOT use for regular
+	// user lookups — the response contains sensitive fields.
+	GetUserForAuth(ctx context.Context, email string) (*userModels.User, error)
 	CreateUserFromOAuth(ctx context.Context, input *userModels.CreateUserInput) (*userModels.User, error)
+	// CreateUserWithPassword creates a new user with a pre-hashed password.
+	CreateUserWithPassword(ctx context.Context, input *userModels.CreateUserInput) (*userModels.User, error)
+	// UpdatePasswordHash stores a new argon2id hash and timestamps the change.
+	UpdatePasswordHash(ctx context.Context, userUUID, hash string) error
+	// MarkEmailVerified flips emailVerified to true.
+	MarkEmailVerified(ctx context.Context, userUUID string) error
+	// RecordFailedLogin increments failed counter and optionally sets a lockout.
+	RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error
+	// ClearFailedLogins resets the counter after a successful login.
+	ClearFailedLogins(ctx context.Context, userUUID string) error
 	UpdateUser(ctx context.Context, id string, input *userModels.UpdateUserInput) (*userModels.UserManagementResponse, error)
 	UpdateUserLastLogin(ctx context.Context, id string) error
 	DeleteUser(ctx context.Context, id string) error
@@ -86,4 +101,64 @@ type AIModelProvider interface {
 
 type RAGQueryProvider interface {
 	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*ragModels.RAGQueryResponse, error)
+}
+
+// ---------------------------------------------------------------------------
+// NotificationSender — consumed by: auth (verification, password reset),
+// future consumers like billing (invoice delivery), sales (digest), etc.
+//
+// The notification module owns rendering, template lookup, preferences and
+// delivery. Consumers only describe what they want sent, not how.
+// ---------------------------------------------------------------------------
+
+type Recipient struct {
+	UserUUID string
+	Address  string
+	Name     string
+}
+
+type NotificationRequest struct {
+	Channel        string
+	Type           string // "transactional" | "marketing"
+	Category       string // e.g. "auth.verify_email"
+	Recipients     []Recipient
+	Subject        string
+	Body           string
+	BodyHTML       string
+	IdempotencyKey string
+	Metadata       map[string]any
+}
+
+type TemplatedNotificationRequest struct {
+	Channel        string
+	Type           string
+	Category       string
+	TemplateID     string
+	Locale         string
+	Recipients     []Recipient
+	Data           map[string]any
+	IdempotencyKey string
+	Metadata       map[string]any
+}
+
+type NotificationResult struct {
+	ID       string
+	Status   string // "sent" | "failed" | "suppressed" | "queued"
+	Provider string
+	Error    string
+}
+
+type NotificationSender interface {
+	// IsConfigured returns true when the active email channel has valid
+	// transport credentials. Consumers should check this at request time
+	// to decide whether to fail fast or degrade gracefully.
+	IsConfigured(ctx context.Context) bool
+
+	// Send dispatches a fully pre-rendered notification.
+	Send(ctx context.Context, req NotificationRequest) (*NotificationResult, error)
+
+	// SendTemplated resolves a template from the notification module's
+	// template store, renders it with the given data + auto-injected
+	// unsubscribe variables, and dispatches it.
+	SendTemplated(ctx context.Context, req TemplatedNotificationRequest) (*NotificationResult, error)
 }
