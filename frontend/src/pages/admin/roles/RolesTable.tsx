@@ -25,6 +25,22 @@ interface Props {
   orgId: string;
 }
 
+// System roles are rendered highest-privilege first. Unknown names fall to the
+// end so a future role added server-side still renders.
+const SYSTEM_ROLE_ORDER = [
+  'super_admin',
+  'administrator',
+  'developer',
+  'manager',
+  'operator',
+  'guest',
+] as const;
+
+const systemRoleRank = (name: string): number => {
+  const idx = SYSTEM_ROLE_ORDER.indexOf(name as (typeof SYSTEM_ROLE_ORDER)[number]);
+  return idx === -1 ? SYSTEM_ROLE_ORDER.length : idx;
+};
+
 /**
  * RolesTable is the main surface of the role-management page. It lists the
  * six seeded system roles plus any custom roles scoped to the current org,
@@ -60,7 +76,10 @@ const RolesTable: React.FC<Props> = ({ orgId }) => {
   };
 
   const systemRoles = useMemo(
-    () => roles.filter((r) => r.isSystem && matches(r)).sort((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      roles
+        .filter((r) => r.isSystem && matches(r))
+        .sort((a, b) => systemRoleRank(a.name) - systemRoleRank(b.name)),
     [roles, q], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const customRoles = useMemo(

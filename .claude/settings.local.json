@@ -37,7 +37,8 @@
       "Bash(grep:*)",
       "Bash(git check-ignore:*)",
       "Bash(docker restart:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(./scripts/devtoken.sh super_admin --quiet)"
     ]
   },
   "enableAllProjectMcpServers": true,
