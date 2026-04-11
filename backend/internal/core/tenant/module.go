@@ -64,6 +64,13 @@ func (m *Module) Permissions() []iface.PermissionSpec {
 		{Key: "tenant.member.read", Module: "tenant", Description: "List org members"},
 		{Key: "tenant.member.invite", Module: "tenant", Description: "Invite new members"},
 		{Key: "tenant.member.remove", Module: "tenant", Description: "Remove members from the org"},
+		{Key: "system.tenants.admin", Module: "tenant", Description: "Administer all organizations platform-wide", System: true},
+	}
+}
+
+func (m *Module) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "System Administration", Name: "Tenant Management", Icon: "building", Path: "/admin/tenants", MinRole: "administrator", Active: true},
 	}
 }
 
@@ -91,6 +98,16 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.AuthMW.RequirePermission("tenant.org.read"))
 		api := humachi.New(r, ri.APIConfig)
 		m.handler.RegisterScopedRoutes(api)
+	})
+
+	// Platform-admin routes: visible to super_admin / administrator /
+	// developer via the system.tenants.admin permission. These bypass
+	// per-org membership so a platform operator can list and manage
+	// every tenant without joining each one.
+	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.AuthMW.RequireSystemPermission("system.tenants.admin"))
+		api := humachi.New(r, ri.APIConfig)
+		m.handler.RegisterAdminRoutes(api)
 	})
 }
 

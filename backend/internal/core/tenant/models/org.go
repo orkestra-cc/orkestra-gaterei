@@ -62,17 +62,21 @@ type Membership struct {
 
 // Invite is a pending invitation for a user to join an org. Tokens are
 // single-use and expire automatically via a TTL index on expiresAt.
+//
+// The raw Token is serialized with `omitempty` so it appears on the create
+// response (where the service populates it) but is scrubbed from list
+// responses by the service zeroing the field before return.
 type Invite struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"-"`
-	UUID      string             `bson:"uuid" json:"id"`
-	OrgUUID   string             `bson:"orgId" json:"orgId"`
-	Email     string             `bson:"email" json:"email"`
-	Roles     []string           `bson:"roles" json:"roles"`
-	Token     string             `bson:"token" json:"-"`
-	InvitedBy string             `bson:"invitedBy" json:"invitedBy"`
-	CreatedAt time.Time          `bson:"createdAt" json:"createdAt"`
-	ExpiresAt time.Time          `bson:"expiresAt" json:"expiresAt"`
-	AcceptedAt *time.Time        `bson:"acceptedAt,omitempty" json:"acceptedAt,omitempty"`
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"-"`
+	UUID       string             `bson:"uuid" json:"id"`
+	OrgUUID    string             `bson:"orgId" json:"orgId"`
+	Email      string             `bson:"email" json:"email"`
+	Roles      []string           `bson:"roles" json:"roles"`
+	Token      string             `bson:"token" json:"token,omitempty"`
+	InvitedBy  string             `bson:"invitedBy" json:"invitedBy"`
+	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
+	ExpiresAt  time.Time          `bson:"expiresAt" json:"expiresAt"`
+	AcceptedAt *time.Time         `bson:"acceptedAt,omitempty" json:"acceptedAt,omitempty"`
 }
 
 // --- API DTOs ---

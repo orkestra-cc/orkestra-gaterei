@@ -41,15 +41,16 @@ Collection name constants live in `repository/repository.go` as `CollOrgs`, `Col
 - **Provides**: `ServiceTenantProvider` → `iface.TenantProvider` (`module.go:31-33`).
 - **Permissions contributed** (`module.go:58-68`):
 
-| Key | Purpose |
-|---|---|
-| `tenant.org.read` | Read org details |
-| `tenant.org.update` | Update org name, slug, settings |
-| `tenant.org.delete` | Soft-delete the org |
-| `tenant.plan.update` | Change plan and features |
-| `tenant.member.read` | List org members |
-| `tenant.member.invite` | Invite new members |
-| `tenant.member.remove` | Remove members from the org |
+| Key | System? | Purpose |
+|---|---|---|
+| `tenant.org.read` | no | Read org details |
+| `tenant.org.update` | no | Update org name, slug, settings |
+| `tenant.org.delete` | no | Soft-delete the org |
+| `tenant.plan.update` | no | Change plan and features |
+| `tenant.member.read` | no | List org members |
+| `tenant.member.invite` | no | Invite new members |
+| `tenant.member.remove` | no | Remove members from the org |
+| `system.tenants.admin` | **yes** | Administer every tenant platform-wide (powers `/v1/admin/orgs/*`) |
 
 ## Lifecycle
 
@@ -59,9 +60,9 @@ Collection name constants live in `repository/repository.go` as `CollOrgs`, `Col
 
 ## HTTP endpoints
 
-Two route groups, each with a different gate:
+Three route groups, each with a different gate:
 
-### Global — `RequireGlobal()` (`module.go:81-85`)
+### Global — `RequireGlobal()`
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -69,7 +70,7 @@ Two route groups, each with a different gate:
 | POST | `/v1/orgs` | Create a new org — caller becomes owner + administrator |
 | POST | `/v1/orgs/accept-invite` | Redeem an invite token and join the target org |
 
-### Per-org — `RequirePermission("tenant.org.read")` (`module.go:88-94`)
+### Per-org — `RequirePermission("tenant.org.read")`
 
 These read the target org from the `{orgId}` path and check that the caller's bindings in that org include `tenant.org.read`. Further permissions (e.g. `tenant.org.update`) are enforced inside the handler/service layer when needed.
 
@@ -83,7 +84,37 @@ These read the target org from the `{orgId}` path and check that the caller's bi
 | DELETE | `/v1/orgs/{orgId}/members/{userUUID}` | Remove a member |
 | POST | `/v1/orgs/{orgId}/invites` | Create an invite token |
 
-Route registration in `handlers/handler.go:79-165`.
+### Platform admin — `RequireSystemPermission("system.tenants.admin")`
+
+Gated globally by a system permission, not by per-org membership, so platform operators can manage every tenant without having to join each one. Powers the frontend `/admin/tenants` page.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/admin/orgs` | List every tenant. `?includeDeleted=true` to include soft-deleted rows. Response includes `memberCount` resolved via a single `$group` aggregation. |
+| GET | `/v1/admin/orgs/{orgId}` | Get any tenant |
+| PATCH | `/v1/admin/orgs/{orgId}` | Update any tenant (name, slug, settings) |
+| DELETE | `/v1/admin/orgs/{orgId}` | Soft-delete any tenant — bypasses the owner-only check |
+| PATCH | `/v1/admin/orgs/{orgId}/plan` | Change any tenant's plan + features |
+| GET | `/v1/admin/orgs/{orgId}/members` | List members |
+| DELETE | `/v1/admin/orgs/{orgId}/members/{userUUID}` | Remove a member |
+| GET | `/v1/admin/orgs/{orgId}/invites` | List invites. Defaults to pending-only; pass `?includeAccepted=true` to also see accepted rows. Raw tokens are scrubbed. |
+| POST | `/v1/admin/orgs/{orgId}/invites` | Create an invite. Raw token returned once, see Key invariants. |
+| DELETE | `/v1/admin/orgs/{orgId}/invites/{inviteId}` | Revoke a pending invite |
+
+Route registration and handler implementations in `handlers/handler.go`. The permission itself (`system.tenants.admin`) is declared with `System: true` in `module.go::Permissions()`, so `super_admin` / `administrator` / `developer` inherit it automatically via authz's system-role seeding — no bindings required.
+
+## Navigation
+
+`module.go::NavItems()` contributes a single entry:
+
+```
+Group:   System Administration
+Name:    Tenant Management
+Path:    /admin/tenants
+MinRole: administrator
+```
+
+The frontend route is registered at `frontend/src/pages/admin/tenants/` and wired in `frontend/src/routes/index.tsx` behind `ProtectedRoute` with `super_admin | administrator | developer`.
 
 ## Service contract
 
@@ -112,8 +143,8 @@ Typical consumers:
   - default (`free` or unknown) → `["billing", "documents"]`
 - **Owner is auto-enrolled as administrator** on org creation (`services/service.go:115-122`) — the first membership is inserted with `Roles: ["administrator"]` and `IsOwner: true`. The `administrator` string must match an authz role name.
 - **Slug uniqueness + auto-generation**. Unique sparse index on `slug`. `CreateOrg` falls back to `slugify(input.Name)` when no slug is provided (`services/service.go:88-94`); the slugifier is in `services/service.go:238-255`.
-- **Soft delete only.** `DeleteOrg` sets a `deletedAt` timestamp. Every read query should filter these out — the repository does this at the Mongo layer. Note: **owner-only** is enforced in the service, not via a permission check.
-- **Invite tokens are SHA256-hashed base32** (`services/service.go:257-261`). The raw token is returned to the inviter exactly once via the API response; only the hash lives in the DB. Invites have an `expiresAt` index but **not** a TTL — expired invites hang around until you explicitly reap them. Worth fixing, but don't assume it's a TTL today.
+- **Soft delete only.** `DeleteOrg` sets a `deletedAt` timestamp. Every read query filters these out at the Mongo layer unless `includeDeleted` is explicitly requested (admin list only). The plain `DeleteOrg` has no owner-check today — the platform-admin path reuses it directly.
+- **Invite tokens are plaintext random base32, not hashed.** `randomToken(32)` writes a plaintext token to `tenant_org_invites.token` and returns it on the create response (`models/org.go::Invite.Token` uses `json:"token,omitempty"`). List endpoints (`ListInvites`, admin or not) zero the field in the service layer before returning, so `omitempty` drops it on the wire. Hashing on write + compare on accept is a **planned** improvement — the current rule "never store plaintext" in the Rules section is aspirational, not how the code behaves today. Expired invites stay in the collection (no TTL) until explicitly reaped.
 - **`Membership.Roles` is a denormalization.** It's an array of authz role names. When authz bindings change, the tenant service is **not automatically kept in sync** — there's no event hook yet. If you see a divergence between authz bindings and the tenant membership's `Roles`, the authz bindings are the source of truth.
 - **`HasEntitlement` treats `"*"` as "yes"** (`models/org.go::HasFeature`). This is how enterprise plans bypass the per-feature gate.
 
@@ -127,8 +158,8 @@ Typical consumers:
 
 ## Rules
 
-- **Owner check is owner-only, permission-independent.** `DeleteOrg` checks `IsOwner`, not a permission. Do not move this to a permission check without also adding a "transfer ownership" flow.
-- **Never store a plaintext invite token.** Always hash on write and compare hashes on accept.
+- **Platform-admin delete bypasses ownership.** The `/v1/admin/orgs/{orgId}` DELETE route is gated by `system.tenants.admin` (system roles only). The plain per-org DELETE route at `/v1/orgs/{orgId}` has no owner check today; adding one is pending the "transfer ownership" flow.
+- **Never store a plaintext invite token.** Planned — today the code does store plaintext. When you hash, do it in `services.CreateInvite` (write side) and `services.AcceptInvite` (compare side), and keep the raw token on the `models.Invite` struct as an unstored field so the create response can still carry it.
 - **When you add a new feature flag**, update `defaultFeaturesForPlan` in `services/service.go:227-236` and document the string in a Plans/Features section above. Frontend code reads these strings.
 - **If you add a new permission**, put it in `module.go::Permissions()` and gate the relevant handler in `module.go::RegisterRoutes` — don't scatter `RequirePermission` calls across the handlers package, keep them at the route-group boundary.
 - **Do not keep `Membership.Roles` in sync with authz bindings by hand.** Long term this denormalization needs an event-based sync; until then, treat `Membership.Roles` as a hint the JWT can read quickly, and `authz.GetEffectivePermissions` as the source of truth.

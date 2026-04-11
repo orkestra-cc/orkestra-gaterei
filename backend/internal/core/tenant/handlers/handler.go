@@ -284,3 +284,152 @@ func (h *Handler) acceptInvite(ctx context.Context, in *acceptInviteInput) (*org
 	}
 	return &orgOutput{Body: org}, nil
 }
+
+// --- Platform admin routes ---
+
+type adminOrgListItem struct {
+	models.Org
+	MemberCount int `json:"memberCount"`
+}
+
+type adminOrgListInput struct {
+	IncludeDeleted bool `query:"includeDeleted"`
+}
+
+type adminOrgListOutput struct {
+	Body struct {
+		Orgs []adminOrgListItem `json:"orgs"`
+	}
+}
+
+type adminInviteListInput struct {
+	OrgID           string `path:"orgId"`
+	IncludeAccepted bool   `query:"includeAccepted"`
+}
+
+type adminInviteListOutput struct {
+	Body struct {
+		Invites []models.Invite `json:"invites"`
+	}
+}
+
+type adminRevokeInviteInput struct {
+	OrgID    string `path:"orgId"`
+	InviteID string `path:"inviteId"`
+}
+
+// RegisterAdminRoutes registers platform-admin routes under /v1/admin/orgs.
+// The route group is gated by system.tenants.admin in module.go so platform
+// operators can manage every tenant without joining each one.
+func (h *Handler) RegisterAdminRoutes(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-all-orgs-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/orgs",
+		Summary:     "List every organization (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.listAllOrgsAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/orgs/{orgId}",
+		Summary:     "Get an organization (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.getOrg)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-admin",
+		Method:      http.MethodPatch,
+		Path:        "/v1/admin/orgs/{orgId}",
+		Summary:     "Update an organization (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.updateOrg)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org-admin",
+		Method:      http.MethodDelete,
+		Path:        "/v1/admin/orgs/{orgId}",
+		Summary:     "Soft-delete an organization (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.deleteOrg)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-plan-admin",
+		Method:      http.MethodPatch,
+		Path:        "/v1/admin/orgs/{orgId}/plan",
+		Summary:     "Change an organization's plan (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.updatePlan)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-members-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/orgs/{orgId}/members",
+		Summary:     "List organization members (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.listMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "remove-org-member-admin",
+		Method:      http.MethodDelete,
+		Path:        "/v1/admin/orgs/{orgId}/members/{userUUID}",
+		Summary:     "Remove a member from an organization (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.removeMember)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-invites-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/orgs/{orgId}/invites",
+		Summary:     "List pending organization invites (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.listInvitesAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org-invite-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/orgs/{orgId}/invites",
+		Summary:     "Create an organization invite (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.createInvite)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "revoke-org-invite-admin",
+		Method:      http.MethodDelete,
+		Path:        "/v1/admin/orgs/{orgId}/invites/{inviteId}",
+		Summary:     "Revoke a pending organization invite (platform admin)",
+		Tags:        []string{"Organizations Admin"},
+	}, h.revokeInviteAdmin)
+}
+
+func (h *Handler) listAllOrgsAdmin(ctx context.Context, in *adminOrgListInput) (*adminOrgListOutput, error) {
+	views, err := h.svc.ListAllOrgs(ctx, in.IncludeDeleted)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list orgs", err)
+	}
+	out := &adminOrgListOutput{}
+	out.Body.Orgs = make([]adminOrgListItem, 0, len(views))
+	for _, v := range views {
+		out.Body.Orgs = append(out.Body.Orgs, adminOrgListItem{Org: *v.Org, MemberCount: v.MemberCount})
+	}
+	return out, nil
+}
+
+func (h *Handler) listInvitesAdmin(ctx context.Context, in *adminInviteListInput) (*adminInviteListOutput, error) {
+	onlyPending := !in.IncludeAccepted
+	invs, err := h.svc.ListInvites(ctx, in.OrgID, onlyPending)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list invites", err)
+	}
+	out := &adminInviteListOutput{}
+	out.Body.Invites = invs
+	return out, nil
+}
+
+func (h *Handler) revokeInviteAdmin(ctx context.Context, in *adminRevokeInviteInput) (*struct{}, error) {
+	if err := h.svc.RevokeInvite(ctx, in.OrgID, in.InviteID); err != nil {
+		return nil, huma.Error400BadRequest("revoke failed: " + err.Error())
+	}
+	return &struct{}{}, nil
+}

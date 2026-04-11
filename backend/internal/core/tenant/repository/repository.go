@@ -8,6 +8,7 @@ import (
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -75,6 +76,56 @@ func (r *Repository) SoftDeleteOrg(ctx context.Context, uuid string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ListAllOrgs returns every org in the system for platform-admin views.
+// When includeDeleted is false, soft-deleted orgs are filtered out.
+func (r *Repository) ListAllOrgs(ctx context.Context, includeDeleted bool) ([]models.Org, error) {
+	filter := bson.M{}
+	if !includeDeleted {
+		filter["deletedAt"] = nil
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollOrgs).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.Org
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CountMembersByOrgs returns a map orgUUID -> member count for the given
+// orgs. Uses a single $group aggregation on tenant_memberships so list
+// views can attach member counts without N round trips.
+func (r *Repository) CountMembersByOrgs(ctx context.Context, orgUUIDs []string) (map[string]int, error) {
+	out := make(map[string]int, len(orgUUIDs))
+	if len(orgUUIDs) == 0 {
+		return out, nil
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"orgId": bson.M{"$in": orgUUIDs}}}},
+		{{Key: "$group", Value: bson.M{"_id": "$orgId", "count": bson.M{"$sum": 1}}}},
+	}
+	cur, err := r.db.Collection(CollMemberships).Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	for cur.Next(ctx) {
+		var row struct {
+			ID    string `bson:"_id"`
+			Count int    `bson:"count"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		out[row.ID] = row.Count
+	}
+	return out, cur.Err()
 }
 
 // --- Memberships ---
@@ -158,4 +209,39 @@ func (r *Repository) MarkInviteAccepted(ctx context.Context, uuid string) error 
 		bson.M{"uuid": uuid},
 		bson.M{"$set": bson.M{"acceptedAt": now}})
 	return err
+}
+
+// ListInvitesByOrg returns invites for an org. When onlyPending is true,
+// accepted and expired invites are filtered out.
+func (r *Repository) ListInvitesByOrg(ctx context.Context, orgUUID string, onlyPending bool) ([]models.Invite, error) {
+	filter := bson.M{"orgId": orgUUID}
+	if onlyPending {
+		filter["acceptedAt"] = nil
+		filter["expiresAt"] = bson.M{"$gt": time.Now()}
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollInvites).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.Invite
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteInvite hard-deletes an invite scoped to the given org. The orgUUID
+// parameter is there to prevent cross-org ID spoofing from an attacker who
+// guessed an invite UUID.
+func (r *Repository) DeleteInvite(ctx context.Context, orgUUID, inviteUUID string) error {
+	res, err := r.db.Collection(CollInvites).DeleteOne(ctx, bson.M{"uuid": inviteUUID, "orgId": orgUUID})
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -19,6 +19,7 @@ const ORG_AGNOSTIC_PATHS = [
   '/v1/orgs/accept-invite',
   '/v1/notifications/preferences',
   '/v1/admin/modules',        // platform-level module admin, not per-org
+  '/v1/admin/orgs',           // platform-level tenant admin, not per-org
   '/v1/setup',                // first-install wizard endpoints
 ];
 
@@ -200,6 +201,9 @@ export const baseApi = createApi({
     'Binding',
     'Permission',
     'EffectivePermissions',
+    // Platform-admin tenant management
+    'AdminOrg',
+    'OrgInvite',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

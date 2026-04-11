@@ -181,6 +181,7 @@ const SupportDesk = lazy(() => import('reference/dashboards/SupportDeskDashboard
 const UserManagement = lazy(() => import('pages/admin/users'));
 const ModuleManagement = lazy(() => import('pages/admin/modules'));
 const RoleManagement = lazy(() => import('pages/admin/roles'));
+const TenantManagement = lazy(() => import('pages/admin/tenants'));
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
@@ -645,6 +646,23 @@ const routes: RouteObject[] = [
                       fallback={<FalconLoader />}
                     >
                       <RoleManagement />
+                    </Suspense>
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'tenants',
+                element: (
+                  <ProtectedRoute
+                    requiredPermissions={[
+                      ['super_admin', 'administrator', 'developer']
+                    ]}
+                  >
+                    <Suspense
+                      key="admin-tenants"
+                      fallback={<FalconLoader />}
+                    >
+                      <TenantManagement />
                     </Suspense>
                   </ProtectedRoute>
                 )

@@ -159,6 +159,40 @@ func (s *Service) DeleteOrg(ctx context.Context, orgUUID string) error {
 	return s.repo.SoftDeleteOrg(ctx, orgUUID)
 }
 
+// OrgAdminView is an org plus its current member count, used by the
+// platform-admin list endpoint to avoid an N+1.
+type OrgAdminView struct {
+	Org         *models.Org
+	MemberCount int
+}
+
+// ListAllOrgs returns every org in the system with live member counts.
+// Used by the platform admin tenant management page — bypasses per-org
+// membership gates and is only callable via system.tenants.admin.
+func (s *Service) ListAllOrgs(ctx context.Context, includeDeleted bool) ([]OrgAdminView, error) {
+	orgs, err := s.repo.ListAllOrgs(ctx, includeDeleted)
+	if err != nil {
+		return nil, err
+	}
+	if len(orgs) == 0 {
+		return []OrgAdminView{}, nil
+	}
+	uuids := make([]string, len(orgs))
+	for i := range orgs {
+		uuids[i] = orgs[i].UUID
+	}
+	counts, err := s.repo.CountMembersByOrgs(ctx, uuids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OrgAdminView, len(orgs))
+	for i := range orgs {
+		o := orgs[i]
+		out[i] = OrgAdminView{Org: &o, MemberCount: counts[o.UUID]}
+	}
+	return out, nil
+}
+
 // --- Memberships ---
 
 func (s *Service) ListMembers(ctx context.Context, orgUUID string) ([]models.Membership, error) {
@@ -189,6 +223,26 @@ func (s *Service) CreateInvite(ctx context.Context, orgUUID, invitedBy string, i
 		return nil, err
 	}
 	return inv, nil
+}
+
+// ListInvites returns invites for an org. Caller scopes visibility: pending-only
+// by default, all invites when onlyPending is false. Raw tokens are zeroed out
+// before returning — they are only retrievable once at creation time.
+func (s *Service) ListInvites(ctx context.Context, orgUUID string, onlyPending bool) ([]models.Invite, error) {
+	invs, err := s.repo.ListInvitesByOrg(ctx, orgUUID, onlyPending)
+	if err != nil {
+		return nil, err
+	}
+	for i := range invs {
+		invs[i].Token = ""
+	}
+	return invs, nil
+}
+
+// RevokeInvite deletes a pending invite by UUID. The orgUUID is required to
+// prevent cross-org spoofing via a guessed invite UUID.
+func (s *Service) RevokeInvite(ctx context.Context, orgUUID, inviteUUID string) error {
+	return s.repo.DeleteInvite(ctx, orgUUID, inviteUUID)
 }
 
 func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*models.Org, error) {

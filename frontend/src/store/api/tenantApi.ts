@@ -39,6 +39,10 @@ export interface Invite {
   invitedBy: string;
   createdAt: string;
   expiresAt: string;
+  // Raw token — returned only on create, never on list. Treat as
+  // unrecoverable after the first response is discarded.
+  token?: string;
+  acceptedAt?: string | null;
 }
 
 export interface Role {
@@ -74,6 +78,28 @@ export interface Permission {
   module: string;
   description: string;
   system: boolean;
+}
+
+export interface UpdateOrgAdminInput {
+  name?: string;
+  slug?: string;
+  settings?: Record<string, string>;
+}
+
+export interface AdminOrgListItem extends Org {
+  memberCount: number;
+  deletedAt?: string | null;
+}
+
+export interface MembershipRecord {
+  id: string;
+  userUUID: string;
+  orgId: string;
+  roles: string[];
+  isOwner: boolean;
+  invitedBy?: string;
+  joinedAt: string;
+  expiresAt?: string | null;
 }
 
 export const tenantApi = baseApi.injectEndpoints({
@@ -197,6 +223,93 @@ export const tenantApi = baseApi.injectEndpoints({
       query: (orgId) => ({ url: `/v1/orgs/${orgId}/authz/me`, method: 'GET' }),
       providesTags: (_, __, orgId) => [{ type: 'EffectivePermissions', id: orgId }]
     }),
+
+    // --- Platform admin tenant management (system.tenants.admin) ---
+    listAllOrgsAdmin: builder.query<{ orgs: AdminOrgListItem[] }, { includeDeleted?: boolean } | void>({
+      query: (arg) => ({
+        url: '/v1/admin/orgs',
+        method: 'GET',
+        params: arg && arg.includeDeleted ? { includeDeleted: true } : undefined,
+      }),
+      providesTags: (result) =>
+        result
+          ? [
+              { type: 'AdminOrg', id: 'LIST' },
+              ...result.orgs.map((o) => ({ type: 'AdminOrg' as const, id: o.id })),
+            ]
+          : [{ type: 'AdminOrg', id: 'LIST' }],
+    }),
+
+    getOrgAdmin: builder.query<Org, string>({
+      query: (orgId) => ({ url: `/v1/admin/orgs/${orgId}`, method: 'GET' }),
+      providesTags: (_, __, id) => [{ type: 'AdminOrg', id }],
+    }),
+
+    updateOrgAdmin: builder.mutation<Org, { orgId: string; body: UpdateOrgAdminInput }>({
+      query: ({ orgId, body }) => ({ url: `/v1/admin/orgs/${orgId}`, method: 'PATCH', body }),
+      invalidatesTags: (_, __, { orgId }) => [
+        { type: 'AdminOrg', id: orgId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
+    deleteOrgAdmin: builder.mutation<void, string>({
+      query: (orgId) => ({ url: `/v1/admin/orgs/${orgId}`, method: 'DELETE' }),
+      invalidatesTags: (_, __, orgId) => [
+        { type: 'AdminOrg', id: orgId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
+    updateOrgPlanAdmin: builder.mutation<Org, { orgId: string; body: UpdatePlanInput }>({
+      query: ({ orgId, body }) => ({ url: `/v1/admin/orgs/${orgId}/plan`, method: 'PATCH', body }),
+      invalidatesTags: (_, __, { orgId }) => [
+        { type: 'AdminOrg', id: orgId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
+    listOrgMembersAdmin: builder.query<{ members: MembershipRecord[] }, string>({
+      query: (orgId) => ({ url: `/v1/admin/orgs/${orgId}/members`, method: 'GET' }),
+      providesTags: (_, __, orgId) => [{ type: 'Membership', id: orgId }],
+    }),
+
+    removeOrgMemberAdmin: builder.mutation<void, { orgId: string; userUUID: string }>({
+      query: ({ orgId, userUUID }) => ({
+        url: `/v1/admin/orgs/${orgId}/members/${userUUID}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, { orgId }) => [
+        { type: 'Membership', id: orgId },
+        { type: 'AdminOrg', id: orgId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
+    listOrgInvitesAdmin: builder.query<
+      { invites: Invite[] },
+      { orgId: string; includeAccepted?: boolean }
+    >({
+      query: ({ orgId, includeAccepted }) => ({
+        url: `/v1/admin/orgs/${orgId}/invites`,
+        method: 'GET',
+        params: includeAccepted ? { includeAccepted: true } : undefined,
+      }),
+      providesTags: (_, __, { orgId }) => [{ type: 'OrgInvite', id: orgId }],
+    }),
+
+    createOrgInviteAdmin: builder.mutation<Invite, { orgId: string; body: CreateInviteInput }>({
+      query: ({ orgId, body }) => ({ url: `/v1/admin/orgs/${orgId}/invites`, method: 'POST', body }),
+      invalidatesTags: (_, __, { orgId }) => [{ type: 'OrgInvite', id: orgId }],
+    }),
+
+    revokeOrgInviteAdmin: builder.mutation<void, { orgId: string; inviteId: string }>({
+      query: ({ orgId, inviteId }) => ({
+        url: `/v1/admin/orgs/${orgId}/invites/${inviteId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, { orgId }) => [{ type: 'OrgInvite', id: orgId }],
+    }),
   }),
   overrideExisting: false,
 });
@@ -218,4 +331,14 @@ export const {
   useCreateBindingMutation,
   useDeleteBindingMutation,
   useGetEffectivePermissionsQuery,
+  useListAllOrgsAdminQuery,
+  useGetOrgAdminQuery,
+  useUpdateOrgAdminMutation,
+  useDeleteOrgAdminMutation,
+  useUpdateOrgPlanAdminMutation,
+  useListOrgMembersAdminQuery,
+  useRemoveOrgMemberAdminMutation,
+  useListOrgInvitesAdminQuery,
+  useCreateOrgInviteAdminMutation,
+  useRevokeOrgInviteAdminMutation,
 } = tenantApi;
