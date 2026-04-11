@@ -15,7 +15,17 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"go.mongodb.org/mongo-driver/bson"
 )
+
+// ErrSystemRoleImmutable is returned when UpdateRole is asked to change the
+// name, description, or permissions of a system role. Toggling IsActive on a
+// system role is still allowed.
+var ErrSystemRoleImmutable = errors.New("authz: system role name/description/permissions are immutable")
+
+// ErrRoleInactive is returned when CreateBinding is called with a role that
+// has been disabled. Operators should re-enable the role before granting.
+var ErrRoleInactive = errors.New("authz: role is disabled")
 
 // Service owns authorization lifecycle and implements iface.AuthzProvider.
 //
@@ -118,7 +128,7 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 	}
 	for _, b := range globals {
 		role, err := s.repo.GetRoleByUUID(ctx, b.RoleUUID)
-		if err != nil {
+		if err != nil || !role.IsActive {
 			continue
 		}
 		for _, p := range role.Permissions {
@@ -134,7 +144,7 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 		}
 		for _, b := range scoped {
 			role, err := s.repo.GetRoleByUUID(ctx, b.RoleUUID)
-			if err != nil {
+			if err != nil || !role.IsActive {
 				continue
 			}
 			for _, p := range role.Permissions {
@@ -185,6 +195,13 @@ func (s *Service) RegisterPermissions(ctx context.Context, specs []iface.Permiss
 // permissions catalog that modules have registered by the time this runs.
 // Call this after RegisterPermissions has been called for every module.
 func (s *Service) SeedSystemRoles(ctx context.Context) error {
+	// Older deployments have role rows without the isActive field. Treat
+	// them as active before seeding so re-seeding doesn't re-materialize
+	// them as inserts (the (orgId, name) filter would match and the
+	// $setOnInsert isActive would never fire).
+	if err := s.repo.BackfillIsActive(ctx); err != nil {
+		return fmt.Errorf("backfill isActive: %w", err)
+	}
 	allKeys, err := s.repo.ListAllPermissionKeys(ctx)
 	if err != nil {
 		return err
@@ -217,12 +234,12 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 	})
 
 	roles := []models.Role{
-		{UUID: uuid.NewString(), Name: "developer", Description: "Super-admin. All permissions everywhere.", Permissions: []string{"*"}, IsSystem: true},
-		{UUID: uuid.NewString(), Name: "ceo", Description: "Executive. All non-delete permissions + system permissions.", Permissions: union(nonDelete, systemKeys), IsSystem: true},
-		{UUID: uuid.NewString(), Name: "administrator", Description: "Org admin. All permissions in the org.", Permissions: allKeys, IsSystem: true},
-		{UUID: uuid.NewString(), Name: "manager", Description: "Read/write, no admin, no delete.", Permissions: manager, IsSystem: true},
-		{UUID: uuid.NewString(), Name: "operator", Description: "Read-only + self-service.", Permissions: operator, IsSystem: true},
-		{UUID: uuid.NewString(), Name: "guest", Description: "Read-only access.", Permissions: guest, IsSystem: true},
+		{UUID: uuid.NewString(), Name: "developer", Description: "Super-admin. All permissions everywhere.", Permissions: []string{"*"}, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "ceo", Description: "Executive. All non-delete permissions + system permissions.", Permissions: union(nonDelete, systemKeys), IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "administrator", Description: "Org admin. All permissions in the org.", Permissions: allKeys, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "manager", Description: "Read/write, no admin, no delete.", Permissions: manager, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "operator", Description: "Read-only + self-service.", Permissions: operator, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "guest", Description: "Read-only access.", Permissions: guest, IsSystem: true, IsActive: true},
 	}
 
 	for i := range roles {
@@ -248,6 +265,7 @@ func (s *Service) CreateRole(ctx context.Context, orgID string, input models.Cre
 		Description: input.Description,
 		Permissions: input.Permissions,
 		IsSystem:    false,
+		IsActive:    true,
 	}
 	if err := s.repo.UpsertRole(ctx, role); err != nil {
 		return nil, err
@@ -255,12 +273,86 @@ func (s *Service) CreateRole(ctx context.Context, orgID string, input models.Cre
 	return role, nil
 }
 
+// UpdateRole applies a partial update to a role. System roles reject any
+// change to Name, Description, or Permissions with ErrSystemRoleImmutable —
+// only IsActive can be toggled on them. Custom roles accept all four.
+// The authz cache is flushed because permission membership may change.
+func (s *Service) UpdateRole(ctx context.Context, roleUUID string, input models.UpdateRoleInput) (*models.Role, error) {
+	existing, err := s.repo.GetRoleByUUID(ctx, roleUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	touchesImmutable := input.Name != nil || input.Description != nil || input.Permissions != nil
+	if existing.IsSystem && touchesImmutable {
+		return nil, ErrSystemRoleImmutable
+	}
+
+	fields := bson.M{}
+	if input.Name != nil {
+		name := strings.TrimSpace(*input.Name)
+		if name == "" {
+			return nil, errors.New("authz: name cannot be empty")
+		}
+		fields["name"] = name
+	}
+	if input.Description != nil {
+		fields["description"] = *input.Description
+	}
+	if input.Permissions != nil {
+		if len(input.Permissions) == 0 {
+			return nil, errors.New("authz: permissions cannot be empty")
+		}
+		fields["permissions"] = input.Permissions
+	}
+	if input.IsActive != nil {
+		fields["isActive"] = *input.IsActive
+	}
+
+	if len(fields) == 0 {
+		return existing, nil
+	}
+
+	if err := s.repo.UpdateRoleFields(ctx, roleUUID, fields); err != nil {
+		return nil, err
+	}
+	s.flushCache(ctx)
+
+	return s.repo.GetRoleByUUID(ctx, roleUUID)
+}
+
 func (s *Service) ListRoles(ctx context.Context, orgID string) ([]models.Role, error) {
 	return s.repo.ListRoles(ctx, orgID)
 }
 
-func (s *Service) DeleteRole(ctx context.Context, uuid string) error {
-	return s.repo.DeleteRole(ctx, uuid)
+// DeleteRole removes a custom role and cascades every binding pointing at
+// it. The repo DeleteRole itself refuses to touch system roles via its
+// isSystem=false filter, so we delete bindings first — if the role delete
+// ends up refused (system role), the binding cleanup will have been a
+// no-op because nothing is bound to a system role via this UUID unless an
+// operator did it explicitly, and in that case we'd want them gone anyway.
+func (s *Service) DeleteRole(ctx context.Context, roleUUID string) error {
+	existing, err := s.repo.GetRoleByUUID(ctx, roleUUID)
+	if err != nil {
+		return err
+	}
+	if existing.IsSystem {
+		return ErrSystemRoleImmutable
+	}
+	removed, err := s.repo.DeleteBindingsByRoleUUID(ctx, roleUUID)
+	if err != nil {
+		return fmt.Errorf("cascade bindings: %w", err)
+	}
+	if removed > 0 && s.logger != nil {
+		s.logger.Info("authz: cascaded binding delete",
+			slog.String("role", existing.Name),
+			slog.Int64("bindings", removed))
+	}
+	if err := s.repo.DeleteRole(ctx, roleUUID); err != nil {
+		return err
+	}
+	s.flushCache(ctx)
+	return nil
 }
 
 func (s *Service) ListPermissions(ctx context.Context) ([]models.Permission, error) {
@@ -273,6 +365,9 @@ func (s *Service) CreateBinding(ctx context.Context, orgID, grantedBy string, in
 	role, err := s.repo.GetRoleByUUID(ctx, input.RoleUUID)
 	if err != nil {
 		return nil, err
+	}
+	if !role.IsActive {
+		return nil, ErrRoleInactive
 	}
 	b := &models.Binding{
 		UUID:      uuid.NewString(),

@@ -1,4 +1,6 @@
 import { baseApi } from './baseApi';
+import { authApi } from './authApi';
+import { setAccessToken } from '../slices/authSlice';
 import type { Membership, EffectivePermissions } from '../slices/tenantSlice';
 
 export interface Org {
@@ -46,6 +48,14 @@ export interface Role {
   description: string;
   permissions: string[];
   isSystem: boolean;
+  isActive: boolean;
+}
+
+export interface UpdateRoleInput {
+  name?: string;
+  description?: string;
+  permissions?: string[];
+  isActive?: boolean;
 }
 
 export interface Binding {
@@ -76,7 +86,37 @@ export const tenantApi = baseApi.injectEndpoints({
 
     createOrg: builder.mutation<Org, CreateOrgInput>({
       query: (body) => ({ url: '/v1/orgs', method: 'POST', body }),
-      invalidatesTags: ['Membership', 'Org']
+      invalidatesTags: ['Membership', 'Org'],
+      // The caller's current JWT was issued before this org existed, so its
+      // `mbr` claim does not list the new membership — every subsequent
+      // X-Org-ID request for this org would be rejected by resolveCurrentOrg
+      // in the auth middleware. Refresh the access token via /v1/auth/session
+      // (which uses the HttpOnly refresh cookie) so the re-issued JWT carries
+      // the freshly-created membership. Critical for the first-install
+      // wizard, where the admin has no memberships at all when step 2 issues
+      // its token.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+        } catch {
+          return;
+        }
+        try {
+          const session = await dispatch(
+            authApi.endpoints.getSession.initiate(undefined, { forceRefetch: true })
+          ).unwrap();
+          if (session?.accessToken) {
+            dispatch(
+              setAccessToken({
+                accessToken: session.accessToken,
+                expiresIn: session.expiresIn,
+              })
+            );
+          }
+        } catch {
+          // Non-fatal: the user can still recover with a full page reload.
+        }
+      },
     }),
 
     getOrg: builder.query<Org, string>({
@@ -116,14 +156,26 @@ export const tenantApi = baseApi.injectEndpoints({
       providesTags: ['Role']
     }),
 
-    createRole: builder.mutation<Role, { orgId: string; body: Omit<Role, 'id' | 'orgId' | 'isSystem'> }>({
+    createRole: builder.mutation<Role, { orgId: string; body: Omit<Role, 'id' | 'orgId' | 'isSystem' | 'isActive'> }>({
       query: ({ orgId, body }) => ({ url: `/v1/orgs/${orgId}/authz/roles`, method: 'POST', body }),
       invalidatesTags: ['Role']
     }),
 
+    updateRole: builder.mutation<Role, { orgId: string; roleId: string; body: UpdateRoleInput }>({
+      query: ({ orgId, roleId, body }) => ({
+        url: `/v1/orgs/${orgId}/authz/roles/${roleId}`,
+        method: 'PATCH',
+        body,
+      }),
+      // Flipping isActive or editing permissions changes what every bound
+      // user receives, so drop the effective-permissions cache as well.
+      invalidatesTags: ['Role', 'EffectivePermissions'],
+    }),
+
     deleteRole: builder.mutation<void, { orgId: string; roleId: string }>({
       query: ({ orgId, roleId }) => ({ url: `/v1/orgs/${orgId}/authz/roles/${roleId}`, method: 'DELETE' }),
-      invalidatesTags: ['Role']
+      // Cascades bindings on the backend — drop Binding + EffectivePermissions too.
+      invalidatesTags: ['Role', 'Binding', 'EffectivePermissions'],
     }),
 
     listBindings: builder.query<{ bindings: Binding[] }, string>({
@@ -160,6 +212,7 @@ export const {
   useListPermissionsQuery,
   useListRolesQuery,
   useCreateRoleMutation,
+  useUpdateRoleMutation,
   useDeleteRoleMutation,
   useListBindingsQuery,
   useCreateBindingMutation,

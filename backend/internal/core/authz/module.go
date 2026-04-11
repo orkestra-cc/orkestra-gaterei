@@ -72,6 +72,7 @@ func (m *Module) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
 		{Key: "authz.role.read", Module: "authz", Description: "List roles"},
 		{Key: "authz.role.create", Module: "authz", Description: "Create custom roles"},
+		{Key: "authz.role.update", Module: "authz", Description: "Update custom roles and toggle any role's active state"},
 		{Key: "authz.role.delete", Module: "authz", Description: "Delete custom roles"},
 		{Key: "authz.binding.read", Module: "authz", Description: "List role bindings"},
 		{Key: "authz.binding.create", Module: "authz", Description: "Grant roles to users"},

@@ -95,6 +95,9 @@ func (r *Repository) UpsertRole(ctx context.Context, role *models.Role) error {
 	if role.CreatedAt.IsZero() {
 		role.CreatedAt = role.UpdatedAt
 	}
+	// IsActive is set on insert only — once a role exists, its active state
+	// is controlled by UpdateRoleActive so re-seeding system roles on boot
+	// never stomps an operator's "disable ceo" toggle.
 	_, err := r.db.Collection(CollRoles).UpdateOne(ctx,
 		bson.M{"orgId": role.OrgID, "name": role.Name},
 		bson.M{
@@ -107,9 +110,40 @@ func (r *Repository) UpsertRole(ctx context.Context, role *models.Role) error {
 			},
 			"$setOnInsert": bson.M{
 				"createdAt": role.CreatedAt,
+				"isActive":  role.IsActive,
 			},
 		},
 		options.Update().SetUpsert(true))
+	return err
+}
+
+// UpdateRoleFields applies a partial update to an existing role. Used by the
+// service layer's UpdateRole, which is responsible for enforcing the
+// system-role immutability policy before calling this.
+func (r *Repository) UpdateRoleFields(ctx context.Context, uuid string, fields bson.M) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	fields["updatedAt"] = time.Now()
+	res, err := r.db.Collection(CollRoles).UpdateOne(ctx,
+		bson.M{"uuid": uuid},
+		bson.M{"$set": fields})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// BackfillIsActive ensures every existing role row has an isActive value.
+// Runs on boot before SeedSystemRoles so rows persisted before the field
+// was introduced are treated as active rather than silently disabled.
+func (r *Repository) BackfillIsActive(ctx context.Context) error {
+	_, err := r.db.Collection(CollRoles).UpdateMany(ctx,
+		bson.M{"isActive": bson.M{"$exists": false}},
+		bson.M{"$set": bson.M{"isActive": true}})
 	return err
 }
 
@@ -168,6 +202,18 @@ func (r *Repository) CreateBinding(ctx context.Context, b *models.Binding) error
 func (r *Repository) DeleteBinding(ctx context.Context, uuid string) error {
 	_, err := r.db.Collection(CollBindings).DeleteOne(ctx, bson.M{"uuid": uuid})
 	return err
+}
+
+// DeleteBindingsByRoleUUID removes every binding pointing at the given role.
+// Called by the service layer right before DeleteRole so deleting a role
+// never leaves orphaned bindings behind. Returns the number of bindings
+// removed so the caller can log/report it.
+func (r *Repository) DeleteBindingsByRoleUUID(ctx context.Context, roleUUID string) (int64, error) {
+	res, err := r.db.Collection(CollBindings).DeleteMany(ctx, bson.M{"roleId": roleUUID})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
 }
 
 // ListActiveBindingsForUser returns all bindings for (userUUID, orgID)

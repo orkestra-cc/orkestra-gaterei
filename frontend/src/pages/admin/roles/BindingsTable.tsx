@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button, Spinner, Table } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import {
   useListBindingsQuery,
@@ -58,7 +59,7 @@ const BindingsTable: React.FC<Props> = ({ orgId }) => {
           <strong>{bindings.length}</strong> active binding{bindings.length === 1 ? '' : 's'}
         </div>
         <Button size="sm" variant="primary" onClick={() => setShowCreate(true)}>
-          <i className="fas fa-plus me-1" />
+          <FontAwesomeIcon icon="plus" className="me-1" />
           Grant role to user
         </Button>
       </div>
@@ -110,7 +111,7 @@ const BindingsTable: React.FC<Props> = ({ orgId }) => {
                     onClick={() => onRevoke(b)}
                     disabled={isDeleting}
                   >
-                    <i className="fas fa-times" />
+                    <FontAwesomeIcon icon="times" />
                   </Button>
                 </td>
               </tr>

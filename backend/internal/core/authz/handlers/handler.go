@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/core/authz/models"
+	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/core/authz/services"
 	"github.com/orkestra/backend/internal/shared/middleware"
 )
@@ -49,6 +51,12 @@ type listRolesInput struct {
 type createRoleInput struct {
 	OrgID string `path:"orgId"`
 	Body  models.CreateRoleInput
+}
+
+type updateRoleInput struct {
+	OrgID string `path:"orgId"`
+	Role  string `path:"roleId"`
+	Body  models.UpdateRoleInput
 }
 
 type deleteRoleInput struct {
@@ -107,10 +115,18 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 	}, h.createRole)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "update-role",
+		Method:      http.MethodPatch,
+		Path:        "/v1/orgs/{orgId}/authz/roles/{roleId}",
+		Summary:     "Update a role (name/description/permissions for custom roles; isActive for any role)",
+		Tags:        []string{"Authorization"},
+	}, h.updateRole)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "delete-role",
 		Method:      http.MethodDelete,
 		Path:        "/v1/orgs/{orgId}/authz/roles/{roleId}",
-		Summary:     "Delete a custom role",
+		Summary:     "Delete a custom role (cascades bindings)",
 		Tags:        []string{"Authorization"},
 	}, h.deleteRole)
 
@@ -173,9 +189,31 @@ func (h *Handler) createRole(ctx context.Context, in *createRoleInput) (*roleOut
 	return &roleOutput{Body: role}, nil
 }
 
+func (h *Handler) updateRole(ctx context.Context, in *updateRoleInput) (*roleOutput, error) {
+	role, err := h.svc.UpdateRole(ctx, in.Role, in.Body)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			return nil, huma.Error404NotFound("role not found")
+		case errors.Is(err, services.ErrSystemRoleImmutable):
+			return nil, huma.Error403Forbidden("system roles cannot be edited — only disabled")
+		default:
+			return nil, huma.Error400BadRequest("update role failed: " + err.Error())
+		}
+	}
+	return &roleOutput{Body: role}, nil
+}
+
 func (h *Handler) deleteRole(ctx context.Context, in *deleteRoleInput) (*struct{}, error) {
 	if err := h.svc.DeleteRole(ctx, in.Role); err != nil {
-		return nil, huma.Error400BadRequest("delete role failed: " + err.Error())
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			return nil, huma.Error404NotFound("role not found")
+		case errors.Is(err, services.ErrSystemRoleImmutable):
+			return nil, huma.Error403Forbidden("system roles cannot be deleted")
+		default:
+			return nil, huma.Error400BadRequest("delete role failed: " + err.Error())
+		}
 	}
 	return &struct{}{}, nil
 }

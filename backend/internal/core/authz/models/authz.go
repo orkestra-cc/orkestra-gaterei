@@ -30,6 +30,7 @@ type Role struct {
 	Description string             `bson:"description" json:"description"`
 	Permissions []string           `bson:"permissions" json:"permissions"`
 	IsSystem    bool               `bson:"isSystem" json:"isSystem"`
+	IsActive    bool               `bson:"isActive" json:"isActive"`
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
@@ -62,6 +63,7 @@ type UpdateRoleInput struct {
 	Name        *string  `json:"name,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	Permissions []string `json:"permissions,omitempty"`
+	IsActive    *bool    `json:"isActive,omitempty"`
 }
 
 type CreateBindingInput struct {
