@@ -40,6 +40,7 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
           type="search"
           placeholder="Search modules..."
           size="sm"
+          autoComplete="off"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
         />

@@ -156,8 +156,8 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                 {filteredModules.map((mod) => (
                   <tr key={mod.moduleName} className="align-middle">
                     <td className="ps-3">
-                      <div className="fw-semibold">{mod.displayName}</div>
-                      <div className="text-muted fs-11">
+                      <div className="fw-semibold text-900">{mod.displayName}</div>
+                      <div className="text-700 fs-11">
                         {mod.description}
                       </div>
                     </td>

@@ -133,8 +133,8 @@ export default ({ mode }) => {
           }
         : true,
       watch: {
-        usePolling: false,
-        interval: 100
+        usePolling: true,
+        interval: 300
       },
       middlewares: [
         '/health',
