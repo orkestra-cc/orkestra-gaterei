@@ -23,14 +23,14 @@ Use this skill when you need to:
 
 ## Available Roles (Hierarchical Access)
 
-| Role            | Access Level | Description              |
-|-----------------|--------------|--------------------------|
-| `developer`     | Highest      | Full system access       |
-| `ceo`           | High         | Executive access         |
-| `administrator` | High         | Admin operations         |
-| `manager`       | Medium       | Team management          |
-| `operator`      | Low          | Basic operations         |
-| `guest`         | Lowest       | Read-only access         |
+| Role            | Access Level | Description                                |
+|-----------------|--------------|---------------------------------------------|
+| `super_admin`   | Highest      | Wildcard — bypasses all permission checks   |
+| `administrator` | High         | All registered permissions                  |
+| `developer`     | High         | All registered permissions (technical role) |
+| `manager`       | Medium       | Read + create + update (no delete/admin)    |
+| `operator`      | Low          | Read-only + self-service actions            |
+| `guest`         | Lowest       | Read-only access                            |
 
 ## Instructions
 

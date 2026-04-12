@@ -6,6 +6,7 @@ package authz
 
 import (
 	"context"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
@@ -13,8 +14,17 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/core/authz/services"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// validDevRoles is the set of system roles that synthetic dev-token users
+// may carry. Must match the dev module's ValidRoles. Declared here to avoid
+// an import dependency on the dev addon.
+var validDevRoles = map[string]struct{}{
+	"super_admin": {}, "administrator": {}, "developer": {},
+	"manager": {}, "operator": {}, "guest": {},
+}
 
 type Module struct {
 	module.BaseModule
@@ -92,10 +102,19 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	userSvc := module.MustGetTyped[iface.UserProvider](deps.Services, module.ServiceUserService)
 	lookup := func(ctx context.Context, userUUID string) (string, error) {
 		u, err := userSvc.GetUserByID(ctx, userUUID)
-		if err != nil {
-			return "", err
+		if err == nil {
+			return u.Role, nil
 		}
-		return u.Role, nil
+		// Dev-token fallback: synthetic users have no DB record.
+		// Three guards: non-production + dev- UUID prefix + valid role in JWT.
+		if !deps.Config.IsProduction() && strings.HasPrefix(userUUID, "dev-") {
+			if role, ok := middleware.GetSystemRole(ctx); ok {
+				if _, valid := validDevRoles[role]; valid {
+					return role, nil
+				}
+			}
+		}
+		return "", err
 	}
 
 	m.svc = services.New(services.Config{

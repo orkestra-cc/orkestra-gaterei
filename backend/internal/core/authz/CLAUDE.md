@@ -55,7 +55,7 @@ The two `system.*` permissions are contributed here even though they gate other 
 
 ## Lifecycle
 
-- **Init** (`module.go:87-111`): constructs the repository, builds the user-role lookup closure (calls `UserProvider.GetUserByID` and reads `.Role`), wires the service, registers it as `iface.AuthzProvider`.
+- **Init** (`module.go:87-111`): constructs the repository, builds the user-role lookup closure (calls `UserProvider.GetUserByID` and reads `.Role`), wires the service, registers it as `iface.AuthzProvider`. The lookup has a **dev-token fallback**: when the DB lookup fails, it falls back to the JWT context system role only if all three guards pass — (1) non-production environment, (2) UUID starts with `dev-`, (3) role is in the hardcoded `validDevRoles` allow-list. This lets synthetic dev-token users (which have no DB record) work with the authz evaluator.
 - **Registry post-init** (`shared/module/registry.go:183-211`): after every module has run its `Init`, the registry calls `authz.RegisterPermissions` with the union of every module's `Permissions()`, then calls `authz.SeedSystemRoles` which derives the six roles' permission lists from the now-complete catalog.
 - **Start / Stop / HealthCheck**: inherit from `BaseModule`.
 - **Lazy-heal** (`services/service.go::ensureSeeded`): `ListRoles` and `ListPermissions` both call `ensureSeeded` before querying the repo. If the system-role count is zero, the service re-runs `RegisterPermissions` + `SeedSystemRoles` from an in-memory copy of the spec list (`cachedPermSpecs`). This is what makes `/admin/roles` self-heal after a live DB drop without a backend restart. See the notes in [Key invariants](#key-invariants) below — do not remove `cachedPermSpecs` or the `ensureSeeded` calls.
