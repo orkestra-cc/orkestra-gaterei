@@ -21,6 +21,7 @@ import SocialAuthCallback from 'components/authentication/SocialAuthCallback';
 const SetupWizard = lazy(() => import('pages/setup/SetupWizard'));
 const UserManagement = lazy(() => import('pages/admin/users'));
 const ModuleManagement = lazy(() => import('pages/admin/modules'));
+const ModuleDetail = lazy(() => import('pages/admin/modules/detail'));
 const RoleManagement = lazy(() => import('pages/admin/roles'));
 const TenantManagement = lazy(() => import('pages/admin/tenants'));
 const AdminUserProfile = lazy(
@@ -122,6 +123,23 @@ export function buildCoreRoutes(
                         fallback={<FalconLoader />}
                       >
                         <ModuleManagement />
+                      </Suspense>
+                    </ProtectedRoute>
+                  ),
+                },
+                {
+                  path: 'modules/:moduleName',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[
+                        ['super_admin', 'administrator', 'developer'],
+                      ]}
+                    >
+                      <Suspense
+                        key="admin-module-detail"
+                        fallback={<FalconLoader />}
+                      >
+                        <ModuleDetail />
                       </Suspense>
                     </ProtectedRoute>
                   ),

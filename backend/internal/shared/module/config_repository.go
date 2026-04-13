@@ -66,19 +66,27 @@ func (r *ModuleConfigRepository) Upsert(ctx context.Context, config *ModuleConfi
 	now := time.Now()
 	config.UpdatedAt = now
 
+	setFields := bson.M{
+		"displayName":     config.DisplayName,
+		"description":     config.Description,
+		"category":        config.Category,
+		"enabled":         config.Enabled,
+		"configValues":    config.ConfigValues,
+		"encryptedValues": config.EncryptedValues,
+		"configSchema":    config.ConfigSchema,
+		"dependsOn":       config.DependsOn,
+		"needsRestart":    config.NeedsRestart,
+		"updatedAt":       now,
+	}
+	if config.ActiveEnvironment != "" {
+		setFields["activeEnvironment"] = config.ActiveEnvironment
+	}
+	if len(config.Environments) > 0 {
+		setFields["environments"] = config.Environments
+	}
+
 	update := bson.M{
-		"$set": bson.M{
-			"displayName":     config.DisplayName,
-			"description":     config.Description,
-			"category":        config.Category,
-			"enabled":         config.Enabled,
-			"configValues":    config.ConfigValues,
-			"encryptedValues": config.EncryptedValues,
-			"configSchema":    config.ConfigSchema,
-			"dependsOn":       config.DependsOn,
-			"needsRestart":    config.NeedsRestart,
-			"updatedAt":       now,
-		},
+		"$set": setFields,
 		"$setOnInsert": bson.M{
 			"createdAt": now,
 		},
@@ -168,6 +176,71 @@ func (r *ModuleConfigRepository) ClearNeedsRestart(ctx context.Context, name str
 	)
 	if err != nil {
 		return fmt.Errorf("clear needsRestart for %q: %w", name, err)
+	}
+	return nil
+}
+
+// UpdateEnvironmentConfig updates config values and encrypted secrets for a
+// specific named environment within a module's Environments map.
+func (r *ModuleConfigRepository) UpdateEnvironmentConfig(ctx context.Context, name, envName string, values map[string]string, encrypted map[string]string) error {
+	now := time.Now()
+	update := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("environments.%s.configValues", envName):    values,
+			fmt.Sprintf("environments.%s.encryptedValues", envName): encrypted,
+			fmt.Sprintf("environments.%s.updatedAt", envName):       now,
+			"needsRestart": true,
+			"updatedAt":    now,
+		},
+	}
+	_, err := r.collection.UpdateOne(ctx, bson.M{"moduleName": name}, update)
+	if err != nil {
+		return fmt.Errorf("update environment config %q/%q: %w", name, envName, err)
+	}
+	return nil
+}
+
+// SetActiveEnvironment switches the active environment for a module.
+func (r *ModuleConfigRepository) SetActiveEnvironment(ctx context.Context, name, envName string) error {
+	now := time.Now()
+	_, err := r.collection.UpdateOne(
+		ctx,
+		bson.M{"moduleName": name},
+		bson.M{"$set": bson.M{"activeEnvironment": envName, "needsRestart": true, "updatedAt": now}},
+	)
+	if err != nil {
+		return fmt.Errorf("set active environment for %q to %q: %w", name, envName, err)
+	}
+	return nil
+}
+
+// MigrateToEnvironments copies legacy top-level ConfigValues/EncryptedValues
+// into the Environments map and sets ActiveEnvironment = "production".
+// This is a one-time migration for documents that predate the environment feature.
+func (r *ModuleConfigRepository) MigrateToEnvironments(ctx context.Context, name string, configValues, encryptedValues map[string]string) error {
+	now := time.Now()
+	prodEnv := EnvironmentConfig{
+		ConfigValues:    configValues,
+		EncryptedValues: encryptedValues,
+		UpdatedAt:       now,
+	}
+	sandboxEnv := EnvironmentConfig{
+		ConfigValues:    make(map[string]string),
+		EncryptedValues: make(map[string]string),
+		UpdatedAt:       now,
+	}
+	_, err := r.collection.UpdateOne(
+		ctx,
+		bson.M{"moduleName": name},
+		bson.M{"$set": bson.M{
+			"activeEnvironment":      "production",
+			"environments.production": prodEnv,
+			"environments.sandbox":    sandboxEnv,
+			"updatedAt":              now,
+		}},
+	)
+	if err != nil {
+		return fmt.Errorf("migrate to environments for %q: %w", name, err)
 	}
 	return nil
 }

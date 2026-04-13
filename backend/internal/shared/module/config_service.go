@@ -163,7 +163,7 @@ func (s *ModuleConfigService) SeedFromModules(ctx context.Context, modules []Mod
 			continue
 		}
 
-		// First boot for this module — create the config document.
+		// First boot for this module — create the config document with environments.
 		doc := s.buildInitialConfig(m, cfg)
 		if err := s.repo.Upsert(ctx, &doc); err != nil {
 			s.logger.Error("SeedFromModules: failed to seed module config",
@@ -215,16 +215,32 @@ func (s *ModuleConfigService) buildInitialConfig(m Module, cfg *config.Config) M
 		}
 	}
 
+	now := time.Now()
+	environments := map[string]EnvironmentConfig{
+		"production": {
+			ConfigValues:    configValues,
+			EncryptedValues: encryptedValues,
+			UpdatedAt:       now,
+		},
+		"sandbox": {
+			ConfigValues:    make(map[string]string),
+			EncryptedValues: make(map[string]string),
+			UpdatedAt:       now,
+		},
+	}
+
 	return ModuleConfig{
-		ModuleName:      m.Name(),
-		DisplayName:     m.DisplayName(),
-		Description:     m.Description(),
-		Category:        m.Category(),
-		Enabled:         m.Enabled(cfg),
-		ConfigValues:    configValues,
-		EncryptedValues: encryptedValues,
-		ConfigSchema:    m.ConfigSchema(),
-		DependsOn:       m.Dependencies(),
+		ModuleName:        m.Name(),
+		DisplayName:       m.DisplayName(),
+		Description:       m.Description(),
+		Category:          m.Category(),
+		Enabled:           m.Enabled(cfg),
+		ConfigValues:      configValues,
+		EncryptedValues:   encryptedValues,
+		ConfigSchema:      m.ConfigSchema(),
+		DependsOn:         m.Dependencies(),
+		ActiveEnvironment: "production",
+		Environments:      environments,
 	}
 }
 
@@ -232,15 +248,51 @@ func (s *ModuleConfigService) buildInitialConfig(m Module, cfg *config.Config) M
 // If the module is registered but has no document in MongoDB (e.g. the
 // collection was dropped while the backend was running), the config is
 // rebuilt from the module's ConfigSchema and upserted before being returned.
+// Legacy documents without an Environments map are lazily migrated.
 func (s *ModuleConfigService) GetConfig(ctx context.Context, name string) (*ModuleConfig, error) {
 	doc, err := s.repo.FindByName(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 	if doc != nil {
+		if err := s.ensureEnvironments(ctx, doc); err != nil {
+			s.logger.Warn("GetConfig: failed to migrate environments",
+				slog.String("module", name), slog.String("error", err.Error()))
+		}
 		return doc, nil
 	}
 	return s.lazySeed(ctx, name)
+}
+
+// ensureEnvironments lazily migrates a legacy document (no Environments map)
+// by copying the top-level ConfigValues/EncryptedValues into a "production"
+// environment profile and creating an empty "sandbox" profile.
+func (s *ModuleConfigService) ensureEnvironments(ctx context.Context, doc *ModuleConfig) error {
+	if len(doc.Environments) > 0 {
+		return nil // already migrated
+	}
+
+	cv := doc.ConfigValues
+	if cv == nil {
+		cv = make(map[string]string)
+	}
+	ev := doc.EncryptedValues
+	if ev == nil {
+		ev = make(map[string]string)
+	}
+
+	if err := s.repo.MigrateToEnvironments(ctx, doc.ModuleName, cv, ev); err != nil {
+		return err
+	}
+
+	// Update in-memory doc so callers see the migration immediately.
+	now := time.Now()
+	doc.ActiveEnvironment = "production"
+	doc.Environments = map[string]EnvironmentConfig{
+		"production": {ConfigValues: cv, EncryptedValues: ev, UpdatedAt: now},
+		"sandbox":    {ConfigValues: make(map[string]string), EncryptedValues: make(map[string]string), UpdatedAt: now},
+	}
+	return nil
 }
 
 // GetAllConfigs retrieves all module config documents. Used by admin API list endpoint.
@@ -251,6 +303,13 @@ func (s *ModuleConfigService) GetAllConfigs(ctx context.Context) ([]ModuleConfig
 	docs, err := s.repo.FindAll(ctx)
 	if err != nil {
 		return nil, err
+	}
+	// Lazily migrate any documents without environments.
+	for i := range docs {
+		if err := s.ensureEnvironments(ctx, &docs[i]); err != nil {
+			s.logger.Warn("GetAllConfigs: failed to migrate environments",
+				slog.String("module", docs[i].ModuleName), slog.String("error", err.Error()))
+		}
 	}
 	if len(s.knownModules) == 0 {
 		return docs, nil
@@ -295,8 +354,9 @@ func (s *ModuleConfigService) lazySeed(ctx context.Context, name string) (*Modul
 	return s.repo.FindByName(ctx, name)
 }
 
-// UpdateConfig updates a module's config values and encrypted secrets,
-// then invalidates the Redis cache for immediate propagation.
+// UpdateConfig updates a module's config values and encrypted secrets for the
+// active environment, then invalidates the Redis cache for immediate propagation.
+// Also keeps the legacy top-level fields in sync for backward compatibility.
 func (s *ModuleConfigService) UpdateConfig(ctx context.Context, name string, values map[string]string, secrets map[string]string) error {
 	encrypted := make(map[string]string, len(secrets))
 	for k, v := range secrets {
@@ -307,10 +367,139 @@ func (s *ModuleConfigService) UpdateConfig(ctx context.Context, name string, val
 		encrypted[k] = enc
 	}
 
+	// Update legacy top-level fields for backward compat.
 	if err := s.repo.UpdateConfigValues(ctx, name, values, encrypted); err != nil {
 		return err
 	}
+
+	// Also update the active environment if environments exist.
+	doc, err := s.repo.FindByName(ctx, name)
+	if err == nil && doc != nil && len(doc.Environments) > 0 {
+		activeEnv := doc.ActiveEnv()
+		if err := s.repo.UpdateEnvironmentConfig(ctx, name, activeEnv, values, encrypted); err != nil {
+			s.logger.Warn("UpdateConfig: failed to update environment config",
+				slog.String("module", name), slog.String("env", activeEnv), slog.String("error", err.Error()))
+		}
+	}
+
 	return s.InvalidateCache(ctx, name)
+}
+
+// UpdateEnvironmentConfig updates config values and secrets for a specific
+// named environment. If updating the active environment, also syncs legacy fields.
+func (s *ModuleConfigService) UpdateEnvironmentConfig(ctx context.Context, name, envName string, values map[string]string, secrets map[string]string) error {
+	// Ensure the module exists and has environments.
+	doc, err := s.GetConfig(ctx, name)
+	if err != nil {
+		return err
+	}
+	if doc == nil {
+		return fmt.Errorf("module %q not found", name)
+	}
+
+	// Verify environment exists.
+	if _, ok := doc.Environments[envName]; !ok {
+		return fmt.Errorf("environment %q not found for module %q", envName, name)
+	}
+
+	// Merge with existing env values (don't wipe unset fields).
+	existingEnv := doc.Environments[envName]
+	mergedValues := existingEnv.ConfigValues
+	if mergedValues == nil {
+		mergedValues = make(map[string]string)
+	}
+	for k, v := range values {
+		mergedValues[k] = v
+	}
+
+	mergedEncrypted := existingEnv.EncryptedValues
+	if mergedEncrypted == nil {
+		mergedEncrypted = make(map[string]string)
+	}
+	for k, v := range secrets {
+		enc, err := utils.EncryptOAuthToken(v)
+		if err != nil {
+			return fmt.Errorf("encrypt secret %q: %w", k, err)
+		}
+		mergedEncrypted[k] = enc
+	}
+
+	if err := s.repo.UpdateEnvironmentConfig(ctx, name, envName, mergedValues, mergedEncrypted); err != nil {
+		return err
+	}
+
+	// If this is the active environment, also sync legacy top-level fields.
+	if envName == doc.ActiveEnv() {
+		if err := s.repo.UpdateConfigValues(ctx, name, mergedValues, mergedEncrypted); err != nil {
+			s.logger.Warn("UpdateEnvironmentConfig: failed to sync legacy fields",
+				slog.String("module", name), slog.String("error", err.Error()))
+		}
+	}
+
+	return s.InvalidateCache(ctx, name)
+}
+
+// SetActiveEnvironment switches the active environment for a module and syncs
+// the active environment's config to the legacy top-level fields.
+func (s *ModuleConfigService) SetActiveEnvironment(ctx context.Context, name, envName string) error {
+	doc, err := s.GetConfig(ctx, name)
+	if err != nil {
+		return err
+	}
+	if doc == nil {
+		return fmt.Errorf("module %q not found", name)
+	}
+	if _, ok := doc.Environments[envName]; !ok {
+		return fmt.Errorf("environment %q not found for module %q", envName, name)
+	}
+
+	if err := s.repo.SetActiveEnvironment(ctx, name, envName); err != nil {
+		return err
+	}
+
+	// Sync the newly active environment's values to legacy top-level fields.
+	env := doc.Environments[envName]
+	cv := env.ConfigValues
+	if cv == nil {
+		cv = make(map[string]string)
+	}
+	ev := env.EncryptedValues
+	if ev == nil {
+		ev = make(map[string]string)
+	}
+	if err := s.repo.UpdateConfigValues(ctx, name, cv, ev); err != nil {
+		s.logger.Warn("SetActiveEnvironment: failed to sync legacy fields",
+			slog.String("module", name), slog.String("error", err.Error()))
+	}
+
+	return s.InvalidateCache(ctx, name)
+}
+
+// GetEnvironmentConfig retrieves config values and secret status for a specific environment.
+func (s *ModuleConfigService) GetEnvironmentConfig(ctx context.Context, name, envName string) (*EnvironmentConfig, map[string]bool, error) {
+	doc, err := s.GetConfig(ctx, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if doc == nil {
+		return nil, nil, fmt.Errorf("module %q not found", name)
+	}
+
+	env, ok := doc.Environments[envName]
+	if !ok {
+		return nil, nil, fmt.Errorf("environment %q not found for module %q", envName, name)
+	}
+
+	// Build secret status map.
+	secretStatus := make(map[string]bool)
+	for _, field := range doc.ConfigSchema {
+		if field.Type == FieldSecret {
+			_, hasValue := env.EncryptedValues[field.Key]
+			secretStatus[field.Key] = hasValue
+		}
+	}
+
+	return &env, secretStatus, nil
 }
 
 // UpdateEnabled toggles a module's enabled state and invalidates the cache.
@@ -333,28 +522,32 @@ func (s *ModuleConfigService) InvalidateCache(ctx context.Context, name string) 
 // --- Config value readers (used by modules in Init) ---
 
 // GetValue returns a plain config value for a module.
-// Lookup: DB ConfigValues → env var (from schema) → schema default → "".
+// Lookup: active environment ConfigValues → legacy ConfigValues → env var (from schema) → schema default → "".
 func (s *ModuleConfigService) GetValue(ctx context.Context, moduleName, key string) string {
 	doc, err := s.repo.FindByName(ctx, moduleName)
 	if err != nil || doc == nil {
 		return s.fallbackFromSchema(moduleName, key)
 	}
 
-	if v, ok := doc.ConfigValues[key]; ok && v != "" {
+	// Prefer active environment values.
+	configValues := doc.ActiveConfigValues()
+	if v, ok := configValues[key]; ok && v != "" {
 		return v
 	}
 	return s.schemaFallback(doc.ConfigSchema, key)
 }
 
 // GetSecret returns a decrypted secret config value for a module.
-// Lookup: DB EncryptedValues (decrypt) → env var → schema default → "".
+// Lookup: active environment EncryptedValues (decrypt) → legacy EncryptedValues → env var → schema default → "".
 func (s *ModuleConfigService) GetSecret(ctx context.Context, moduleName, key string) string {
 	doc, err := s.repo.FindByName(ctx, moduleName)
 	if err != nil || doc == nil {
 		return s.fallbackFromSchema(moduleName, key)
 	}
 
-	if enc, ok := doc.EncryptedValues[key]; ok && enc != "" {
+	// Prefer active environment encrypted values.
+	encryptedValues := doc.ActiveEncryptedValues()
+	if enc, ok := encryptedValues[key]; ok && enc != "" {
 		decrypted, err := utils.DecryptOAuthToken(enc)
 		if err != nil {
 			s.logger.Warn("GetSecret: failed to decrypt, falling back to env",

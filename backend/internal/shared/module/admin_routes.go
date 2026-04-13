@@ -48,4 +48,46 @@ func RegisterAdminModuleRoutes(api huma.API, handler *ModuleAdminHandler) {
 		Tags:        []string{"Admin - Modules"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, handler.HealthCheck)
+
+	// --- Environment endpoints ---
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-module-environments",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/modules/{name}/environments",
+		Summary:     "List module environments",
+		Description: "Returns available environments and the active environment for a module.",
+		Tags:        []string{"Admin - Modules"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.ListEnvironments)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-module-environment",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/modules/{name}/environments/{env}",
+		Summary:     "Get environment config",
+		Description: "Returns config values and secret status for a specific environment.",
+		Tags:        []string{"Admin - Modules"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.GetEnvironment)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-module-environment",
+		Method:      http.MethodPatch,
+		Path:        "/v1/admin/modules/{name}/environments/{env}",
+		Summary:     "Update environment config",
+		Description: "Updates config values and secrets for a specific environment. Values are merged with existing config.",
+		Tags:        []string{"Admin - Modules"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.UpdateEnvironment)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-active-environment",
+		Method:      http.MethodPut,
+		Path:        "/v1/admin/modules/{name}/active-environment",
+		Summary:     "Set active environment",
+		Description: "Switches the active configuration environment for a module. The module will use the selected environment's config values at runtime (after restart).",
+		Tags:        []string{"Admin - Modules"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, handler.SetActiveEnvironment)
 }

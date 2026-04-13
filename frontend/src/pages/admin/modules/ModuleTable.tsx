@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Form, Spinner, Table } from 'react-bootstrap';
+import { Link } from 'react-router';
+import { Card, Form, Spinner, Table } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
 import ModuleTableHeader from './ModuleTableHeader';
-import ModuleConfigModal from './ModuleConfigModal';
 import type { ModuleConfig } from 'store/api/moduleApi';
 import {
   useGetModulesQuery,
+  useGetModulesHealthQuery,
   useUpdateModuleMutation,
 } from 'store/api/moduleApi';
 
@@ -30,17 +33,23 @@ interface ModuleTableProps {
   title?: string;
 }
 
+const healthDotColors: Record<string, string> = {
+  running: 'bg-success',
+  healthy: 'bg-success',
+  failed: 'bg-danger',
+  unhealthy: 'bg-danger',
+  disabled: 'bg-400',
+  pending_restart: 'bg-warning',
+};
+
 const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
   const { data: modules, isLoading, error } = useGetModulesQuery();
+  const { data: healthData } = useGetModulesHealthQuery();
   const [updateModule] = useUpdateModuleMutation();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedModule, setSelectedModule] = useState<ModuleConfig | null>(
-    null
-  );
-  const [showConfigModal, setShowConfigModal] = useState(false);
   const [togglingModule, setTogglingModule] = useState<string | null>(null);
 
   const scopedModules = useMemo(() => {
@@ -87,9 +96,10 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
     }
   };
 
-  const handleConfigure = (mod: ModuleConfig) => {
-    setSelectedModule(mod);
-    setShowConfigModal(true);
+  const getHealthDot = (mod: ModuleConfig): string => {
+    const h = healthData?.modules.find((m) => m.moduleName === mod.moduleName);
+    if (h) return healthDotColors[h.status] || 'bg-400';
+    return healthDotColors[mod.status] || 'bg-400';
   };
 
   const formatDate = (dateStr: string) => {
@@ -157,9 +167,22 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                 {filteredModules.map((mod) => (
                   <tr key={mod.moduleName} className="align-middle">
                     <td className="ps-3">
-                      <div className="fw-semibold text-900">{mod.displayName}</div>
-                      <div className="text-700 fs-11">
-                        {mod.description}
+                      <div className="d-flex align-items-center gap-2">
+                        <span
+                          className={`rounded-circle ${getHealthDot(mod)}`}
+                          style={{ width: 8, height: 8, flexShrink: 0 }}
+                        />
+                        <div>
+                          <Link
+                            to={`/admin/modules/${mod.moduleName}`}
+                            className="fw-semibold text-900 text-decoration-none"
+                          >
+                            {mod.displayName}
+                          </Link>
+                          <div className="text-700 fs-11">
+                            {mod.description}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -218,14 +241,13 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                             }
                           />
                         )}
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="p-0 text-decoration-none"
-                          onClick={() => handleConfigure(mod)}
+                        <Link
+                          to={`/admin/modules/${mod.moduleName}`}
+                          className="text-500 px-1"
+                          title="Configure"
                         >
-                          Configure
-                        </Button>
+                          <FontAwesomeIcon icon={faChevronRight} className="fs-10" />
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -261,11 +283,6 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
         )}
       </Card>
 
-      <ModuleConfigModal
-        module={selectedModule}
-        show={showConfigModal}
-        onHide={() => setShowConfigModal(false)}
-      />
     </>
   );
 };

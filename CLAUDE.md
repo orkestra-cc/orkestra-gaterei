@@ -27,7 +27,7 @@ Professional business and service management system — electronic invoicing, AI
 - **RoleMiddleware** — interface (`module.go`) for RBAC route protection, satisfied by both `AuthMiddleware` (monolith) and `JWTValidator` (AI service)
 - **Module catalog** (`cmd/server/catalog.go`) — maps module names to factory functions; `selectOptionalModules()` resolves which to load and auto-includes transitive dependencies
 
-**Admin API**: `GET/PATCH /v1/admin/modules`, `GET /v1/admin/modules/health` — runtime enable/disable, config updates, health checks. Frontend at `/admin/modules`.
+**Admin API**: `GET/PATCH /v1/admin/modules`, `GET /v1/admin/modules/health`, `GET/PATCH /v1/admin/modules/{name}/environments/{env}`, `PUT /v1/admin/modules/{name}/active-environment` — runtime enable/disable, config updates, per-environment config profiles (sandbox/production), health checks. Frontend at `/admin/modules` (list) and `/admin/modules/:name` (detail).
 
 ### Module Loading
 

@@ -29,8 +29,29 @@ export interface ModuleConfig {
   providedServices: string[];
   requiredServices: string[];
   optionalServices: string[];
+  activeEnvironment: string;
+  availableEnvironments: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EnvironmentConfigResponse {
+  environment: string;
+  configValues: Record<string, string>;
+  secretStatus: Record<string, boolean>;
+  updatedAt: string;
+}
+
+interface UpdateEnvironmentParams {
+  name: string;
+  environment: string;
+  config?: Record<string, string>;
+  secrets?: Record<string, string>;
+}
+
+interface SetActiveEnvironmentParams {
+  name: string;
+  environment: string;
 }
 
 export interface ModuleHealthStatus {
@@ -96,6 +117,48 @@ export const moduleApi = baseApi.injectEndpoints({
       query: () => '/v1/admin/modules/health',
       keepUnusedDataFor: 30,
     }),
+
+    getModuleEnvironment: builder.query<
+      EnvironmentConfigResponse,
+      { name: string; environment: string }
+    >({
+      query: ({ name, environment }) =>
+        `/v1/admin/modules/${name}/environments/${environment}`,
+      providesTags: (_result, _error, { name, environment }) => [
+        { type: 'Module', id: `${name}-env-${environment}` },
+      ],
+    }),
+
+    updateModuleEnvironment: builder.mutation<
+      EnvironmentConfigResponse,
+      UpdateEnvironmentParams
+    >({
+      query: ({ name, environment, ...body }) => ({
+        url: `/v1/admin/modules/${name}/environments/${environment}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { name, environment }) => [
+        { type: 'Module', id: name },
+        { type: 'Module', id: `${name}-env-${environment}` },
+        { type: 'Module', id: 'LIST' },
+      ],
+    }),
+
+    setActiveEnvironment: builder.mutation<
+      { activeEnvironment: string; needsRestart: boolean },
+      SetActiveEnvironmentParams
+    >({
+      query: ({ name, environment }) => ({
+        url: `/v1/admin/modules/${name}/active-environment`,
+        method: 'PUT',
+        body: { environment },
+      }),
+      invalidatesTags: (_result, _error, { name }) => [
+        { type: 'Module', id: name },
+        { type: 'Module', id: 'LIST' },
+      ],
+    }),
   }),
 });
 
@@ -104,4 +167,7 @@ export const {
   useGetModuleQuery,
   useUpdateModuleMutation,
   useGetModulesHealthQuery,
+  useGetModuleEnvironmentQuery,
+  useUpdateModuleEnvironmentMutation,
+  useSetActiveEnvironmentMutation,
 } = moduleApi;

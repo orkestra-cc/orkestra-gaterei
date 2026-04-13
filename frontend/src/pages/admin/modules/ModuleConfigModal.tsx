@@ -1,38 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Alert, Button, Form, Modal, Spinner, Tab, Tabs } from 'react-bootstrap';
 import { FalconCloseButton } from 'components/common';
-import type { ConfigField, ModuleConfig } from 'store/api/moduleApi';
+import type { ModuleConfig } from 'store/api/moduleApi';
 import { useUpdateModuleMutation } from 'store/api/moduleApi';
 import ModuleConfigFields from './ModuleConfigFields';
-
-// Bucket a schema into ordered groups. Preserves declaration order of both
-// groups (first field of each group sets the tab order) and keys within each
-// group. Fields with an empty `group` land in a trailing "General" bucket so
-// modules can mix grouped and ungrouped fields without losing either.
-const bucketByGroup = (
-  schema: ConfigField[]
-): { group: string; keys: string[] }[] => {
-  const order: string[] = [];
-  const buckets = new Map<string, string[]>();
-  for (const field of schema) {
-    const g = field.group || '';
-    if (!buckets.has(g)) {
-      buckets.set(g, []);
-      order.push(g);
-    }
-    buckets.get(g)!.push(field.key);
-  }
-  // Move the ungrouped bucket to the end and label it "General".
-  const result: { group: string; keys: string[] }[] = [];
-  for (const g of order) {
-    if (g === '') continue;
-    result.push({ group: g, keys: buckets.get(g)! });
-  }
-  if (buckets.has('')) {
-    result.push({ group: 'General', keys: buckets.get('')! });
-  }
-  return result;
-};
+import { bucketByGroup } from './utils';
 
 interface ModuleConfigModalProps {
   module: ModuleConfig | null;
