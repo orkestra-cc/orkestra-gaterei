@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Row, Col, Card, Table, Badge, Button, Spinner, Tab, Tabs, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTasks, faSync, faTrash, faCheckCircle, faTimesCircle, faClock, faPlay, faRedo, faFileAlt, faSpinner, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
@@ -96,6 +96,7 @@ function formatAgentName(name: string) {
 export function JobDetailPage() {
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: job, isLoading } = useGetSalesJobQuery(uuid || '', {
     pollingInterval: uuid ? 3000 : 0,
     skip: !uuid,
@@ -261,7 +262,14 @@ export function JobDetailPage() {
           <Col xxl={12}>
             <Card>
               <Card.Body>
-                <Tabs defaultActiveKey={agentResults.length > 0 ? 'agents' : 'raw'} className="mb-3">
+                <Tabs
+                  activeKey={searchParams.get('tab') || (agentResults.length > 0 ? 'agents' : 'raw')}
+                  onSelect={(k) => {
+                    if (!k) return;
+                    setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+                  }}
+                  className="mb-3"
+                >
                   {agentResults.length > 0 && (
                     <Tab eventKey="agents" title={`Agent Results (${agentResults.length})`}>
                       {agentResults.map((r: any, i: number) => (

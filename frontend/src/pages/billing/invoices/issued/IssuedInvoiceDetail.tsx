@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import {
   Card,
   Form,
@@ -189,8 +189,12 @@ const IssuedInvoiceDetail: React.FC = () => {
   const { data: companiesData } = useGetCompaniesQuery({ pageSize: 100 });
 
   // UI state
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'document';
+  const setActiveTab = (tab: string) => {
+    setSearchParams((prev) => { prev.set('tab', tab); return prev; }, { replace: true });
+  };
   const [isEditMode, setIsEditMode] = useState(false);
-  const [activeTab, setActiveTab] = useState('document');
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
@@ -928,7 +932,7 @@ const IssuedInvoiceDetail: React.FC = () => {
         <Card.Body>
           {isEditMode ? (
             // Edit Mode - Form
-            <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'document')}>
+            <Tab.Container activeKey={activeTab} onSelect={(k) => { if (k) setActiveTab(k); }}>
               <Nav variant="tabs" className="mb-3">
                 <Nav.Item>
                   <Nav.Link eventKey="document">Documento</Nav.Link>

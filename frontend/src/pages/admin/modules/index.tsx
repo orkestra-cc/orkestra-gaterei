@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Col, Row, Tab, Tabs } from 'react-bootstrap';
 import { useGetModulesQuery } from 'store/api/moduleApi';
 import ModuleTable from './ModuleTable';
 
 const ModuleManagementPage: React.FC = () => {
-  const [tab, setTab] = useState<'core' | 'addons'>('core');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'core';
   const { data: modules } = useGetModulesQuery();
 
   const stats = useMemo(() => {
@@ -61,7 +63,10 @@ const ModuleManagementPage: React.FC = () => {
         <Tabs
           id="module-management-tabs"
           activeKey={tab}
-          onSelect={(k) => setTab((k as 'core' | 'addons') || 'core')}
+          onSelect={(k) => {
+            if (!k) return;
+            setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+          }}
           className="mb-3"
         >
           <Tab eventKey="core" title="Core Modules">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Col, Row, Tab, Tabs, Alert } from 'react-bootstrap';
 import { useAppSelector } from 'store/hooks';
 import { selectCurrentOrgId, selectCurrentMembership } from 'store/slices/tenantSlice';
@@ -11,7 +11,8 @@ import BindingsTable from './BindingsTable';
  * selected an organization in the top navbar before opening this page.
  */
 const RoleManagementPage: React.FC = () => {
-  const [tab, setTab] = useState<string>('roles');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'roles';
   const currentOrgId = useAppSelector(selectCurrentOrgId);
   const currentMembership = useAppSelector(selectCurrentMembership);
 
@@ -52,7 +53,10 @@ const RoleManagementPage: React.FC = () => {
             <Tabs
               id="role-management-tabs"
               activeKey={tab}
-              onSelect={(k) => setTab(k || 'roles')}
+              onSelect={(k) => {
+                if (!k) return;
+                setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+              }}
               className="mb-3"
             >
               <Tab eventKey="roles" title="Roles">

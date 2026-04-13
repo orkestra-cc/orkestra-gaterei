@@ -185,7 +185,7 @@ const TIPO_CASSA_OPTIONS: { value: TipoCassa; label: string }[] = [
 
 const NewIssuedInvoice: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fromInvoiceId = searchParams.get('fromInvoice');
 
   const [createInvoice, { isLoading: isCreating }] = useCreateInvoiceMutation();
@@ -199,7 +199,10 @@ const NewIssuedInvoice: React.FC = () => {
     skip: !fromInvoiceId
   });
 
-  const [activeTab, setActiveTab] = useState('document');
+  const activeTab = searchParams.get('tab') || 'document';
+  const setActiveTab = (tab: string) => {
+    setSearchParams((prev) => { prev.set('tab', tab); return prev; }, { replace: true });
+  };
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
@@ -789,7 +792,7 @@ const NewIssuedInvoice: React.FC = () => {
         <Card.Body>
           <Tab.Container
             activeKey={activeTab}
-            onSelect={k => setActiveTab(k || 'document')}
+            onSelect={k => { if (k) setActiveTab(k); }}
           >
             <Nav variant="tabs" className="mb-3">
               <Nav.Item>

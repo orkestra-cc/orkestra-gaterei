@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Row, Col, Card, Form, Button, Spinner, Alert, Nav, Table, Badge } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCog, faSave, faExternalLinkAlt, faRobot, faMagic, faScroll, faUndo, faArrowLeft, faPen } from '@fortawesome/free-solid-svg-icons';
 import Background from 'components/common/Background';
@@ -447,7 +447,8 @@ function LLMConfigTab() {
 // ─── Main Settings Page ───
 
 const SalesSettingsPage = () => {
-  const [activeTab, setActiveTab] = useState('llm');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'llm';
 
   return (
     <>
@@ -468,7 +469,10 @@ const SalesSettingsPage = () => {
         </Col>
       </Row>
 
-      <Nav variant="tabs" activeKey={activeTab} onSelect={k => setActiveTab(k || 'llm')} className="mb-3">
+      <Nav variant="tabs" activeKey={activeTab} onSelect={k => {
+        if (!k) return;
+        setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+      }} className="mb-3">
         <Nav.Item>
           <Nav.Link eventKey="llm">
             <FontAwesomeIcon icon={faCog} className="me-1" /> LLM Configuration

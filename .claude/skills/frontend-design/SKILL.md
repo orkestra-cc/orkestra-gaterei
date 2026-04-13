@@ -202,6 +202,10 @@ import { useAppContext } from 'providers/AppProvider';
 const { config: { isDark, isRTL } } = useAppContext();
 ```
 
+## Tabs
+
+**All tab components must sync active tab with URL search params** so pages are shareable and bookmarkable. Use `useSearchParams` from `react-router-dom`, never `useState`. See the `url-tabs` skill for the required pattern and examples.
+
 ## DO NOT
 
 - Use CSS modules or styled-components
@@ -210,6 +214,7 @@ const { config: { isDark, isRTL } } = useAppContext();
 - Ignore dark mode compatibility
 - Skip TypeScript interfaces for props
 - Use class components
+- Use `useState` for tab selection — tabs must sync with URL (see `url-tabs` skill)
 
 ## Reference
 
