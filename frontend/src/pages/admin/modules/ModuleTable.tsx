@@ -158,6 +158,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                   <th className="pe-4 ps-3">Module</th>
                   <th>Category</th>
                   <th>Status</th>
+                  <th>Environment</th>
                   <th>Dependencies</th>
                   <th>Updated</th>
                   <th className="text-end pe-4">Actions</th>
@@ -215,6 +216,14 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                             : mod.error}
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <SubtleBadge
+                        bg={mod.activeEnvironment === 'production' ? 'success' : mod.activeEnvironment === 'sandbox' ? 'warning' : 'secondary'}
+                        pill
+                      >
+                        {mod.activeEnvironment || 'production'}
+                      </SubtleBadge>
                     </td>
                     <td className="text-muted">
                       {mod.dependsOn && mod.dependsOn.length > 0
