@@ -98,4 +98,5 @@ Thumbs.db
 
 # CLAUDE
 CLAUDE-*.md
+settings.local.json
 mongo-mcp.jsonbackend/server
