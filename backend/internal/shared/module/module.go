@@ -60,6 +60,14 @@ type Module interface {
 	// During transition: checked by registry at boot. Will be replaced by DB-backed config.
 	Enabled(cfg *config.Config) bool
 
+	// --- Runtime capabilities ---
+
+	// HotReloadConfig returns true when the module reads its configuration
+	// lazily (via a ConfigLoader closure) so that admin-UI changes take
+	// effect without a backend restart.  Modules that still read config
+	// once during Init should return false (the default in BaseModule).
+	HotReloadConfig() bool
+
 	// --- Lifecycle ---
 
 	// Init initializes repositories, services, and handlers.
@@ -95,6 +103,7 @@ func (BaseModule) Dependencies() []string              { return nil }
 func (BaseModule) ProvidedServices() []ServiceKey      { return nil }
 func (BaseModule) RequiredServices() []ServiceKey      { return nil }
 func (BaseModule) OptionalServices() []ServiceKey      { return nil }
+func (BaseModule) HotReloadConfig() bool                { return false }
 func (BaseModule) Start(_ context.Context) error       { return nil }
 func (BaseModule) Stop(_ context.Context) error        { return nil }
 func (BaseModule) HealthCheck(_ context.Context) error { return nil }

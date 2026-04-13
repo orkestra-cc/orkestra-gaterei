@@ -214,6 +214,7 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 	}
 
 	// Update config values
+	configChanged := false
 	if len(input.Body.Config) > 0 || len(input.Body.Secrets) > 0 {
 		// Merge with existing values (don't wipe unset fields)
 		mergedValues := existing.ConfigValues
@@ -227,6 +228,12 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 		if err := h.configService.UpdateConfig(ctx, input.Name, mergedValues, input.Body.Secrets); err != nil {
 			return nil, err
 		}
+		configChanged = true
+	}
+
+	// Modules that read config lazily don't need a restart for config-only changes.
+	if configChanged && input.Body.Enabled == nil && h.registry.SupportsHotReload(input.Name) {
+		_ = h.configService.ClearNeedsRestart(ctx, input.Name)
 	}
 
 	// Return updated config
@@ -343,6 +350,10 @@ func (h *ModuleAdminHandler) UpdateEnvironment(ctx context.Context, input *Updat
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
+	if h.registry.SupportsHotReload(input.Name) {
+		_ = h.configService.ClearNeedsRestart(ctx, input.Name)
+	}
+
 	envConfig, secretStatus, err := h.configService.GetEnvironmentConfig(ctx, input.Name, input.Env)
 	if err != nil {
 		return nil, err
@@ -369,13 +380,18 @@ func (h *ModuleAdminHandler) SetActiveEnvironment(ctx context.Context, input *Se
 		return nil, huma.Error400BadRequest(err.Error())
 	}
 
+	needsRestart := !h.registry.SupportsHotReload(input.Name)
+	if !needsRestart {
+		_ = h.configService.ClearNeedsRestart(ctx, input.Name)
+	}
+
 	return &SetActiveEnvironmentOutput{
 		Body: struct {
 			ActiveEnvironment string `json:"activeEnvironment"`
 			NeedsRestart      bool   `json:"needsRestart"`
 		}{
 			ActiveEnvironment: input.Body.Environment,
-			NeedsRestart:      true,
+			NeedsRestart:      needsRestart,
 		},
 	}, nil
 }

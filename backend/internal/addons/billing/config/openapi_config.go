@@ -70,6 +70,10 @@ func (c *OpenAPIConfig) Validate() error {
 	return nil
 }
 
+// ConfigLoader returns a fresh OpenAPIConfig on each call,
+// allowing hot-reload of admin UI changes without restart.
+type ConfigLoader func() *OpenAPIConfig
+
 // Config errors
 type ConfigError string
 

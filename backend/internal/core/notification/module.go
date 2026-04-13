@@ -43,6 +43,8 @@ func (m *NotificationModule) Permissions() []iface.PermissionSpec {
 	}
 }
 
+func (m *NotificationModule) HotReloadConfig() bool { return true }
+
 func (m *NotificationModule) Collections() []module.CollectionSpec {
 	day30 := 30 * 24 * time.Hour
 	day90 := 90 * 24 * time.Hour

@@ -387,7 +387,7 @@ func TestBuildXMLProlog(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 
@@ -418,7 +418,7 @@ func TestBuildMinimalB2BInvoice(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 
@@ -459,7 +459,7 @@ func TestBuildInvoiceWithWithholdingTax(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.DatiRitenuta = []models.DatiRitenutaInput{
@@ -497,7 +497,7 @@ func TestBuildInvoiceWithStampDuty(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.DatiBollo = &models.DatiBolloInput{
@@ -528,7 +528,7 @@ func TestBuildInvoiceWithSocialSecurityFund(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.DatiCassaPrevidenziale = []models.DatiCassaInput{
@@ -565,7 +565,7 @@ func TestBuildInvoiceWithREA(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.CedentePrestatore.IscrizioneREA = &models.IscrizioneREAInput{
@@ -603,7 +603,7 @@ func TestBuildInvoiceWithMultipleProductCodes(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.Lines[0].CodiciArticolo = []models.ProductCode{
@@ -640,7 +640,7 @@ func TestBuildInvoiceWithPaymentDetails(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	invoice.PaymentTerms.Beneficiario = "Test Company SRL"
@@ -674,7 +674,7 @@ func TestBuildValidationErrors(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	t.Run("invalid document type", func(t *testing.T) {
 		invoice := createTestInvoice()
@@ -722,7 +722,7 @@ func TestBuildPAInvoice(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	invoice := createTestInvoice()
 	// PA invoices have 6-char recipient codes
@@ -783,7 +783,7 @@ func TestBuildInvoiceWithIncompleteREA(t *testing.T) {
 		FiscalID:      "IT12345678901",
 		RecipientCode: "JKKZDGR",
 	}
-	builder := NewXMLBuilder(cfg)
+	builder := NewXMLBuilder(func() *config.OpenAPIConfig { return cfg })
 
 	// Test 1: IscrizioneREA is nil - should NOT generate element
 	t.Run("nil IscrizioneREA", func(t *testing.T) {

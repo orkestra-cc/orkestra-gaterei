@@ -273,24 +273,25 @@ type APIConfigurationResponse struct {
 // openAPIClient implements the OpenAPIClient interface
 type openAPIClient struct {
 	httpClient     *http.Client
-	config         *config.OpenAPIConfig
+	configLoader   config.ConfigLoader
 	circuitBreaker *circuitBreaker
 	logger         *slog.Logger
 	redisClient    RedisClient // Optional Redis client for caching
 }
 
 // NewOpenAPIClient creates a new OpenAPI client
-func NewOpenAPIClient(cfg *config.OpenAPIConfig, logger *slog.Logger) OpenAPIClient {
-	return NewOpenAPIClientWithCache(cfg, logger, nil)
+func NewOpenAPIClient(loader config.ConfigLoader, logger *slog.Logger) OpenAPIClient {
+	return NewOpenAPIClientWithCache(loader, logger, nil)
 }
 
 // NewOpenAPIClientWithCache creates a new OpenAPI client with optional Redis caching
-func NewOpenAPIClientWithCache(cfg *config.OpenAPIConfig, logger *slog.Logger, redisClient RedisClient) OpenAPIClient {
+func NewOpenAPIClientWithCache(loader config.ConfigLoader, logger *slog.Logger, redisClient RedisClient) OpenAPIClient {
+	initialCfg := loader()
 	return &openAPIClient{
 		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
+			Timeout: initialCfg.Timeout,
 		},
-		config:         cfg,
+		configLoader:   loader,
 		circuitBreaker: newCircuitBreaker(5, 30*time.Second), // 5 failures, 30s reset
 		logger:         logger,
 		redisClient:    redisClient,
@@ -298,12 +299,14 @@ func NewOpenAPIClientWithCache(cfg *config.OpenAPIConfig, logger *slog.Logger, r
 }
 
 func (c *openAPIClient) doRequest(ctx context.Context, method, path string, body interface{}) ([]byte, int, error) {
+	cfg := c.configLoader()
+
 	// Check circuit breaker
 	if !c.circuitBreaker.Allow() {
 		return nil, 0, ErrCircuitBreakerOpen
 	}
 
-	url := c.config.GetEndpoint(path)
+	url := cfg.GetEndpoint(path)
 
 	var reqBody io.Reader
 	if body != nil {
@@ -320,7 +323,7 @@ func (c *openAPIClient) doRequest(ctx context.Context, method, path string, body
 	}
 
 	// Set headers
-	req.Header.Set("Authorization", "Bearer "+c.config.BearerToken)
+	req.Header.Set("Authorization", "Bearer "+cfg.BearerToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -348,12 +351,14 @@ func (c *openAPIClient) doRequest(ctx context.Context, method, path string, body
 
 // doXMLRequest sends a request with raw XML body
 func (c *openAPIClient) doXMLRequest(ctx context.Context, method, path string, xmlContent string) ([]byte, int, error) {
+	cfg := c.configLoader()
+
 	// Check circuit breaker
 	if !c.circuitBreaker.Allow() {
 		return nil, 0, ErrCircuitBreakerOpen
 	}
 
-	url := c.config.GetEndpoint(path)
+	url := cfg.GetEndpoint(path)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(xmlContent))
 	if err != nil {
@@ -361,7 +366,7 @@ func (c *openAPIClient) doXMLRequest(ctx context.Context, method, path string, x
 	}
 
 	// Set headers for XML request
-	req.Header.Set("Authorization", "Bearer "+c.config.BearerToken)
+	req.Header.Set("Authorization", "Bearer "+cfg.BearerToken)
 	req.Header.Set("Content-Type", "application/xml")
 	req.Header.Set("Accept", "application/json")
 
@@ -389,11 +394,12 @@ func (c *openAPIClient) doXMLRequest(ctx context.Context, method, path string, x
 
 // doXMLRequestWithRetry performs an XML request with retry logic
 func (c *openAPIClient) doXMLRequestWithRetry(ctx context.Context, method, path string, xmlContent string) ([]byte, int, error) {
+	cfg := c.configLoader()
 	var lastErr error
 	var respBody []byte
 	var statusCode int
 
-	for attempt := 0; attempt < c.config.RetryAttempts; attempt++ {
+	for attempt := 0; attempt < cfg.RetryAttempts; attempt++ {
 		respBody, statusCode, lastErr = c.doXMLRequest(ctx, method, path, xmlContent)
 
 		if lastErr == nil && statusCode < 500 {
@@ -406,7 +412,7 @@ func (c *openAPIClient) doXMLRequestWithRetry(ctx context.Context, method, path 
 		}
 
 		// Wait before retry with exponential backoff
-		if attempt < c.config.RetryAttempts-1 {
+		if attempt < cfg.RetryAttempts-1 {
 			backoff := time.Duration(1<<uint(attempt)) * time.Second
 			select {
 			case <-ctx.Done():
@@ -431,11 +437,12 @@ func (c *openAPIClient) doXMLRequestWithRetry(ctx context.Context, method, path 
 }
 
 func (c *openAPIClient) doRequestWithRetry(ctx context.Context, method, path string, body interface{}) ([]byte, int, error) {
+	cfg := c.configLoader()
 	var lastErr error
 	var respBody []byte
 	var statusCode int
 
-	for attempt := 0; attempt < c.config.RetryAttempts; attempt++ {
+	for attempt := 0; attempt < cfg.RetryAttempts; attempt++ {
 		respBody, statusCode, lastErr = c.doRequest(ctx, method, path, body)
 
 		if lastErr == nil && statusCode < 500 {
@@ -448,7 +455,7 @@ func (c *openAPIClient) doRequestWithRetry(ctx context.Context, method, path str
 		}
 
 		// Wait before retry with exponential backoff
-		if attempt < c.config.RetryAttempts-1 {
+		if attempt < cfg.RetryAttempts-1 {
 			backoff := time.Duration(1<<uint(attempt)) * time.Second
 			select {
 			case <-ctx.Done():
@@ -573,9 +580,10 @@ func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice
 				"fiscalID", fiscalID,
 				"error", err,
 			)
-			// Fall back to static config
-			applySignature = c.config.ApplySignature
-			applyStorage = c.config.ApplyStorage
+			// Fall back to loaded config
+			cfg := c.configLoader()
+			applySignature = cfg.ApplySignature
+			applyStorage = cfg.ApplyStorage
 		} else {
 			applySignature = brConfig.ApplySignature
 			applyStorage = brConfig.ApplyLegalStorage
@@ -586,9 +594,10 @@ func (c *openAPIClient) SendInvoice(ctx context.Context, invoice *models.Invoice
 			)
 		}
 	} else {
-		// No fiscal ID, use static config
-		applySignature = c.config.ApplySignature
-		applyStorage = c.config.ApplyStorage
+		// No fiscal ID, use loaded config
+		cfg := c.configLoader()
+		applySignature = cfg.ApplySignature
+		applyStorage = cfg.ApplyStorage
 	}
 
 	// Determine endpoint based on storage/signature config

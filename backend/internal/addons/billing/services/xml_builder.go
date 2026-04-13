@@ -17,13 +17,13 @@ type XMLBuilder interface {
 }
 
 type xmlBuilder struct {
-	config *config.OpenAPIConfig
+	configLoader config.ConfigLoader
 }
 
 // NewXMLBuilder creates a new XML builder
-func NewXMLBuilder(cfg *config.OpenAPIConfig) XMLBuilder {
+func NewXMLBuilder(loader config.ConfigLoader) XMLBuilder {
 	return &xmlBuilder{
-		config: cfg,
+		configLoader: loader,
 	}
 }
 
@@ -75,6 +75,8 @@ func (b *xmlBuilder) buildHeader(invoice *models.Invoice, format models.Transmis
 }
 
 func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format models.TransmissionFormat) models.DatiTrasmissione {
+	cfg := b.configLoader()
+
 	// Use transmitter's fiscal ID from the company (CedentePrestatore)
 	// This is the seller/provider company's fiscal ID
 	idPaese := "IT"
@@ -88,9 +90,9 @@ func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format model
 		if idCodice == "" && idPaese == "IT" {
 			idCodice = strings.TrimSpace(invoice.CedentePrestatore.FiscalIDCode)
 		}
-	} else if b.config.FiscalID != "" {
+	} else if cfg.FiscalID != "" {
 		// Fallback to config (for backwards compatibility)
-		fiscalID := strings.TrimSpace(b.config.FiscalID)
+		fiscalID := strings.TrimSpace(cfg.FiscalID)
 		idCodice = fiscalID
 		if len(fiscalID) >= 2 {
 			// Check if first 2 chars are letters (country code prefix like "IT")
@@ -107,7 +109,7 @@ func (b *xmlBuilder) buildDatiTrasmissione(invoice *models.Invoice, format model
 	}
 
 	// Determine recipient code (normalize to uppercase)
-	codiceDestinatario := NormalizeCodiceDestinatario(b.config.RecipientCode) // Default to our OpenAPI recipient code
+	codiceDestinatario := NormalizeCodiceDestinatario(cfg.RecipientCode) // Default to our OpenAPI recipient code
 	pecDestinatario := ""
 
 	if invoice.CessionarioCommittente != nil {

@@ -65,6 +65,8 @@ func (m *BillingModule) ConfigSchema() []module.ConfigField {
 	}
 }
 
+func (m *BillingModule) HotReloadConfig() bool { return true }
+
 func (m *BillingModule) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
 		{Name: "billing_invoices", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
@@ -96,16 +98,18 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	m.cfg = deps.Config
 	m.logger = deps.Logger
 
-	openAPIConfig := &billingConfig.OpenAPIConfig{
-		BaseURL:        deps.GetConfig("billing", "baseURL"),
-		BearerToken:    deps.GetSecret("billing", "bearerToken"),
-		FiscalID:       deps.GetConfig("billing", "fiscalID"),
-		RecipientCode:  deps.GetConfig("billing", "recipientCode"),
-		ApplySignature: deps.GetConfigBool("billing", "applySignature", true),
-		ApplyStorage:   deps.GetConfigBool("billing", "applyStorage", true),
-		Timeout:        deps.GetConfigDuration("billing", "timeout", 30*time.Second),
-		RetryAttempts:  deps.GetConfigInt("billing", "retryAttempts", 3),
-		SandboxMode:    deps.GetConfigBool("billing", "sandboxMode", true),
+	configLoader := func() *billingConfig.OpenAPIConfig {
+		return &billingConfig.OpenAPIConfig{
+			BaseURL:        deps.GetConfig("billing", "baseURL"),
+			BearerToken:    deps.GetSecret("billing", "bearerToken"),
+			FiscalID:       deps.GetConfig("billing", "fiscalID"),
+			RecipientCode:  deps.GetConfig("billing", "recipientCode"),
+			ApplySignature: deps.GetConfigBool("billing", "applySignature", true),
+			ApplyStorage:   deps.GetConfigBool("billing", "applyStorage", true),
+			Timeout:        deps.GetConfigDuration("billing", "timeout", 30*time.Second),
+			RetryAttempts:  deps.GetConfigInt("billing", "retryAttempts", 3),
+			SandboxMode:    deps.GetConfigBool("billing", "sandboxMode", true),
+		}
 	}
 
 	invoiceRepo := repository.NewInvoiceRepository(deps.DB)
@@ -114,8 +118,8 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	companyRepo := repository.NewCompanyRepository(deps.DB)
 	notificationRepo := repository.NewNotificationRepository(deps.DB)
 
-	m.openAPIClient = services.NewOpenAPIClientWithCache(openAPIConfig, deps.Logger, deps.RedisAdapter)
-	xmlBuilder := services.NewXMLBuilder(openAPIConfig)
+	m.openAPIClient = services.NewOpenAPIClientWithCache(configLoader, deps.Logger, deps.RedisAdapter)
+	xmlBuilder := services.NewXMLBuilder(configLoader)
 
 	// Retrieve PDFService from ServiceRegistry (can be nil if documents module is disabled)
 	pdfSvc, _ := module.GetTyped[iface.PDFProvider](deps.Services, module.ServicePDFService)

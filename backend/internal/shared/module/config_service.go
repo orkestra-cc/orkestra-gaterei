@@ -519,6 +519,11 @@ func (s *ModuleConfigService) InvalidateCache(ctx context.Context, name string) 
 	return s.redis.Del(ctx, enabledCachePrefix+name)
 }
 
+// ClearNeedsRestart resets the needsRestart flag for a module.
+func (s *ModuleConfigService) ClearNeedsRestart(ctx context.Context, name string) error {
+	return s.repo.ClearNeedsRestart(ctx, name)
+}
+
 // --- Config value readers (used by modules in Init) ---
 
 // GetValue returns a plain config value for a module.

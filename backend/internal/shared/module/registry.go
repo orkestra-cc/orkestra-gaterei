@@ -275,6 +275,17 @@ func (r *ModuleRegistry) FailedModules() map[string]error {
 	return r.failed
 }
 
+// SupportsHotReload returns true if the named module is loaded and reports
+// that it reads config lazily (HotReloadConfig() == true).
+func (r *ModuleRegistry) SupportsHotReload(name string) bool {
+	for _, m := range r.modules {
+		if m.Name() == name {
+			return m.HotReloadConfig()
+		}
+	}
+	return false
+}
+
 // CollectNavItems aggregates NavItemSpec from all enabled modules.
 // Used by the navigation module to build the dynamic menu.
 func (r *ModuleRegistry) CollectNavItems() []NavItemSpec {
