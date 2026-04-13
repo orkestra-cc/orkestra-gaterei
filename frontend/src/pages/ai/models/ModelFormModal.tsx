@@ -55,6 +55,7 @@ const isCloudProvider = (provider: Provider): boolean => {
 
 const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingModel }) => {
   const [form, setForm] = useState<CreateAIModelRequest>({ ...emptyForm });
+  const [isActive, setIsActive] = useState(true);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
 
   const [createModel, { isLoading: creating }] = useCreateAIModelMutation();
@@ -78,8 +79,10 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
         temperature: editingModel.temperature || 0.1,
         maxTokens: editingModel.maxTokens || 2048,
       });
+      setIsActive(editingModel.isActive);
     } else {
       setForm({ ...emptyForm });
+      setIsActive(true);
     }
     setAvailableModels([]);
   };
@@ -133,6 +136,7 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
         if (form.dimensions !== editingModel.dimensions) body.dimensions = form.dimensions;
         if (form.temperature !== editingModel.temperature) body.temperature = form.temperature;
         if (form.maxTokens !== editingModel.maxTokens) body.maxTokens = form.maxTokens;
+        if (isActive !== editingModel.isActive) body.isActive = isActive;
         await updateModel({ uuid: editingModel.uuid, body }).unwrap();
       } else {
         await createModel(form).unwrap();
@@ -141,7 +145,7 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
     } catch {
       // Handled by RTK Query
     }
-  }, [createModel, updateModel, editingModel, form, onHide]);
+  }, [createModel, updateModel, editingModel, form, isActive, onHide]);
 
   return (
     <Modal show={show} onHide={onHide} onEnter={handleEnter} size="lg">
@@ -362,6 +366,20 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                 </Form.Group>
               </Col>
             </>
+          )}
+          {isEditing && (
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label className="small">Status</Form.Label>
+                <Form.Check
+                  type="switch"
+                  id="model-is-active"
+                  checked={isActive}
+                  onChange={e => setIsActive(e.target.checked)}
+                  label={isActive ? 'Active' : 'Inactive'}
+                />
+              </Form.Group>
+            </Col>
           )}
         </Row>
       </Modal.Body>

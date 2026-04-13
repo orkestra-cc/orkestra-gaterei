@@ -5,6 +5,7 @@ import {
   useDeleteAIModelMutation,
   useSetDefaultAIModelMutation,
   useTestAIModelMutation,
+  useUpdateAIModelMutation,
 } from '../../../store/api/aiModelsApi';
 import type { AIModelConfig, Provider } from '../../../types/aiModels';
 import { PROVIDER_INFO } from '../../../types/aiModels';
@@ -31,6 +32,7 @@ const ModelsTable: React.FC = () => {
   const [deleteModel] = useDeleteAIModelMutation();
   const [setDefaultModel] = useSetDefaultAIModelMutation();
   const [testModel] = useTestAIModelMutation();
+  const [updateModel] = useUpdateAIModelMutation();
 
   const models = data?.models ?? [];
 
@@ -67,6 +69,14 @@ const ModelsTable: React.FC = () => {
       setTestResults(prev => ({ ...prev, [uuid]: { status: 'error', message: 'Test failed' } }));
     }
   }, [testModel]);
+
+  const handleToggleActive = useCallback(async (model: AIModelConfig) => {
+    try {
+      await updateModel({ uuid: model.uuid, body: { isActive: !model.isActive } }).unwrap();
+    } catch {
+      // Handled by RTK Query
+    }
+  }, [updateModel]);
 
   const handleSetDefault = useCallback(async (uuid: string) => {
     try {
@@ -207,7 +217,20 @@ const ModelsTable: React.FC = () => {
                       {m.baseUrl || '-'}
                     </td>
                     <td className="small text-muted">{getDetailsText(m)}</td>
-                    <td>{getStatusBadge(m)}</td>
+                    <td>
+                      {testResults[m.uuid] ? (
+                        getStatusBadge(m)
+                      ) : (
+                        <Form.Check
+                          type="switch"
+                          id={`toggle-active-${m.uuid}`}
+                          checked={m.isActive}
+                          onChange={() => handleToggleActive(m)}
+                          label={m.isActive ? 'Active' : 'Inactive'}
+                          className="mb-0"
+                        />
+                      )}
+                    </td>
                     <td>
                       <div className="d-flex gap-1 flex-nowrap">
                         <Button variant="outline-primary" size="sm" onClick={() => handleTest(m.uuid)}>

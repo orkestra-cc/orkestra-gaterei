@@ -67,12 +67,17 @@ func (m *AIModelsModule) Permissions() []iface.PermissionSpec {
 
 func (m *AIModelsModule) Init(deps *module.Dependencies) error {
 	repo := repository.NewModelRepository(deps.DB)
-	m.service = services.NewModelService(repo, services.AIModelsConfig{
-		OllamaBaseURL: deps.GetConfig("aimodels", "ollamaBaseURL"),
-		OpenAIAPIKey:  deps.GetSecret("aimodels", "openaiKey"),
-		AnthropicKey:  deps.GetSecret("aimodels", "anthropicKey"),
-		GeminiKey:     deps.GetSecret("aimodels", "geminiKey"),
-	}, deps.Logger)
+
+	configLoader := func() services.AIModelsConfig {
+		return services.AIModelsConfig{
+			OllamaBaseURL: deps.GetConfig("aimodels", "ollamaBaseURL"),
+			OpenAIAPIKey:  deps.GetSecret("aimodels", "openaiKey"),
+			AnthropicKey:  deps.GetSecret("aimodels", "anthropicKey"),
+			GeminiKey:     deps.GetSecret("aimodels", "geminiKey"),
+		}
+	}
+
+	m.service = services.NewModelService(repo, configLoader, deps.Logger)
 
 	m.handler = handlers.NewModelHandler(m.service)
 	m.internalHandler = handlers.NewInternalHandler(m.service)

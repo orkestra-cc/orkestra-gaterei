@@ -49,18 +49,21 @@ type AIModelsConfig struct {
 	GeminiKey     string
 }
 
+// ConfigLoader returns the current AIModelsConfig, re-reading from the config service each call.
+type ConfigLoader func() AIModelsConfig
+
 type modelService struct {
-	repo   repository.ModelRepository
-	cfg    AIModelsConfig
-	logger *slog.Logger
+	repo       repository.ModelRepository
+	loadConfig ConfigLoader
+	logger     *slog.Logger
 }
 
-// NewModelService creates a new AIModelService
-func NewModelService(repo repository.ModelRepository, cfg AIModelsConfig, logger *slog.Logger) AIModelService {
+// NewModelService creates a new AIModelService with a config loader for hot-reload support.
+func NewModelService(repo repository.ModelRepository, loadConfig ConfigLoader, logger *slog.Logger) AIModelService {
 	return &modelService{
-		repo:   repo,
-		cfg:    cfg,
-		logger: logger.With(slog.String("module", "ai-models")),
+		repo:       repo,
+		loadConfig: loadConfig,
+		logger:     logger.With(slog.String("module", "ai-models")),
 	}
 }
 
@@ -210,19 +213,21 @@ func (s *modelService) GetLLMProvider(ctx context.Context, uuid string) (provide
 }
 
 func (s *modelService) FetchAvailableModels(ctx context.Context, provider, baseURL, apiKey string) ([]providers.RemoteModel, error) {
+	globals := s.loadConfig()
+
 	// Apply global fallbacks for API keys
 	switch provider {
 	case "openai":
 		if apiKey == "" {
-			apiKey = s.cfg.OpenAIAPIKey
+			apiKey = globals.OpenAIAPIKey
 		}
 	case "anthropic":
 		if apiKey == "" {
-			apiKey = s.cfg.AnthropicKey
+			apiKey = globals.AnthropicKey
 		}
 	case "gemini":
 		if apiKey == "" {
-			apiKey = s.cfg.GeminiKey
+			apiKey = globals.GeminiKey
 		}
 	}
 
@@ -230,7 +235,7 @@ func (s *modelService) FetchAvailableModels(ctx context.Context, provider, baseU
 	switch provider {
 	case "ollama":
 		if baseURL == "" {
-			baseURL = s.cfg.OllamaBaseURL
+			baseURL = globals.OllamaBaseURL
 		}
 		if baseURL == "" {
 			return nil, fmt.Errorf("Ollama requires a base URL (e.g. http://host:11434)")
@@ -295,33 +300,35 @@ func (s *modelService) toProviderConfig(model *models.ModelConfig) providers.Mod
 
 // applyFallbacks applies global config fallbacks to a model being created
 func (s *modelService) applyFallbacks(cfg *models.ModelConfig) {
+	globals := s.loadConfig()
 	if cfg.Provider == "ollama" && cfg.BaseURL == "" {
-		cfg.BaseURL = s.cfg.OllamaBaseURL
+		cfg.BaseURL = globals.OllamaBaseURL
 	}
 	if cfg.Provider == "openai" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.OpenAIAPIKey
+		cfg.APIKey = globals.OpenAIAPIKey
 	}
 	if cfg.Provider == "anthropic" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.AnthropicKey
+		cfg.APIKey = globals.AnthropicKey
 	}
 	if cfg.Provider == "gemini" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.GeminiKey
+		cfg.APIKey = globals.GeminiKey
 	}
 }
 
 // applyProviderFallbacks applies global config fallbacks to a provider config
 func (s *modelService) applyProviderFallbacks(cfg *providers.ModelConfig) {
+	globals := s.loadConfig()
 	if cfg.Provider == "ollama" && cfg.BaseURL == "" {
-		cfg.BaseURL = s.cfg.OllamaBaseURL
+		cfg.BaseURL = globals.OllamaBaseURL
 	}
 	if cfg.Provider == "openai" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.OpenAIAPIKey
+		cfg.APIKey = globals.OpenAIAPIKey
 	}
 	if cfg.Provider == "anthropic" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.AnthropicKey
+		cfg.APIKey = globals.AnthropicKey
 	}
 	if cfg.Provider == "gemini" && cfg.APIKey == "" {
-		cfg.APIKey = s.cfg.GeminiKey
+		cfg.APIKey = globals.GeminiKey
 	}
 }
 
