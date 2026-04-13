@@ -2,19 +2,19 @@ import { useEffect } from 'react';
 import Bowser from 'bowser';
 import { Outlet } from 'react-router';
 import { ToastContainer } from 'react-toastify';
-import { Chart as ChartJS, registerables } from 'chart.js';
 import { CloseButton } from 'components/common/Toast';
 import { useAppContext } from 'providers/AppProvider';
 import AuthProvider from 'providers/AuthProvider';
 import SetupGate from 'pages/setup/SetupGate';
+import { useModuleApiInjection } from 'modules/useModuleApi';
 import 'react-datepicker/dist/react-datepicker.css';
 import 'react-toastify/dist/ReactToastify.css';
 import 'simplebar-react/dist/simplebar.min.css';
 
 
-ChartJS.register(...registerables);
-
 const App = () => {
+  useModuleApiInjection();
+
   const HTMLClassList = document.getElementsByTagName('html')[0].classList;
   const {
     config: { navbarPosition }

@@ -37,7 +37,8 @@ export default ({ mode }) => {
         stores: path.resolve(__dirname, './src/stores'),
         config: path.resolve(__dirname, './src/config'),
         reference: path.resolve(__dirname, './src/reference'),
-        types: path.resolve(__dirname, './src/types')
+        types: path.resolve(__dirname, './src/types'),
+        modules: path.resolve(__dirname, './src/modules')
       }
     },
     esbuild: {
@@ -71,10 +72,10 @@ export default ({ mode }) => {
             'ui-vendor': ['react-bootstrap', 'bootstrap', 'classnames'],
 
             // Charts and visualization
-            'charts-vendor': ['echarts', 'echarts-for-react', 'chart.js', 'react-chartjs-2', 'd3'],
+            'charts-vendor': ['echarts', 'echarts-for-react'],
 
             // Maps
-            'maps-vendor': ['@react-google-maps/api', 'leaflet', 'react-leaflet', 'react-leaflet-markercluster'],
+            'maps-vendor': ['leaflet', 'react-leaflet', 'react-leaflet-markercluster'],
 
             // Form handling
             'forms-vendor': ['react-hook-form', '@hookform/resolvers', 'yup', 'react-select'],

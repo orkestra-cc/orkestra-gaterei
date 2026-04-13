@@ -33,7 +33,9 @@ frontend/
 │   ├── index.tsx                  # Entry point
 │   ├── config.ts                  # App config, theme defaults
 │   ├── routes/
-│   │   ├── index.tsx              # All routes (lazy-loaded with React.lazy)
+│   │   ├── createRouter.ts        # Router factory — assembles core + module + reference routes
+│   │   ├── coreRoutes.tsx         # Auth, admin, user/operator routes (always loaded)
+│   │   ├── referenceRoutes.tsx    # Falcon template routes (dev-only, gated by import.meta.env.DEV)
 │   │   └── paths.ts               # Path constants
 │   ├── layouts/                   # 9 layouts: MainLayout, VerticalNavLayout, TopNavLayout, ComboNavLayout, AuthLayouts...
 │   ├── providers/                 # AppProvider, AuthProvider, KanbanProvider, ChatProvider, EmailProvider
@@ -53,6 +55,16 @@ frontend/
 │   │   ├── sales/                 # Sales jobs, prospects, reports, settings, skills
 │   │   └── user/                  # User settings
 │   ├── modules/
+│   │   ├── index.ts               # Module catalog — maps module names to manifests
+│   │   ├── types.ts               # ModuleManifest interface
+│   │   ├── useModuleApi.ts        # Hook to lazily inject API slices for enabled modules
+│   │   ├── billing.tsx            # Billing module manifest (routes + API injection)
+│   │   ├── company.tsx            # Company module manifest
+│   │   ├── graph.tsx              # Graph module manifest
+│   │   ├── aimodels.tsx           # AI Models module manifest
+│   │   ├── rag.tsx                # RAG module manifest (API only, no routes)
+│   │   ├── agents.tsx             # Agents module manifest
+│   │   ├── sales.tsx              # Sales module manifest
 │   │   ├── README.md              # Module conventions + backend ↔ frontend map
 │   │   └── _template/             # Copy-paste scaffold for adding a new module
 │   ├── components/
@@ -111,8 +123,8 @@ backend module.go NavItems()
 This means:
 
 - **Adding a sidebar entry** → edit the backend module's `NavItems()`, not the frontend
-- **Disabling a module on the backend** → its sidebar entry disappears automatically
-- **The frontend route still has to exist** → register it in `src/routes/index.tsx` so the path resolves when clicked
+- **Disabling a module on the backend** → its sidebar entry disappears automatically, and `ModuleGate` redirects to 404 if the URL is accessed directly
+- **The frontend route is declared in the module manifest** → `src/modules/<name>.tsx` defines routes, registered via `src/modules/index.ts`
 
 ## How data fetching works
 
@@ -152,8 +164,9 @@ This is the **canonical workflow** for an LLM agent or contributor asked to add 
    - `_template/pages/ExamplePage.tsx` → `src/pages/<name>/list/index.tsx` (and adapt)
    - `_template/components/ExampleCard.tsx` → co-locate next to your page
 3. **Add cache tag types** to `src/store/api/baseApi.ts` `tagTypes` array.
-4. **Register routes** in `src/routes/index.tsx` — add `lazy()` imports near the top and `RouteObject` entries inside the protected `MainLayout` children.
-5. **Backend declares the sidebar entry** via its addon's `NavItems()` method. The link appears in the sidebar automatically once the user has the required role and the backend module is enabled.
+4. **Create a module manifest** — `src/modules/<name>.tsx` with routes wrapped in `<ModuleGate>` + `<ProtectedRoute>` + `<Suspense>`, and an `injectApi` function that dynamically imports the API slice.
+5. **Register the manifest** in `src/modules/index.ts` — add it to the `moduleCatalog` record.
+6. **Backend declares the sidebar entry** via its addon's `NavItems()` method. The link appears in the sidebar automatically once the user has the required role and the backend module is enabled.
 
 `src/modules/_template/` is the **single source of truth** for the convention. If you change the pattern, update `_template/` so future scaffolds pick up the change.
 
@@ -200,7 +213,7 @@ The `tsc` step in `build` enforces strict mode — TypeScript errors fail the bu
 - **Cookie auth** — every fetch goes through RTK Query's `baseApi` which sets `credentials: 'include'`. Never call `fetch` directly with custom auth headers.
 - **No inline styles** for colors / spacing — use Bootstrap utility classes or SCSS variables.
 - **Co-locate** sub-components, hooks, and helpers next to the page that uses them. Promote to shared only on second use.
-- **Lazy-load route components** — every route in `routes/index.tsx` uses `React.lazy()` so each module ships its own chunk.
+- **Lazy-load route components** — every route in module manifests uses `React.lazy()` so each module ships its own chunk. All module routes are wrapped in `<ModuleGate>` to gate rendering based on backend module state.
 - **Type imports** must come from `src/types/<module>.ts`, not be inlined in the slice.
 - **Cache tags** must be declared in `baseApi.ts` before being used in a slice — TypeScript will reject otherwise.
 

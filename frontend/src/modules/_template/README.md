@@ -27,7 +27,8 @@ Before scaffolding a new module, understand the conventions already in place:
 | RTK Query slice for module `<name>` | `src/store/api/<name>Api.ts` (single file per module) | `src/store/api/billingApi.ts` |
 | Cache tag types | Added to the `tagTypes` array in `src/store/api/baseApi.ts` | `'Invoice', 'Customer', 'Supplier'` |
 | Type definitions | `src/types/<name>.ts` | `src/types/company.ts` |
-| Lazy-loaded routes | `lazy(() => import('pages/<name>/<feature>'))` registered in `src/routes/index.tsx` | line 205: `() => import('pages/billing/dashboard')` |
+| Module manifest | `src/modules/<name>.tsx` — declares routes + lazy API injection | `src/modules/billing.tsx` |
+| Module catalog | Manifest registered in `src/modules/index.ts` | `billing: billingManifest` |
 | Backend nav entry | `NavItems()` method in the backend module's `module.go` — the React app reads the merged list from `/v1/navigation` via `useRoleBasedNavigation` | `backend/internal/addons/billing/module.go` |
 
 The frontend does **not** define its own navigation. It renders whatever the backend reports. So the link in the sidebar appears the moment the backend module declares a `NavItem` and the user has the required role.
@@ -74,20 +75,61 @@ Create `frontend/src/pages/widgets/list/index.tsx` and `frontend/src/pages/widge
 
 If you need a richer page (calendar, kanban, chat, email client), look at `src/reference/app-examples/` first — they are full Falcon template implementations you can copy and adapt.
 
-### 6. Register the routes
+### 6. Create a module manifest
 
-In `frontend/src/routes/index.tsx`, add lazy imports near the existing module imports:
+Create `frontend/src/modules/widgets.tsx`:
 
-```ts
+```tsx
+import { Suspense, lazy } from 'react';
+import type { ModuleManifest } from './types';
+import ProtectedRoute from 'components/authentication/ProtectedRoute';
+import ModuleGate from 'components/common/ModuleGate';
+import FalconLoader from 'components/common/FalconLoader';
+
 const WidgetList = lazy(() => import('pages/widgets/list'));
 const WidgetDetail = lazy(() => import('pages/widgets/detail'));
+
+export const widgetsManifest: ModuleManifest = {
+  name: 'widgets',
+  routes: () => [
+    {
+      path: 'widgets',
+      element: (
+        <ModuleGate module="widgets">
+          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'operator']]}>
+            <Suspense key="widget-list" fallback={<FalconLoader />}>
+              <WidgetList />
+            </Suspense>
+          </ProtectedRoute>
+        </ModuleGate>
+      ),
+    },
+    {
+      path: 'widgets/:id',
+      element: (
+        <ModuleGate module="widgets">
+          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'operator']]}>
+            <Suspense key="widget-detail" fallback={<FalconLoader />}>
+              <WidgetDetail />
+            </Suspense>
+          </ProtectedRoute>
+        </ModuleGate>
+      ),
+    },
+  ],
+  injectApi: () => import('store/api/widgetsApi'),
+};
 ```
 
-Then add `RouteObject` entries inside the protected `MainLayout` children:
+Then register it in `frontend/src/modules/index.ts`:
 
 ```ts
-{ path: '/widgets', element: <WidgetList /> },
-{ path: '/widgets/:id', element: <WidgetDetail /> },
+import { widgetsManifest } from './widgets';
+
+export const moduleCatalog: Record<string, ModuleManifest> = {
+  // ...existing modules...
+  widgets: widgetsManifest,
+};
 ```
 
 ### 7. Verify
@@ -101,7 +143,7 @@ Run `npm run typecheck` and `npm run build` from `frontend/`. Boot the backend w
 | `api.ts` | Example RTK Query slice extending `baseApi` — copy to `src/store/api/<name>Api.ts` |
 | `pages/ExamplePage.tsx` | Example page component using `react-bootstrap` and `components/common` — copy to `src/pages/<name>/<feature>/index.tsx` |
 | `components/ExampleCard.tsx` | Example sub-component — co-locate in the page directory after copying |
-| `routes.example.tsx` | Example lazy-route definitions — pattern to add to `src/routes/index.tsx` |
+| `routes.example.tsx` | Example lazy-route definitions — pattern for the manifest file |
 | `types.ts` | Example shared types — copy to `src/types/<name>.ts` |
 | `README.md` | This file |
 
