@@ -76,7 +76,7 @@ type ModuleConfigResponse struct {
 	Description           string            `json:"description"`
 	Category              ModuleCategory    `json:"category"`
 	Enabled               bool              `json:"enabled"`
-	Status                string            `json:"status"` // "running" | "failed" | "disabled"
+	Status                string            `json:"status"` // "running" | "failed" | "disabled" | "stopped"
 	Error                 string            `json:"error,omitempty"`
 	NeedsRestart          bool              `json:"needsRestart"`
 	ConfigValues          map[string]string `json:"configValues"`
@@ -192,6 +192,7 @@ func (h *ModuleAdminHandler) GetModule(ctx context.Context, input *GetModuleInpu
 }
 
 // UpdateModule updates a module's enabled state and/or configuration.
+// When enabling/disabling, the module is started/stopped at runtime — no restart needed.
 func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModuleInput) (*UpdateModuleOutput, error) {
 	// Check module exists
 	existing, err := h.configService.GetConfig(ctx, input.Name)
@@ -202,14 +203,58 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 		return nil, huma.Error404NotFound(fmt.Sprintf("module %q not found", input.Name))
 	}
 
-	// Toggle enabled state
+	// Toggle enabled state with runtime Start/Stop
 	if input.Body.Enabled != nil {
-		if err := h.configService.UpdateEnabled(ctx, input.Name, *input.Body.Enabled); err != nil {
-			// Core module disable attempt returns a user-facing 400 error
-			if existing.Category == CategoryCore {
-				return nil, huma.Error400BadRequest(err.Error())
+		if *input.Body.Enabled {
+			// --- ENABLING ---
+			if err := h.configService.UpdateEnabled(ctx, input.Name, true); err != nil {
+				if existing.Category == CategoryCore {
+					return nil, huma.Error400BadRequest(err.Error())
+				}
+				return nil, err
 			}
-			return nil, err
+
+			// If module previously failed Init, retry before starting.
+			failedModules := h.registry.FailedModules()
+			if _, isFailed := failedModules[input.Name]; isFailed {
+				if err := h.registry.RetryInit(input.Name); err != nil {
+					return nil, huma.Error422UnprocessableEntity(
+						fmt.Sprintf("module %q init failed: %s", input.Name, err.Error()),
+					)
+				}
+			}
+
+			// Start the module's background jobs.
+			if err := h.registry.StartModule(ctx, input.Name); err != nil {
+				return nil, huma.Error422UnprocessableEntity(
+					fmt.Sprintf("module %q failed to start: %s", input.Name, err.Error()),
+				)
+			}
+
+			_ = h.configService.ClearNeedsRestart(ctx, input.Name)
+
+		} else {
+			// --- DISABLING ---
+			if existing.Category == CategoryCore {
+				return nil, huma.Error400BadRequest("core modules cannot be disabled")
+			}
+
+			// Check dependency constraints before disabling.
+			if err := h.registry.CheckCanDisable(input.Name); err != nil {
+				return nil, huma.Error409Conflict(err.Error())
+			}
+
+			if err := h.configService.UpdateEnabled(ctx, input.Name, false); err != nil {
+				return nil, err
+			}
+
+			// Stop the module's background jobs.
+			if err := h.registry.StopModule(ctx, input.Name); err != nil {
+				// Log but don't fail — the module is disabled regardless.
+				fmt.Printf("warning: module %s stop error: %v\n", input.Name, err)
+			}
+
+			_ = h.configService.ClearNeedsRestart(ctx, input.Name)
 		}
 	}
 
@@ -245,13 +290,9 @@ func (h *ModuleAdminHandler) UpdateModule(ctx context.Context, input *UpdateModu
 	return &UpdateModuleOutput{Body: h.toConfigResponse(*updated)}, nil
 }
 
-// HealthCheck runs health checks on all enabled modules.
+// HealthCheck runs health checks on all started modules.
 func (h *ModuleAdminHandler) HealthCheck(ctx context.Context, _ *struct{}) (*ModuleHealthOutput, error) {
 	failedModules := h.registry.FailedModules()
-	enabledSet := make(map[string]bool)
-	for _, name := range h.registry.EnabledModules() {
-		enabledSet[name] = true
-	}
 
 	var statuses []ModuleHealthStatus
 	for _, m := range h.registry.AllModules() {
@@ -266,7 +307,7 @@ func (h *ModuleAdminHandler) HealthCheck(ctx context.Context, _ *struct{}) (*Mod
 			continue
 		}
 
-		if !enabledSet[name] {
+		if !h.registry.IsStarted(name) {
 			statuses = append(statuses, ModuleHealthStatus{
 				ModuleName: name,
 				Status:     "disabled",
@@ -428,28 +469,18 @@ func (h *ModuleAdminHandler) toConfigResponse(c ModuleConfig) ModuleConfigRespon
 	}
 
 	// Derive runtime status from registry state.
-	// Build a quick lookup of modules that are actually loaded in this process.
-	loadedModule := false
 	failedModules := h.registry.FailedModules()
-	for _, m := range h.registry.AllModules() {
-		if m.Name() == c.ModuleName {
-			loadedModule = true
-			break
-		}
-	}
 
 	if failErr, isFailed := failedModules[c.ModuleName]; isFailed {
 		resp.Status = "failed"
 		resp.Error = failErr.Error()
 	} else if !c.Enabled {
 		resp.Status = "disabled"
-	} else if !loadedModule && c.Category != CategoryCore {
-		// Module is enabled in DB but was not loaded at boot — admin toggled
-		// it via the UI and needs to restart the backend for it to take effect.
-		resp.Status = "pending_restart"
-		resp.NeedsRestart = true
-	} else {
+	} else if h.registry.IsStarted(c.ModuleName) {
 		resp.Status = "running"
+	} else {
+		// Enabled but not started (e.g. init succeeded but Start not called yet).
+		resp.Status = "stopped"
 	}
 
 	// Populate service declarations from the registered module

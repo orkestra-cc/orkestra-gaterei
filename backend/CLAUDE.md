@@ -17,7 +17,7 @@ ProvidedServices, RequiredServices, OptionalServices
 Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 ```
 
-**Registration** (`cmd/server/catalog.go`): core modules (user → notification → auth → navigation) are always loaded. Optional modules come from `MODULES=billing,sales,...` or from per-module `Enabled()` env vars, and dependencies are auto-included (e.g. enabling `rag` auto-pulls `graph` and `aimodels`). The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules.
+**Registration** (`cmd/server/catalog.go`): core modules (user → notification → auth → navigation) are always loaded. All optional modules are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
 
 **Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
 
@@ -80,7 +80,7 @@ Each module follows: `module.go` → `handlers/` → `services/` → `repository
 7. Use `shared/iface` interfaces for cross-module deps — add new interfaces there if needed
 8. Use `deps.Services.Register(key, impl)` to expose services to other modules
 
-Users enable the module by adding its name to the `MODULES` env var or by setting its `Enabled()` env var.
+Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed) or by setting `MODULES` env var / per-module env vars for first boot.
 
 ## API Endpoints
 

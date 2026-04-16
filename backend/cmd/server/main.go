@@ -90,36 +90,15 @@ func main() {
 		modRegistry.Register(factory())
 	}
 
-	// Optional modules — loaded from catalog based on config
-	selected := selectOptionalModules(cfg, logger, configRepo)
+	// All optional modules are always instantiated and initialized so they
+	// can be enabled/disabled at runtime without restart. Only enabled ones
+	// are actually Start()ed after init.
+	allOptNames := allOptionalModuleNames(logger)
 
-	// AI service sidecar: register remote providers for AI modules
-	// that are not loaded locally
-	if cfg.Server.AIServiceURL != "" {
-		remoteAI := remote.NewAIModelProvider(cfg.Server.AIServiceURL)
-		remoteRAG := remote.NewRAGQueryProvider(cfg.Server.AIServiceURL)
-
-		// Only register remote providers for modules NOT loaded locally
-		if _, local := selected["aimodels"]; !local {
-			svcRegistry.Register(module.ServiceAIModelProvider, remoteAI)
-		}
-		if _, local := selected["rag"]; !local {
-			svcRegistry.Register(module.ServiceRAGQuery, remoteRAG)
-		}
-		logger.Info("AI service sidecar configured",
-			slog.String("url", cfg.Server.AIServiceURL),
-		)
-	}
-
-	// Create module instances and register with dependency-aware sorting
 	var optModules []module.Module
-	for name := range selected {
+	for _, name := range allOptNames {
 		if factory, ok := optionalModules[name]; ok {
 			optModules = append(optModules, factory())
-		} else {
-			logger.Warn("Unknown module in MODULES config, skipping",
-				slog.String("module", name),
-			)
 		}
 	}
 	if err := modRegistry.RegisterAll(optModules); err != nil {
@@ -130,18 +109,23 @@ func main() {
 		log.Fatalf("Failed to initialize modules: %v", err)
 	}
 
-	// Advertise the full optional-module catalog to the config service so the
-	// admin UI can list (and an operator can toggle) addons that weren't
-	// selected for this process. Extends knownModules for lazy-seeding on
-	// first /v1/admin/modules hit; the extras are never initialized or routed.
-	var catalogExtras []module.Module
-	for name, factory := range optionalModules {
-		if selected[name] {
-			continue
+	// AI service sidecar: register remote providers for AI modules
+	// that failed Init locally (e.g. external infra not available).
+	if cfg.Server.AIServiceURL != "" {
+		remoteAI := remote.NewAIModelProvider(cfg.Server.AIServiceURL)
+		remoteRAG := remote.NewRAGQueryProvider(cfg.Server.AIServiceURL)
+
+		failedModules := modRegistry.FailedModules()
+		if _, failed := failedModules["aimodels"]; failed {
+			svcRegistry.Register(module.ServiceAIModelProvider, remoteAI)
 		}
-		catalogExtras = append(catalogExtras, factory())
+		if _, failed := failedModules["rag"]; failed {
+			svcRegistry.Register(module.ServiceRAGQuery, remoteRAG)
+		}
+		logger.Info("AI service sidecar configured",
+			slog.String("url", cfg.Server.AIServiceURL),
+		)
 	}
-	configService.RegisterKnownModules(catalogExtras, cfg)
 
 	// Retrieve auth infrastructure for middleware setup
 	jwtService := svcRegistry.MustGet(module.ServiceJWTService).(services.JWTService)
@@ -225,8 +209,22 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 
+	// Build the start set: only modules that are currently enabled in the config
+	// service (DB/env) get Start()ed. Others are initialized and routed but idle.
+	startSet := make(map[string]bool)
+	for _, name := range allOptNames {
+		if configService.IsEnabled(context.Background(), name) {
+			startSet[name] = true
+		}
+	}
+	// Core modules are always started.
+	for _, factory := range coreModules {
+		m := factory()
+		startSet[m.Name()] = true
+	}
+
 	// Start module background jobs
-	if err := modRegistry.StartAll(context.Background()); err != nil {
+	if err := modRegistry.StartAll(context.Background(), startSet); err != nil {
 		log.Fatalf("Failed to start modules: %v", err)
 	}
 

@@ -166,8 +166,12 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	// Start module background jobs
-	if err := modRegistry.StartAll(context.Background()); err != nil {
+	// Start all AI module background jobs — in the AI service all registered modules are started.
+	aiStartSet := make(map[string]bool)
+	for _, m := range modRegistry.AllModules() {
+		aiStartSet[m.Name()] = true
+	}
+	if err := modRegistry.StartAll(context.Background(), aiStartSet); err != nil {
 		log.Fatalf("Failed to start AI modules: %v", err)
 	}
 

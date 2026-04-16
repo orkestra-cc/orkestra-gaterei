@@ -19,7 +19,7 @@ export interface ModuleConfig {
   description: string;
   category: 'core' | 'toggleable' | 'external';
   enabled: boolean;
-  status: 'running' | 'failed' | 'disabled' | 'pending_restart';
+  status: 'running' | 'failed' | 'disabled' | 'stopped';
   error?: string;
   needsRestart: boolean;
   configValues: Record<string, string>;

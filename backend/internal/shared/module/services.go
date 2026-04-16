@@ -36,8 +36,9 @@ const (
 // Producer modules register their services during Init(); consumer modules
 // retrieve them during their own Init() with a nil-safe pattern.
 type ServiceRegistry struct {
-	mu       sync.RWMutex
-	services map[ServiceKey]any
+	mu          sync.RWMutex
+	services    map[ServiceKey]any
+	replaceMode bool // when true, Register silently replaces existing keys (used by RetryInit)
 }
 
 // NewServiceRegistry creates an empty service registry.
@@ -47,13 +48,26 @@ func NewServiceRegistry() *ServiceRegistry {
 	}
 }
 
+// SetReplaceMode toggles whether Register silently replaces existing keys.
+// Used during RetryInit so modules can re-register their services without panicking.
+func (r *ServiceRegistry) SetReplaceMode(on bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.replaceMode = on
+}
+
 // Register stores a service under the given key.
-// Panics if the key is already registered (catches wiring bugs at startup).
+// Panics if the key is already registered (catches wiring bugs at startup),
+// unless replace mode is enabled (used during module retry-init).
 func (r *ServiceRegistry) Register(key ServiceKey, svc any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.services[key]; exists {
+		if r.replaceMode {
+			r.services[key] = svc
+			return
+		}
 		panic(fmt.Sprintf("module: service %q already registered", key))
 	}
 	r.services[key] = svc

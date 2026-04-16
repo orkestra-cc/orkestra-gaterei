@@ -70,7 +70,7 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
           <option value="running">Running</option>
           <option value="failed">Failed</option>
           <option value="disabled">Disabled</option>
-          <option value="pending_restart">Pending Restart</option>
+          <option value="stopped">Stopped</option>
         </Form.Select>
       </Col>
     </Row>

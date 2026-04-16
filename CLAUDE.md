@@ -25,30 +25,19 @@ Professional business and service management system — electronic invoicing, AI
 - **ConfigService** — DB-backed (MongoDB) + Redis-cached (30s TTL) module configuration with AES-256-GCM encrypted secrets
 - **shared/iface** — consumer-facing interfaces (UserProvider, NotificationSender, PDFProvider, GraphProvider, AIModelProvider, RAGQueryProvider, JWTProvider) that prevent direct cross-module imports
 - **RoleMiddleware** — interface (`module.go`) for RBAC route protection, satisfied by both `AuthMiddleware` (monolith) and `JWTValidator` (AI service)
-- **Module catalog** (`cmd/server/catalog.go`) — maps module names to factory functions; `selectOptionalModules()` resolves which to load and auto-includes transitive dependencies
+- **Module catalog** (`cmd/server/catalog.go`) — maps module names to factory functions; all optional modules are always instantiated and initialized at boot for runtime enable/disable without restart
 
-**Admin API**: `GET/PATCH /v1/admin/modules`, `GET /v1/admin/modules/health`, `GET/PATCH /v1/admin/modules/{name}/environments/{env}`, `PUT /v1/admin/modules/{name}/active-environment` — runtime enable/disable, config updates, per-environment config profiles (sandbox/production), health checks. Frontend at `/admin/modules` (list) and `/admin/modules/:name` (detail).
+**Admin API**: `GET/PATCH /v1/admin/modules`, `GET /v1/admin/modules/health`, `GET/PATCH /v1/admin/modules/{name}/environments/{env}`, `PUT /v1/admin/modules/{name}/active-environment` — runtime enable/disable (hot-reload), config updates, per-environment config profiles (sandbox/production), health checks. Frontend at `/admin/modules` (list) and `/admin/modules/:name` (detail).
 
 ### Module Loading
 
-Two modes for selecting which optional modules to load:
+All optional modules are always **instantiated, initialized, and routed** at boot — regardless of enabled state. Routes for disabled modules are gated by `ModuleGate` middleware (returns 503). Only enabled modules have their `Start()` method called (background jobs, polling, etc.).
 
-**1. Explicit (recommended for production):**
-```bash
-MODULES=billing,documents,company,sales
-```
-Only the listed modules (plus their dependencies) are loaded. Dependencies are auto-included — e.g., `MODULES=billing` auto-includes `documents` because billing depends on it.
+**Enabling/disabling at runtime:** The admin API (`PATCH /v1/admin/modules/{name}`) calls `StartModule()`/`StopModule()` on the registry. The module starts or stops immediately — no restart required. Dependency constraints are enforced: you cannot disable a module that another running module depends on (returns 409).
 
-**2. Auto (default, backward compatible):**
-```bash
-# No MODULES set — each module's Enabled() method is checked:
-GRAPH_ENABLED=true
-RAG_ENABLED=true
-AIMODELS_ENABLED=true
-# etc.
-```
+**Which modules start at boot** is determined by the `module_configs` collection in MongoDB (set via admin UI) or by the `MODULES` env var / per-module env vars for first boot.
 
-In both modes, the registry topologically sorts modules by `Dependencies()` so users don't need to worry about initialization order.
+The registry topologically sorts modules by `Dependencies()` so initialization order is always correct.
 
 ### AI Service Sidecar (Optional Split)
 

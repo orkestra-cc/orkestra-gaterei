@@ -16,7 +16,7 @@ const ModuleManagementPage: React.FC = () => {
       running: modules.filter((m) => m.status === 'running').length,
       failed: modules.filter((m) => m.status === 'failed').length,
       disabled: modules.filter((m) => m.status === 'disabled').length,
-      pending: modules.filter((m) => m.status === 'pending_restart').length,
+      stopped: modules.filter((m) => m.status === 'stopped').length,
     };
   }, [modules]);
 
@@ -48,10 +48,10 @@ const ModuleManagementPage: React.FC = () => {
                       {stats.disabled} disabled
                     </span>
                   )}
-                  {stats.pending > 0 && (
+                  {stats.stopped > 0 && (
                     <span>
                       <span className="rounded-circle bg-warning d-inline-block me-1" style={{ width: 8, height: 8 }} />
-                      {stats.pending} pending restart
+                      {stats.stopped} stopped
                     </span>
                   )}
                 </div>

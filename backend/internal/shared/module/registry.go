@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/orkestra/backend/internal/shared/config"
@@ -18,18 +19,24 @@ import (
 // Use Register() for ordered insertion, or RegisterAll() for automatic
 // dependency-based sorting via each module's Dependencies() declaration.
 type ModuleRegistry struct {
-	modules       []Module
-	enabled       []Module           // populated by InitAll
-	failed        map[string]error   // non-core modules that failed Init
+	modules      []Module
+	initialized  []Module           // populated by InitAll — modules that passed Init
+	failed       map[string]error   // non-core modules that failed Init
+	started      map[string]bool    // modules that have had Start() called
+	moduleByName map[string]Module  // fast lookup by name
 	configService *ModuleConfigService
-	logger        *slog.Logger
+	deps         *Dependencies      // stored during InitAll for RetryInit
+	logger       *slog.Logger
+	mu           sync.RWMutex       // protects started and failed maps for runtime changes
 }
 
 // NewModuleRegistry creates a new registry.
 func NewModuleRegistry(logger *slog.Logger) *ModuleRegistry {
 	return &ModuleRegistry{
-		logger: logger,
-		failed: make(map[string]error),
+		logger:       logger,
+		failed:       make(map[string]error),
+		started:      make(map[string]bool),
+		moduleByName: make(map[string]Module),
 	}
 }
 
@@ -43,6 +50,7 @@ func (r *ModuleRegistry) SetConfigService(cs *ModuleConfigService) {
 // initialization order — register producers before consumers.
 func (r *ModuleRegistry) Register(m Module) {
 	r.modules = append(r.modules, m)
+	r.moduleByName[m.Name()] = m
 }
 
 // RegisterAll adds multiple modules and sorts them by Dependencies()
@@ -53,7 +61,10 @@ func (r *ModuleRegistry) RegisterAll(modules []Module) error {
 	if err != nil {
 		return err
 	}
-	r.modules = append(r.modules, sorted...)
+	for _, m := range sorted {
+		r.modules = append(r.modules, m)
+		r.moduleByName[m.Name()] = m
+	}
 	return nil
 }
 
@@ -112,10 +123,13 @@ func topoSort(modules []Module) ([]Module, error) {
 	return sorted, nil
 }
 
-// InitAll initializes all enabled modules in registration order.
+// InitAll initializes all modules in registration order.
 // Before initialization, it auto-creates MongoDB collections and seeds module configs.
 // Core modules that fail Init are fatal; non-core modules are skipped with a warning.
 func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
+	// Store deps for RetryInit use later.
+	r.deps = deps
+
 	// Make config service available to modules via deps.GetConfig/GetSecret.
 	deps.ConfigService = r.configService
 
@@ -171,49 +185,57 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 			continue
 		}
 
-		r.enabled = append(r.enabled, m)
+		r.initialized = append(r.initialized, m)
 		r.logger.Info(fmt.Sprintf("Module %s initialized", m.Name()))
 	}
 
-	// Phase 4: Collect Permissions() from every enabled module and hand
+	// Phase 4: Collect Permissions() from every initialized module and hand
 	// them to the authz provider. This seeds the catalog that admins see
 	// in the role editor and that the evaluator checks against. Running
 	// after InitAll ensures addons have had a chance to declare their
 	// permissions too.
-	if authz, ok := GetTyped[iface.AuthzProvider](deps.Services, ServiceAuthzProvider); ok {
-		var allPerms []iface.PermissionSpec
-		for _, m := range r.enabled {
-			allPerms = append(allPerms, m.Permissions()...)
-		}
-		if err := authz.RegisterPermissions(context.Background(), allPerms); err != nil {
-			r.logger.Warn("Failed to register permissions catalog",
+	r.registerPermissions()
+
+	return nil
+}
+
+// registerPermissions collects Permissions() from all initialized modules
+// and registers them with the authz provider.
+func (r *ModuleRegistry) registerPermissions() {
+	authz, ok := GetTyped[iface.AuthzProvider](r.deps.Services, ServiceAuthzProvider)
+	if !ok {
+		r.logger.Warn("authz provider not registered — permission catalog not seeded")
+		return
+	}
+
+	var allPerms []iface.PermissionSpec
+	for _, m := range r.initialized {
+		allPerms = append(allPerms, m.Permissions()...)
+	}
+	if err := authz.RegisterPermissions(context.Background(), allPerms); err != nil {
+		r.logger.Warn("Failed to register permissions catalog",
+			slog.String("error", err.Error()),
+		)
+	} else {
+		r.logger.Info("Registered permissions catalog",
+			slog.Int("count", len(allPerms)),
+		)
+	}
+	// Seed the six system roles using the now-complete catalog.
+	if seeder, ok := authz.(interface {
+		SeedSystemRoles(ctx context.Context) error
+	}); ok {
+		if err := seeder.SeedSystemRoles(context.Background()); err != nil {
+			r.logger.Warn("Failed to seed system roles",
 				slog.String("error", err.Error()),
 			)
 		} else {
-			r.logger.Info("Registered permissions catalog",
-				slog.Int("count", len(allPerms)),
-			)
-		}
-		// Seed the six system roles using the now-complete catalog.
-		if seeder, ok := authz.(interface {
-			SeedSystemRoles(ctx context.Context) error
-		}); ok {
-			if err := seeder.SeedSystemRoles(context.Background()); err != nil {
-				r.logger.Warn("Failed to seed system roles",
-					slog.String("error", err.Error()),
-				)
-			} else {
-				r.logger.Info("Seeded system roles")
-			}
-		} else {
-			r.logger.Warn("authz provider does not implement SeedSystemRoles",
-				slog.String("dynamic_type", fmt.Sprintf("%T", authz)))
+			r.logger.Info("Seeded system roles")
 		}
 	} else {
-		r.logger.Warn("authz provider not registered — permission catalog not seeded")
+		r.logger.Warn("authz provider does not implement SeedSystemRoles",
+			slog.String("dynamic_type", fmt.Sprintf("%T", authz)))
 	}
-
-	return nil
 }
 
 // RegisterAllRoutes calls RegisterRoutes on ALL modules (not just enabled).
@@ -224,20 +246,171 @@ func (r *ModuleRegistry) RegisterAllRoutes(ri *RouteInfo) {
 	}
 }
 
-// StartAll starts background jobs for every enabled module.
-func (r *ModuleRegistry) StartAll(ctx context.Context) error {
-	for _, m := range r.enabled {
+// StartAll starts background jobs for modules in the startSet.
+// Modules not in the startSet are skipped. Non-core modules that fail Start
+// are logged and tracked in the failed map rather than being fatal.
+func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool) error {
+	for _, m := range r.initialized {
+		if !startSet[m.Name()] {
+			continue
+		}
 		if err := m.Start(ctx); err != nil {
-			return fmt.Errorf("module %s start: %w", m.Name(), err)
+			if m.Category() == CategoryCore {
+				return fmt.Errorf("module %s start: %w", m.Name(), err)
+			}
+			r.logger.Warn("Module start failed",
+				slog.String("module", m.Name()),
+				slog.String("error", err.Error()),
+			)
+			r.mu.Lock()
+			r.failed[m.Name()] = fmt.Errorf("start: %w", err)
+			r.mu.Unlock()
+			continue
+		}
+		r.mu.Lock()
+		r.started[m.Name()] = true
+		r.mu.Unlock()
+	}
+	return nil
+}
+
+// StartModule starts a single module by name at runtime.
+// Idempotent: returns nil if already started.
+func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
+	r.mu.Lock()
+	if r.started[name] {
+		r.mu.Unlock()
+		return nil
+	}
+	r.mu.Unlock()
+
+	m, ok := r.moduleByName[name]
+	if !ok {
+		return fmt.Errorf("module %q not registered", name)
+	}
+
+	if err := m.Start(ctx); err != nil {
+		return fmt.Errorf("module %s start: %w", name, err)
+	}
+
+	r.mu.Lock()
+	r.started[name] = true
+	delete(r.failed, name) // clear any previous start failure
+	r.mu.Unlock()
+
+	r.logger.Info("Module started at runtime", slog.String("module", name))
+	return nil
+}
+
+// StopModule stops a single module by name at runtime.
+// Idempotent: returns nil if not started.
+func (r *ModuleRegistry) StopModule(ctx context.Context, name string) error {
+	r.mu.Lock()
+	if !r.started[name] {
+		r.mu.Unlock()
+		return nil
+	}
+	r.mu.Unlock()
+
+	m, ok := r.moduleByName[name]
+	if !ok {
+		return fmt.Errorf("module %q not registered", name)
+	}
+
+	if err := m.Stop(ctx); err != nil {
+		return fmt.Errorf("module %s stop: %w", name, err)
+	}
+
+	r.mu.Lock()
+	delete(r.started, name)
+	r.mu.Unlock()
+
+	r.logger.Info("Module stopped at runtime", slog.String("module", name))
+	return nil
+}
+
+// IsStarted returns true if the named module has been started.
+func (r *ModuleRegistry) IsStarted(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.started[name]
+}
+
+// CheckCanDisable verifies that no currently-started module depends on the
+// named module. Returns an error describing the blocker if found.
+func (r *ModuleRegistry) CheckCanDisable(name string) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for modName, isStarted := range r.started {
+		if !isStarted || modName == name {
+			continue
+		}
+		m := r.moduleByName[modName]
+		for _, dep := range m.Dependencies() {
+			if dep == name {
+				return fmt.Errorf("cannot disable %q: module %q depends on it and is currently running", name, modName)
+			}
 		}
 	}
 	return nil
 }
 
-// StopAll shuts down all enabled modules in reverse registration order.
+// RetryInit re-attempts Init() for a module that previously failed.
+// On success, the module is moved from the failed map to the initialized list.
+// Uses ServiceRegistry.Replace() so re-registration doesn't panic.
+func (r *ModuleRegistry) RetryInit(name string) error {
+	r.mu.Lock()
+	_, isFailed := r.failed[name]
+	r.mu.Unlock()
+
+	if !isFailed {
+		return fmt.Errorf("module %q is not in failed state", name)
+	}
+
+	m, ok := r.moduleByName[name]
+	if !ok {
+		return fmt.Errorf("module %q not registered", name)
+	}
+
+	// Enable replacement mode so the module can re-register its services.
+	r.deps.Services.SetReplaceMode(true)
+	defer r.deps.Services.SetReplaceMode(false)
+
+	if err := m.Init(r.deps); err != nil {
+		r.mu.Lock()
+		r.failed[name] = err
+		r.mu.Unlock()
+		return fmt.Errorf("module %s retry init: %w", name, err)
+	}
+
+	r.mu.Lock()
+	delete(r.failed, name)
+	r.mu.Unlock()
+
+	r.initialized = append(r.initialized, m)
+	r.logger.Info("Module re-initialized after retry", slog.String("module", name))
+
+	// Re-register permissions to include the newly initialized module.
+	r.registerPermissions()
+
+	return nil
+}
+
+// StopAll shuts down all started modules in reverse initialization order.
 func (r *ModuleRegistry) StopAll(ctx context.Context) {
-	for i := len(r.enabled) - 1; i >= 0; i-- {
-		m := r.enabled[i]
+	r.mu.RLock()
+	// Build a list of started modules in init order, then reverse.
+	var toStop []Module
+	for i := len(r.initialized) - 1; i >= 0; i-- {
+		m := r.initialized[i]
+		if r.started[m.Name()] {
+			toStop = append(toStop, m)
+		}
+	}
+	r.mu.RUnlock()
+
+	for _, m := range toStop {
 		if err := m.Stop(ctx); err != nil {
 			r.logger.Error(fmt.Sprintf("Module %s stop failed", m.Name()),
 				slog.String("error", err.Error()))
@@ -245,10 +418,19 @@ func (r *ModuleRegistry) StopAll(ctx context.Context) {
 	}
 }
 
-// HealthCheckAll runs health checks on all enabled modules.
+// HealthCheckAll runs health checks on all started modules.
 // Returns the first error encountered.
 func (r *ModuleRegistry) HealthCheckAll(ctx context.Context) error {
-	for _, m := range r.enabled {
+	r.mu.RLock()
+	var toCheck []Module
+	for _, m := range r.initialized {
+		if r.started[m.Name()] {
+			toCheck = append(toCheck, m)
+		}
+	}
+	r.mu.RUnlock()
+
+	for _, m := range toCheck {
 		if err := m.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("module %s health: %w", m.Name(), err)
 		}
@@ -256,41 +438,52 @@ func (r *ModuleRegistry) HealthCheckAll(ctx context.Context) error {
 	return nil
 }
 
-// AllModules returns all registered modules (enabled, failed, and disabled).
+// AllModules returns all registered modules (initialized, failed, and disabled).
 func (r *ModuleRegistry) AllModules() []Module {
 	return r.modules
 }
 
-// EnabledModules returns the names of all enabled modules.
+// EnabledModules returns the names of all started modules.
 func (r *ModuleRegistry) EnabledModules() []string {
-	names := make([]string, len(r.enabled))
-	for i, m := range r.enabled {
-		names[i] = m.Name()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var names []string
+	for name, isStarted := range r.started {
+		if isStarted {
+			names = append(names, name)
+		}
 	}
 	return names
 }
 
 // FailedModules returns modules that failed initialization with their errors.
 func (r *ModuleRegistry) FailedModules() map[string]error {
-	return r.failed
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Return a copy to avoid data races.
+	cp := make(map[string]error, len(r.failed))
+	for k, v := range r.failed {
+		cp[k] = v
+	}
+	return cp
 }
 
 // SupportsHotReload returns true if the named module is loaded and reports
 // that it reads config lazily (HotReloadConfig() == true).
 func (r *ModuleRegistry) SupportsHotReload(name string) bool {
-	for _, m := range r.modules {
-		if m.Name() == name {
-			return m.HotReloadConfig()
-		}
+	if m, ok := r.moduleByName[name]; ok {
+		return m.HotReloadConfig()
 	}
 	return false
 }
 
-// CollectNavItems aggregates NavItemSpec from all enabled modules.
+// CollectNavItems aggregates NavItemSpec from all initialized modules.
 // Used by the navigation module to build the dynamic menu.
 func (r *ModuleRegistry) CollectNavItems() []NavItemSpec {
 	var items []NavItemSpec
-	for _, m := range r.enabled {
+	for _, m := range r.initialized {
 		items = append(items, m.NavItems()...)
 	}
 	return items

@@ -23,7 +23,7 @@ const statusColors: Record<string, BadgeColor> = {
   running: 'success',
   failed: 'danger',
   disabled: 'secondary',
-  pending_restart: 'warning',
+  stopped: 'warning',
 };
 
 type ModuleScope = 'core' | 'addons';
@@ -39,7 +39,7 @@ const healthDotColors: Record<string, string> = {
   failed: 'bg-danger',
   unhealthy: 'bg-danger',
   disabled: 'bg-400',
-  pending_restart: 'bg-warning',
+  stopped: 'bg-warning',
 };
 
 const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
@@ -199,13 +199,8 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                         bg={statusColors[mod.status] || 'secondary'}
                         pill
                       >
-                        {mod.status === 'pending_restart' ? 'pending restart' : mod.status}
+                        {mod.status}
                       </SubtleBadge>
-                      {mod.needsRestart && (
-                        <div className="text-warning fs-11 mt-1">
-                          Restart required
-                        </div>
-                      )}
                       {mod.error && (
                         <div
                           className="text-danger fs-11 mt-1"
@@ -281,11 +276,11 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
             &middot;{' '}
             {scopedModules.filter((m) => m.status === 'disabled').length}{' '}
             disabled
-            {scopedModules.filter((m) => m.status === 'pending_restart').length > 0 && (
+            {scopedModules.filter((m) => m.status === 'stopped').length > 0 && (
               <>
                 {' '}&middot;{' '}
-                {scopedModules.filter((m) => m.status === 'pending_restart').length}{' '}
-                pending restart
+                {scopedModules.filter((m) => m.status === 'stopped').length}{' '}
+                stopped
               </>
             )}
           </Card.Footer>

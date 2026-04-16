@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"log/slog"
-	"time"
 
 	"github.com/orkestra/backend/internal/addons/agents"
 	"github.com/orkestra/backend/internal/addons/aimodels"
@@ -20,7 +18,6 @@ import (
 	"github.com/orkestra/backend/internal/core/notification"
 	"github.com/orkestra/backend/internal/core/tenant"
 	"github.com/orkestra/backend/internal/core/user"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -57,80 +54,16 @@ var optionalModules = map[string]func() module.Module{
 	"dev":       func() module.Module { return dev.NewModule() },
 }
 
-// selectOptionalModules determines which optional modules to load.
-//
-// Two modes:
-//  1. Explicit: MODULES=billing,documents,sales → load exactly these
-//  2. Auto (default): no MODULES set → instantiate each module and check
-//     its Enabled(cfg) method (backward compatible with per-module env vars)
-//
-// In both modes, dependencies declared by selected modules are auto-included.
-// Example: MODULES=billing auto-includes "documents" because billing depends on it.
-func selectOptionalModules(cfg *config.Config, logger *slog.Logger, configRepo *module.ModuleConfigRepository) map[string]bool {
-	selected := make(map[string]bool)
-
-	if len(cfg.Server.Modules) > 0 {
-		// Explicit mode: user listed which modules to load
-		for _, name := range cfg.Server.Modules {
-			if _, ok := optionalModules[name]; ok {
-				selected[name] = true
-			}
-		}
-		logger.Info("Modules loaded from MODULES config",
-			slog.Any("modules", cfg.Server.Modules),
-		)
-	} else {
-		// Auto mode: check each module's Enabled() method
-		for name, factory := range optionalModules {
-			m := factory()
-			if m.Enabled(cfg) {
-				selected[name] = true
-			}
-		}
-
-		// Also load modules that an admin enabled via the UI (stored in
-		// module_configs). This makes the admin toggle take effect after
-		// a backend restart without requiring env var changes.
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		dbEnabled, err := configRepo.FindEnabledAddonNames(ctx)
-		if err != nil {
-			logger.Warn("Failed to query DB-enabled modules, using env vars only",
-				slog.String("error", err.Error()),
-			)
-		} else {
-			for _, name := range dbEnabled {
-				if _, isOptional := optionalModules[name]; isOptional && !selected[name] {
-					selected[name] = true
-					logger.Info("Module enabled from admin config",
-						slog.String("module", name),
-					)
-				}
-			}
-		}
+// allOptionalModuleNames returns the names of all optional modules.
+// All optional modules are always instantiated and initialized at boot
+// so they can be enabled/disabled at runtime without a restart.
+func allOptionalModuleNames(logger *slog.Logger) []string {
+	names := make([]string, 0, len(optionalModules))
+	for name := range optionalModules {
+		names = append(names, name)
 	}
-
-	// Auto-include dependencies of selected modules.
-	// Iterate until stable (handles transitive deps like rag → graph).
-	changed := true
-	for changed {
-		changed = false
-		for name := range selected {
-			factory := optionalModules[name]
-			m := factory()
-			for _, dep := range m.Dependencies() {
-				// Skip core module deps (auth, user) — they're always loaded
-				if _, isOptional := optionalModules[dep]; isOptional && !selected[dep] {
-					selected[dep] = true
-					changed = true
-					logger.Info("Auto-included dependency",
-						slog.String("module", dep),
-						slog.String("required_by", name),
-					)
-				}
-			}
-		}
-	}
-
-	return selected
+	logger.Info("All optional modules will be initialized (hot-reload enabled)",
+		slog.Int("count", len(names)),
+	)
+	return names
 }

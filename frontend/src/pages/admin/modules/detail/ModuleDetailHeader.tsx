@@ -12,7 +12,7 @@ const statusColors: Record<string, BadgeColor> = {
   running: 'success',
   failed: 'danger',
   disabled: 'secondary',
-  pending_restart: 'warning',
+  stopped: 'warning',
 };
 
 const categoryColors: Record<string, BadgeColor> = {
@@ -30,7 +30,7 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
   const [toggling, setToggling] = useState(false);
 
   const isCore = mod.category === 'core';
-  const statusLabel = mod.status === 'pending_restart' ? 'pending restart' : mod.status;
+  const statusLabel = mod.status;
 
   const handleToggle = async () => {
     if (isCore) return;
@@ -80,12 +80,6 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
           )}
         </div>
       </div>
-
-      {mod.needsRestart && (
-        <Alert variant="warning" className="mt-2 py-2 fs-10 mb-0">
-          Configuration has changed. Restart the backend for changes to take effect.
-        </Alert>
-      )}
 
       {mod.status === 'failed' && mod.error && (
         <Alert variant="danger" className="mt-2 py-2 fs-10 mb-0">
