@@ -53,9 +53,7 @@ func (m *AIModelsModule) Collections() []module.CollectionSpec {
 }
 
 func (m *AIModelsModule) NavItems() []module.NavItemSpec {
-	return []module.NavItemSpec{
-		{Group: "AI", Name: "AI Models", Icon: "microchip", Path: "/ai/models", Active: true},
-	}
+	return nil
 }
 
 func (m *AIModelsModule) Permissions() []iface.PermissionSpec {

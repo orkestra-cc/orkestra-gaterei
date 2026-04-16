@@ -334,7 +334,7 @@ function LLMConfigTab() {
                 </Form.Select>
                 <Form.Text className="text-muted">
                   Select which LLM to use for prospect analysis and skills.{' '}
-                  <Link to="/ai/models">
+                  <Link to="/admin/modules/aimodels">
                     Manage models <FontAwesomeIcon icon={faExternalLinkAlt} size="xs" />
                   </Link>
                 </Form.Text>

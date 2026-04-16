@@ -17,6 +17,7 @@ interface ModelFormModalProps {
   show: boolean;
   onHide: () => void;
   editingModel: AIModelConfig | null;
+  defaultProvider?: Provider;
 }
 
 const emptyForm: CreateAIModelRequest = {
@@ -53,7 +54,7 @@ const isCloudProvider = (provider: Provider): boolean => {
   return provider === 'anthropic' || provider === 'gemini';
 };
 
-const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingModel }) => {
+const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingModel, defaultProvider }) => {
   const [form, setForm] = useState<CreateAIModelRequest>({ ...emptyForm });
   const [isActive, setIsActive] = useState(true);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
@@ -81,7 +82,7 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
       });
       setIsActive(editingModel.isActive);
     } else {
-      setForm({ ...emptyForm });
+      setForm({ ...emptyForm, provider: defaultProvider || emptyForm.provider });
       setIsActive(true);
     }
     setAvailableModels([]);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { Col, Row, Spinner } from 'react-bootstrap';
 import {
@@ -11,6 +11,8 @@ import ModuleDashboardCards from './ModuleDashboardCards';
 import ModuleEnvironmentSwitcher from './ModuleEnvironmentSwitcher';
 import ModuleConfigSection from './ModuleConfigSection';
 import ModuleDependencyCard from './ModuleDependencyCard';
+
+const AIModelsConfigSection = lazy(() => import('./AIModelsConfigSection'));
 
 const ModuleDetailPage: React.FC = () => {
   const { moduleName } = useParams<{ moduleName: string }>();
@@ -60,10 +62,19 @@ const ModuleDetailPage: React.FC = () => {
           />
         )}
 
-        <ModuleConfigSection
-          module={mod}
-          selectedEnvironment={currentEnv}
-        />
+        {mod.moduleName === 'aimodels' ? (
+          <Suspense fallback={<Spinner animation="border" size="sm" />}>
+            <AIModelsConfigSection
+              module={mod}
+              selectedEnvironment={currentEnv}
+            />
+          </Suspense>
+        ) : (
+          <ModuleConfigSection
+            module={mod}
+            selectedEnvironment={currentEnv}
+          />
+        )}
 
         <ModuleDependencyCard module={mod} allModules={allModules} />
       </Col>
