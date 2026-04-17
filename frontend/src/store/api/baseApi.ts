@@ -192,6 +192,7 @@ export const baseApi = createApi({
     'PersonalConversation',
     // Admin module management tags
     'Module',
+    'ModuleHealth',
     // First-install onboarding
     'Setup',
     // Tenant + authz tags

@@ -117,12 +117,14 @@ export const moduleApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { name }) => [
         { type: 'Module', id: name },
         { type: 'Module', id: 'LIST' },
+        'ModuleHealth',
         'Navigation',
       ],
     }),
 
     getModulesHealth: builder.query<HealthResponse, void>({
       query: () => '/v1/admin/modules/health',
+      providesTags: ['ModuleHealth'],
       keepUnusedDataFor: 30,
     }),
 
@@ -150,6 +152,7 @@ export const moduleApi = baseApi.injectEndpoints({
         { type: 'Module', id: name },
         { type: 'Module', id: `${name}-env-${environment}` },
         { type: 'Module', id: 'LIST' },
+        'ModuleHealth',
       ],
     }),
 
@@ -165,6 +168,7 @@ export const moduleApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { name }) => [
         { type: 'Module', id: name },
         { type: 'Module', id: 'LIST' },
+        'ModuleHealth',
       ],
     }),
   }),
