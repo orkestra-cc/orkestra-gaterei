@@ -90,9 +90,10 @@ func setupMiddleware(
 
 	router.Use(chiMiddleware.Recoverer)
 
-	// Timeout with SSE bypass
+	// Timeout with SSE bypass. Must exceed the longest sync endpoint budget
+	// (currently SALES_QUICK_TIMEOUT=5m); http.Server WriteTimeout is the hard ceiling.
 	router.Use(func(next http.Handler) http.Handler {
-		timeoutHandler := chiMiddleware.Timeout(60 * time.Second)(next)
+		timeoutHandler := chiMiddleware.Timeout(6 * time.Minute)(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasSuffix(r.URL.Path, "/stream") {
 				next.ServeHTTP(w, r)

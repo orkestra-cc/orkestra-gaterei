@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -13,19 +15,28 @@ import (
 	"github.com/orkestra/backend/internal/addons/sales/models"
 )
 
+// reasoningTagRe strips <think>...</think> blocks emitted by reasoning models
+// (Qwen3, QwQ, DeepSeek-R1, etc.) when an OpenAI-compatible endpoint doesn't filter them.
+var reasoningTagRe = regexp.MustCompile(`(?is)<think>.*?</think>`)
+
 // AgentExecutor runs multiple sales agents in parallel with concurrency control
 type AgentExecutor struct {
 	maxConcurrency int
+	maxTokens      int
 	logger         *slog.Logger
 }
 
 // NewAgentExecutor creates a new parallel agent executor
-func NewAgentExecutor(maxConcurrency int, logger *slog.Logger) *AgentExecutor {
+func NewAgentExecutor(maxConcurrency, maxTokens int, logger *slog.Logger) *AgentExecutor {
 	if maxConcurrency <= 0 {
 		maxConcurrency = 5
 	}
+	if maxTokens <= 0 {
+		maxTokens = 8192
+	}
 	return &AgentExecutor{
 		maxConcurrency: maxConcurrency,
+		maxTokens:      maxTokens,
 		logger:         logger.With(slog.String("component", "agent-executor")),
 	}
 }
@@ -98,7 +109,7 @@ func (e *AgentExecutor) executeAgent(
 		completionResult, callErr := usageProvider.CompleteWithUsage(ctx, userMessage, providers.CompletionOptions{
 			SystemPrompt: agent.Prompt,
 			Temperature:  0.3,
-			MaxTokens:    4096,
+			MaxTokens:    e.maxTokens,
 		})
 		if callErr != nil {
 			err = callErr
@@ -111,7 +122,7 @@ func (e *AgentExecutor) executeAgent(
 		text, err = llm.Complete(ctx, userMessage, providers.CompletionOptions{
 			SystemPrompt: agent.Prompt,
 			Temperature:  0.3,
-			MaxTokens:    4096,
+			MaxTokens:    e.maxTokens,
 		})
 	}
 
@@ -126,19 +137,39 @@ func (e *AgentExecutor) executeAgent(
 		return result
 	}
 
-	// Parse structured JSON response
-	if json.Valid([]byte(text)) {
-		result.Findings = json.RawMessage(text)
-		// Extract score from the JSON response
+	rawLen := len(text)
+	cleaned := strings.TrimSpace(reasoningTagRe.ReplaceAllString(text, ""))
+
+	preview := cleaned
+	if len(preview) > 500 {
+		preview = preview[:500]
+	}
+	e.logger.Debug("agent raw response",
+		slog.String("agent", string(agent.Name)),
+		slog.Int("rawLen", rawLen),
+		slog.Int("cleanedLen", len(cleaned)),
+		slog.String("preview", preview),
+	)
+
+	if cleaned == "" {
+		result.Error = fmt.Sprintf("empty LLM response (raw length %d, likely all reasoning tokens or model refused)", rawLen)
+		e.logger.Error("agent returned empty response",
+			slog.String("agent", string(agent.Name)),
+			slog.Int("rawLen", rawLen),
+		)
+		return result
+	}
+
+	if json.Valid([]byte(cleaned)) {
+		result.Findings = json.RawMessage(cleaned)
 		var scoreHolder struct {
 			Score int `json:"score"`
 		}
-		if json.Unmarshal([]byte(text), &scoreHolder) == nil {
+		if json.Unmarshal([]byte(cleaned), &scoreHolder) == nil {
 			result.Score = scoreHolder.Score
 		}
 	} else {
-		// Wrap non-JSON response
-		wrapped, _ := json.Marshal(map[string]string{"response": text})
+		wrapped, _ := json.Marshal(map[string]string{"response": cleaned})
 		result.Findings = json.RawMessage(wrapped)
 	}
 

@@ -114,6 +114,47 @@ func (p *openaiProvider) Complete(ctx context.Context, prompt string, opts Compl
 	return resp.Choices[0].Message.Content, nil
 }
 
+// CompleteWithUsage implements LLMProviderWithUsage. OpenAI-compatible endpoints
+// (llama.cpp, vLLM, LocalAI, Ollama OpenAI-compat) return prompt/completion token
+// counts in resp.Usage; cloud OpenAI always does.
+func (p *openaiProvider) CompleteWithUsage(ctx context.Context, prompt string, opts CompletionOptions) (*CompletionResult, error) {
+	messages := []openai.ChatCompletionMessage{}
+	if opts.SystemPrompt != "" {
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: opts.SystemPrompt,
+		})
+	}
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: prompt,
+	})
+
+	req := openai.ChatCompletionRequest{
+		Model:    p.modelName,
+		Messages: messages,
+	}
+	if opts.Temperature > 0 {
+		req.Temperature = float32(opts.Temperature)
+	}
+	if opts.MaxTokens > 0 {
+		req.MaxTokens = opts.MaxTokens
+	}
+
+	resp, err := p.client.CreateChatCompletion(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("openai complete: %w", err)
+	}
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("openai complete: empty response")
+	}
+	return &CompletionResult{
+		Text:         resp.Choices[0].Message.Content,
+		InputTokens:  resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
+	}, nil
+}
+
 func (p *openaiProvider) StreamComplete(ctx context.Context, prompt string, opts CompletionOptions) (<-chan StreamChunk, error) {
 	messages := []openai.ChatCompletionMessage{}
 	if opts.SystemPrompt != "" {

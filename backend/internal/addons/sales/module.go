@@ -98,7 +98,7 @@ func (m *SalesModule) Init(deps *module.Dependencies) error {
 		deps.Logger.Warn("Failed to seed sales prompts", slog.String("error", err.Error()))
 	}
 	scraper := services.NewScraper(cfg.Sales, deps.Logger)
-	agentExecutor := services.NewAgentExecutor(cfg.Sales.MaxConcurrency, deps.Logger)
+	agentExecutor := services.NewAgentExecutor(cfg.Sales.MaxConcurrency, cfg.Sales.MaxTokens, deps.Logger)
 	scorer := services.NewScorer()
 
 	salesSettingsRepo := repository.NewSettingsRepository(deps.DB)

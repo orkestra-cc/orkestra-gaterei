@@ -328,22 +328,26 @@ func (s *orchestratorService) RunQuickProspect(ctx context.Context, url, locale,
 		CompanyName: scraped.CompanyName,
 	}
 
-	if len(results) > 0 && results[0] != nil {
-		r := results[0]
-		result.Score = r.Score
-		result.Grade = models.Grade(r.Score)
-		result.Findings = r.Findings
-		result.InputTokens = r.InputTokens
-		result.OutputTokens = r.OutputTokens
-		result.LatencyMs = r.LatencyMs
+	if len(results) == 0 || results[0] == nil {
+		return nil, fmt.Errorf("agent %s produced no result", models.AgentCompanyResearch)
+	}
+	r := results[0]
+	if r.Error != "" {
+		return nil, fmt.Errorf("agent %s failed: %s", r.AgentName, r.Error)
+	}
 
-		// Extract summary from findings
-		var findings struct {
-			MarketPosition string `json:"marketPosition"`
-		}
-		if json.Unmarshal(r.Findings, &findings) == nil && findings.MarketPosition != "" {
-			result.Summary = findings.MarketPosition
-		}
+	result.Score = r.Score
+	result.Grade = models.Grade(r.Score)
+	result.Findings = r.Findings
+	result.InputTokens = r.InputTokens
+	result.OutputTokens = r.OutputTokens
+	result.LatencyMs = r.LatencyMs
+
+	var findings struct {
+		MarketPosition string `json:"marketPosition"`
+	}
+	if json.Unmarshal(r.Findings, &findings) == nil && findings.MarketPosition != "" {
+		result.Summary = findings.MarketPosition
 	}
 
 	return result, nil
@@ -657,7 +661,7 @@ func (s *orchestratorService) submitBatchAnalysis(
 			Options: providers.CompletionOptions{
 				SystemPrompt: def.Prompt,
 				Temperature:  0.3,
-				MaxTokens:    4096,
+				MaxTokens:    s.cfg.MaxTokens,
 			},
 		}
 		requestMap[customID] = i
