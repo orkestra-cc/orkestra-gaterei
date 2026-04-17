@@ -245,19 +245,25 @@ func (r *ModuleConfigRepository) MigrateToEnvironments(ctx context.Context, name
 	return nil
 }
 
-// UpdateSchema updates only the config schema for a module (used during schema migration
-// when the module already has a config document but fields were added/removed).
-func (r *ModuleConfigRepository) UpdateSchema(ctx context.Context, name string, schema []ConfigField) error {
+// RefreshMetadata rewrites the fields derived from a module's code
+// (displayName, description, category, configSchema, dependsOn) so the
+// stored document stays in sync with the current binary. Admin-editable
+// fields (enabled, configValues, environments) are preserved.
+func (r *ModuleConfigRepository) RefreshMetadata(ctx context.Context, m Module) error {
 	_, err := r.collection.UpdateOne(
 		ctx,
-		bson.M{"moduleName": name},
+		bson.M{"moduleName": m.Name()},
 		bson.M{"$set": bson.M{
-			"configSchema": schema,
+			"displayName":  m.DisplayName(),
+			"description":  m.Description(),
+			"category":     m.Category(),
+			"configSchema": m.ConfigSchema(),
+			"dependsOn":    m.Dependencies(),
 			"updatedAt":    time.Now(),
 		}},
 	)
 	if err != nil {
-		return fmt.Errorf("update schema for %q: %w", name, err)
+		return fmt.Errorf("refresh metadata for %q: %w", m.Name(), err)
 	}
 	return nil
 }

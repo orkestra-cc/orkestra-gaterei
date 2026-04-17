@@ -34,6 +34,12 @@ func (m *SalesModule) DisplayName() string             { return "Sales Intellige
 func (m *SalesModule) Description() string             { return "AI-driven prospect analysis, scoring, and outreach" }
 func (m *SalesModule) Category() module.ModuleCategory { return module.CategoryToggleable }
 func (m *SalesModule) Enabled(cfg *config.Config) bool { return cfg.Sales.Enabled }
+
+// Dependencies orders aimodels before sales so its AIModelProvider is
+// registered by the time sales's Init runs. The provider is still read
+// via GetTyped with graceful degradation, so sales can run without it.
+func (m *SalesModule) Dependencies() []string { return []string{"aimodels"} }
+
 func (m *SalesModule) OptionalServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceAIModelProvider}
 }

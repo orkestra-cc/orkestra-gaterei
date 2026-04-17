@@ -114,8 +114,8 @@ Load order (topologically sorted by `Dependencies()`): `user` → `notification`
 | **graph**      | Memgraph knowledge graph — [docs](backend/internal/addons/graph/CLAUDE.md)                                          | —                |
 | **aimodels**   | Multi-provider AI model management (Ollama, OpenAI, Anthropic) — [docs](backend/internal/addons/aimodels/CLAUDE.md) | —                |
 | **rag**        | Document ingestion + retrieval-augmented generation — [docs](backend/internal/addons/rag/CLAUDE.md)                 | graph, aimodels  |
-| **agents**     | Hindsight AI agents with RAG context — [docs](backend/internal/addons/agents/CLAUDE.md)                             | auth             |
-| **sales**      | AI-driven prospect analysis and scoring                                                                      | —                |
+| **agents**     | Hindsight AI agents with RAG context — [docs](backend/internal/addons/agents/CLAUDE.md)                             | auth, aimodels   |
+| **sales**      | AI-driven prospect analysis and scoring                                                                      | aimodels         |
 | **dev**        | Dev token generation (disabled in production)                                                                | auth             |
 
 ### Other Modules

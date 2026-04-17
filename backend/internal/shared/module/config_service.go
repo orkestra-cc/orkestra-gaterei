@@ -144,10 +144,12 @@ func (s *ModuleConfigService) SeedFromModules(ctx context.Context, modules []Mod
 		}
 
 		if existing != nil {
-			// Module already has a config document — only update the schema
-			// in case fields were added/removed between versions.
-			if err := s.repo.UpdateSchema(ctx, m.Name(), m.ConfigSchema()); err != nil {
-				s.logger.Error("SeedFromModules: failed to update schema",
+			// Module already has a config document — refresh every code-derived
+			// field (schema, dependencies, display name, etc.) so the stored
+			// document stays in sync with the current binary. Admin-editable
+			// fields (enabled, configValues, environments) are left untouched.
+			if err := s.repo.RefreshMetadata(ctx, m); err != nil {
+				s.logger.Error("SeedFromModules: failed to refresh metadata",
 					slog.String("module", m.Name()),
 					slog.String("error", err.Error()),
 				)
