@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/aimodels/models"
 	"github.com/orkestra/backend/internal/addons/aimodels/providers"
 	"github.com/orkestra/backend/internal/addons/aimodels/repository"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // AIModelService manages AI model configurations and provider creation
@@ -35,6 +36,11 @@ type AIModelService interface {
 	GetDefaultLLMProvider(ctx context.Context) (providers.LLMProvider, error)
 	GetEmbeddingProvider(ctx context.Context, uuid string) (providers.EmbeddingProvider, error)
 	GetLLMProvider(ctx context.Context, uuid string) (providers.LLMProvider, error)
+
+	// Raw config accessor — consumed by the agents module which needs the
+	// underlying credentials (provider/model/api key/base URL) to inject
+	// them as environment variables into the Hindsight container.
+	GetDefaultLLMConfig(ctx context.Context) (iface.LLMConfig, error)
 
 	// Seeding & migration
 	SeedDefaults(ctx context.Context) error
@@ -194,6 +200,20 @@ func (s *modelService) GetDefaultLLMProvider(ctx context.Context) (providers.LLM
 		return nil, err
 	}
 	return providers.NewLLMProvider(s.toProviderConfig(model))
+}
+
+func (s *modelService) GetDefaultLLMConfig(ctx context.Context) (iface.LLMConfig, error) {
+	model, err := s.repo.GetDefault(ctx, "llm")
+	if err != nil {
+		return iface.LLMConfig{}, err
+	}
+	cfg := s.toProviderConfig(model) // applies global API-key fallbacks
+	return iface.LLMConfig{
+		Provider: cfg.Provider,
+		Model:    cfg.ModelName,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
+	}, nil
 }
 
 func (s *modelService) GetEmbeddingProvider(ctx context.Context, uuid string) (providers.EmbeddingProvider, error) {

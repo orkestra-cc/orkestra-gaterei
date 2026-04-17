@@ -17,6 +17,7 @@ import (
 
 	"github.com/orkestra/backend/internal/core/auth/services"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/iface"
@@ -77,6 +78,7 @@ func main() {
 	svcRegistry := module.NewServiceRegistry()
 	modRegistry := module.NewModuleRegistry(logger)
 	modRegistry.SetConfigService(configService)
+	modRegistry.SetContainerManager(container.NewManager(logger))
 	modDeps := &module.Dependencies{
 		DB:           db,
 		RedisAdapter: redisAdapter,

@@ -142,6 +142,11 @@ services:
       AIMODELS_ENABLED: "false"
       SALES_ENABLED: "false"
       AI_SERVICE_URL: ""
+
+      # Container lifecycle control is off by default in the minimal
+      # profile — no docker.sock is mounted and no infra-owning module
+      # is enabled. Leave this as-is unless you know you need it.
+      CONTAINER_CONTROL_ENABLED: "false"
     volumes:
       - ./keys:/app/keys:ro
     networks:

@@ -118,11 +118,36 @@ Key design decisions:
 
 ## Configuration
 
-```
-AGENTS_ENABLED=true
-HINDSIGHT_URL=http://hindsight:8888
-HINDSIGHT_NAMESPACE=orkestra
-```
+Module config (live-editable at `/admin/modules/agents`; seeded from the env vars below on first boot):
+
+| Key | Env var | Default | Notes |
+|---|---|---|---|
+| `hindsightURL` | `HINDSIGHT_URL` | `http://orkestra-hindsight:8888` | Internal URL the module uses to reach Hindsight |
+| `hindsightNamespace` | `HINDSIGHT_NAMESPACE` | `orkestra` | Bank namespace prefix |
+| `hindsightImage` | `HINDSIGHT_IMAGE` | `ghcr.io/vectorize-io/hindsight:latest` | Image used when the backend manages the container |
+
+### LLM credentials come from `aimodels`
+
+The Hindsight container's LLM provider/model/API key are **not** configured here. They are read from the **AI Models** module's default LLM (set via `/admin/aimodels` → mark a model as default). The agents module declares `aimodels` as a hard dependency, and its `Preflight()` refuses to start Hindsight unless:
+
+- the `aimodels` module is enabled, and
+- at least one model is marked `isDefault: true` with `modelType: "llm"`, and
+- the model has a valid API key (or is a local provider).
+
+Translation rules fed into the Hindsight container:
+
+| aimodels provider | `HINDSIGHT_API_LLM_PROVIDER` | `HINDSIGHT_API_LLM_BASE_URL` | `HINDSIGHT_API_LLM_API_KEY` |
+|---|---|---|---|
+| `openai` | `openai` | from model (optional) | from model |
+| `anthropic` | `anthropic` | from model (optional) | from model |
+| `gemini` | `gemini` | from model (optional) | from model |
+| `ollama` | `openai` (reached via OpenAI-compat `/v1`) | model's baseURL, or `http://orkestra-ollama:11434/v1` | `ollama` (placeholder — Ollama ignores it) |
+
+### Container Lifecycle
+
+The agents module owns the `orkestra-hindsight` container via `InfraContainers()`. When you enable the module in the admin UI, the shared container manager (see `shared/container/`) resolves the default LLM from `aimodels`, creates and starts the container with those credentials, waits for `/health` to come up, and only then marks the module as started. Disabling the module stops the container. Hindsight is no longer declared in the auto-start set of `docker-compose.infra.yml` — it lives behind the `manual-only` profile there so the compose file still documents the image/ports/volumes for reference.
+
+If the admin changes the default LLM while agents is running, the change takes effect on the next agents toggle-off → toggle-on (the Hindsight container's env vars are only written at container create time).
 
 ## Per-Project Agent Settings
 

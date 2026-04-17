@@ -32,6 +32,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/graph"
 	"github.com/orkestra/backend/internal/addons/rag"
 	"github.com/orkestra/backend/internal/shared/config"
+	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -88,6 +89,7 @@ func main() {
 	svcRegistry := module.NewServiceRegistry()
 	modRegistry := module.NewModuleRegistry(logger)
 	modRegistry.SetConfigService(configService)
+	modRegistry.SetContainerManager(container.NewManager(logger))
 	modDeps := &module.Dependencies{
 		DB:           db,
 		RedisAdapter: redisAdapter,

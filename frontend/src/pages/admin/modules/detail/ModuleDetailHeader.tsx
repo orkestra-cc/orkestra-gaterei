@@ -86,6 +86,36 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
           <strong>Init Error:</strong> {mod.error}
         </Alert>
       )}
+
+      {mod.infraContainers && mod.infraContainers.length > 0 && (
+        <div className="mt-2 fs-11 text-600">
+          <strong className="text-900">Managed infrastructure: </strong>
+          {mod.infraContainers.map((c, idx) => {
+            const dot = c.error
+              ? 'bg-danger'
+              : c.running
+                ? 'bg-success'
+                : 'bg-400';
+            return (
+              <span key={c.name} className="ms-2">
+                {idx > 0 && <span className="me-2">&middot;</span>}
+                <span
+                  className={`rounded-circle d-inline-block me-1 ${dot}`}
+                  style={{ width: 8, height: 8 }}
+                />
+                <code className="text-700">{c.name}</code>
+                <span className="ms-1">
+                  {c.error
+                    ? `error: ${c.error}`
+                    : c.running
+                      ? 'running'
+                      : 'stopped'}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

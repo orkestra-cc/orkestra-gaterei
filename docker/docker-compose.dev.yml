@@ -9,6 +9,11 @@ services:
     container_name: orkestra-backend-dev
     user: "1000:1000"
     userns_mode: "host"
+    # Join the host Docker group so the backend can read/write /var/run/docker.sock
+    # for module container lifecycle. Override DOCKER_GID in .env if your host
+    # uses a different gid (common values: 999 on Debian, 1001 on Ubuntu/WSL).
+    group_add:
+      - "${DOCKER_GID:-1001}"
     working_dir: /app
     restart: unless-stopped
     ports:
@@ -122,6 +127,12 @@ services:
       # AI Service sidecar (empty = local modules, set = remote AI service)
       AI_SERVICE_URL: ${AI_SERVICE_URL:-}
 
+      # Module infrastructure containers (e.g. hindsight).
+      # Enables the backend to start/stop external containers when a module is toggled.
+      # Set to "false" when running under Kubernetes or when you want to manage
+      # infra containers externally.
+      CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
+
       # Hot reload
       AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
       AIR_BIN: ./tmp/main
@@ -135,6 +146,10 @@ services:
     volumes:
       - ../backend:/app
       - ./keys:/app/keys
+      # Bind-mount the host Docker socket so the backend can manage module
+      # infrastructure containers (e.g. orkestra-hindsight for the agents
+      # module). Hardening for staging/prod: front with tecnativa/docker-socket-proxy.
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - orkestra-network
     dns:

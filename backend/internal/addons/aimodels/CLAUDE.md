@@ -52,6 +52,7 @@ routes.go                 ← Huma route registration
 
 The `AIModelService` interface is consumed by:
 - **RAG module** — via `AIModelProvider` consumer interface for embedding/LLM provider resolution
+- **Agents module** — hard-depends on aimodels. Calls `GetDefaultLLMConfig(ctx)` to pull the default LLM's provider/model/APIKey/baseURL and injects them as env vars into the Hindsight container. The agents module refuses to start if no default LLM is set.
 - **Future modules** — any module needing AI model access
 
 ## Configuration

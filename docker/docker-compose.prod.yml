@@ -109,10 +109,22 @@ services:
       OPENAPI_COMPANY_BASE_URL: ${OPENAPI_COMPANY_BASE_URL:-}
       OPENAPI_COMPANY_CACHE_TTL: ${OPENAPI_COMPANY_CACHE_TTL:-24h}
       OPENAPI_COMPANY_TIMEOUT: ${OPENAPI_COMPANY_TIMEOUT:-15s}
+
+      # Module infrastructure containers (hindsight etc.). Set to "false" on
+      # Kubernetes deployments where the orchestrator owns container lifecycle.
+      CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs
       - ./keys:/app/keys:ro
+      # Docker socket mount enables runtime container control. In production
+      # Docker Swarm, strongly consider fronting this with
+      # tecnativa/docker-socket-proxy and restricting to container endpoints.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Join the host Docker group so the mounted socket is usable. Override
+    # DOCKER_GID in the production env file if the host uses a different gid.
+    group_add:
+      - "${DOCKER_GID:-1001}"
     networks:
       - orkestra-network
     # Note: mongodb and redis are in docker-compose.infra.yml

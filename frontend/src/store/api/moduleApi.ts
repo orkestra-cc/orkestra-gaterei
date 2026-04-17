@@ -13,6 +13,13 @@ export interface ConfigField {
   envVar: string;
 }
 
+export interface InfraContainerStatus {
+  name: string;
+  image: string;
+  running: boolean;
+  error?: string;
+}
+
 export interface ModuleConfig {
   moduleName: string;
   displayName: string;
@@ -29,6 +36,7 @@ export interface ModuleConfig {
   providedServices: string[];
   requiredServices: string[];
   optionalServices: string[];
+  infraContainers?: InfraContainerStatus[];
   activeEnvironment: string;
   availableEnvironments: string[];
   createdAt: string;

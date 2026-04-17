@@ -71,25 +71,35 @@ type ModuleHealthStatus struct {
 // ModuleConfigResponse is the API representation of a module config.
 // Secrets are never returned — only a per-field indicator of whether a value exists.
 type ModuleConfigResponse struct {
-	ModuleName            string            `json:"moduleName"`
-	DisplayName           string            `json:"displayName"`
-	Description           string            `json:"description"`
-	Category              ModuleCategory    `json:"category"`
-	Enabled               bool              `json:"enabled"`
-	Status                string            `json:"status"` // "running" | "failed" | "disabled" | "stopped"
-	Error                 string            `json:"error,omitempty"`
-	NeedsRestart          bool              `json:"needsRestart"`
-	ConfigValues          map[string]string `json:"configValues"`
-	SecretStatus          map[string]bool   `json:"secretStatus"`
-	ConfigSchema          []ConfigField     `json:"configSchema"`
-	DependsOn             []string          `json:"dependsOn,omitempty"`
-	ProvidedServices      []string          `json:"providedServices,omitempty"`
-	RequiredServices      []string          `json:"requiredServices,omitempty"`
-	OptionalServices      []string          `json:"optionalServices,omitempty"`
-	ActiveEnvironment     string            `json:"activeEnvironment"`
-	AvailableEnvironments []string          `json:"availableEnvironments"`
-	CreatedAt             string            `json:"createdAt"`
-	UpdatedAt             string            `json:"updatedAt"`
+	ModuleName            string                   `json:"moduleName"`
+	DisplayName           string                   `json:"displayName"`
+	Description           string                   `json:"description"`
+	Category              ModuleCategory           `json:"category"`
+	Enabled               bool                     `json:"enabled"`
+	Status                string                   `json:"status"` // "running" | "failed" | "disabled" | "stopped"
+	Error                 string                   `json:"error,omitempty"`
+	NeedsRestart          bool                     `json:"needsRestart"`
+	ConfigValues          map[string]string        `json:"configValues"`
+	SecretStatus          map[string]bool          `json:"secretStatus"`
+	ConfigSchema          []ConfigField            `json:"configSchema"`
+	DependsOn             []string                 `json:"dependsOn,omitempty"`
+	ProvidedServices      []string                 `json:"providedServices,omitempty"`
+	RequiredServices      []string                 `json:"requiredServices,omitempty"`
+	OptionalServices      []string                 `json:"optionalServices,omitempty"`
+	InfraContainers       []InfraContainerStatus   `json:"infraContainers,omitempty"`
+	ActiveEnvironment     string                   `json:"activeEnvironment"`
+	AvailableEnvironments []string                 `json:"availableEnvironments"`
+	CreatedAt             string                   `json:"createdAt"`
+	UpdatedAt             string                   `json:"updatedAt"`
+}
+
+// InfraContainerStatus describes the observed state of a Docker container
+// declared by a module via InfraContainers(). Purely informational.
+type InfraContainerStatus struct {
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	Running bool   `json:"running"`
+	Error   string `json:"error,omitempty"`
 }
 
 // --- Environment DTOs ---
@@ -495,6 +505,7 @@ func (h *ModuleAdminHandler) toConfigResponse(c ModuleConfig) ModuleConfigRespon
 			for _, k := range m.OptionalServices() {
 				resp.OptionalServices = append(resp.OptionalServices, string(k))
 			}
+			resp.InfraContainers = h.collectInfraStatus(m)
 			break
 		}
 	}
@@ -507,4 +518,31 @@ func (h *ModuleAdminHandler) toConfigResponse(c ModuleConfig) ModuleConfigRespon
 	}
 
 	return resp
+}
+
+// collectInfraStatus queries the container manager for the running state
+// of every container declared by the module. Returns nil when the module
+// declares no containers (the most common case).
+func (h *ModuleAdminHandler) collectInfraStatus(m Module) []InfraContainerStatus {
+	specs := m.InfraContainers()
+	if len(specs) == 0 {
+		return nil
+	}
+	mgr := h.registry.ContainerManager()
+	out := make([]InfraContainerStatus, 0, len(specs))
+	for _, spec := range specs {
+		status := InfraContainerStatus{Name: spec.Name, Image: spec.Image}
+		if mgr != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			running, err := mgr.IsRunning(ctx, spec.Name)
+			cancel()
+			if err != nil {
+				status.Error = err.Error()
+			} else {
+				status.Running = running
+			}
+		}
+		out = append(out, status)
+	}
+	return out
 }

@@ -80,6 +80,85 @@ type Module interface {
 	Stop(ctx context.Context) error
 	// HealthCheck verifies runtime dependencies are healthy.
 	HealthCheck(ctx context.Context) error
+
+	// InfraContainers declares Docker containers the registry should start
+	// before this module's Start() and stop after its Stop(). Returns nil
+	// for modules that don't own external infrastructure.
+	InfraContainers() []InfraContainerSpec
+
+	// Preflight validates runtime prerequisites that depend on mutable
+	// state (other modules' config, external services, etc.) and must be
+	// checked at each toggle-on rather than at Init. The registry calls
+	// it before touching infra containers, so a failure here prevents
+	// any side effects. BaseModule returns nil by default.
+	//
+	// Typical use: a module that requires another module's configuration
+	// (e.g. agents requires aimodels to have a default LLM set) checks
+	// that invariant here and returns a descriptive error that surfaces
+	// directly to the admin UI.
+	Preflight(ctx context.Context) error
+}
+
+// InfraContainerSpec describes a Docker container whose lifecycle is bound to
+// a module. The registry brings these up via the shared container.Manager
+// when the module is started and tears them down when it is stopped.
+type InfraContainerSpec struct {
+	// Name is the stable Docker container name (used as the DNS name on
+	// the orkestra-network too). Required.
+	Name string
+	// Image is the fully-qualified image reference. Required.
+	Image string
+	// Env maps environment variables passed to the container.
+	Env map[string]string
+	// Volumes lists named volumes to mount.
+	Volumes []InfraVolumeMount
+	// Ports lists host→container port bindings.
+	Ports []InfraPortBinding
+	// Network is the Docker network the container joins. Must exist
+	// beforehand (e.g. orkestra-network, precreated by compose).
+	Network string
+	// HealthCheck is polled from the backend after ContainerStart. If nil,
+	// the manager returns as soon as Docker reports the container running.
+	HealthCheck *InfraHealthCheck
+	// ReadyTimeout is the maximum total time spent waiting for the
+	// container to report healthy. Defaults to 60s if zero.
+	ReadyTimeout time.Duration
+	// Labels are attached to the container for discovery/observability.
+	Labels map[string]string
+}
+
+// InfraVolumeMount references a named Docker volume.
+type InfraVolumeMount struct {
+	Name   string // named volume (created on demand if missing)
+	Target string // mount path inside the container
+}
+
+// InfraPortBinding publishes a container port on the host.
+type InfraPortBinding struct {
+	HostPort      int
+	ContainerPort int
+	Protocol      string // "tcp" (default) or "udp"
+}
+
+// InfraHealthCheck describes an HTTP readiness probe the container.Manager
+// polls from the backend container after ContainerStart.
+type InfraHealthCheck struct {
+	HTTPPath string        // e.g. "/health"
+	Port     int           // container port to probe
+	Interval time.Duration // between polls (default 2s)
+	Retries  int           // max attempts (default 30)
+	Timeout  time.Duration // per-request timeout (default 5s)
+}
+
+// ContainerManager is the registry-facing contract for managing the
+// lifecycle of Docker containers declared by modules. Satisfied by
+// shared/container.Manager. Declared here to avoid an import cycle
+// (container depends on this package for InfraContainerSpec).
+type ContainerManager interface {
+	EnsureStarted(ctx context.Context, spec InfraContainerSpec) error
+	EnsureStopped(ctx context.Context, name string, timeout time.Duration) error
+	IsRunning(ctx context.Context, name string) (bool, error)
+	Available() bool
 }
 
 // BaseModule provides default implementations for all declarative methods.
@@ -107,6 +186,8 @@ func (BaseModule) HotReloadConfig() bool                { return false }
 func (BaseModule) Start(_ context.Context) error       { return nil }
 func (BaseModule) Stop(_ context.Context) error        { return nil }
 func (BaseModule) HealthCheck(_ context.Context) error { return nil }
+func (BaseModule) InfraContainers() []InfraContainerSpec { return nil }
+func (BaseModule) Preflight(_ context.Context) error     { return nil }
 
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {

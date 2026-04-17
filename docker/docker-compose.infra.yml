@@ -57,7 +57,14 @@ services:
       timeout: 5s
       retries: 5
 
+  # Hindsight is lifecycle-managed by the backend: the agents module boots
+  # this container via the shared/container package when it is enabled in
+  # the admin UI and stops it again when disabled. It lives behind the
+  # "manual-only" profile so `docker compose up -d` no longer brings it up
+  # automatically. To run hindsight manually (e.g. to inspect or debug):
+  #   docker compose -f docker-compose.infra.yml --profile manual-only up -d hindsight
   hindsight:
+    profiles: ["manual-only"]
     image: ghcr.io/vectorize-io/hindsight:latest
     container_name: orkestra-hindsight
     restart: unless-stopped

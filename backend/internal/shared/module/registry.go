@@ -26,6 +26,7 @@ type ModuleRegistry struct {
 	moduleByName map[string]Module  // fast lookup by name
 	configService *ModuleConfigService
 	deps         *Dependencies      // stored during InitAll for RetryInit
+	containerMgr ContainerManager   // may be nil; Start/Stop skip infra-container handling when unset
 	logger       *slog.Logger
 	mu           sync.RWMutex       // protects started and failed maps for runtime changes
 }
@@ -44,6 +45,19 @@ func NewModuleRegistry(logger *slog.Logger) *ModuleRegistry {
 // for seeding configs and checking module enabled state. Must be called before InitAll.
 func (r *ModuleRegistry) SetConfigService(cs *ModuleConfigService) {
 	r.configService = cs
+}
+
+// SetContainerManager wires a ContainerManager the registry uses to start
+// and stop Docker containers declared by modules via InfraContainers().
+// Must be called before StartAll / StartModule if infra containers matter.
+func (r *ModuleRegistry) SetContainerManager(cm ContainerManager) {
+	r.containerMgr = cm
+}
+
+// ContainerManager returns the configured container manager (possibly nil).
+// Handlers use it to surface per-module infrastructure status.
+func (r *ModuleRegistry) ContainerManager() ContainerManager {
+	return r.containerMgr
 }
 
 // Register adds a module to the registry. Registration order determines
@@ -254,6 +268,32 @@ func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool)
 		if !startSet[m.Name()] {
 			continue
 		}
+		if err := m.Preflight(ctx); err != nil {
+			if m.Category() == CategoryCore {
+				return fmt.Errorf("module %s preflight: %w", m.Name(), err)
+			}
+			r.logger.Warn("Module preflight failed",
+				slog.String("module", m.Name()),
+				slog.String("error", err.Error()),
+			)
+			r.mu.Lock()
+			r.failed[m.Name()] = fmt.Errorf("preflight: %w", err)
+			r.mu.Unlock()
+			continue
+		}
+		if err := r.startInfraContainers(ctx, m); err != nil {
+			if m.Category() == CategoryCore {
+				return fmt.Errorf("module %s infra start: %w", m.Name(), err)
+			}
+			r.logger.Warn("Module infra container start failed",
+				slog.String("module", m.Name()),
+				slog.String("error", err.Error()),
+			)
+			r.mu.Lock()
+			r.failed[m.Name()] = fmt.Errorf("infra: %w", err)
+			r.mu.Unlock()
+			continue
+		}
 		if err := m.Start(ctx); err != nil {
 			if m.Category() == CategoryCore {
 				return fmt.Errorf("module %s start: %w", m.Name(), err)
@@ -274,6 +314,56 @@ func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool)
 	return nil
 }
 
+// startInfraContainers brings up every container declared by the module.
+// Returns on the first failure; earlier containers stay running so the
+// caller can retry or tear them down explicitly.
+//
+// A detached context is used so that short HTTP request timeouts on the
+// admin toggle endpoint don't cancel the health-wait for containers that
+// legitimately need ~60s to become ready. The ReadyTimeout on the spec
+// still caps the wait internally.
+func (r *ModuleRegistry) startInfraContainers(ctx context.Context, m Module) error {
+	specs := m.InfraContainers()
+	if len(specs) == 0 || r.containerMgr == nil {
+		return nil
+	}
+	for _, spec := range specs {
+		ready := spec.ReadyTimeout
+		if ready <= 0 {
+			ready = 60 * time.Second
+		}
+		// +30s headroom for image pull + container create before the
+		// readiness wait starts ticking against ReadyTimeout.
+		opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ready+30*time.Second)
+		err := r.containerMgr.EnsureStarted(opCtx, spec)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("container %q: %w", spec.Name, err)
+		}
+	}
+	return nil
+}
+
+// stopInfraContainers tears down every container declared by the module.
+// Errors are logged but do not interrupt the stop sequence so a partially
+// broken container state never blocks module disabling.
+func (r *ModuleRegistry) stopInfraContainers(ctx context.Context, m Module) {
+	specs := m.InfraContainers()
+	if len(specs) == 0 || r.containerMgr == nil {
+		return
+	}
+	const stopTimeout = 10 * time.Second
+	for _, spec := range specs {
+		if err := r.containerMgr.EnsureStopped(ctx, spec.Name, stopTimeout); err != nil {
+			r.logger.Warn("Infra container stop failed",
+				slog.String("module", m.Name()),
+				slog.String("container", spec.Name),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}
+
 // StartModule starts a single module by name at runtime.
 // Idempotent: returns nil if already started.
 func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
@@ -289,7 +379,20 @@ func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
 		return fmt.Errorf("module %q not registered", name)
 	}
 
+	// Preflight runs before any side effects so we never spin up
+	// containers for a module whose prerequisites aren't met.
+	if err := m.Preflight(ctx); err != nil {
+		return fmt.Errorf("module %s preflight: %w", name, err)
+	}
+
+	if err := r.startInfraContainers(ctx, m); err != nil {
+		return fmt.Errorf("module %s infra: %w", name, err)
+	}
+
 	if err := m.Start(ctx); err != nil {
+		// Try to roll back infra so the next retry isn't hampered by a
+		// half-started dependency. Best-effort — errors just get logged.
+		r.stopInfraContainers(ctx, m)
 		return fmt.Errorf("module %s start: %w", name, err)
 	}
 
@@ -302,30 +405,36 @@ func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
 	return nil
 }
 
-// StopModule stops a single module by name at runtime.
-// Idempotent: returns nil if not started.
+// StopModule stops a single module by name at runtime. Also tears down any
+// declared infra containers even if the module never finished starting
+// (e.g. it's in the failed map because its infra health check timed out),
+// so disabling always leaves the system clean.
 func (r *ModuleRegistry) StopModule(ctx context.Context, name string) error {
-	r.mu.Lock()
-	if !r.started[name] {
-		r.mu.Unlock()
-		return nil
-	}
-	r.mu.Unlock()
-
 	m, ok := r.moduleByName[name]
 	if !ok {
 		return fmt.Errorf("module %q not registered", name)
 	}
 
-	if err := m.Stop(ctx); err != nil {
-		return fmt.Errorf("module %s stop: %w", name, err)
+	r.mu.Lock()
+	wasStarted := r.started[name]
+	r.mu.Unlock()
+
+	if wasStarted {
+		if err := m.Stop(ctx); err != nil {
+			return fmt.Errorf("module %s stop: %w", name, err)
+		}
 	}
+
+	// Tear down declared infra containers whether the module was started
+	// or not — a failed module may still have a half-started container.
+	r.stopInfraContainers(ctx, m)
 
 	r.mu.Lock()
 	delete(r.started, name)
+	delete(r.failed, name) // disabling clears failure state; re-enable will retry cleanly
 	r.mu.Unlock()
 
-	r.logger.Info("Module stopped at runtime", slog.String("module", name))
+	r.logger.Info("Module stopped at runtime", slog.String("module", name), slog.Bool("wasStarted", wasStarted))
 	return nil
 }
 
@@ -415,6 +524,7 @@ func (r *ModuleRegistry) StopAll(ctx context.Context) {
 			r.logger.Error(fmt.Sprintf("Module %s stop failed", m.Name()),
 				slog.String("error", err.Error()))
 		}
+		r.stopInfraContainers(ctx, m)
 	}
 }
 

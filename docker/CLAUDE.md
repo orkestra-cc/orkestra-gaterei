@@ -264,7 +264,24 @@ To enable additional modules, edit `MODULES` in `.env.minimal` (comma-separated,
 | **mongodb**   | 27027 | Primary database    | mongosh ping     |
 | **redis**     | 6387  | Cache & sessions    | redis-cli ping   |
 | **gotenberg** | 3030  | PDF generation      | curl /health     |
-| **hindsight** | 8888  | AI agents backend   | curl /health     |
+| **hindsight** | 8888  | AI agents backend (managed by backend — see note below) | curl /health     |
+
+**Hindsight is no longer auto-started.** The `agents` backend module owns its lifecycle: enabling the module in `/admin/modules` starts `orkestra-hindsight`; disabling stops it. The service is still declared in `docker-compose.infra.yml` for documentation and volume ownership, but lives behind the `manual-only` compose profile. To run it by hand anyway (e.g. to inspect the container without the backend):
+
+```bash
+docker compose -f docker-compose.infra.yml --profile manual-only up -d hindsight
+```
+
+### Container Lifecycle Control (Docker Socket Mount)
+
+The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkestra-backend` container so the shared container manager can start/stop module infrastructure (currently hindsight; other modules may opt in later by declaring `InfraContainers()`). Toggle behavior with `CONTAINER_CONTROL_ENABLED`:
+
+| Value | Effect |
+|-------|--------|
+| `true` (default in dev/staging/prod) | Backend uses the Docker SDK to manage declared containers |
+| `false` (default in minimal) | Container control is a no-op; operators manage infra externally (Kubernetes, systemd, etc.) |
+
+**Security**: mounting docker.sock gives the backend container effective root on the host. Acceptable on dev workstations; for production or shared hosts, front the socket with `tecnativa/docker-socket-proxy` restricted to `/containers/...` endpoints and point `DOCKER_HOST` at the proxy instead of the raw socket.
 
 ### Application Services
 

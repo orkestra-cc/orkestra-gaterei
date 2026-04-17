@@ -2,8 +2,10 @@ package remote
 
 import (
 	"context"
+	"errors"
 
 	"github.com/orkestra/backend/internal/addons/aimodels/providers"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // RemoteAIModelProvider implements iface.AIModelProvider by delegating to the
@@ -36,4 +38,12 @@ func (p *RemoteAIModelProvider) GetLLMProvider(ctx context.Context, uuid string)
 
 func (p *RemoteAIModelProvider) GetEmbeddingProvider(ctx context.Context, uuid string) (providers.EmbeddingProvider, error) {
 	return newRemoteEmbeddingProvider(p.client, uuid)
+}
+
+// GetDefaultLLMConfig is not supported across the split-service boundary.
+// The agents module hard-depends on aimodels and must run in the same
+// process (both modules live in the AI service in split mode, or both in
+// the monolith otherwise), so this accessor is never reached in practice.
+func (p *RemoteAIModelProvider) GetDefaultLLMConfig(ctx context.Context) (iface.LLMConfig, error) {
+	return iface.LLMConfig{}, errors.New("GetDefaultLLMConfig not available via remote AI service — agents and aimodels must run in the same service")
 }
