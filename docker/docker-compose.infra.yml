@@ -94,6 +94,12 @@ volumes:
     driver: local
   orkestra-hindsight-data:
     driver: local
+    # Pinned name so the backend's container.Manager and the manual-only
+    # compose profile address the same Docker volume. Without this,
+    # compose would prefix the project name (orkestra-infra_...), while
+    # the backend references the literal name — producing two different
+    # volumes with divergent data.
+    name: orkestra-hindsight-data
 
 networks:
   orkestra-network:

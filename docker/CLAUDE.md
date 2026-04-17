@@ -272,6 +272,36 @@ To enable additional modules, edit `MODULES` in `.env.minimal` (comma-separated,
 docker compose -f docker-compose.infra.yml --profile manual-only up -d hindsight
 ```
 
+### Backend-managed Containers (Not Visible to Compose)
+
+Containers declared by a backend module via `Module.InfraContainers()` — currently only `orkestra-hindsight` from the `agents` module — are created and destroyed by the backend's `shared/container.Manager` directly against the Docker daemon. They are **not** part of any compose project:
+
+- They do NOT appear in `docker compose ls`, `docker compose ps`, or `docker compose -f docker-compose.infra.yml ps`.
+- `docker compose down` on any compose file does **not** stop them. Disable the owning module at `/admin/modules` to stop the container.
+- To discover them from the shell:
+  ```bash
+  docker ps --filter label=orkestra.managed=true
+  ```
+  Every backend-managed container carries `orkestra.managed=true` and `orkestra.module=<name>`.
+
+**Shared volume**: the `orkestra-hindsight-data` volume in `docker-compose.infra.yml` is declared with an explicit `name: orkestra-hindsight-data` so it is **not** project-prefixed. Both the backend (when it creates the container at module enable time) and the compose `manual-only` profile reference the exact same Docker volume, so data persists across whichever path started the container first.
+
+**Migration from older setups**: users who ran hindsight from compose before this change will have an orphaned `orkestra-infra_orkestra-hindsight-data` volume. To salvage that data into the shared volume:
+
+```bash
+# 1. Disable agents at /admin/modules (unmounts orkestra-hindsight-data)
+# 2. Copy old → new
+docker run --rm \
+  -v orkestra-infra_orkestra-hindsight-data:/from \
+  -v orkestra-hindsight-data:/to \
+  alpine sh -c 'cd /from && cp -a . /to/'
+# 3. Drop the stale volume
+docker volume rm orkestra-infra_orkestra-hindsight-data
+# 4. Re-enable agents
+```
+
+To discard the old data instead, just run step 3 once no container is mounting it.
+
 ### Container Lifecycle Control (Docker Socket Mount)
 
 The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkestra-backend` container so the shared container manager can start/stop module infrastructure (currently hindsight; other modules may opt in later by declaring `InfraContainers()`). Toggle behavior with `CONTAINER_CONTROL_ENABLED`:
