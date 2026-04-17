@@ -7,7 +7,8 @@
 # Requires:
 #   - orkestra-network (external)
 #   - Infrastructure services (MongoDB, Redis) from docker-compose.infra.yml
-#   - Memgraph from docker-compose.infra.yml (when added) or standalone
+#   - Memgraph: lifecycle-managed by the graph module (enable at /admin/modules)
+#     or run manually via `docker compose -f docker-compose.infra.yml --profile manual-only up -d memgraph`
 
 name: orkestra-ai
 

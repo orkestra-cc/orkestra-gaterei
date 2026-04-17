@@ -259,22 +259,23 @@ To enable additional modules, edit `MODULES` in `.env.minimal` (comma-separated,
 
 **Shared across dev/staging/prod environments — start once, use everywhere**
 
-| Service       | Port  | Purpose             | Health Check     |
-| ------------- | ----- | ------------------- | ---------------- |
-| **mongodb**   | 27027 | Primary database    | mongosh ping     |
-| **redis**     | 6387  | Cache & sessions    | redis-cli ping   |
-| **gotenberg** | 3030  | PDF generation      | curl /health     |
-| **hindsight** | 8888  | AI agents backend (managed by backend — see note below) | curl /health     |
+| Service       | Port        | Purpose             | Health Check     |
+| ------------- | ----------- | ------------------- | ---------------- |
+| **mongodb**   | 27027       | Primary database    | mongosh ping     |
+| **redis**     | 6387        | Cache & sessions    | redis-cli ping   |
+| **gotenberg** | 3030        | PDF generation      | curl /health     |
+| **memgraph**  | 7687 / 7444 | Graph database (managed by backend — see note below) | TCP dial on 7687 |
+| **hindsight** | 8888        | AI agents backend (managed by backend — see note below) | curl /health     |
 
-**Hindsight is no longer auto-started.** The `agents` backend module owns its lifecycle: enabling the module in `/admin/modules` starts `orkestra-hindsight`; disabling stops it. The service is still declared in `docker-compose.infra.yml` for documentation and volume ownership, but lives behind the `manual-only` compose profile. To run it by hand anyway (e.g. to inspect the container without the backend):
+**Memgraph and Hindsight are no longer auto-started.** The `graph` and `agents` backend modules each own their respective container's lifecycle: enabling the module at `/admin/modules` starts `orkestra-memgraph` / `orkestra-hindsight`; disabling stops it. Both services are still declared in `docker-compose.infra.yml` for documentation and volume ownership, but live behind the `manual-only` compose profile. To run them by hand anyway (e.g. to inspect a container without the backend):
 
 ```bash
-docker compose -f docker-compose.infra.yml --profile manual-only up -d hindsight
+docker compose -f docker-compose.infra.yml --profile manual-only up -d memgraph hindsight
 ```
 
 ### Backend-managed Containers (Not Visible to Compose)
 
-Containers declared by a backend module via `Module.InfraContainers()` — currently only `orkestra-hindsight` from the `agents` module — are created and destroyed by the backend's `shared/container.Manager` directly against the Docker daemon. They are **not** part of any compose project:
+Containers declared by a backend module via `Module.InfraContainers()` — `orkestra-memgraph` from the `graph` module and `orkestra-hindsight` from the `agents` module — are created and destroyed by the backend's `shared/container.Manager` directly against the Docker daemon. They are **not** part of any compose project:
 
 - They do NOT appear in `docker compose ls`, `docker compose ps`, or `docker compose -f docker-compose.infra.yml ps`.
 - `docker compose down` on any compose file does **not** stop them. Disable the owning module at `/admin/modules` to stop the container.
@@ -284,7 +285,9 @@ Containers declared by a backend module via `Module.InfraContainers()` — curre
   ```
   Every backend-managed container carries `orkestra.managed=true` and `orkestra.module=<name>`.
 
-**Shared volume**: the `orkestra-hindsight-data` volume in `docker-compose.infra.yml` is declared with an explicit `name: orkestra-hindsight-data` so it is **not** project-prefixed. Both the backend (when it creates the container at module enable time) and the compose `manual-only` profile reference the exact same Docker volume, so data persists across whichever path started the container first.
+**Shared volumes**: `orkestra-memgraph-data` and `orkestra-hindsight-data` in `docker-compose.infra.yml` are declared with explicit `name:` directives so they are **not** project-prefixed. Both the backend (when it creates the container at module enable time) and the compose `manual-only` profile reference the exact same Docker volume, so data persists across whichever path started the container first.
+
+**Health probes**: the container manager supports two readiness modes — HTTP GET (`InfraHealthCheck.HTTPPath`, used by hindsight against `/health`) and raw TCP dial (`InfraHealthCheck.TCPPort`, used by memgraph against Bolt port 7687). Pick TCP for services whose native protocol isn't HTTP.
 
 **Migration from older setups**: users who ran hindsight from compose before this change will have an orphaned `orkestra-infra_orkestra-hindsight-data` volume. To salvage that data into the shared volume:
 
@@ -304,7 +307,7 @@ To discard the old data instead, just run step 3 once no container is mounting i
 
 ### Container Lifecycle Control (Docker Socket Mount)
 
-The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkestra-backend` container so the shared container manager can start/stop module infrastructure (currently hindsight; other modules may opt in later by declaring `InfraContainers()`). Toggle behavior with `CONTAINER_CONTROL_ENABLED`:
+The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkestra-backend` container so the shared container manager can start/stop module infrastructure (currently hindsight and memgraph; other modules may opt in later by declaring `InfraContainers()`). Toggle behavior with `CONTAINER_CONTROL_ENABLED`:
 
 | Value | Effect |
 |-------|--------|

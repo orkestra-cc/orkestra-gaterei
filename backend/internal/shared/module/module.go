@@ -140,11 +140,15 @@ type InfraPortBinding struct {
 	Protocol      string // "tcp" (default) or "udp"
 }
 
-// InfraHealthCheck describes an HTTP readiness probe the container.Manager
-// polls from the backend container after ContainerStart.
+// InfraHealthCheck describes a readiness probe the container.Manager polls
+// from the backend container after ContainerStart. Exactly one of HTTPPath
+// or TCPPort should be set — HTTPPath performs an HTTP GET (used by
+// services that expose a /health endpoint), TCPPort performs a raw TCP
+// dial (used by databases like Memgraph whose native protocol isn't HTTP).
 type InfraHealthCheck struct {
-	HTTPPath string        // e.g. "/health"
-	Port     int           // container port to probe
+	HTTPPath string        // e.g. "/health" — if set, Port must also be set
+	Port     int           // container port to probe (paired with HTTPPath)
+	TCPPort  int           // container port to TCP-dial (alternative to HTTPPath)
 	Interval time.Duration // between polls (default 2s)
 	Retries  int           // max attempts (default 30)
 	Timeout  time.Duration // per-request timeout (default 5s)

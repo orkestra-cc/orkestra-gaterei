@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -248,8 +249,47 @@ func (m *dockerManager) waitHealthy(ctx context.Context, spec module.InfraContai
 		readyTimeout = 60 * time.Second
 	}
 
-	httpClient := &http.Client{Timeout: timeout}
-	probeURL := fmt.Sprintf("http://%s:%d%s", spec.Name, hc.Port, hc.HTTPPath)
+	// Pick TCP dial vs HTTP GET based on which probe field is set. TCPPort
+	// wins when both are specified (unusual) so databases with an optional
+	// HTTP admin endpoint still get probed on their primary protocol port.
+	var probe func(ctx context.Context) error
+	var probeDesc string
+	switch {
+	case hc.TCPPort > 0:
+		addr := fmt.Sprintf("%s:%d", spec.Name, hc.TCPPort)
+		dialer := &net.Dialer{Timeout: timeout}
+		probe = func(ctx context.Context) error {
+			conn, err := dialer.DialContext(ctx, "tcp", addr)
+			if err != nil {
+				return err
+			}
+			_ = conn.Close()
+			return nil
+		}
+		probeDesc = "tcp://" + addr
+	case hc.HTTPPath != "":
+		httpClient := &http.Client{Timeout: timeout}
+		probeURL := fmt.Sprintf("http://%s:%d%s", spec.Name, hc.Port, hc.HTTPPath)
+		probe = func(ctx context.Context) error {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
+			if err != nil {
+				return err
+			}
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				return err
+			}
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+				return fmt.Errorf("http status %d", resp.StatusCode)
+			}
+			return nil
+		}
+		probeDesc = probeURL
+	default:
+		return fmt.Errorf("container %s health check has neither HTTPPath nor TCPPort set", spec.Name)
+	}
 
 	deadline := time.Now().Add(readyTimeout)
 	for attempt := 1; attempt <= retries; attempt++ {
@@ -257,20 +297,11 @@ func (m *dockerManager) waitHealthy(ctx context.Context, spec module.InfraContai
 			return fmt.Errorf("container %s did not become healthy within %s", spec.Name, readyTimeout)
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, nil)
-		if err != nil {
-			return fmt.Errorf("probe request: %w", err)
-		}
-		resp, err := httpClient.Do(req)
-		if err == nil {
-			_, _ = io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-				m.logger.Info("Infra container healthy",
-					slog.String("name", spec.Name),
-					slog.Int("attempt", attempt))
-				return nil
-			}
+		if err := probe(ctx); err == nil {
+			m.logger.Info("Infra container healthy",
+				slog.String("name", spec.Name),
+				slog.Int("attempt", attempt))
+			return nil
 		}
 
 		select {
@@ -279,5 +310,5 @@ func (m *dockerManager) waitHealthy(ctx context.Context, spec module.InfraContai
 		case <-time.After(interval):
 		}
 	}
-	return fmt.Errorf("container %s failed health check at %s after %d attempts", spec.Name, probeURL, retries)
+	return fmt.Errorf("container %s failed health check at %s after %d attempts", spec.Name, probeDesc, retries)
 }

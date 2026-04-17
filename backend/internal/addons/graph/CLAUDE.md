@@ -18,8 +18,27 @@ The handler injects three service interfaces. All services share one `GraphRepos
 
 - Connected via **Bolt protocol** using `neo4j-go-driver/v5` (same driver, compatible API)
 - **Single-database system** — `ListDatabases()` returns a synthetic entry
-- Config: `GRAPH_ENABLED`, `GRAPH_URI`, `GRAPH_USERNAME`, `GRAPH_PASSWORD`, `GRAPH_DATABASE`
+- Config: `GRAPH_ENABLED`, `GRAPH_URI`, `GRAPH_USERNAME`, `GRAPH_PASSWORD`, `GRAPH_DATABASE`, `GRAPH_IMAGE`
 - No auth by default — uses `neo4j.NoAuth()` when username is empty
+
+## Container Lifecycle
+
+The graph module owns the `orkestra-memgraph` container via `InfraContainers()`. Enabling the module at `/admin/modules` starts Memgraph; disabling stops it. Memgraph is no longer declared in the auto-start set of `docker-compose.infra.yml` — it lives behind the `manual-only` profile there so the compose file still documents the image/ports/volumes for reference.
+
+| Field | Value |
+|---|---|
+| Container name | `orkestra-memgraph` |
+| Default image | `memgraph/memgraph-mage:latest` (MAGE variant — required for the algorithm service) |
+| Volume | `orkestra-memgraph-data` → `/var/lib/memgraph` (named, pinned — shared with the `manual-only` compose profile) |
+| Ports | `7687` (Bolt) + `7444` (monitoring) |
+| Network | `orkestra-network` |
+| Readiness | TCP dial on `7687`; the module's `Start()` then retries `driver.VerifyConnectivity` for up to 30s to cover Memgraph's Bolt-handshake warmup |
+
+### Init vs Start split
+
+`Init()` creates the Bolt driver via `database.NewGraphDriver` **without** dialing (the neo4j-go driver is lazy). This keeps boot-time initialization safe even when the Memgraph container isn't running yet. `Start()` calls `database.VerifyGraphConnection` (with retry) after the registry has brought up the container. `Stop()` is a no-op — the driver is reused across toggles and only the container is stopped, so the connection pool reconnects transparently on re-enable.
+
+If the admin changes `GRAPH_URI`/`GRAPH_USERNAME`/`GRAPH_PASSWORD`/`GRAPH_DATABASE` through the admin UI while the module is running, the driver keeps the **old** values until the backend process restarts (the driver is built from config at Init time). `GRAPH_IMAGE` is different — it's read live on every toggle, so upgrading the Memgraph image only requires disable → re-enable.
 
 ## Endpoints
 

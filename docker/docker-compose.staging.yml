@@ -103,7 +103,7 @@ services:
 
       # Graph Database - Memgraph
       GRAPH_ENABLED: ${GRAPH_ENABLED:-false}
-      GRAPH_URI: ${GRAPH_URI:-bolt://localhost:7687}
+      GRAPH_URI: ${GRAPH_URI:-bolt://orkestra-memgraph:7687}
       GRAPH_USERNAME: ${GRAPH_USERNAME:-}
       GRAPH_PASSWORD: ${GRAPH_PASSWORD:-}
       GRAPH_DATABASE: ${GRAPH_DATABASE:-memgraph}
