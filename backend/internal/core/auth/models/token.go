@@ -53,6 +53,13 @@ type JWTClaims struct {
 
 	// OAuth scopes
 	Scope []string `json:"scope,omitempty"`
+
+	// MFA / authentication methods (RFC 8176). Examples: "pwd", "otp", "oauth",
+	// "webauthn". Populated at token issuance, enforced by RequireMFA middleware.
+	AMR []string `json:"amr,omitempty"`
+	// LastOTPAt is the unix timestamp of the most recent successful OTP step.
+	// Used by RequireStepUp (Block D) to detect stale MFA proofs.
+	LastOTPAt int64 `json:"last_otp_at,omitempty"`
 }
 
 type RefreshTokenRequest struct {

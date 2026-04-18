@@ -424,6 +424,60 @@ func (m *AuthMiddleware) RequireGlobal() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireMFA blocks the request unless the access token records that MFA
+// was completed for this session (amr contains "otp" or "webauthn").
+// Returns 401 so the frontend can catch it, prompt for a code, and call
+// /v1/auth/mfa/verify to obtain a stepped-up token.
+func (m *AuthMiddleware) RequireMFA() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := r.Context().Value(ctxClaims).(*models.JWTClaims)
+			if !ok || claims == nil {
+				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
+					WithOperation("require_mfa").Build())
+				return
+			}
+			if !amrSatisfiesMFA(claims.AMR) {
+				m.sendMFARequired(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// amrSatisfiesMFA checks whether any second-factor method is recorded on the
+// token. Method names follow RFC 8176.
+func amrSatisfiesMFA(amr []string) bool {
+	for _, v := range amr {
+		if v == "otp" || v == "webauthn" || v == "mfa" {
+			return true
+		}
+	}
+	return false
+}
+
+// sendMFARequired emits the structured 401 the frontend looks for to trigger
+// a step-up prompt. The body mirrors sendErrorResponse's shape but adds the
+// stable `code` field so the client can switch on it without parsing prose.
+func (m *AuthMiddleware) sendMFARequired(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `MFA error="mfa_required"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "mfa required",
+		"detail": "this action requires a second authentication factor",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "mfa required",
+			"location": "require_mfa",
+			"value":    "MFA_REQUIRED",
+		}},
+		"code": "mfa_required",
+	})
+}
+
 // sendErrorResponse sends a structured error response using the error manager.
 func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Request, appErr *errors.AppError) {
 	if correlationID := errors.GetCorrelationID(r.Context()); correlationID != "" {

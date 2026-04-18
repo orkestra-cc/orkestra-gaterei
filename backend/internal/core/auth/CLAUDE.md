@@ -45,8 +45,9 @@ Declared in `module.go:53-74`. Collection name constants live in `models/collect
 | `auth_sessions` | `uuid` unique | — |
 | `auth_security_events` | (none declared) | — |
 | `auth_email_tokens` | `uuid` unique, `tokenHash` unique, `userUuid`, `expiresAt` **TTL 24h** | Yes (`module.go:71`) |
+| `auth_mfa_factors` | `uuid` unique, compound `(userUuid, type)` unique | — |
 
-Only email tokens currently have a TTL — refresh tokens and sessions are rotated/invalidated explicitly in the service layer.
+Only email tokens currently have a TTL — refresh tokens, sessions, and MFA factor rows are rotated/invalidated explicitly in the service layer.
 
 ## Dependencies
 
@@ -54,7 +55,7 @@ Only email tokens currently have a TTL — refresh tokens and sessions are rotat
 - **Required services** (`module.go:32-34`): `ServiceUserService`, `ServiceTenantProvider`. Panics if missing — both are core.
 - **Optional services** (`module.go:35-37`): `ServiceNotificationSender`. Graceful degradation: signup and password-reset mail endpoints still mount, but when `RequireEmailVerification=true` signup returns 503 unless the notifier is configured.
 - **Provides** (`module.go:38-45`): `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`.
-- **Permissions contributed** (`module.go:47-51`): only `auth.self` — "edit your own password and sessions".
+- **Permissions contributed**: `auth.self` (edit your own password/sessions), `auth.mfa.self` (manage your own MFA factors), `system.users.mfa_reset` (admin reset of another user's MFA — declared now, wired into an admin endpoint in Block B).
 
 ## Lifecycle
 
@@ -152,8 +153,20 @@ Registered from two handlers — `auth_handler.go` for OAuth/session/refresh, `p
 |---|---|---|---|
 | GET | `/v1/auth/me` | bearer | Return the current authenticated user |
 | POST | `/v1/auth/change-password` | `RequireGlobal()` | Self-service password change |
+| POST | `/v1/auth/mfa/enroll/begin` | `RequireGlobal()` | Start TOTP enrollment — returns `{challengeId, secret, provisioningUri}` |
+| POST | `/v1/auth/mfa/enroll/confirm` | `RequireGlobal()` | Confirm enrollment with a TOTP code, receive 10 one-shot backup codes |
+| GET | `/v1/auth/me/mfa` | `RequireGlobal()` | Return `{status, type, backupCodesRemaining}` |
+| POST | `/v1/auth/me/mfa/remove` | `RequireGlobal()` | Remove own factor — requires a live TOTP code (upgrades to `RequireStepUp` in Block D) |
+| POST | `/v1/auth/mfa/verify` | `RequireGlobal()` | Verify TOTP or backup code; mint a stepped-up access token with `amr:["pwd","otp"]` + `last_otp_at=now` |
 
-`change-password` is deliberately global (no org context) because it's a user-level self-service flow (`module.go:237-241`).
+`change-password` and all MFA routes are deliberately global (no org context) because they're user-level self-service flows.
+
+### MFA implementation notes
+
+- Factor secrets are AES-256-GCM encrypted with `MFA_SECRET_ENCRYPTION_KEY` (falls back to `OAUTH_TOKEN_ENCRYPTION_KEY` for single-key dev setups). Backup codes are argon2id hashed via the existing `PasswordService`.
+- Challenge state (enrollment pending secret, attempt counter) lives in Redis under `mfa:challenge:<uuid>` with a 5-minute TTL. After 5 failed verifications the challenge is deleted.
+- `JWTClaims.AMR` (RFC 8176) and `JWTClaims.LastOTPAt` are emitted `omitempty` so tokens minted before Block A still validate. Issuance sites today: the MFA verify endpoint sets `amr:["pwd","otp"]` + `last_otp_at=now`; password and OAuth login still emit `amr:["pwd"]` / `amr:["oauth"]` is **not** yet set — that wiring lands with Block B's partial-response login.
+- `RoleMiddleware.RequireMFA()` is implemented on both `AuthMiddleware` and `JWTValidator` but is not applied to any route in Block A. Block B wires it into authz binding mutations and module secret writes.
 
 ## Service contract
 
@@ -182,7 +195,7 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - Org membership, invite lifecycle, plan entitlements → **tenant** module
 - Permission evaluation, role bindings, system role seeding → **authz** module
 - Rendering and sending emails → **notification** module (auth just passes `TemplatedNotificationRequest`)
-- MFA / TOTP / WebAuthn — reserved in the JWT claim set, not implemented in v1
+- MFA enforcement at login — Block A landed the TOTP machinery (enroll/verify/backup codes, `amr` + `last_otp_at` JWT claims, `RequireMFA` middleware skeleton on both `AuthMiddleware` and `JWTValidator`) but no route is gated yet and `/v1/auth/login` still returns a full token pair with `amr:["pwd"]`. Gating + login partial response arrive in Block B. WebAuthn is still reserved.
 - OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term
 
 ## Rules

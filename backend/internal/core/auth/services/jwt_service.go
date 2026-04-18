@@ -26,6 +26,11 @@ type JWTService interface {
 
 	GenerateAccessToken(user *userModels.User) (string, error)
 	GenerateRefreshToken(user *userModels.User) (string, error)
+	// GenerateAccessTokenWithAMR mints an access token with explicit authn
+	// methods (RFC 8176) and an optional last-OTP timestamp. Used by the MFA
+	// verify endpoint and password/OAuth login paths to record how the user
+	// proved their identity on this request.
+	GenerateAccessTokenWithAMR(user *userModels.User, amr []string, lastOTPAt int64) (string, error)
 	ValidateAccessToken(tokenString string) (*models.JWTClaims, error)
 	ValidateRefreshToken(tokenString string) (*models.JWTClaims, error)
 	ParseUnverifiedClaims(tokenString string) (*models.JWTClaims, error)
@@ -127,6 +132,9 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 		RiskScore:     securityCtx.RiskScore,
 		OAuthProvider: string(primaryProvider),
 		Scope:         []string{"profile", "email", "api"},
+
+		AMR:       securityCtx.AMR,
+		LastOTPAt: securityCtx.LastOTPAt,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, s.claimsToMap(claims))
@@ -352,6 +360,12 @@ func (s *jwtService) claimsToMap(claims *models.JWTClaims) jwt.MapClaims {
 		}
 		m["mbr"] = mbrs
 	}
+	if len(claims.AMR) > 0 {
+		m["amr"] = claims.AMR
+	}
+	if claims.LastOTPAt > 0 {
+		m["last_otp_at"] = claims.LastOTPAt
+	}
 
 	return m
 }
@@ -379,6 +393,10 @@ func (s *jwtService) mapToClaims(m jwt.MapClaims) *models.JWTClaims {
 	if scope, ok := m["scope"].([]interface{}); ok {
 		claims.Scope = interfaceSliceToStringSlice(scope)
 	}
+	if amr, ok := m["amr"].([]interface{}); ok {
+		claims.AMR = interfaceSliceToStringSlice(amr)
+	}
+	claims.LastOTPAt = int64(getFloatClaim(m, "last_otp_at"))
 	if mbrs, ok := m["mbr"].([]interface{}); ok {
 		claims.Memberships = make([]models.OrgMembership, 0, len(mbrs))
 		for _, raw := range mbrs {
@@ -440,6 +458,21 @@ func (s *jwtService) GenerateAccessToken(user *userModels.User) (string, error) 
 	securityCtx := &models.SecurityContext{
 		SessionID: fmt.Sprintf("session_%d", time.Now().Unix()),
 		Timestamp: time.Now(),
+	}
+	return s.GenerateEnhancedAccessToken(user, deviceInfo, securityCtx)
+}
+
+func (s *jwtService) GenerateAccessTokenWithAMR(user *userModels.User, amr []string, lastOTPAt int64) (string, error) {
+	deviceInfo := &models.DeviceInfo{
+		DeviceID:   "default",
+		DeviceType: "unknown",
+		Platform:   "api",
+	}
+	securityCtx := &models.SecurityContext{
+		SessionID: fmt.Sprintf("session_%d", time.Now().Unix()),
+		Timestamp: time.Now(),
+		AMR:       amr,
+		LastOTPAt: lastOTPAt,
 	}
 	return s.GenerateEnhancedAccessToken(user, deviceInfo, securityCtx)
 }

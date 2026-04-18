@@ -36,6 +36,13 @@ type SecurityContext struct {
 	RequiresMFA bool      `json:"requiresMfa,omitempty" bson:"requiresMfa,omitempty"`
 	RequestID   string    `json:"requestId,omitempty" bson:"requestId,omitempty"`
 	Timestamp   time.Time `json:"timestamp" bson:"timestamp"`
+
+	// AMR (RFC 8176) records which auth methods the caller completed for this
+	// request. Populated at token issuance, mirrored into the JWT claim.
+	AMR []string `json:"amr,omitempty" bson:"-"`
+	// LastOTPAt is the unix timestamp of the last successful OTP step.
+	// Drives step-up auth freshness checks (Block D).
+	LastOTPAt int64 `json:"lastOtpAt,omitempty" bson:"-"`
 }
 
 // RiskAssessment contains detailed risk analysis results

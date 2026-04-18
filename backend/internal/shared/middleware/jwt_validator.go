@@ -161,6 +161,16 @@ func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
 			c.Memberships = append(c.Memberships, mb)
 		}
 	}
+	if amr, ok := m["amr"].([]interface{}); ok {
+		for _, v := range amr {
+			if s, ok := v.(string); ok {
+				c.AMR = append(c.AMR, s)
+			}
+		}
+	}
+	if v, ok := m["last_otp_at"].(float64); ok {
+		c.LastOTPAt = int64(v)
+	}
 	return c
 }
 
@@ -291,6 +301,36 @@ func (v *JWTValidator) RequireGlobal() func(http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireMFA mirrors AuthMiddleware.RequireMFA for the AI sidecar. Parsing
+// the amr claim here is cheap; the sidecar never needs to touch the MFA
+// service or database — the monolith records amr at token issuance.
+func (v *JWTValidator) RequireMFA() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := r.Context().Value(ctxClaims).(*authModels.JWTClaims)
+			if !ok || claims == nil {
+				writeErr(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			for _, v := range claims.AMR {
+				if v == "otp" || v == "webauthn" || v == "mfa" {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			w.Header().Set("WWW-Authenticate", `MFA error="mfa_required"`)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": http.StatusUnauthorized,
+				"title":  "mfa required",
+				"detail": "this action requires a second authentication factor",
+				"code":   "mfa_required",
+			})
 		})
 	}
 }

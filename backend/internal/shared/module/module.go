@@ -276,6 +276,14 @@ type RoleMiddleware interface {
 	// auth flows, self-service, and org-list endpoints that run before a
 	// current org is selected.
 	RequireGlobal() func(http.Handler) http.Handler
+
+	// RequireMFA blocks the request unless the caller's access token records
+	// that a second factor was completed for this session (amr claim
+	// contains "otp" or "webauthn"). Applied to sensitive routes such as
+	// role grant/revoke and module secret writes. Returns 401 with
+	// error="mfa_required" so the frontend can prompt for a TOTP code and
+	// retry against /v1/auth/mfa/verify.
+	RequireMFA() func(http.Handler) http.Handler
 }
 
 // RouteInfo provides the routing infrastructure for module route registration.

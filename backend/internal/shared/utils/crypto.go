@@ -466,3 +466,85 @@ func GenerateEncryptionKey() (string, error) {
 
 	return hex.EncodeToString(key), nil
 }
+
+// MFA secret encryption — separate key domain from OAuth tokens so rotation
+// and compromise blast radius are independent. Falls back to the OAuth key
+// in local dev when only one key is configured, but logs nothing destructive —
+// production deployments are expected to set MFA_SECRET_ENCRYPTION_KEY.
+
+func getMFAEncryptionKey() ([]byte, error) {
+	keyHex := os.Getenv("MFA_SECRET_ENCRYPTION_KEY")
+	if keyHex == "" {
+		keyHex = os.Getenv("OAUTH_TOKEN_ENCRYPTION_KEY")
+	}
+	if keyHex == "" {
+		return nil, ErrKeyNotSet
+	}
+
+	key, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MFA encryption key format: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("MFA encryption key must be 32 bytes (256 bits), got %d bytes", len(key))
+	}
+	return key, nil
+}
+
+// EncryptMFASecret encrypts a TOTP shared secret using AES-256-GCM.
+func EncryptMFASecret(plaintext string) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+	key, err := getMFAEncryptionKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get MFA encryption key: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+// DecryptMFASecret is the inverse of EncryptMFASecret.
+func DecryptMFASecret(encryptedText string) (string, error) {
+	if encryptedText == "" {
+		return "", nil
+	}
+	key, err := getMFAEncryptionKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get MFA encryption key: %w", err)
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(encryptedText)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode ciphertext: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", ErrInvalidCiphertext
+	}
+	nonce, encryptedData := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, encryptedData, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+	return string(plaintext), nil
+}

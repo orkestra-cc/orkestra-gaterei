@@ -20,6 +20,7 @@ type AuthModule struct {
 	module.BaseModule
 	authHandler     *handlers.AuthHandler
 	passwordHandler *handlers.PasswordAuthHandler
+	mfaHandler      *handlers.MFAHandler
 }
 
 func NewModule() *AuthModule { return &AuthModule{} }
@@ -47,6 +48,8 @@ func (m *AuthModule) ProvidedServices() []module.ServiceKey {
 func (m *AuthModule) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
 		{Key: "auth.self", Module: "auth", Description: "Edit your own password and sessions"},
+		{Key: "auth.mfa.self", Module: "auth", Description: "Enroll, verify, and remove your own MFA factors"},
+		{Key: "system.users.mfa_reset", Module: "auth", Description: "Admin: reset another user's MFA factors"},
 	}
 }
 
@@ -106,6 +109,10 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 			// TTL: documents are removed 24h after ExpiresAt (max TTL for both verify and reset).
 			{Keys: map[string]int{"expiresAt": 1}, TTL: 24 * time.Hour},
 		}},
+		{Name: models.MFAFactorsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1, "type": 1}, Unique: true},
+		}},
 	}
 }
 
@@ -125,6 +132,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(deps.DB)
 	authSessionRepo := repository.NewAuthSessionRepository(deps.DB)
 	emailTokenRepo := repository.NewEmailTokenRepository(deps.DB)
+	mfaFactorRepo := repository.NewMFAFactorRepository(deps.DB)
 
 	// OAuth provider factory + live config resolver.
 	//
@@ -225,6 +233,22 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Secure,
 	)
 
+	// MFA service. Reuses the OAuth Redis store (same Get/Set/Delete shape)
+	// for the short-lived challenge cache, and borrows the password service's
+	// argon2id hasher for backup-code storage.
+	mfaChallengeSvc := services.NewMFAChallengeService(redisStore)
+	mfaIssuer := getEnvOrDefault("APP_NAME", "Orkestra")
+	mfaSvc := services.NewMFAService(mfaFactorRepo, mfaChallengeSvc, passwordSvc, mfaIssuer, logger)
+
+	m.mfaHandler = handlers.NewMFAHandler(
+		mfaSvc,
+		jwtService,
+		userService,
+		cfg.Auth.Cookie.Name,
+		cfg.Auth.Cookie.Domain,
+		cfg.Auth.Cookie.Secure,
+	)
+
 	// Register services for main.go middleware setup
 	deps.Services.Register(module.ServiceAuthService, authService)
 	deps.Services.Register(module.ServiceJWTService, jwtService)
@@ -263,6 +287,17 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.passwordHandler.RegisterProtectedRoutes(api)
+		})
+	}
+
+	// MFA endpoints are all self-service (no org context required). Block A
+	// does not gate any existing route with RequireMFA — the middleware is
+	// available for Block B to wire up without further module changes.
+	if m.mfaHandler != nil {
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.mfaHandler.RegisterProtectedRoutes(api)
 		})
 	}
 }

@@ -120,6 +120,7 @@ const (
 	RefreshTokensCollection  = "auth_refresh_tokens"
 	AuthSessionsCollection   = "auth_sessions"
 	SecurityEventsCollection = "auth_security_events"
+	MFAFactorsCollection     = "auth_mfa_factors"
 )
 
 // Indexes for collections
