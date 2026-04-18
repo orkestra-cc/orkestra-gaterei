@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -870,6 +871,9 @@ func (h *AuthHandler) RefreshTokens(ctx context.Context, req *RefreshTokenReques
 	tokenResponse, err := h.authService.RefreshTokensWithRiskAssessment(ctx, refreshToken, securityCtx)
 	if err != nil {
 		logger.Warn("Token refresh failed", slog.String("error", err.Error()))
+		if errors.Is(err, services.ErrRefreshTokenReplay) {
+			return nil, huma.Error401Unauthorized("refresh_token_replay: session revoked", err)
+		}
 		return nil, huma.Error401Unauthorized("Invalid refresh token", err)
 	}
 
@@ -935,7 +939,7 @@ func (h *AuthHandler) RefreshTokensWithHeaderHTTP(w http.ResponseWriter, r *http
 	tokenResponse, err := h.authService.RefreshTokensWithRiskAssessment(ctx, refreshToken, securityCtx)
 	if err != nil {
 		logger.Warn("Token refresh failed", slog.String("error", err.Error()))
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		writeRefreshErr(w, err)
 		return
 	}
 
@@ -995,7 +999,7 @@ func (h *AuthHandler) GetSessionHTTP(w http.ResponseWriter, r *http.Request) {
 	tokenResponse, err := h.authService.RefreshTokensWithRiskAssessment(ctx, refreshToken, securityCtx)
 	if err != nil {
 		logger.Warn("Token refresh failed", slog.String("error", err.Error()))
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		writeRefreshErr(w, err)
 		return
 	}
 
@@ -1306,7 +1310,7 @@ func (h *AuthHandler) RefreshTokensHTTP(w http.ResponseWriter, r *http.Request) 
 	tokenResponse, err := h.authService.RefreshTokensWithRiskAssessment(ctx, refreshToken, securityCtx)
 	if err != nil {
 		logger.Warn("Token refresh failed", slog.String("error", err.Error()))
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		writeRefreshErr(w, err)
 		return
 	}
 
@@ -1641,4 +1645,23 @@ func (h *AuthHandler) RegisterRoutes(publicAPI huma.API, protectedAPI huma.API, 
 			{"bearerAuth": {}},
 		},
 	}, h.GetCurrentUser)
+}
+
+// writeRefreshErr writes a JSON 401 for a refresh-flow error, distinguishing
+// replay detection (code:"refresh_token_replay") from generic failures so
+// the frontend can show a "you've been signed out for security reasons"
+// banner instead of a neutral "please sign in again".
+func writeRefreshErr(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	body := map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "Unauthorized",
+		"detail": "Invalid refresh token",
+	}
+	if errors.Is(err, services.ErrRefreshTokenReplay) {
+		body["code"] = "refresh_token_replay"
+		body["detail"] = "refresh token reuse detected — session revoked"
+	}
+	_ = json.NewEncoder(w).Encode(body)
 }

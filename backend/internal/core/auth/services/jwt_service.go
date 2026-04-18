@@ -48,8 +48,6 @@ type JWTService interface {
 	// were completed for a freshly minted session.
 	GenerateTokenPairWithAMR(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext, amr []string, lastOTPAt int64) (*models.TokenPair, error)
 
-	RefreshTokensWithRotation(refreshToken string, deviceInfo *models.DeviceInfo) (*models.TokenPair, error)
-
 	// SetTenantProvider allows late wiring of the tenant provider so that
 	// token issuance can embed the user's current memberships in the JWT.
 	// Called by the auth module after the tenant module has initialized.
@@ -308,10 +306,6 @@ func (s *jwtService) validateTokenEnhanced(tokenString string, expectedType stri
 
 	claims := s.mapToClaims(mapClaims)
 	return claims, nil
-}
-
-func (s *jwtService) RefreshTokensWithRotation(refreshToken string, deviceInfo *models.DeviceInfo) (*models.TokenPair, error) {
-	return nil, errors.New("refresh token rotation not yet implemented - requires repository integration")
 }
 
 func (s *jwtService) ParseUnverifiedClaims(tokenString string) (*models.JWTClaims, error) {

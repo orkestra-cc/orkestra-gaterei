@@ -41,7 +41,7 @@ Declared in `module.go:53-74`. Collection name constants live in `models/collect
 | Collection | Indexes | TTL |
 |---|---|---|
 | `auth_oauth_providers` | compound `(userUuid, provider)` unique | — |
-| `auth_refresh_tokens` | `uuid` unique, `userUuid` | — (rotation is explicit) |
+| `auth_refresh_tokens` | `uuid` unique, `userUuid`, `familyId` | — (rotation is explicit; revoked rows retained ≥ refresh TTL so replay detection can see them) |
 | `auth_sessions` | `uuid` unique | — |
 | `auth_security_events` | (none declared) | — |
 | `auth_email_tokens` | `uuid` unique, `tokenHash` unique, `userUuid`, `expiresAt` **TTL 24h** | Yes (`module.go:71`) |
@@ -192,7 +192,7 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - **JWT payload shape.** Access tokens carry: `sub`, `email`, `srole` (the global system role), `memberships` (an array of `{orgId, orgName, orgSlug, roles[]}` fetched via `TenantProvider.ListUserMemberships` at issue time). **Permissions are not embedded** — they are resolved per-request by middleware calling `authz.HasPermission`. This is the most important thing to remember about the authentication architecture: roles are coarse-grained and cached in the JWT, permissions are fine-grained and resolved fresh.
 - **First-user heuristic.** `password_auth_service.go::Register` (`:116-121`), `RegisterInitialAdmin` (`:177`), and `auth_service.go::OAuth register` all check `GetUserCount(ctx, nil) == 0` and assign `super_admin` to the first account created on a fresh install. The setup wizard's `POST /v1/setup/admin` uses `RegisterInitialAdmin` which also bypasses email verification.
 - **Email verification is gated by `AUTH_REQUIRE_EMAIL_VERIFICATION`.** `true` in production, `false` elsewhere. When true, signup returns 503 with `ErrNotificationDown` if the notification sender is missing or reports `IsConfigured() == false`. `RegisterInitialAdmin` (setup wizard path) bypasses verification entirely because the wizard runs before SMTP is configured.
-- **Refresh tokens rotate on every use.** Stored as a hash in `auth_refresh_tokens`. On refresh, the old token is marked revoked and a new pair is issued. Reuse of a revoked token is a reuse-attack signal — the service-level behavior is to revoke the whole session (see `refresh_token_repository.go`).
+- **Refresh tokens rotate on every use with family detection.** Each login mints a fresh `FamilyID`; every subsequent rotation preserves it via `RotateWithFamily` (atomic CAS on `{isRevoked:false}`). Old rows are marked `revokedReason="rotated"` with `succeededBy` pointing at the successor so the chain is walkable. Reuse of a rotated token — or CAS-loss on concurrent rotation — triggers `RevokeFamily`: every active row in the lineage is revoked with `revokedReason="replay_detected"`, a structured `slog.Warn` fires, and callers get `ErrRefreshTokenReplay` → 401 with body `{code:"refresh_token_replay"}`. Pre-Block-C rows have empty `FamilyID`; `RevokeFamily("")` is a no-op guard so a stray pre-Block-C replay doesn't wipe unrelated sessions. Revoked rows must stay in the collection for at least the refresh TTL — do not shorten `CleanupRevokedTokens`'s `olderThan` below that.
 - **Session per device.** `AuthSession` binds a session to a `deviceId` + fingerprint. Refresh tokens link back to their session — revoking a session cascades to every token issued from it.
 - **Email token TTL is 24 hours.** Enforced by the `auth_email_tokens.expiresAt` TTL index (`module.go:71`). The service also compares expiry on read in case the TTL sweeper is behind.
 - **OAuth state is 10 minutes in Redis.** Validated before code exchange in every provider's callback handler.
@@ -207,7 +207,7 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - Permission evaluation, role bindings, system role seeding → **authz** module
 - Rendering and sending emails → **notification** module (auth just passes `TemplatedNotificationRequest`)
 - Step-up middleware (`RequireStepUp(maxAge)`) that rejects stale MFA proofs — Block D. Until then, `RequireMFA` only checks `amr` presence, not freshness, and the self-service MFA remove endpoint enforces via an in-handler live-code check.
-- Refresh-token family rotation + replay-after-rotate detection — Block C. Today tokens are single-rotated but there's no family-wide revocation on replay.
+- Redis session revocation list — Block D. Once landed, every authenticated request checks `auth:revoked:session:<sid>` before hitting the handler; today only family revocation catches stolen refresh tokens, not stolen access tokens.
 - WebAuthn — reserved in `MFAFactorType`; not implemented.
 - OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term.
 

@@ -686,6 +686,12 @@ func (s *PasswordAuthService) issueTokens(ctx context.Context, user *userModels.
 	sessionID := uuid.New().String()
 	now := time.Now()
 
+	// Fresh login → fresh family. The MFA login-verify path also flows
+	// through here (via IssueLoginTokens) so post-MFA token pairs get their
+	// own family too — correct, because the prior partial login didn't
+	// issue any refresh token.
+	familyID := uuid.New().String()
+
 	// Store the refresh token for rotation.
 	_ = s.refreshTokenRepo.CreateRefreshToken(ctx, &authModels.RefreshTokenDoc{
 		UUID:         authModels.GenerateUUIDv7(),
@@ -704,6 +710,7 @@ func (s *PasswordAuthService) issueTokens(ctx context.Context, user *userModels.
 		IsRevoked:    false,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		FamilyID:     familyID,
 	})
 
 	// Create an auth session doc for audit trail.

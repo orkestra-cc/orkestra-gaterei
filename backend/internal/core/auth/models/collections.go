@@ -65,7 +65,33 @@ type RefreshTokenDoc struct {
 	RevokedReason string     `bson:"revokedReason,omitempty" json:"revokedReason,omitempty"`
 	CreatedAt     time.Time  `bson:"createdAt" json:"createdAt"`
 	UpdatedAt     time.Time  `bson:"updatedAt" json:"updatedAt"`
+
+	// Family-detection fields (Block C).
+	//
+	// FamilyID groups every token descending from a single login so a
+	// replay (re-use of a rotated token) can be detected and the whole
+	// family killed together. Empty on rows written before Block C; the
+	// rotation path treats an empty FamilyID as "pre-family" and skips the
+	// family-wide revocation that would otherwise affect unrelated rows.
+	FamilyID string `bson:"familyId,omitempty" json:"-"`
+	// SucceededBy is the UUID of the refresh-token row that replaced this
+	// one during rotation. Populated atomically with IsRevoked=true and
+	// RevokedReason=RevokeReasonRotated; lets a diagnostic query walk the
+	// chain forward from any row.
+	SucceededBy string `bson:"succeededBy,omitempty" json:"-"`
 }
+
+// Refresh-token revocation reasons. Written to RefreshTokenDoc.RevokedReason
+// when a token is marked revoked. Strings are stable — do not rename, they
+// are read by analytics and by future audit-event filters.
+const (
+	RevokeReasonRotated        = "rotated"
+	RevokeReasonReplayDetected = "replay_detected"
+	RevokeReasonLogout         = "logout"
+	RevokeReasonRoleChange     = "role_change"
+	RevokeReasonPasswordChange = "password_change"
+	RevokeReasonManualRevoke   = "manual_revoke"
+)
 
 // AuthSessionDoc represents a document in the auth_sessions collection
 type AuthSessionDoc struct {

@@ -12,11 +12,24 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ErrTokenAlreadyRotated is returned by RotateWithFamily when the CAS
+// precondition ({isRevoked:false}) does not match — i.e. the old token has
+// already been rotated, revoked, or doesn't exist. The refresh flow
+// interprets this as a replay signal.
+var ErrTokenAlreadyRotated = fmt.Errorf("refresh token already rotated or revoked")
+
 // RefreshTokenRepository handles refresh token data operations
 type RefreshTokenRepository interface {
 	// Token management
 	CreateRefreshToken(ctx context.Context, token *models.RefreshTokenDoc) error
+	// GetByToken returns an active, non-revoked, non-expired refresh token.
+	// Use this when you only care about "is this token still usable".
 	GetByToken(ctx context.Context, tokenHash string) (*models.RefreshTokenDoc, error)
+	// GetByTokenAny returns the refresh-token doc regardless of its
+	// revocation state. Only the refresh flow calls this — it needs to
+	// observe rotated rows so it can distinguish "never existed" from
+	// "already used" (replay).
+	GetByTokenAny(ctx context.Context, tokenHash string) (*models.RefreshTokenDoc, error)
 	GetBySessionUUID(ctx context.Context, sessionUUID string) (*models.RefreshTokenDoc, error)
 	GetActiveTokensByUser(ctx context.Context, userUUID string) ([]*models.RefreshTokenDoc, error)
 	GetActiveTokensByDevice(ctx context.Context, userUUID, deviceID string) ([]*models.RefreshTokenDoc, error)
@@ -24,7 +37,16 @@ type RefreshTokenRepository interface {
 	// Token updates
 	UpdateLastActivity(ctx context.Context, uuid string) error
 	UpdateRiskScore(ctx context.Context, uuid string, riskScore float64, riskFactors []string) error
+	// RotateToken is the legacy single-token rotation. Deprecated in favour
+	// of RotateWithFamily; still callable so older code paths keep building.
+	// Deprecated: use RotateWithFamily.
 	RotateToken(ctx context.Context, oldTokenHash, newTokenHash string) error
+	// RotateWithFamily atomically marks oldTokenHash as rotated (setting
+	// IsRevoked=true, RevokedReason=RevokeReasonRotated, SucceededBy=
+	// newDoc.UUID) and inserts the new document. Returns
+	// ErrTokenAlreadyRotated when the old row is not in the rotatable
+	// state, which the refresh flow treats as a replay signal.
+	RotateWithFamily(ctx context.Context, oldTokenHash string, newDoc *models.RefreshTokenDoc) error
 
 	// Token revocation
 	RevokeToken(ctx context.Context, tokenHash string, reason string) error
@@ -32,14 +54,27 @@ type RefreshTokenRepository interface {
 	RevokeTokensBySession(ctx context.Context, sessionUUID string, reason string) error
 	RevokeTokensByUser(ctx context.Context, userUUID string, reason string) error
 	RevokeTokensByDevice(ctx context.Context, userUUID, deviceID string, reason string) error
+	// RevokeFamily marks every still-active token in the given family as
+	// revoked with the supplied reason. Used for logout-family and for the
+	// replay-detection response. Returns the number of rows revoked.
+	RevokeFamily(ctx context.Context, familyID, reason string) (int64, error)
 
 	// Cleanup operations
 	CleanupExpiredTokens(ctx context.Context) (int64, error)
+	// CleanupRevokedTokens removes revoked rows whose RevokedAt is older
+	// than `olderThan`. MUST be called with a value ≥ the refresh-token
+	// lifetime, otherwise a replay within the live window won't find the
+	// rotated row to match against. Today nothing schedules this — Block F
+	// will add a guarded background reaper.
 	CleanupRevokedTokens(ctx context.Context, olderThan time.Duration) (int64, error)
 
 	// Analytics and monitoring
 	GetTokenStats(ctx context.Context, userUUID string) (*TokenStats, error)
 	GetDeviceTokenCount(ctx context.Context, userUUID, deviceID string) (int64, error)
+	// CountFamilyMembers returns the total number of rows (including
+	// revoked) with the given FamilyID — diagnostic helper for tests and
+	// for the future "active sessions" admin view.
+	CountFamilyMembers(ctx context.Context, familyID string) (int64, error)
 }
 
 type TokenStats struct {
@@ -113,6 +148,23 @@ func (r *refreshTokenRepository) GetByToken(ctx context.Context, tokenHash strin
 		return nil, fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
+	return &result, nil
+}
+
+// GetByTokenAny looks up a refresh token regardless of its revocation state.
+// Returns (nil, nil) when the token never existed. Used by the refresh path
+// so replay detection can see rotated rows that GetByToken would hide.
+func (r *refreshTokenRepository) GetByTokenAny(ctx context.Context, tokenHash string) (*models.RefreshTokenDoc, error) {
+	filter := bson.M{"token": tokenHash}
+
+	var result models.RefreshTokenDoc
+	err := r.collection.FindOne(ctx, filter).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find refresh token: %w", err)
+	}
 	return &result, nil
 }
 
@@ -230,6 +282,91 @@ func (r *refreshTokenRepository) UpdateRiskScore(ctx context.Context, uuid strin
 	}
 
 	return nil
+}
+
+// RotateWithFamily atomically revokes the old row (marking it rotated with
+// SucceededBy pointing at newDoc.UUID) and inserts newDoc. The CAS filter
+// `{isRevoked:false}` is what makes concurrent refresh calls safe: only one
+// caller can transition the row from active → rotated; the loser sees
+// ErrTokenAlreadyRotated and the refresh service treats that as replay.
+//
+// Note: if InsertOne fails after the revoke succeeded, we return the insert
+// error without reverting. That's deliberate — the old token has already
+// been invalidated and must not become usable again; the resulting state
+// (one extra revoked row, no successor) is safe, just a failed refresh.
+func (r *refreshTokenRepository) RotateWithFamily(ctx context.Context, oldTokenHash string, newDoc *models.RefreshTokenDoc) error {
+	if newDoc == nil {
+		return fmt.Errorf("newDoc is required")
+	}
+	if newDoc.UUID == "" {
+		newDoc.UUID = models.GenerateTimeOrderedUUID()
+	}
+	now := time.Now()
+	res, err := r.collection.UpdateOne(ctx,
+		bson.M{"token": oldTokenHash, "isRevoked": false},
+		bson.M{"$set": bson.M{
+			"isRevoked":     true,
+			"revokedAt":     now,
+			"revokedReason": models.RevokeReasonRotated,
+			"succeededBy":   newDoc.UUID,
+			"updatedAt":     now,
+		}},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to mark old token rotated: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return ErrTokenAlreadyRotated
+	}
+
+	// Normalise + hash the new doc exactly like CreateRefreshToken.
+	newDoc.IssuedAt = now
+	newDoc.CreatedAt = now
+	newDoc.UpdatedAt = now
+	newDoc.LastActivity = now
+	if newDoc.Token != "" {
+		newDoc.Token = utils.HashRefreshToken(newDoc.Token)
+	}
+	if _, err := r.collection.InsertOne(ctx, newDoc); err != nil {
+		return fmt.Errorf("failed to insert rotated token: %w", err)
+	}
+	return nil
+}
+
+// RevokeFamily marks every still-active row in the family as revoked. Pass
+// an empty familyID and it returns (0, nil) — a no-op guard so the refresh
+// path doesn't accidentally revoke every pre-Block-C row in the database.
+func (r *refreshTokenRepository) RevokeFamily(ctx context.Context, familyID, reason string) (int64, error) {
+	if familyID == "" {
+		return 0, nil
+	}
+	now := time.Now()
+	res, err := r.collection.UpdateMany(ctx,
+		bson.M{"familyId": familyID, "isRevoked": false},
+		bson.M{"$set": bson.M{
+			"isRevoked":     true,
+			"revokedAt":     now,
+			"revokedReason": reason,
+			"updatedAt":     now,
+		}},
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to revoke family: %w", err)
+	}
+	return res.ModifiedCount, nil
+}
+
+// CountFamilyMembers counts every row (including revoked) with the family
+// ID. Diagnostic only — not on any hot path.
+func (r *refreshTokenRepository) CountFamilyMembers(ctx context.Context, familyID string) (int64, error) {
+	if familyID == "" {
+		return 0, nil
+	}
+	n, err := r.collection.CountDocuments(ctx, bson.M{"familyId": familyID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count family members: %w", err)
+	}
+	return n, nil
 }
 
 func (r *refreshTokenRepository) RotateToken(ctx context.Context, oldTokenHash, newTokenHash string) error {

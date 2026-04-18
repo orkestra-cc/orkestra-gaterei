@@ -97,6 +97,8 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 		{Name: models.RefreshTokensCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"userUuid": 1}},
+			// Block C: family lookup for RevokeFamily / replay detection.
+			{Keys: map[string]int{"familyId": 1}},
 		}},
 		{Name: models.AuthSessionsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},

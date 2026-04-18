@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/orkestra/backend/internal/core/auth/models"
@@ -15,12 +16,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// defaultSlogger is the default logger factory used by handleRefreshReplay.
+// Exposed as a var so tests can swap it for a capture-friendly logger
+// without touching the global slog.Default().
+func defaultSlogger() *slog.Logger { return slog.Default() }
+
 var (
 	ErrCannotRemoveLastOAuthLink = errors.New("cannot remove the last OAuth link")
 	ErrOAuthLinkNotFound         = errors.New("OAuth link not found")
 	ErrOAuthLinkAlreadyExists    = errors.New("OAuth link already exists")
 	ErrUserMigrationRequired     = errors.New("user migration to UUID required")
 	ErrInvalidRefreshToken       = errors.New("invalid refresh token")
+	// ErrRefreshTokenReplay signals that a rotated refresh token was used
+	// again after its successor already existed — a textbook replay attack.
+	// The whole family is revoked before this error is returned.
+	ErrRefreshTokenReplay = errors.New("refresh token replay detected — session revoked")
 )
 
 // AuthService extends the basic auth service with UUID support and OAuth linking
@@ -361,6 +371,10 @@ func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userM
 		// Continue with token creation - don't fail the login for cleanup failures
 	}
 
+	// Fresh login → fresh family. Every subsequent refresh inherits this ID
+	// via RotateWithFamily so a replay of any descendant kills the lineage.
+	familyID := uuid.New().String()
+
 	refreshTokenRecord := &models.RefreshTokenDoc{
 		UUID:         models.GenerateUUIDv7(),
 		UserUUID:     user.UUID,
@@ -378,6 +392,7 @@ func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userM
 		IsRevoked:    false,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		FamilyID:     familyID,
 	}
 
 	// Store refresh token in database
@@ -431,66 +446,168 @@ func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userM
 	return tokenResponse, nil
 }
 
+// RefreshTokensWithRiskAssessment rotates a refresh token atomically and
+// detects replay. Flow:
+//  1. JWT structural validation.
+//  2. Look up the row (including revoked rows — replay detection can't see
+//     rotated rows otherwise).
+//  3. If the row is revoked with reason "rotated", the legitimate client
+//     has already advanced past this token. That's a replay — kill the
+//     whole family, log, and return ErrRefreshTokenReplay.
+//  4. If the row is revoked for any other reason (logout / password
+//     change / role change), just reject as invalid.
+//  5. Mint a new access + refresh pair and persist the new row via
+//     RotateWithFamily, which atomically marks the old row rotated.
+//     A CAS failure means another caller beat us to the rotation —
+//     treat that as replay too.
 func (s *authService) RefreshTokensWithRiskAssessment(ctx context.Context, refreshToken string, securityCtx *models.SecurityContext) (*models.TokenResponse, error) {
-	fmt.Printf("[AUTH_DEBUG] ==> RefreshTokensWithRiskAssessment called\n")
-	fmt.Printf("[AUTH_DEBUG] Token creation source: Token Refresh Flow\n")
-
-	// Validate JWT structure and extract claims
+	// 1. Validate JWT structure and extract claims.
 	claims, err := s.jwtService.ValidateRefreshToken(refreshToken)
 	if err != nil {
-		fmt.Printf("[AUTH_DEBUG] ERROR: Invalid refresh token: %v\n", err)
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
-	fmt.Printf("[AUTH_DEBUG] Refresh token validated for user: %s\n", claims.UserUUID)
 
-	// Hash the incoming token to check against database (repository stores tokens hashed)
+	// 2. Look up the row — unfiltered so replay detection can see rotated rows.
 	hashedToken := utils.HashRefreshToken(refreshToken)
-
-	// Validate token exists in database and is not revoked
-	tokenDoc, err := s.refreshTokenRepo.GetByToken(ctx, hashedToken)
+	tokenDoc, err := s.refreshTokenRepo.GetByTokenAny(ctx, hashedToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate refresh token: %w", err)
 	}
 	if tokenDoc == nil {
-		return nil, fmt.Errorf("refresh token not found or expired")
+		return nil, ErrInvalidRefreshToken
+	}
+	if time.Now().After(tokenDoc.ExpiresAt) {
+		return nil, ErrInvalidRefreshToken
 	}
 
-	// Get user information
+	// 3+4. Already-revoked branches.
+	if tokenDoc.IsRevoked {
+		if tokenDoc.RevokedReason == models.RevokeReasonRotated {
+			s.handleRefreshReplay(ctx, tokenDoc, securityCtx, "rotated_token_reused")
+			return nil, ErrRefreshTokenReplay
+		}
+		return nil, ErrInvalidRefreshToken
+	}
+
+	// Load the user for JWT claim population.
 	userModel, err := s.userService.GetUserByID(ctx, claims.UserUUID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 	user := convertUserModelToAuthModel(userModel)
 
-	// Update last activity
-	err = s.refreshTokenRepo.UpdateLastActivity(ctx, tokenDoc.UUID)
+	// 5. Mint new JWT tokens. The access token carries forward the caller's
+	// prior amr — they haven't completed a new factor, we're just rolling
+	// the session forward. (last_otp_at is not elevated either.)
+	amr := claims.AMR
+	lastOTPAt := claims.LastOTPAt
+	newAccess, err := s.jwtService.GenerateAccessTokenWithAMR(user, amr, lastOTPAt)
 	if err != nil {
-		// Log warning but don't fail the refresh
-		fmt.Printf("[AUTH_WARNING] Failed to update last activity: %v\n", err)
+		return nil, fmt.Errorf("failed to mint access token: %w", err)
 	}
-
-	// Generate new token pair
-	deviceInfo := &models.DeviceInfo{
-		DeviceID:    tokenDoc.DeviceID,
-		DeviceType:  tokenDoc.DeviceType,
-		Platform:    tokenDoc.Platform,
-		Fingerprint: tokenDoc.Fingerprint,
-	}
-
-	newTokenResponse, err := s.GenerateEnhancedTokenPair(ctx, user, deviceInfo, securityCtx)
+	newRefresh, err := s.jwtService.GenerateRefreshToken(user)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate new token pair: %w", err)
+		return nil, fmt.Errorf("failed to mint refresh token: %w", err)
 	}
 
-	// Implement token rotation: revoke the old token using hashed value (as stored in DB)
-	err = s.refreshTokenRepo.RevokeToken(ctx, hashedToken, "token_rotation")
-	if err != nil {
-		// Log warning but don't fail the refresh since new tokens are already generated
-		fmt.Printf("[AUTH_WARNING] Failed to revoke old refresh token during rotation: %v\n", err)
+	now := time.Now()
+	newSessionID := tokenDoc.SessionUUID // preserve the session — rotation is within one session
+	newDoc := &models.RefreshTokenDoc{
+		UUID:         models.GenerateTimeOrderedUUID(),
+		UserUUID:     tokenDoc.UserUUID,
+		Token:        newRefresh, // repo layer hashes on insert
+		SessionUUID:  newSessionID,
+		DeviceID:     tokenDoc.DeviceID,
+		DeviceName:   tokenDoc.DeviceName,
+		DeviceType:   tokenDoc.DeviceType,
+		Platform:     tokenDoc.Platform,
+		AppVersion:   tokenDoc.AppVersion,
+		Fingerprint:  tokenDoc.Fingerprint,
+		IPAddress:    nonEmpty(securityCtxIP(securityCtx), tokenDoc.IPAddress),
+		RiskScore:    tokenDoc.RiskScore,
+		IssuedAt:     now,
+		ExpiresAt:    now.Add(7 * 24 * time.Hour),
+		LastActivity: now,
+		IsRevoked:    false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		FamilyID:     tokenDoc.FamilyID, // inherit: rotation doesn't start a new family
 	}
 
-	return newTokenResponse, nil
+	if err := s.refreshTokenRepo.RotateWithFamily(ctx, hashedToken, newDoc); err != nil {
+		if errors.Is(err, repository.ErrTokenAlreadyRotated) {
+			// Concurrency: another caller rotated between our Get and our
+			// CAS, or the client retried. Either way, only one caller holds
+			// the legitimate chain — kill the family.
+			s.handleRefreshReplay(ctx, tokenDoc, securityCtx, "rotation_cas_lost")
+			return nil, ErrRefreshTokenReplay
+		}
+		return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
+	}
+
+	// Refresh user OAuth provider list for the response (matches the
+	// existing GenerateEnhancedTokenPair shape so clients see no diff).
+	oauthProviders, _ := s.oauthProviderRepo.GetByUserUUID(ctx, user.UUID)
+	oauthProvidersInfo := models.ConvertOAuthProvidersToInfo(oauthProviders)
+
+	return &models.TokenResponse{
+		AccessToken:    newAccess,
+		RefreshToken:   newRefresh,
+		TokenType:      "Bearer",
+		ExpiresIn:      900,
+		SessionID:      newSessionID,
+		DeviceID:       tokenDoc.DeviceID,
+		User:           user.ToResponse(),
+		OAuthProviders: oauthProvidersInfo,
+	}, nil
 }
+
+// handleRefreshReplay kills the family and logs a structured warning. The
+// FamilyID can be empty on pre-Block-C rows — RevokeFamily short-circuits
+// to a no-op in that case so we don't accidentally revoke unrelated rows.
+func (s *authService) handleRefreshReplay(ctx context.Context, doc *models.RefreshTokenDoc, securityCtx *models.SecurityContext, kind string) {
+	revoked, err := s.refreshTokenRepo.RevokeFamily(ctx, doc.FamilyID, models.RevokeReasonReplayDetected)
+	ip := securityCtxIP(securityCtx)
+	logger := slogDefault()
+	logger.Warn("refresh_token_replay",
+		"userUUID", doc.UserUUID,
+		"sessionId", doc.SessionUUID,
+		"deviceId", doc.DeviceID,
+		"familyId", doc.FamilyID,
+		"ip", ip,
+		"revokedCount", revoked,
+		"kind", kind,
+		"revokeErr", errToString(err),
+	)
+}
+
+// securityCtxIP safely extracts an IP from a possibly-nil context.
+func securityCtxIP(sc *models.SecurityContext) string {
+	if sc == nil {
+		return ""
+	}
+	return sc.IPAddress
+}
+
+// nonEmpty returns the first non-empty argument, or "".
+func nonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+func errToString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// slogDefault wraps slog.Default() so test code can swap the logger via a
+// package variable if we ever need to assert on log output. Today it's a
+// passthrough — no behavioural change.
+var slogDefault = defaultSlogger
 
 func (s *authService) ValidateTokenWithRiskAssessment(ctx context.Context, token string, securityCtx *models.SecurityContext) (*models.TokenValidationResult, error) {
 	claims, err := s.jwtService.ValidateAccessToken(token)
