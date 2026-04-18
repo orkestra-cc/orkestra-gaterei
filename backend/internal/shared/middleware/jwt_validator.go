@@ -120,18 +120,18 @@ func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
 		ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
 		ctx = context.WithValue(ctx, ctxClaims, claims)
-		ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
+		ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 
-		orgID, roles, kind, resolved := resolveCurrentOrg(r, claims)
+		tenantID, roles, kind, resolved := resolveCurrentTenant(r, claims)
 		if resolved {
-			ctx = context.WithValue(ctx, ctxOrgID, orgID)
-			ctx = context.WithValue(ctx, ctxOrgRoles, roles)
+			ctx = context.WithValue(ctx, ctxTenantID, tenantID)
+			ctx = context.WithValue(ctx, ctxTenantRoles, roles)
 			if kind != "" {
 				ctx = context.WithValue(ctx, ctxTenantKind, kind)
 			}
 		}
-		if h := r.Header.Get(OrgIDHeader); h != "" && !resolved {
-			writeErr(w, http.StatusForbidden, "not a member of requested organization")
+		if h := r.Header.Get(TenantIDHeader); h != "" && !resolved {
+			writeErr(w, http.StatusForbidden, "not a member of requested tenant")
 			return
 		}
 
@@ -145,7 +145,7 @@ func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
 		Email:            getStr(m, "email"),
 		SystemRole:       getStr(m, "srole"),
 		TokenType:        getStr(m, "type"),
-		DefaultOrgID:     getStr(m, "dorg"),
+		DefaultTenantID:  getStr(m, "dtid"),
 		ActingTenantID:   getStr(m, "acting_tenant_id"),
 		ActingTenantKind: getStr(m, "acting_tenant_kind"),
 	}
@@ -155,8 +155,8 @@ func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
 			if !ok {
 				continue
 			}
-			mb := authModels.OrgMembership{
-				OrgUUID:    getStr(obj, "oid"),
+			mb := authModels.TenantMembership{
+				TenantUUID: getStr(obj, "tid"),
 				TenantKind: getStr(obj, "k"),
 			}
 			if roles, ok := obj["r"].([]interface{}); ok {
@@ -196,13 +196,13 @@ func (v *JWTValidator) RequirePermission(permission string) func(http.Handler) h
 				writeErr(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
-			orgID, hasOrg := GetOrgID(r.Context())
+			tenantID, hasTenant := GetTenantID(r.Context())
 			if v.authz != nil {
-				if !hasOrg {
-					writeErr(w, http.StatusForbidden, "org context required")
+				if !hasTenant {
+					writeErr(w, http.StatusForbidden, "tenant context required")
 					return
 				}
-				allowed, err := v.authz.HasPermission(r.Context(), userUUID, orgID, permission)
+				allowed, err := v.authz.HasPermission(r.Context(), userUUID, tenantID, permission)
 				if err != nil || !allowed {
 					writeErr(w, http.StatusForbidden, "insufficient permissions")
 					return
@@ -211,7 +211,7 @@ func (v *JWTValidator) RequirePermission(permission string) func(http.Handler) h
 				return
 			}
 			// Fallback: JWT-only evaluation.
-			if fallbackAllowedByRole(r.Context(), hasOrg) {
+			if fallbackAllowedByRole(r.Context(), hasTenant) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -258,21 +258,21 @@ func (v *JWTValidator) RequireEntitlement(feature string) func(http.Handler) htt
 				next.ServeHTTP(w, r)
 				return
 			}
-			orgID, ok := GetOrgID(r.Context())
+			tenantID, ok := GetTenantID(r.Context())
 			if !ok {
-				writeErr(w, http.StatusForbidden, "org context required")
+				writeErr(w, http.StatusForbidden, "tenant context required")
 				return
 			}
-			allowed, err := v.tenant.HasEntitlement(r.Context(), orgID, feature)
+			allowed, err := v.tenant.HasEntitlement(r.Context(), tenantID, feature)
 			if err != nil || !allowed {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusPaymentRequired)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"status":  http.StatusPaymentRequired,
-					"title":   "plan limit",
-					"detail":  "feature not included in plan",
-					"feature": feature,
-					"orgId":   orgID,
+					"status":   http.StatusPaymentRequired,
+					"title":    "plan limit",
+					"detail":   "feature not included in plan",
+					"feature":  feature,
+					"tenantId": tenantID,
 				})
 				return
 			}
@@ -282,17 +282,17 @@ func (v *JWTValidator) RequireEntitlement(feature string) func(http.Handler) htt
 }
 
 // fallbackAllowedByRole implements a minimal role check for the AI sidecar:
-// super_admin/administrator/developer system roles bypass the check; otherwise
-// the user must hold one of those roles in the current org. Used only when no
-// authz provider is wired.
-func fallbackAllowedByRole(ctx context.Context, hasOrg bool) bool {
+// super_admin/administrator/developer system roles bypass the check;
+// otherwise the user must hold one of those roles in the current tenant.
+// Used only when no authz provider is wired.
+func fallbackAllowedByRole(ctx context.Context, hasTenant bool) bool {
 	if role, _ := GetSystemRole(ctx); role == "super_admin" || role == "administrator" || role == "developer" {
 		return true
 	}
-	if !hasOrg {
+	if !hasTenant {
 		return false
 	}
-	roles, _ := GetOrgRoles(ctx)
+	roles, _ := GetTenantRoles(ctx)
 	for _, r := range roles {
 		if r == "super_admin" || r == "administrator" || r == "developer" {
 			return true

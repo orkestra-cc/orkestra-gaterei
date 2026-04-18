@@ -77,7 +77,7 @@ func (h *ClientHandler) Get(ctx context.Context, in *GetClientRequest) (*ClientR
 	if err != nil {
 		return nil, err
 	}
-	if err := assertOrgOwnsClient(ctx, c.OrgUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, c.OrgUUID); err != nil {
 		return nil, err
 	}
 	return &ClientResponse{Body: *c}, nil
@@ -102,7 +102,7 @@ func (h *ClientHandler) Update(ctx context.Context, in *UpdateClientRequest) (*C
 	if err != nil {
 		return nil, err
 	}
-	if err := assertOrgOwnsClient(ctx, existing.OrgUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, existing.OrgUUID); err != nil {
 		return nil, err
 	}
 	patch := &models.Client{
@@ -127,7 +127,7 @@ func (h *ClientHandler) Archive(ctx context.Context, in *DeleteClientRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	if err := assertOrgOwnsClient(ctx, existing.OrgUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, existing.OrgUUID); err != nil {
 		return nil, err
 	}
 	if err := h.svc.Archive(ctx, in.ID); err != nil {

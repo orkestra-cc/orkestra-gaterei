@@ -221,7 +221,7 @@ func (h *SubscriptionHandler) guardSubscriptionOwnership(ctx context.Context, su
 		// out-of-scope records.
 		return nil
 	}
-	return assertOrgOwnsClient(ctx, orgUUID)
+	return assertTenantOwnsClient(ctx, orgUUID)
 }
 
 // actorFrom returns the UUID of the authenticated user for audit-log

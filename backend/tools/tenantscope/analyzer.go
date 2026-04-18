@@ -115,7 +115,7 @@ var scopeFuncs = map[string]bool{
 	"Scope":          true,
 	"MustScope":      true,
 	"ScopeAggregate": true,
-	// StampInsertM returns a document (for inserts) with orgId stamped.
+	// StampInsertM returns a document (for inserts) with tenantId stamped.
 	// Including it allows InsertOne(ctx, tenantrepo.MustStampInsert(...))
 	// style call sites to pass the analyzer if we ever target InsertOne.
 	"StampInsertM": true,

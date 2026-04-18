@@ -45,41 +45,41 @@ type effectiveOutput struct {
 }
 
 type listRolesInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 }
 
 type createRoleInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	Body  models.CreateRoleInput
 }
 
 type updateRoleInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	Role  string `path:"roleId"`
 	Body  models.UpdateRoleInput
 }
 
 type deleteRoleInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	Role  string `path:"roleId"`
 }
 
 type createBindingInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	Body  models.CreateBindingInput
 }
 
 type deleteBindingInput struct {
-	OrgID   string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	Binding string `path:"bindingId"`
 }
 
 type listBindingsInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 }
 
 type effectiveInput struct {
-	OrgID string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 }
 
 // --- Routes ---
@@ -103,7 +103,7 @@ func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-roles",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/authz/roles",
+		Path:        "/v1/tenants/{tenantId}/authz/roles",
 		Summary:     "List roles (system + custom)",
 		Tags:        []string{"Authorization"},
 	}, h.listRoles)
@@ -111,7 +111,7 @@ func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-bindings",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/authz/bindings",
+		Path:        "/v1/tenants/{tenantId}/authz/bindings",
 		Summary:     "List role bindings in the org",
 		Tags:        []string{"Authorization"},
 	}, h.listBindings)
@@ -119,7 +119,7 @@ func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-effective-permissions",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/authz/me",
+		Path:        "/v1/tenants/{tenantId}/authz/me",
 		Summary:     "Get the current user's effective permissions in the org",
 		Tags:        []string{"Authorization"},
 	}, h.getEffective)
@@ -132,7 +132,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-role",
 		Method:      http.MethodPost,
-		Path:        "/v1/orgs/{orgId}/authz/roles",
+		Path:        "/v1/tenants/{tenantId}/authz/roles",
 		Summary:     "Create a custom role",
 		Tags:        []string{"Authorization"},
 	}, h.createRole)
@@ -140,7 +140,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "update-role",
 		Method:      http.MethodPatch,
-		Path:        "/v1/orgs/{orgId}/authz/roles/{roleId}",
+		Path:        "/v1/tenants/{tenantId}/authz/roles/{roleId}",
 		Summary:     "Update a role (name/description/permissions for custom roles; isActive for any role)",
 		Tags:        []string{"Authorization"},
 	}, h.updateRole)
@@ -148,7 +148,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-role",
 		Method:      http.MethodDelete,
-		Path:        "/v1/orgs/{orgId}/authz/roles/{roleId}",
+		Path:        "/v1/tenants/{tenantId}/authz/roles/{roleId}",
 		Summary:     "Delete a custom role (cascades bindings)",
 		Tags:        []string{"Authorization"},
 	}, h.deleteRole)
@@ -156,7 +156,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-binding",
 		Method:      http.MethodPost,
-		Path:        "/v1/orgs/{orgId}/authz/bindings",
+		Path:        "/v1/tenants/{tenantId}/authz/bindings",
 		Summary:     "Grant a role to a user with optional expiration",
 		Tags:        []string{"Authorization"},
 	}, h.createBinding)
@@ -164,7 +164,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-binding",
 		Method:      http.MethodDelete,
-		Path:        "/v1/orgs/{orgId}/authz/bindings/{bindingId}",
+		Path:        "/v1/tenants/{tenantId}/authz/bindings/{bindingId}",
 		Summary:     "Revoke a role binding",
 		Tags:        []string{"Authorization"},
 	}, h.deleteBinding)
@@ -181,7 +181,7 @@ func (h *Handler) listPermissions(ctx context.Context, _ *struct{}) (*permission
 }
 
 func (h *Handler) listRoles(ctx context.Context, in *listRolesInput) (*rolesOutput, error) {
-	roles, err := h.svc.ListRoles(ctx, in.OrgID)
+	roles, err := h.svc.ListRoles(ctx, in.TenantID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("list roles failed", err)
 	}
@@ -189,7 +189,7 @@ func (h *Handler) listRoles(ctx context.Context, in *listRolesInput) (*rolesOutp
 }
 
 func (h *Handler) createRole(ctx context.Context, in *createRoleInput) (*roleOutput, error) {
-	role, err := h.svc.CreateRole(ctx, in.OrgID, in.Body)
+	role, err := h.svc.CreateRole(ctx, in.TenantID, in.Body)
 	if err != nil {
 		return nil, huma.Error400BadRequest("create role failed: " + err.Error())
 	}
@@ -226,7 +226,7 @@ func (h *Handler) deleteRole(ctx context.Context, in *deleteRoleInput) (*struct{
 }
 
 func (h *Handler) listBindings(ctx context.Context, in *listBindingsInput) (*bindingsOutput, error) {
-	bindings, err := h.svc.ListBindings(ctx, in.OrgID)
+	bindings, err := h.svc.ListBindings(ctx, in.TenantID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("list bindings failed", err)
 	}
@@ -235,7 +235,7 @@ func (h *Handler) listBindings(ctx context.Context, in *listBindingsInput) (*bin
 
 func (h *Handler) createBinding(ctx context.Context, in *createBindingInput) (*bindingOutput, error) {
 	grantedBy, _ := middleware.GetUserUUID(ctx)
-	b, err := h.svc.CreateBinding(ctx, in.OrgID, grantedBy, in.Body)
+	b, err := h.svc.CreateBinding(ctx, in.TenantID, grantedBy, in.Body)
 	if err != nil {
 		return nil, huma.Error400BadRequest("create binding failed: " + err.Error())
 	}
@@ -254,13 +254,13 @@ func (h *Handler) getEffective(ctx context.Context, in *effectiveInput) (*effect
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	perms, err := h.svc.GetEffectivePermissions(ctx, userUUID, in.OrgID)
+	perms, err := h.svc.GetEffectivePermissions(ctx, userUUID, in.TenantID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("effective permissions failed", err)
 	}
 	systemRole, _ := middleware.GetSystemRole(ctx)
 	return &effectiveOutput{Body: models.EffectivePermissionsResponse{
-		OrgID:       in.OrgID,
+		TenantID:    in.TenantID,
 		Permissions: perms,
 		SystemRole:  systemRole,
 	}}, nil

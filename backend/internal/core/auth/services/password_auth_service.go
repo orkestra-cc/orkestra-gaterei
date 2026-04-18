@@ -412,7 +412,7 @@ func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModel
 // provider and converts them to the lightweight OrgMembership shape the
 // policy helper consumes. Returns nil on error or when the provider is
 // missing — RoleRequiresMFA then falls back to the system-role check.
-func (s *PasswordAuthService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []authModels.OrgMembership {
+func (s *PasswordAuthService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []authModels.TenantMembership {
 	if s.tenantProvider == nil {
 		return nil
 	}
@@ -420,9 +420,9 @@ func (s *PasswordAuthService) loadMembershipsAsAuthModel(ctx context.Context, us
 	if err != nil || len(list) == 0 {
 		return nil
 	}
-	out := make([]authModels.OrgMembership, 0, len(list))
+	out := make([]authModels.TenantMembership, 0, len(list))
 	for _, m := range list {
-		out = append(out, authModels.OrgMembership{OrgUUID: m.OrgUUID, Roles: m.Roles})
+		out = append(out, authModels.TenantMembership{TenantUUID: m.TenantUUID, TenantKind: m.TenantKind, Roles: m.Roles})
 	}
 	return out
 }

@@ -82,7 +82,7 @@ func (r *Repository) UpsertRole(ctx context.Context, role *models.Role) error {
 	// is controlled via UpdateRoleFields so re-seeding system roles on boot
 	// never stomps an operator's disable toggle.
 	_, err := r.db.Collection(CollRoles).UpdateOne(ctx,
-		bson.M{"orgId": role.OrgID, "name": role.Name},
+		bson.M{"tenantId": role.TenantID, "name": role.Name},
 		bson.M{
 			"$set": bson.M{
 				"uuid":        role.UUID,
@@ -120,9 +120,9 @@ func (r *Repository) UpdateRoleFields(ctx context.Context, uuid string, fields b
 	return nil
 }
 
-func (r *Repository) GetRoleByName(ctx context.Context, orgID, name string) (*models.Role, error) {
+func (r *Repository) GetRoleByName(ctx context.Context, tenantID, name string) (*models.Role, error) {
 	var role models.Role
-	err := r.db.Collection(CollRoles).FindOne(ctx, bson.M{"orgId": orgID, "name": name}).Decode(&role)
+	err := r.db.Collection(CollRoles).FindOne(ctx, bson.M{"tenantId": tenantID, "name": name}).Decode(&role)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, ErrNotFound
 	}
@@ -138,16 +138,16 @@ func (r *Repository) GetRoleByUUID(ctx context.Context, uuid string) (*models.Ro
 	return &role, err
 }
 
-// CountSystemRoles returns how many system roles (orgId="", isSystem=true)
+// CountSystemRoles returns how many system roles (tenantId="", isSystem=true)
 // exist. Used by the service to detect a wiped catalog and lazy-reseed it.
 func (r *Repository) CountSystemRoles(ctx context.Context) (int64, error) {
 	return r.db.Collection(CollRoles).CountDocuments(ctx,
-		bson.M{"orgId": "", "isSystem": true})
+		bson.M{"tenantId": "", "isSystem": true})
 }
 
-// ListRoles returns system roles (orgId=="") plus roles for the given org.
-func (r *Repository) ListRoles(ctx context.Context, orgID string) ([]models.Role, error) {
-	filter := bson.M{"$or": []bson.M{{"orgId": ""}, {"orgId": orgID}}}
+// ListRoles returns system roles (tenantId=="") plus roles for the given tenant.
+func (r *Repository) ListRoles(ctx context.Context, tenantID string) ([]models.Role, error) {
+	filter := bson.M{"$or": []bson.M{{"tenantId": ""}, {"tenantId": tenantID}}}
 	cur, err := r.db.Collection(CollRoles).Find(ctx, filter, options.Find().SetSort(bson.M{"name": 1}))
 	if err != nil {
 		return nil, err
@@ -196,13 +196,13 @@ func (r *Repository) DeleteBindingsByRoleUUID(ctx context.Context, roleUUID stri
 	return res.DeletedCount, nil
 }
 
-// ListActiveBindingsForUser returns all bindings for (userUUID, orgID)
-// that have not expired. Pass orgID="" to fetch global/system bindings.
-func (r *Repository) ListActiveBindingsForUser(ctx context.Context, userUUID, orgID string) ([]models.Binding, error) {
+// ListActiveBindingsForUser returns all bindings for (userUUID, tenantID)
+// that have not expired. Pass tenantID="" to fetch global/system bindings.
+func (r *Repository) ListActiveBindingsForUser(ctx context.Context, userUUID, tenantID string) ([]models.Binding, error) {
 	now := time.Now()
 	filter := bson.M{
 		"userUUID": userUUID,
-		"orgId":    orgID,
+		"tenantId": tenantID,
 		"$or": []bson.M{
 			{"expiresAt": nil},
 			{"expiresAt": bson.M{"$gt": now}},
@@ -220,8 +220,8 @@ func (r *Repository) ListActiveBindingsForUser(ctx context.Context, userUUID, or
 	return out, nil
 }
 
-func (r *Repository) ListBindingsByOrg(ctx context.Context, orgID string) ([]models.Binding, error) {
-	cur, err := r.db.Collection(CollBindings).Find(ctx, bson.M{"orgId": orgID})
+func (r *Repository) ListBindingsByTenant(ctx context.Context, tenantID string) ([]models.Binding, error) {
+	cur, err := r.db.Collection(CollBindings).Find(ctx, bson.M{"tenantId": tenantID})
 	if err != nil {
 		return nil, err
 	}

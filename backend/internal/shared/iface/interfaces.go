@@ -211,9 +211,7 @@ const (
 )
 
 // TenantStatusActive is the only status that grants request access. All
-// other statuses (provisioning, suspended, archived, purged) cause middleware
-// to 403 or 503 as appropriate. Redeclared here for the same reason as
-// TenantKind* above.
+// other statuses cause middleware to 403 or 503 as appropriate.
 const (
 	TenantStatusProvisioning = "provisioning"
 	TenantStatusActive       = "active"
@@ -222,10 +220,8 @@ const (
 	TenantStatusPurged       = "purged"
 )
 
-// Org is the DTO shape the tenant module exposes across the module boundary.
-// The Go type name is Org for historical reasons; semantically it is the
-// Tenant aggregate — see ADR-0001. A follow-up commit renames the type.
-type Org struct {
+// Tenant is the DTO shape the tenant module exposes across the module boundary.
+type Tenant struct {
 	UUID             string
 	Kind             string   // iface.TenantKindInternal | iface.TenantKindExternal
 	ParentTenantUUID string   // empty for root tenants
@@ -236,20 +232,22 @@ type Org struct {
 	Features         []string // deprecated: see Plan
 }
 
-type Membership struct {
-	OrgUUID    string
-	OrgName    string
-	OrgSlug    string
+// TenantMembership is a user's membership in a tenant — identifying the
+// tenant, its tier, and the role names the user holds there.
+type TenantMembership struct {
+	TenantUUID string
+	TenantName string
+	TenantSlug string
 	TenantKind string   // iface.TenantKind* — lets consumers dispatch on tier without a tenant lookup
-	Roles      []string // authz role names the user holds in this org
+	Roles      []string // authz role names the user holds in this tenant
 	IsOwner    bool
 }
 
 type TenantProvider interface {
-	GetOrg(ctx context.Context, orgUUID string) (*Org, error)
-	ListUserMemberships(ctx context.Context, userUUID string) ([]Membership, error)
-	IsMember(ctx context.Context, userUUID, orgUUID string) (bool, error)
-	HasEntitlement(ctx context.Context, orgUUID, feature string) (bool, error)
+	GetTenant(ctx context.Context, tenantUUID string) (*Tenant, error)
+	ListUserMemberships(ctx context.Context, userUUID string) ([]TenantMembership, error)
+	IsMember(ctx context.Context, userUUID, tenantUUID string) (bool, error)
+	HasEntitlement(ctx context.Context, tenantUUID, feature string) (bool, error)
 }
 
 // ---------------------------------------------------------------------------

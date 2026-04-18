@@ -20,14 +20,15 @@ func resolveOwnership(svcReg *module.ServiceRegistry) iface.ClientOwnershipProvi
 	return p
 }
 
-// assertOrgOwnsClient enforces that the requesting user's active org matches
-// the client's `orgUUID`. Degrades safely when:
+// assertTenantOwnsClient enforces that the requesting user's active tenant
+// matches the client's `orgUUID` (legacy field; will be replaced with
+// TenantUUID in Phase 3). Degrades safely when:
 //   - subscriptions (and therefore the provider) is disabled, or
-//   - the client has no org binding (operator-managed clients, v1 default), or
-//   - the request has no org context (global/service callers).
+//   - the client has no tenant binding (operator-managed clients, v1 default), or
+//   - the request has no tenant context (global/service callers).
 //
 // Returns a 404 on mismatch so existence of out-of-scope records isn't leaked.
-func assertOrgOwnsClient(ctx context.Context, svcReg *module.ServiceRegistry, clientUUID string) error {
+func assertTenantOwnsClient(ctx context.Context, svcReg *module.ServiceRegistry, clientUUID string) error {
 	if clientUUID == "" {
 		return nil
 	}
@@ -35,19 +36,19 @@ func assertOrgOwnsClient(ctx context.Context, svcReg *module.ServiceRegistry, cl
 	if provider == nil {
 		return nil
 	}
-	orgUUID, err := provider.GetClientOrgUUID(ctx, clientUUID)
+	clientOrgUUID, err := provider.GetClientOrgUUID(ctx, clientUUID)
 	if err != nil {
 		// Unknown client — treat as not-found for the caller.
 		return nil
 	}
-	if orgUUID == "" {
+	if clientOrgUUID == "" {
 		return nil
 	}
-	orgID, hasOrg := middleware.GetOrgID(ctx)
-	if !hasOrg {
+	tenantID, hasTenant := middleware.GetTenantID(ctx)
+	if !hasTenant {
 		return nil
 	}
-	if orgUUID != orgID {
+	if clientOrgUUID != tenantID {
 		return huma.Error404NotFound("not found", nil)
 	}
 	return nil

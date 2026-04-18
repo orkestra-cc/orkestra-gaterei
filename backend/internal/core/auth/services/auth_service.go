@@ -1039,7 +1039,7 @@ func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.
 // tenant memberships into the lightweight auth-model shape RoleRequiresMFA
 // consumes. Returns nil on error; RoleRequiresMFA then falls back to the
 // system-role check alone.
-func (s *authService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []models.OrgMembership {
+func (s *authService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []models.TenantMembership {
 	if s.tenantProvider == nil {
 		return nil
 	}
@@ -1047,9 +1047,9 @@ func (s *authService) loadMembershipsAsAuthModel(ctx context.Context, userUUID s
 	if err != nil || len(list) == 0 {
 		return nil
 	}
-	out := make([]models.OrgMembership, 0, len(list))
+	out := make([]models.TenantMembership, 0, len(list))
 	for _, m := range list {
-		out = append(out, models.OrgMembership{OrgUUID: m.OrgUUID, Roles: m.Roles})
+		out = append(out, models.TenantMembership{TenantUUID: m.TenantUUID, TenantKind: m.TenantKind, Roles: m.Roles})
 	}
 	return out
 }

@@ -12,7 +12,7 @@ func TestRoleRequiresMFA(t *testing.T) {
 	cases := []struct {
 		name        string
 		role        string
-		memberships []authModels.OrgMembership
+		memberships []authModels.TenantMembership
 		want        bool
 	}{
 		{"super_admin without memberships", "super_admin", nil, true},
@@ -20,12 +20,12 @@ func TestRoleRequiresMFA(t *testing.T) {
 		{"developer not required", "developer", nil, false},
 		{"operator not required", "operator", nil, false},
 		{"guest not required", "guest", nil, false},
-		{"org_owner in single org", "operator", []authModels.OrgMembership{{OrgUUID: "o1", Roles: []string{"org_owner"}}}, true},
-		{"org_admin in single org", "operator", []authModels.OrgMembership{{OrgUUID: "o1", Roles: []string{"org_admin"}}}, true},
-		{"org_member only", "operator", []authModels.OrgMembership{{OrgUUID: "o1", Roles: []string{"org_member"}}}, false},
-		{"privileged in one org, member in another", "operator", []authModels.OrgMembership{
-			{OrgUUID: "o1", Roles: []string{"org_member"}},
-			{OrgUUID: "o2", Roles: []string{"org_admin"}},
+		{"org_owner in single org", "operator", []authModels.TenantMembership{{TenantUUID: "o1", Roles: []string{"org_owner"}}}, true},
+		{"org_admin in single org", "operator", []authModels.TenantMembership{{TenantUUID: "o1", Roles: []string{"org_admin"}}}, true},
+		{"org_member only", "operator", []authModels.TenantMembership{{TenantUUID: "o1", Roles: []string{"org_member"}}}, false},
+		{"privileged in one org, member in another", "operator", []authModels.TenantMembership{
+			{TenantUUID: "o1", Roles: []string{"org_member"}},
+			{TenantUUID: "o2", Roles: []string{"org_admin"}},
 		}, true},
 		{"nil user is safe", "", nil, false}, // constructed via nil user below
 	}

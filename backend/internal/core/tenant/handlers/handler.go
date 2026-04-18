@@ -18,56 +18,57 @@ func New(svc *services.Service) *Handler { return &Handler{svc: svc} }
 
 // --- Request/response envelopes ---
 
-type listMyOrgsOutput struct {
+type listMyTenantsOutput struct {
 	Body struct {
 		Memberships []memberDTO `json:"memberships"`
 	}
 }
 
 type memberDTO struct {
-	OrgID   string   `json:"orgId"`
-	Name    string   `json:"name"`
-	Slug    string   `json:"slug"`
-	Plan    string   `json:"plan"`
-	Roles   []string `json:"roles"`
-	IsOwner bool     `json:"isOwner"`
+	TenantID   string   `json:"tenantId"`
+	Name       string   `json:"name"`
+	Slug       string   `json:"slug"`
+	Plan       string   `json:"plan"`
+	Kind       string   `json:"kind"`
+	Roles      []string `json:"roles"`
+	IsOwner    bool     `json:"isOwner"`
 }
 
-type createOrgInput struct {
-	Body models.CreateOrgInput
+type createTenantInput struct {
+	Body models.CreateTenantInput
 }
 
-type orgOutput struct {
-	Body *models.Org
+type tenantOutput struct {
+	Body *models.Tenant
 }
 
-type orgIDPath struct {
-	OrgID string `path:"orgId"`
+type tenantIDPath struct {
+	TenantID string `path:"tenantId"`
 }
 
-type updateOrgInput struct {
-	OrgID string `path:"orgId"`
-	Body  models.UpdateOrgInput
+type updateTenantInput struct {
+	TenantID string `path:"tenantId"`
+	Body     models.UpdateTenantInput
 }
 
 type updatePlanInput struct {
-	OrgID string `path:"orgId"`
-	Body  models.UpdatePlanInput
+	TenantID string `path:"tenantId"`
+	Body     models.UpdatePlanInput
 }
 
 type membershipListOutput struct {
 	Body struct {
-		Members []models.Membership `json:"members"`
+		Members []models.TenantMembership `json:"members"`
 	}
 }
 
 type inviteInput struct {
-	OrgID string `path:"orgId"`
-	Body  models.InviteInput
+	TenantID string `path:"tenantId"`
+	Body     models.InviteInput
 }
 
 type inviteOutput struct {
-	Body *models.Invite
+	Body *models.TenantInvite
 }
 
 type acceptInviteInput struct {
@@ -76,103 +77,101 @@ type acceptInviteInput struct {
 
 // --- Route registration ---
 
-// RegisterGlobalRoutes registers routes that do not require an org context
-// (listing your orgs, creating a new org, accepting an invite).
+// RegisterGlobalRoutes registers routes that do not require a tenant context
+// (listing your tenants, creating a new tenant, accepting an invite).
 func (h *Handler) RegisterGlobalRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "list-my-orgs",
+		OperationID: "list-my-tenants",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs",
-		Summary:     "List organizations the current user belongs to",
-		Tags:        []string{"Organizations"},
-	}, h.listMyOrgs)
+		Path:        "/v1/tenants",
+		Summary:     "List tenants the current user belongs to",
+		Tags:        []string{"Tenants"},
+	}, h.listMyTenants)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "create-org",
+		OperationID: "create-tenant",
 		Method:      http.MethodPost,
-		Path:        "/v1/orgs",
-		Summary:     "Create a new organization (caller becomes the owner)",
-		Tags:        []string{"Organizations"},
-	}, h.createOrg)
+		Path:        "/v1/tenants",
+		Summary:     "Create a new tenant (caller becomes the owner)",
+		Tags:        []string{"Tenants"},
+	}, h.createTenant)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "accept-invite",
 		Method:      http.MethodPost,
-		Path:        "/v1/orgs/accept-invite",
-		Summary:     "Accept a pending org invitation",
-		Tags:        []string{"Organizations"},
+		Path:        "/v1/tenants/accept-invite",
+		Summary:     "Accept a pending tenant invitation",
+		Tags:        []string{"Tenants"},
 	}, h.acceptInvite)
 }
 
-// RegisterScopedReadRoutes registers read-only per-org routes. Safe to mount
-// behind the tenant.org.read permission without MFA.
+// RegisterScopedReadRoutes registers read-only per-tenant routes. Safe to
+// mount behind the tenant.read permission without MFA.
 func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "get-org",
+		OperationID: "get-tenant",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}",
-		Summary:     "Get an organization by id",
-		Tags:        []string{"Organizations"},
-	}, h.getOrg)
+		Path:        "/v1/tenants/{tenantId}",
+		Summary:     "Get a tenant by id",
+		Tags:        []string{"Tenants"},
+	}, h.getTenant)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-members",
 		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/members",
-		Summary:     "List org members",
-		Tags:        []string{"Organizations"},
+		Path:        "/v1/tenants/{tenantId}/members",
+		Summary:     "List tenant members",
+		Tags:        []string{"Tenants"},
 	}, h.listMembers)
 }
 
-// RegisterScopedMutationRoutes registers per-org mutations. Each of these
-// can either modify another user's standing in the org, change the plan
-// entitlements, or destroy the org entirely — Block B requires an MFA
-// step-up for all of them so a stolen pwd-only token can't make them stick.
+// RegisterScopedMutationRoutes registers per-tenant mutations. MFA required
+// per Block B — each can change permissions, plan, or destroy the tenant.
 func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "update-org",
+		OperationID: "update-tenant",
 		Method:      http.MethodPatch,
-		Path:        "/v1/orgs/{orgId}",
-		Summary:     "Update organization name, slug or settings",
-		Tags:        []string{"Organizations"},
-	}, h.updateOrg)
+		Path:        "/v1/tenants/{tenantId}",
+		Summary:     "Update tenant name, slug or settings",
+		Tags:        []string{"Tenants"},
+	}, h.updateTenant)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "delete-org",
+		OperationID: "delete-tenant",
 		Method:      http.MethodDelete,
-		Path:        "/v1/orgs/{orgId}",
-		Summary:     "Soft-delete the organization (owner only)",
-		Tags:        []string{"Organizations"},
-	}, h.deleteOrg)
+		Path:        "/v1/tenants/{tenantId}",
+		Summary:     "Archive the tenant (owner only)",
+		Tags:        []string{"Tenants"},
+	}, h.deleteTenant)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-plan",
 		Method:      http.MethodPatch,
-		Path:        "/v1/orgs/{orgId}/plan",
+		Path:        "/v1/tenants/{tenantId}/plan",
 		Summary:     "Change plan and features",
-		Tags:        []string{"Organizations"},
+		Tags:        []string{"Tenants"},
 	}, h.updatePlan)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-member",
 		Method:      http.MethodDelete,
-		Path:        "/v1/orgs/{orgId}/members/{userUUID}",
-		Summary:     "Remove a member from the org",
-		Tags:        []string{"Organizations"},
+		Path:        "/v1/tenants/{tenantId}/members/{userUUID}",
+		Summary:     "Remove a member from the tenant",
+		Tags:        []string{"Tenants"},
 	}, h.removeMember)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "create-invite",
 		Method:      http.MethodPost,
-		Path:        "/v1/orgs/{orgId}/invites",
-		Summary:     "Invite a user to the org",
-		Tags:        []string{"Organizations"},
+		Path:        "/v1/tenants/{tenantId}/invites",
+		Summary:     "Invite a user to the tenant",
+		Tags:        []string{"Tenants"},
 	}, h.createInvite)
 }
 
 // --- Handler implementations ---
 
-func (h *Handler) listMyOrgs(ctx context.Context, _ *struct{}) (*listMyOrgsOutput, error) {
+func (h *Handler) listMyTenants(ctx context.Context, _ *struct{}) (*listMyTenantsOutput, error) {
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
@@ -181,75 +180,76 @@ func (h *Handler) listMyOrgs(ctx context.Context, _ *struct{}) (*listMyOrgsOutpu
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list memberships", err)
 	}
-	out := &listMyOrgsOutput{}
+	out := &listMyTenantsOutput{}
 	for _, m := range mbrs {
-		o, err := h.svc.GetOrgModel(ctx, m.OrgUUID)
+		t, err := h.svc.GetTenantModel(ctx, m.TenantUUID)
 		if err != nil {
 			continue
 		}
 		out.Body.Memberships = append(out.Body.Memberships, memberDTO{
-			OrgID:   m.OrgUUID,
-			Name:    m.OrgName,
-			Slug:    m.OrgSlug,
-			Plan:    o.Plan,
-			Roles:   m.Roles,
-			IsOwner: m.IsOwner,
+			TenantID: m.TenantUUID,
+			Name:     m.TenantName,
+			Slug:     m.TenantSlug,
+			Plan:     t.Plan,
+			Kind:     m.TenantKind,
+			Roles:    m.Roles,
+			IsOwner:  m.IsOwner,
 		})
 	}
 	return out, nil
 }
 
-func (h *Handler) createOrg(ctx context.Context, in *createOrgInput) (*orgOutput, error) {
+func (h *Handler) createTenant(ctx context.Context, in *createTenantInput) (*tenantOutput, error) {
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	org, err := h.svc.CreateOrg(ctx, userUUID, in.Body)
+	t, err := h.svc.CreateTenant(ctx, userUUID, in.Body)
 	if err != nil {
-		return nil, huma.Error400BadRequest("failed to create org: " + err.Error())
+		return nil, huma.Error400BadRequest("failed to create tenant: " + err.Error())
 	}
-	return &orgOutput{Body: org}, nil
+	return &tenantOutput{Body: t}, nil
 }
 
-func (h *Handler) getOrg(ctx context.Context, in *orgIDPath) (*orgOutput, error) {
-	org, err := h.svc.GetOrgModel(ctx, in.OrgID)
+func (h *Handler) getTenant(ctx context.Context, in *tenantIDPath) (*tenantOutput, error) {
+	t, err := h.svc.GetTenantModel(ctx, in.TenantID)
 	if err != nil {
-		return nil, huma.Error404NotFound("org not found")
+		return nil, huma.Error404NotFound("tenant not found")
 	}
-	return &orgOutput{Body: org}, nil
+	return &tenantOutput{Body: t}, nil
 }
 
-func (h *Handler) updateOrg(ctx context.Context, in *updateOrgInput) (*orgOutput, error) {
-	if err := h.svc.UpdateOrg(ctx, in.OrgID, in.Body); err != nil {
+func (h *Handler) updateTenant(ctx context.Context, in *updateTenantInput) (*tenantOutput, error) {
+	if err := h.svc.UpdateTenant(ctx, in.TenantID, in.Body); err != nil {
 		return nil, huma.Error400BadRequest("update failed: " + err.Error())
 	}
-	org, err := h.svc.GetOrgModel(ctx, in.OrgID)
+	t, err := h.svc.GetTenantModel(ctx, in.TenantID)
 	if err != nil {
-		return nil, huma.Error404NotFound("org not found")
+		return nil, huma.Error404NotFound("tenant not found")
 	}
-	return &orgOutput{Body: org}, nil
+	return &tenantOutput{Body: t}, nil
 }
 
-func (h *Handler) deleteOrg(ctx context.Context, in *orgIDPath) (*struct{}, error) {
-	if err := h.svc.DeleteOrg(ctx, in.OrgID); err != nil {
+func (h *Handler) deleteTenant(ctx context.Context, in *tenantIDPath) (*struct{}, error) {
+	if err := h.svc.DeleteTenant(ctx, in.TenantID); err != nil {
 		return nil, huma.Error400BadRequest("delete failed: " + err.Error())
 	}
 	return &struct{}{}, nil
 }
 
-func (h *Handler) updatePlan(ctx context.Context, in *updatePlanInput) (*orgOutput, error) {
-	if err := h.svc.UpdatePlan(ctx, in.OrgID, in.Body); err != nil {
+func (h *Handler) updatePlan(ctx context.Context, in *updatePlanInput) (*tenantOutput, error) {
+	if err := h.svc.UpdatePlan(ctx, in.TenantID, in.Body); err != nil {
 		return nil, huma.Error400BadRequest("plan update failed: " + err.Error())
 	}
-	org, err := h.svc.GetOrgModel(ctx, in.OrgID)
+	t, err := h.svc.GetTenantModel(ctx, in.TenantID)
 	if err != nil {
-		return nil, huma.Error404NotFound("org not found")
+		return nil, huma.Error404NotFound("tenant not found")
 	}
-	return &orgOutput{Body: org}, nil
+	return &tenantOutput{Body: t}, nil
 }
 
-func (h *Handler) listMembers(ctx context.Context, in *orgIDPath) (*membershipListOutput, error) {
-	members, err := h.svc.ListMembers(ctx, in.OrgID)
+func (h *Handler) listMembers(ctx context.Context, in *tenantIDPath) (*membershipListOutput, error) {
+	members, err := h.svc.ListMembers(ctx, in.TenantID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("list failed", err)
 	}
@@ -259,12 +259,12 @@ func (h *Handler) listMembers(ctx context.Context, in *orgIDPath) (*membershipLi
 }
 
 type removeMemberInput struct {
-	OrgID    string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	UserUUID string `path:"userUUID"`
 }
 
 func (h *Handler) removeMember(ctx context.Context, in *removeMemberInput) (*struct{}, error) {
-	if err := h.svc.RemoveMember(ctx, in.OrgID, in.UserUUID); err != nil {
+	if err := h.svc.RemoveMember(ctx, in.TenantID, in.UserUUID); err != nil {
 		return nil, huma.Error400BadRequest("remove failed: " + err.Error())
 	}
 	return &struct{}{}, nil
@@ -272,159 +272,158 @@ func (h *Handler) removeMember(ctx context.Context, in *removeMemberInput) (*str
 
 func (h *Handler) createInvite(ctx context.Context, in *inviteInput) (*inviteOutput, error) {
 	userUUID, _ := middleware.GetUserUUID(ctx)
-	inv, err := h.svc.CreateInvite(ctx, in.OrgID, userUUID, in.Body)
+	inv, err := h.svc.CreateInvite(ctx, in.TenantID, userUUID, in.Body)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invite failed: " + err.Error())
 	}
 	return &inviteOutput{Body: inv}, nil
 }
 
-func (h *Handler) acceptInvite(ctx context.Context, in *acceptInviteInput) (*orgOutput, error) {
+func (h *Handler) acceptInvite(ctx context.Context, in *acceptInviteInput) (*tenantOutput, error) {
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	org, err := h.svc.AcceptInvite(ctx, userUUID, in.Body.Token)
+	t, err := h.svc.AcceptInvite(ctx, userUUID, in.Body.Token)
 	if err != nil {
 		return nil, huma.Error400BadRequest("accept failed: " + err.Error())
 	}
-	return &orgOutput{Body: org}, nil
+	return &tenantOutput{Body: t}, nil
 }
 
 // --- Platform admin routes ---
 
-type adminOrgListItem struct {
-	models.Org
+type adminTenantListItem struct {
+	models.Tenant
 	MemberCount int `json:"memberCount"`
 }
 
-type adminOrgListInput struct {
+type adminTenantListInput struct {
 	IncludeDeleted bool `query:"includeDeleted"`
 }
 
-type adminOrgListOutput struct {
+type adminTenantListOutput struct {
 	Body struct {
-		Orgs []adminOrgListItem `json:"orgs"`
+		Tenants []adminTenantListItem `json:"tenants"`
 	}
 }
 
 type adminInviteListInput struct {
-	OrgID           string `path:"orgId"`
+	TenantID        string `path:"tenantId"`
 	IncludeAccepted bool   `query:"includeAccepted"`
 }
 
 type adminInviteListOutput struct {
 	Body struct {
-		Invites []models.Invite `json:"invites"`
+		Invites []models.TenantInvite `json:"invites"`
 	}
 }
 
 type adminRevokeInviteInput struct {
-	OrgID    string `path:"orgId"`
+	TenantID string `path:"tenantId"`
 	InviteID string `path:"inviteId"`
 }
 
-// RegisterAdminRoutes registers platform-admin routes under /v1/admin/orgs.
-// The route group is gated by system.tenants.admin in module.go so platform
-// operators can manage every tenant without joining each one.
+// RegisterAdminRoutes registers platform-admin routes under /v1/admin/tenants.
+// Gated by system.tenants.admin in module.go.
 func (h *Handler) RegisterAdminRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "list-all-orgs-admin",
+		OperationID: "list-all-tenants-admin",
 		Method:      http.MethodGet,
-		Path:        "/v1/admin/orgs",
-		Summary:     "List every organization (platform admin)",
-		Tags:        []string{"Organizations Admin"},
-	}, h.listAllOrgsAdmin)
+		Path:        "/v1/admin/tenants",
+		Summary:     "List every tenant (platform admin)",
+		Tags:        []string{"Tenants Admin"},
+	}, h.listAllTenantsAdmin)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "get-org-admin",
+		OperationID: "get-tenant-admin",
 		Method:      http.MethodGet,
-		Path:        "/v1/admin/orgs/{orgId}",
-		Summary:     "Get an organization (platform admin)",
-		Tags:        []string{"Organizations Admin"},
-	}, h.getOrg)
+		Path:        "/v1/admin/tenants/{tenantId}",
+		Summary:     "Get a tenant (platform admin)",
+		Tags:        []string{"Tenants Admin"},
+	}, h.getTenant)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "update-org-admin",
+		OperationID: "update-tenant-admin",
 		Method:      http.MethodPatch,
-		Path:        "/v1/admin/orgs/{orgId}",
-		Summary:     "Update an organization (platform admin)",
-		Tags:        []string{"Organizations Admin"},
-	}, h.updateOrg)
+		Path:        "/v1/admin/tenants/{tenantId}",
+		Summary:     "Update a tenant (platform admin)",
+		Tags:        []string{"Tenants Admin"},
+	}, h.updateTenant)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "delete-org-admin",
+		OperationID: "delete-tenant-admin",
 		Method:      http.MethodDelete,
-		Path:        "/v1/admin/orgs/{orgId}",
-		Summary:     "Soft-delete an organization (platform admin)",
-		Tags:        []string{"Organizations Admin"},
-	}, h.deleteOrg)
+		Path:        "/v1/admin/tenants/{tenantId}",
+		Summary:     "Archive a tenant (platform admin)",
+		Tags:        []string{"Tenants Admin"},
+	}, h.deleteTenant)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "update-org-plan-admin",
+		OperationID: "update-tenant-plan-admin",
 		Method:      http.MethodPatch,
-		Path:        "/v1/admin/orgs/{orgId}/plan",
-		Summary:     "Change an organization's plan (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/plan",
+		Summary:     "Change a tenant's plan (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.updatePlan)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-org-members-admin",
+		OperationID: "list-tenant-members-admin",
 		Method:      http.MethodGet,
-		Path:        "/v1/admin/orgs/{orgId}/members",
-		Summary:     "List organization members (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/members",
+		Summary:     "List tenant members (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.listMembers)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "remove-org-member-admin",
+		OperationID: "remove-tenant-member-admin",
 		Method:      http.MethodDelete,
-		Path:        "/v1/admin/orgs/{orgId}/members/{userUUID}",
-		Summary:     "Remove a member from an organization (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/members/{userUUID}",
+		Summary:     "Remove a member from a tenant (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.removeMember)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-org-invites-admin",
+		OperationID: "list-tenant-invites-admin",
 		Method:      http.MethodGet,
-		Path:        "/v1/admin/orgs/{orgId}/invites",
-		Summary:     "List pending organization invites (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/invites",
+		Summary:     "List pending tenant invites (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.listInvitesAdmin)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "create-org-invite-admin",
+		OperationID: "create-tenant-invite-admin",
 		Method:      http.MethodPost,
-		Path:        "/v1/admin/orgs/{orgId}/invites",
-		Summary:     "Create an organization invite (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/invites",
+		Summary:     "Create a tenant invite (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.createInvite)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "revoke-org-invite-admin",
+		OperationID: "revoke-tenant-invite-admin",
 		Method:      http.MethodDelete,
-		Path:        "/v1/admin/orgs/{orgId}/invites/{inviteId}",
-		Summary:     "Revoke a pending organization invite (platform admin)",
-		Tags:        []string{"Organizations Admin"},
+		Path:        "/v1/admin/tenants/{tenantId}/invites/{inviteId}",
+		Summary:     "Revoke a pending tenant invite (platform admin)",
+		Tags:        []string{"Tenants Admin"},
 	}, h.revokeInviteAdmin)
 }
 
-func (h *Handler) listAllOrgsAdmin(ctx context.Context, in *adminOrgListInput) (*adminOrgListOutput, error) {
-	views, err := h.svc.ListAllOrgs(ctx, in.IncludeDeleted)
+func (h *Handler) listAllTenantsAdmin(ctx context.Context, in *adminTenantListInput) (*adminTenantListOutput, error) {
+	views, err := h.svc.ListAllTenants(ctx, in.IncludeDeleted)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list orgs", err)
+		return nil, huma.Error500InternalServerError("failed to list tenants", err)
 	}
-	out := &adminOrgListOutput{}
-	out.Body.Orgs = make([]adminOrgListItem, 0, len(views))
+	out := &adminTenantListOutput{}
+	out.Body.Tenants = make([]adminTenantListItem, 0, len(views))
 	for _, v := range views {
-		out.Body.Orgs = append(out.Body.Orgs, adminOrgListItem{Org: *v.Org, MemberCount: v.MemberCount})
+		out.Body.Tenants = append(out.Body.Tenants, adminTenantListItem{Tenant: *v.Tenant, MemberCount: v.MemberCount})
 	}
 	return out, nil
 }
 
 func (h *Handler) listInvitesAdmin(ctx context.Context, in *adminInviteListInput) (*adminInviteListOutput, error) {
 	onlyPending := !in.IncludeAccepted
-	invs, err := h.svc.ListInvites(ctx, in.OrgID, onlyPending)
+	invs, err := h.svc.ListInvites(ctx, in.TenantID, onlyPending)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list invites", err)
 	}
@@ -434,7 +433,7 @@ func (h *Handler) listInvitesAdmin(ctx context.Context, in *adminInviteListInput
 }
 
 func (h *Handler) revokeInviteAdmin(ctx context.Context, in *adminRevokeInviteInput) (*struct{}, error) {
-	if err := h.svc.RevokeInvite(ctx, in.OrgID, in.InviteID); err != nil {
+	if err := h.svc.RevokeInvite(ctx, in.TenantID, in.InviteID); err != nil {
 		return nil, huma.Error400BadRequest("revoke failed: " + err.Error())
 	}
 	return &struct{}{}, nil

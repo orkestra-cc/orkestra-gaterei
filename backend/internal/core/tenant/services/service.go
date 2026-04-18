@@ -29,59 +29,57 @@ func New(repo *repository.Repository) *Service {
 
 // --- Provider interface ---
 
-func (s *Service) GetOrg(ctx context.Context, orgUUID string) (*iface.Org, error) {
-	o, err := s.repo.GetOrgByUUID(ctx, orgUUID)
+func (s *Service) GetTenant(ctx context.Context, tenantUUID string) (*iface.Tenant, error) {
+	t, err := s.repo.GetTenantByUUID(ctx, tenantUUID)
 	if err != nil {
 		return nil, err
 	}
-	kind := string(o.Kind)
+	kind := string(t.Kind)
 	if kind == "" {
 		kind = iface.TenantKindInternal
 	}
-	status := string(o.Status)
+	status := string(t.Status)
 	if status == "" {
 		status = iface.TenantStatusActive
 	}
 	var parent string
-	if o.ParentTenantUUID != nil {
-		parent = *o.ParentTenantUUID
+	if t.ParentTenantUUID != nil {
+		parent = *t.ParentTenantUUID
 	}
-	return &iface.Org{
-		UUID:             o.UUID,
+	return &iface.Tenant{
+		UUID:             t.UUID,
 		Kind:             kind,
 		ParentTenantUUID: parent,
 		Status:           status,
-		Name:             o.Name,
-		Slug:             o.Slug,
-		Plan:             o.Plan,
-		Features:         o.Features,
+		Name:             t.Name,
+		Slug:             t.Slug,
+		Plan:             t.Plan,
+		Features:         t.Features,
 	}, nil
 }
 
-func (s *Service) ListUserMemberships(ctx context.Context, userUUID string) ([]iface.Membership, error) {
+func (s *Service) ListUserMemberships(ctx context.Context, userUUID string) ([]iface.TenantMembership, error) {
 	mbrs, err := s.repo.ListMembershipsByUser(ctx, userUUID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]iface.Membership, 0, len(mbrs))
+	out := make([]iface.TenantMembership, 0, len(mbrs))
 	for _, m := range mbrs {
-		o, err := s.repo.GetOrgByUUID(ctx, m.OrgUUID)
+		t, err := s.repo.GetTenantByUUID(ctx, m.TenantUUID)
 		if err != nil {
-			continue // org may be soft-deleted, skip
+			continue // tenant may be archived, skip
 		}
-		// Prefer the cached kind on the membership row; fall back to the
-		// tenant row for pre-ADR-0001 memberships where TenantKind is empty.
 		kind := string(m.TenantKind)
 		if kind == "" {
-			kind = string(o.Kind)
+			kind = string(t.Kind)
 		}
 		if kind == "" {
 			kind = iface.TenantKindInternal
 		}
-		out = append(out, iface.Membership{
-			OrgUUID:    o.UUID,
-			OrgName:    o.Name,
-			OrgSlug:    o.Slug,
+		out = append(out, iface.TenantMembership{
+			TenantUUID: t.UUID,
+			TenantName: t.Name,
+			TenantSlug: t.Slug,
 			TenantKind: kind,
 			Roles:      m.Roles,
 			IsOwner:    m.IsOwner,
@@ -90,8 +88,8 @@ func (s *Service) ListUserMemberships(ctx context.Context, userUUID string) ([]i
 	return out, nil
 }
 
-func (s *Service) IsMember(ctx context.Context, userUUID, orgUUID string) (bool, error) {
-	_, err := s.repo.GetMembership(ctx, userUUID, orgUUID)
+func (s *Service) IsMember(ctx context.Context, userUUID, tenantUUID string) (bool, error) {
+	_, err := s.repo.GetMembership(ctx, userUUID, tenantUUID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return false, nil
@@ -101,22 +99,22 @@ func (s *Service) IsMember(ctx context.Context, userUUID, orgUUID string) (bool,
 	return true, nil
 }
 
-func (s *Service) HasEntitlement(ctx context.Context, orgUUID, feature string) (bool, error) {
-	o, err := s.repo.GetOrgByUUID(ctx, orgUUID)
+func (s *Service) HasEntitlement(ctx context.Context, tenantUUID, feature string) (bool, error) {
+	t, err := s.repo.GetTenantByUUID(ctx, tenantUUID)
 	if err != nil {
 		return false, err
 	}
-	return o.HasFeature(feature), nil
+	return t.HasFeature(feature), nil
 }
 
-// --- Org lifecycle ---
+// --- Tenant lifecycle ---
 
-func (s *Service) CreateOrg(ctx context.Context, ownerUUID string, input models.CreateOrgInput) (*models.Org, error) {
+func (s *Service) CreateTenant(ctx context.Context, ownerUUID string, input models.CreateTenantInput) (*models.Tenant, error) {
 	slug := slugify(input.Slug)
 	if slug == "" {
 		slug = slugify(input.Name)
 	}
-	if existing, _ := s.repo.GetOrgBySlug(ctx, slug); existing != nil {
+	if existing, _ := s.repo.GetTenantBySlug(ctx, slug); existing != nil {
 		return nil, fmt.Errorf("slug already in use: %s", slug)
 	}
 
@@ -126,23 +124,18 @@ func (s *Service) CreateOrg(ctx context.Context, ownerUUID string, input models.
 	}
 	features := defaultFeaturesForPlan(plan)
 
-	// Tier discriminator. Default to internal so the pre-ADR-0001 code paths
-	// (setup wizard, tests) behave unchanged. External client self-registration
-	// in Phase 3 will go through CreateExternalTenant instead.
 	kind := input.Kind
 	if !kind.Valid() {
 		kind = models.TenantKindInternal
 	}
 
-	// Sub-tenants only apply to external clients. Enforce here rather than
-	// in the repo so the invariant surfaces as a 4xx at the handler layer.
 	var parent *string
 	if input.ParentTenantUUID != nil && *input.ParentTenantUUID != "" {
 		if kind != models.TenantKindExternal {
 			return nil, fmt.Errorf("parentTenantUUID is only allowed for external tenants")
 		}
 		p := *input.ParentTenantUUID
-		if _, err := s.repo.GetOrgByUUID(ctx, p); err != nil {
+		if _, err := s.repo.GetTenantByUUID(ctx, p); err != nil {
 			return nil, fmt.Errorf("parent tenant not found: %s", p)
 		}
 		parent = &p
@@ -153,7 +146,7 @@ func (s *Service) CreateOrg(ctx context.Context, ownerUUID string, input models.
 		sigChan = models.SignupChannelSalesAssisted
 	}
 
-	org := &models.Org{
+	t := &models.Tenant{
 		UUID:             uuid.Must(uuid.NewV7()).String(),
 		Kind:             kind,
 		Status:           models.TenantStatusActive,
@@ -167,26 +160,26 @@ func (s *Service) CreateOrg(ctx context.Context, ownerUUID string, input models.
 		Features:         features,
 	}
 
-	if err := s.repo.CreateOrg(ctx, org); err != nil {
+	if err := s.repo.CreateTenant(ctx, t); err != nil {
 		return nil, err
 	}
 
 	// Closure-table bookkeeping: self-row at depth 0 for every tenant,
 	// plus the transitive chain when a parent is set.
-	if err := s.repo.InsertSelfAncestor(ctx, org.UUID); err != nil {
+	if err := s.repo.InsertSelfAncestor(ctx, t.UUID); err != nil {
 		return nil, fmt.Errorf("tenant: insert self ancestor: %w", err)
 	}
 	if parent != nil {
-		if err := s.repo.AttachToParent(ctx, org.UUID, *parent); err != nil {
+		if err := s.repo.AttachToParent(ctx, t.UUID, *parent); err != nil {
 			return nil, fmt.Errorf("tenant: attach to parent: %w", err)
 		}
 	}
 
 	// Owner is auto-enrolled as a member with the "administrator" role.
-	membership := &models.Membership{
+	membership := &models.TenantMembership{
 		UUID:       uuid.Must(uuid.NewV7()).String(),
 		UserUUID:   ownerUUID,
-		OrgUUID:    org.UUID,
+		TenantUUID: t.UUID,
 		TenantKind: kind,
 		Roles:      []string{"administrator"},
 		IsOwner:    true,
@@ -194,90 +187,67 @@ func (s *Service) CreateOrg(ctx context.Context, ownerUUID string, input models.
 	if err := s.repo.CreateMembership(ctx, membership); err != nil {
 		return nil, err
 	}
-	return org, nil
+	return t, nil
 }
 
 // CreateExternalTenant is the dedicated factory for Tier-2 tenants (external
-// clients registering on the platform). See ADR-0001. The caller is typically
-// the onboarding module (Phase 3). signupChannel distinguishes self-serve
-// signups from sales-assisted provisioning for later analytics.
-func (s *Service) CreateExternalTenant(ctx context.Context, ownerUUID, name, slug, signupChannel string, parentTenantUUID *string) (*models.Org, error) {
+// clients registering on the platform). The caller is typically the
+// onboarding module (Phase 3). signupChannel distinguishes self-serve
+// signups from sales-assisted provisioning.
+func (s *Service) CreateExternalTenant(ctx context.Context, ownerUUID, name, slug, signupChannel string, parentTenantUUID *string) (*models.Tenant, error) {
 	if signupChannel == "" {
 		signupChannel = models.SignupChannelSelfServe
 	}
-	input := models.CreateOrgInput{
+	input := models.CreateTenantInput{
 		Name:             name,
 		Slug:             slug,
 		Kind:             models.TenantKindExternal,
 		ParentTenantUUID: parentTenantUUID,
 	}
-	org, err := s.CreateOrg(ctx, ownerUUID, input)
+	t, err := s.CreateTenant(ctx, ownerUUID, input)
 	if err != nil {
 		return nil, err
 	}
-	org.SignupChannel = signupChannel
-	org.Status = models.TenantStatusProvisioning
-	if err := s.repo.UpdateOrg(ctx, org.UUID, bson.M{
+	t.SignupChannel = signupChannel
+	t.Status = models.TenantStatusProvisioning
+	if err := s.repo.UpdateTenant(ctx, t.UUID, bson.M{
 		"signupChannel": signupChannel,
 		"status":        string(models.TenantStatusProvisioning),
 	}); err != nil {
 		return nil, err
 	}
-	return org, nil
+	return t, nil
 }
 
 // MarkTenantActive flips a provisioning tenant to active once the onboarding
 // saga (KMS key, IdP defaults, trial subscription, welcome email) completes.
 func (s *Service) MarkTenantActive(ctx context.Context, tenantUUID string) error {
-	return s.repo.UpdateOrgStatus(ctx, tenantUUID, models.TenantStatusActive)
+	return s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusActive)
 }
 
-// SuspendTenant, ArchiveTenant, PurgeTenant drive the lifecycle transitions
-// introduced by ADR-0001. PurgeTenant eventually triggers crypto-shred of
-// the tenant's KMS key (Phase 4); today it only flips the status so the
-// operator console can exercise the transition end-to-end.
+// SuspendTenant, ArchiveTenant, PurgeTenant drive lifecycle transitions.
+// PurgeTenant eventually triggers crypto-shred of the tenant's KMS key
+// (Phase 4); today it only flips the status.
 func (s *Service) SuspendTenant(ctx context.Context, tenantUUID string) error {
-	return s.repo.UpdateOrgStatus(ctx, tenantUUID, models.TenantStatusSuspended)
+	return s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusSuspended)
 }
 
 func (s *Service) ArchiveTenant(ctx context.Context, tenantUUID string) error {
-	return s.repo.UpdateOrgStatus(ctx, tenantUUID, models.TenantStatusArchived)
+	return s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusArchived)
 }
 
 func (s *Service) PurgeTenant(ctx context.Context, tenantUUID string) error {
-	return s.repo.UpdateOrgStatus(ctx, tenantUUID, models.TenantStatusPurged)
+	return s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusPurged)
 }
 
-// --- Hierarchy queries (closure table) ---
-
-// GetAncestors returns every ancestor of tenantUUID (including itself at
-// depth 0), sorted by depth ascending. Useful for policy evaluation that
-// needs to walk up the tenant tree.
-func (s *Service) GetAncestors(ctx context.Context, tenantUUID string) ([]models.TenantAncestor, error) {
-	return s.repo.ListAncestors(ctx, tenantUUID)
-}
-
-// GetDescendantUUIDs returns every descendant UUID (including the tenant
-// itself). Used for cascade operations — archive parent → mark every
-// sub-tenant.
-func (s *Service) GetDescendantUUIDs(ctx context.Context, tenantUUID string) ([]string, error) {
-	return s.repo.ListDescendantUUIDs(ctx, tenantUUID)
-}
-
-// IsDescendantOf reports whether descendant is inside the tree rooted at
-// ancestor (inclusive). A tenant is a descendant of itself.
-func (s *Service) IsDescendantOf(ctx context.Context, ancestorUUID, descendantUUID string) (bool, error) {
-	return s.repo.IsAncestorOf(ctx, ancestorUUID, descendantUUID)
-}
-
-func (s *Service) UpdateOrg(ctx context.Context, orgUUID string, input models.UpdateOrgInput) error {
+func (s *Service) UpdateTenant(ctx context.Context, tenantUUID string, input models.UpdateTenantInput) error {
 	update := bson.M{}
 	if input.Name != nil {
 		update["name"] = strings.TrimSpace(*input.Name)
 	}
 	if input.Slug != nil {
 		slug := slugify(*input.Slug)
-		if existing, _ := s.repo.GetOrgBySlug(ctx, slug); existing != nil && existing.UUID != orgUUID {
+		if existing, _ := s.repo.GetTenantBySlug(ctx, slug); existing != nil && existing.UUID != tenantUUID {
 			return fmt.Errorf("slug already in use: %s", slug)
 		}
 		update["slug"] = slug
@@ -288,90 +258,108 @@ func (s *Service) UpdateOrg(ctx context.Context, orgUUID string, input models.Up
 	if len(update) == 0 {
 		return nil
 	}
-	return s.repo.UpdateOrg(ctx, orgUUID, update)
+	return s.repo.UpdateTenant(ctx, tenantUUID, update)
 }
 
-func (s *Service) UpdatePlan(ctx context.Context, orgUUID string, input models.UpdatePlanInput) error {
+func (s *Service) UpdatePlan(ctx context.Context, tenantUUID string, input models.UpdatePlanInput) error {
 	features := input.Features
 	if features == nil {
 		features = defaultFeaturesForPlan(input.Plan)
 	}
-	return s.repo.UpdateOrg(ctx, orgUUID, bson.M{"plan": input.Plan, "features": features})
+	return s.repo.UpdateTenant(ctx, tenantUUID, bson.M{"plan": input.Plan, "features": features})
 }
 
-func (s *Service) DeleteOrg(ctx context.Context, orgUUID string) error {
-	return s.repo.SoftDeleteOrg(ctx, orgUUID)
+func (s *Service) DeleteTenant(ctx context.Context, tenantUUID string) error {
+	return s.repo.SoftDeleteTenant(ctx, tenantUUID)
 }
 
-// OrgAdminView is an org plus its current member count, used by the
+// TenantAdminView is a tenant plus its current member count, used by the
 // platform-admin list endpoint to avoid an N+1.
-type OrgAdminView struct {
-	Org         *models.Org
+type TenantAdminView struct {
+	Tenant      *models.Tenant
 	MemberCount int
 }
 
-// ListAllOrgs returns every org in the system with live member counts.
-// Used by the platform admin tenant management page — bypasses per-org
+// ListAllTenants returns every tenant in the system with live member counts.
+// Used by the platform admin tenant management page — bypasses per-tenant
 // membership gates and is only callable via system.tenants.admin.
-func (s *Service) ListAllOrgs(ctx context.Context, includeDeleted bool) ([]OrgAdminView, error) {
-	orgs, err := s.repo.ListAllOrgs(ctx, includeDeleted)
+func (s *Service) ListAllTenants(ctx context.Context, includeDeleted bool) ([]TenantAdminView, error) {
+	tenants, err := s.repo.ListAllTenants(ctx, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
-	if len(orgs) == 0 {
-		return []OrgAdminView{}, nil
+	if len(tenants) == 0 {
+		return []TenantAdminView{}, nil
 	}
-	uuids := make([]string, len(orgs))
-	for i := range orgs {
-		uuids[i] = orgs[i].UUID
+	uuids := make([]string, len(tenants))
+	for i := range tenants {
+		uuids[i] = tenants[i].UUID
 	}
-	counts, err := s.repo.CountMembersByOrgs(ctx, uuids)
+	counts, err := s.repo.CountMembersByTenants(ctx, uuids)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]OrgAdminView, len(orgs))
-	for i := range orgs {
-		o := orgs[i]
-		out[i] = OrgAdminView{Org: &o, MemberCount: counts[o.UUID]}
+	out := make([]TenantAdminView, len(tenants))
+	for i := range tenants {
+		t := tenants[i]
+		out[i] = TenantAdminView{Tenant: &t, MemberCount: counts[t.UUID]}
 	}
 	return out, nil
 }
 
+// --- Hierarchy queries (closure table) ---
+
+// GetAncestors returns every ancestor of tenantUUID (including itself at
+// depth 0), sorted by depth ascending.
+func (s *Service) GetAncestors(ctx context.Context, tenantUUID string) ([]models.TenantAncestor, error) {
+	return s.repo.ListAncestors(ctx, tenantUUID)
+}
+
+// GetDescendantUUIDs returns every descendant UUID (including the tenant
+// itself).
+func (s *Service) GetDescendantUUIDs(ctx context.Context, tenantUUID string) ([]string, error) {
+	return s.repo.ListDescendantUUIDs(ctx, tenantUUID)
+}
+
+// IsDescendantOf reports whether descendant is inside the tree rooted at
+// ancestor (inclusive).
+func (s *Service) IsDescendantOf(ctx context.Context, ancestorUUID, descendantUUID string) (bool, error) {
+	return s.repo.IsAncestorOf(ctx, ancestorUUID, descendantUUID)
+}
+
 // --- Memberships ---
 
-func (s *Service) ListMembers(ctx context.Context, orgUUID string) ([]models.Membership, error) {
-	return s.repo.ListMembershipsByOrg(ctx, orgUUID)
+func (s *Service) ListMembers(ctx context.Context, tenantUUID string) ([]models.TenantMembership, error) {
+	return s.repo.ListMembershipsByTenant(ctx, tenantUUID)
 }
 
-func (s *Service) RemoveMember(ctx context.Context, orgUUID, userUUID string) error {
-	return s.repo.DeleteMembership(ctx, userUUID, orgUUID)
+func (s *Service) RemoveMember(ctx context.Context, tenantUUID, userUUID string) error {
+	return s.repo.DeleteMembership(ctx, userUUID, tenantUUID)
 }
 
-func (s *Service) SetMemberRoles(ctx context.Context, orgUUID, userUUID string, roles []string) error {
-	return s.repo.UpdateMembershipRoles(ctx, userUUID, orgUUID, roles)
+func (s *Service) SetMemberRoles(ctx context.Context, tenantUUID, userUUID string, roles []string) error {
+	return s.repo.UpdateMembershipRoles(ctx, userUUID, tenantUUID, roles)
 }
 
 // --- Invites ---
 
 // CreateInvite generates a single-use invite token, persists only its hash,
 // and returns the raw token exactly once on the struct's transient Token
-// field. Callers must relay the raw token to the invitee (over email or a
-// copy-paste UI) immediately; after this function returns there is no way to
-// recover it — the database only has the hash.
-func (s *Service) CreateInvite(ctx context.Context, orgUUID, invitedBy string, input models.InviteInput) (*models.Invite, error) {
+// field. Callers must relay the raw token to the invitee immediately.
+func (s *Service) CreateInvite(ctx context.Context, tenantUUID, invitedBy string, input models.InviteInput) (*models.TenantInvite, error) {
 	raw, hash, err := generateInviteToken()
 	if err != nil {
 		return nil, fmt.Errorf("tenant: generate invite token: %w", err)
 	}
-	inv := &models.Invite{
-		UUID:      uuid.Must(uuid.NewV7()).String(),
-		OrgUUID:   orgUUID,
-		Email:     strings.ToLower(strings.TrimSpace(input.Email)),
-		Roles:     input.Roles,
-		Token:     raw, // transient: returned to caller, not persisted
-		TokenHash: hash,
-		InvitedBy: invitedBy,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	inv := &models.TenantInvite{
+		UUID:       uuid.Must(uuid.NewV7()).String(),
+		TenantUUID: tenantUUID,
+		Email:      strings.ToLower(strings.TrimSpace(input.Email)),
+		Roles:      input.Roles,
+		Token:      raw, // transient: returned once, not persisted
+		TokenHash:  hash,
+		InvitedBy:  invitedBy,
+		ExpiresAt:  time.Now().Add(7 * 24 * time.Hour),
 	}
 	if err := s.repo.CreateInvite(ctx, inv); err != nil {
 		return nil, err
@@ -379,11 +367,11 @@ func (s *Service) CreateInvite(ctx context.Context, orgUUID, invitedBy string, i
 	return inv, nil
 }
 
-// ListInvites returns invites for an org. Caller scopes visibility: pending-only
-// by default, all invites when onlyPending is false. Raw tokens are zeroed out
-// before returning — they are only retrievable once at creation time.
-func (s *Service) ListInvites(ctx context.Context, orgUUID string, onlyPending bool) ([]models.Invite, error) {
-	invs, err := s.repo.ListInvitesByOrg(ctx, orgUUID, onlyPending)
+// ListInvites returns invites for a tenant. Caller scopes visibility:
+// pending-only by default, all invites when onlyPending is false. Raw tokens
+// are zeroed out before returning.
+func (s *Service) ListInvites(ctx context.Context, tenantUUID string, onlyPending bool) ([]models.TenantInvite, error) {
+	invs, err := s.repo.ListInvitesByTenant(ctx, tenantUUID, onlyPending)
 	if err != nil {
 		return nil, err
 	}
@@ -393,15 +381,13 @@ func (s *Service) ListInvites(ctx context.Context, orgUUID string, onlyPending b
 	return invs, nil
 }
 
-// RevokeInvite deletes a pending invite by UUID. The orgUUID is required to
-// prevent cross-org spoofing via a guessed invite UUID.
-func (s *Service) RevokeInvite(ctx context.Context, orgUUID, inviteUUID string) error {
-	return s.repo.DeleteInvite(ctx, orgUUID, inviteUUID)
+// RevokeInvite deletes a pending invite by UUID. The tenantUUID is required
+// to prevent cross-tenant spoofing via a guessed invite UUID.
+func (s *Service) RevokeInvite(ctx context.Context, tenantUUID, inviteUUID string) error {
+	return s.repo.DeleteInvite(ctx, tenantUUID, inviteUUID)
 }
 
-func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*models.Org, error) {
-	// Look up by hash, not plaintext — the plaintext only exists in the
-	// invitee's email/UI, never in the database.
+func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*models.Tenant, error) {
 	inv, err := s.repo.GetInviteByTokenHash(ctx, hashInviteToken(token))
 	if err != nil {
 		return nil, err
@@ -412,12 +398,12 @@ func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*mo
 	if time.Now().After(inv.ExpiresAt) {
 		return nil, errors.New("invite expired")
 	}
-	membership := &models.Membership{
-		UUID:      uuid.Must(uuid.NewV7()).String(),
-		UserUUID:  userUUID,
-		OrgUUID:   inv.OrgUUID,
-		Roles:     inv.Roles,
-		InvitedBy: inv.InvitedBy,
+	membership := &models.TenantMembership{
+		UUID:       uuid.Must(uuid.NewV7()).String(),
+		UserUUID:   userUUID,
+		TenantUUID: inv.TenantUUID,
+		Roles:      inv.Roles,
+		InvitedBy:  inv.InvitedBy,
 	}
 	if err := s.repo.CreateMembership(ctx, membership); err != nil {
 		return nil, err
@@ -425,11 +411,11 @@ func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*mo
 	if err := s.repo.MarkInviteAccepted(ctx, inv.UUID); err != nil {
 		return nil, err
 	}
-	return s.repo.GetOrgByUUID(ctx, inv.OrgUUID)
+	return s.repo.GetTenantByUUID(ctx, inv.TenantUUID)
 }
 
-func (s *Service) GetOrgModel(ctx context.Context, orgUUID string) (*models.Org, error) {
-	return s.repo.GetOrgByUUID(ctx, orgUUID)
+func (s *Service) GetTenantModel(ctx context.Context, tenantUUID string) (*models.Tenant, error) {
+	return s.repo.GetTenantByUUID(ctx, tenantUUID)
 }
 
 // --- Helpers ---
@@ -464,9 +450,9 @@ func slugify(s string) string {
 	return strings.TrimRight(b.String(), "-")
 }
 
-// generateInviteToken mirrors auth/services/password_auth_service.go's
-// generateEmailToken: 32 random bytes → base64url → SHA-256 hex digest.
-// The raw token is returned to the caller once; only the hash is stored.
+// generateInviteToken produces 32 random bytes → base64url → SHA-256 hex
+// digest. The raw token is returned to the caller once; only the hash is
+// stored.
 func generateInviteToken() (raw, hash string, err error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {

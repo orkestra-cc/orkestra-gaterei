@@ -112,7 +112,7 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 
 	primaryProvider := s.getPrimaryOAuthProvider(user)
 
-	memberships, defaultOrg, defaultKind := s.loadMemberships(user.UUID)
+	memberships, defaultTenant, defaultKind := s.loadMemberships(user.UUID)
 
 	claims := &models.JWTClaims{
 		UserUUID:   user.UUID,
@@ -126,8 +126,8 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 		Audience:   s.audience,
 
 		Memberships:      memberships,
-		DefaultOrgID:     defaultOrg,
-		ActingTenantID:   defaultOrg,
+		DefaultTenantID:  defaultTenant,
+		ActingTenantID:   defaultTenant,
 		ActingTenantKind: defaultKind,
 
 		SessionID:     securityCtx.SessionID,
@@ -152,13 +152,13 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 	return tokenString, nil
 }
 
-// loadMemberships fetches the user's org memberships via the tenant provider.
-// Returns an empty list if the tenant provider isn't wired yet (edge case
-// during startup) or if the user belongs to no orgs. DefaultOrgID picks the
-// first owned org, otherwise the first membership. Also returns the
-// default tenant kind so middleware can dispatch on tier without re-reading
-// the provider. See ADR-0001.
-func (s *jwtService) loadMemberships(userUUID string) (list []models.OrgMembership, defaultOrg, defaultKind string) {
+// loadMemberships fetches the user's tenant memberships via the tenant
+// provider. Returns an empty list if the provider isn't wired yet (edge case
+// during startup) or if the user belongs to no tenants. DefaultTenantID
+// picks the first owned tenant, otherwise the first membership. Also returns
+// the default tenant kind so middleware can dispatch on tier without
+// re-reading the provider. See ADR-0001.
+func (s *jwtService) loadMemberships(userUUID string) (list []models.TenantMembership, defaultTenant, defaultKind string) {
 	if s.tenant == nil {
 		return nil, "", ""
 	}
@@ -168,32 +168,32 @@ func (s *jwtService) loadMemberships(userUUID string) (list []models.OrgMembersh
 	if err != nil || len(mbrs) == 0 {
 		return nil, "", ""
 	}
-	out := make([]models.OrgMembership, 0, len(mbrs))
+	out := make([]models.TenantMembership, 0, len(mbrs))
 	var firstOwned, firstOwnedKind string
 	for _, m := range mbrs {
 		kind := m.TenantKind
 		if kind == "" {
 			kind = "internal"
 		}
-		out = append(out, models.OrgMembership{
-			OrgUUID:    m.OrgUUID,
+		out = append(out, models.TenantMembership{
+			TenantUUID: m.TenantUUID,
 			TenantKind: kind,
 			Roles:      m.Roles,
 		})
 		if m.IsOwner && firstOwned == "" {
-			firstOwned = m.OrgUUID
+			firstOwned = m.TenantUUID
 			firstOwnedKind = kind
 		}
-		if defaultOrg == "" {
-			defaultOrg = m.OrgUUID
+		if defaultTenant == "" {
+			defaultTenant = m.TenantUUID
 			defaultKind = kind
 		}
 	}
 	if firstOwned != "" {
-		defaultOrg = firstOwned
+		defaultTenant = firstOwned
 		defaultKind = firstOwnedKind
 	}
-	return out, defaultOrg, defaultKind
+	return out, defaultTenant, defaultKind
 }
 
 func (s *jwtService) GenerateEnhancedRefreshToken(
@@ -376,8 +376,8 @@ func (s *jwtService) claimsToMap(claims *models.JWTClaims) jwt.MapClaims {
 	if len(claims.Scope) > 0 {
 		m["scope"] = claims.Scope
 	}
-	if claims.DefaultOrgID != "" {
-		m["dorg"] = claims.DefaultOrgID
+	if claims.DefaultTenantID != "" {
+		m["dtid"] = claims.DefaultTenantID
 	}
 	if claims.ActingTenantID != "" {
 		m["acting_tenant_id"] = claims.ActingTenantID
@@ -389,7 +389,7 @@ func (s *jwtService) claimsToMap(claims *models.JWTClaims) jwt.MapClaims {
 		mbrs := make([]map[string]any, 0, len(claims.Memberships))
 		for _, mb := range claims.Memberships {
 			entry := map[string]any{
-				"oid": mb.OrgUUID,
+				"tid": mb.TenantUUID,
 				"r":   mb.Roles,
 			}
 			if mb.TenantKind != "" {
@@ -426,7 +426,7 @@ func (s *jwtService) mapToClaims(m jwt.MapClaims) *models.JWTClaims {
 		Fingerprint:      getStringClaim(m, "fp"),
 		RiskScore:        getFloatClaim(m, "risk"),
 		OAuthProvider:    getStringClaim(m, "provider"),
-		DefaultOrgID:     getStringClaim(m, "dorg"),
+		DefaultTenantID:  getStringClaim(m, "dtid"),
 		ActingTenantID:   getStringClaim(m, "acting_tenant_id"),
 		ActingTenantKind: getStringClaim(m, "acting_tenant_kind"),
 	}
@@ -439,14 +439,14 @@ func (s *jwtService) mapToClaims(m jwt.MapClaims) *models.JWTClaims {
 	}
 	claims.LastOTPAt = int64(getFloatClaim(m, "last_otp_at"))
 	if mbrs, ok := m["mbr"].([]interface{}); ok {
-		claims.Memberships = make([]models.OrgMembership, 0, len(mbrs))
+		claims.Memberships = make([]models.TenantMembership, 0, len(mbrs))
 		for _, raw := range mbrs {
 			obj, ok := raw.(map[string]any)
 			if !ok {
 				continue
 			}
-			mb := models.OrgMembership{
-				OrgUUID:    getStr(obj, "oid"),
+			mb := models.TenantMembership{
+				TenantUUID: getStr(obj, "tid"),
 				TenantKind: getStr(obj, "k"),
 			}
 			if roles, ok := obj["r"].([]interface{}); ok {

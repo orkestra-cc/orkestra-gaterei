@@ -21,23 +21,23 @@ import (
 // directly keep working — they can migrate to the typed helpers below
 // incrementally.
 const (
-	ctxUserUUID       = "userUUID"
-	ctxUserEmail      = "userEmail"
-	ctxSystemRole     = "userRole" // legacy key name: "userRole" still holds the system role
-	ctxClaims         = "claims"
-	ctxOrgID          = "orgID"
-	ctxOrgMemberships = "orgMemberships"
-	ctxOrgRoles       = "orgRoles"
+	ctxUserUUID          = "userUUID"
+	ctxUserEmail         = "userEmail"
+	ctxSystemRole        = "userRole" // legacy key name: "userRole" still holds the system role
+	ctxClaims            = "claims"
+	ctxTenantID          = "tenantID"
+	ctxTenantMemberships = "tenantMemberships"
+	ctxTenantRoles       = "tenantRoles"
 	// ctxTenantKind carries the tier ("internal" | "external") of the tenant
 	// the current request is acting in. Populated from claims.ActingTenantKind
 	// or resolved from the matched membership. See ADR-0001.
 	ctxTenantKind = "tenantKind"
 )
 
-// OrgIDHeader is the HTTP header clients use to pick the current tenant
-// for every request. The value must be an org UUID that the user is a
+// TenantIDHeader is the HTTP header clients use to pick the current tenant
+// for every request. The value must be a tenant UUID that the user is a
 // member of, otherwise the request is rejected with 403.
-const OrgIDHeader = "X-Org-ID"
+const TenantIDHeader = "X-Tenant-ID"
 
 type AuthMiddleware struct {
 	jwtService   services.JWTService
@@ -142,35 +142,36 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
-// setUserContext injects user identity and the resolved current-org context
-// into the request. Org resolution order:
-//  1. X-Org-ID header, if present — must match one of the claims.Memberships
-//  2. claims.DefaultOrgID — falls back to the user's default org
-//  3. empty — only allowed on RequireGlobal() routes
+// setUserContext injects user identity and the resolved current-tenant
+// context into the request. Tenant resolution order:
+//  1. claims.ActingTenantID — a JWT stamped for a specific tenant.
+//  2. X-Tenant-ID header when the user is a member of that tenant.
+//  3. claims.DefaultTenantID.
+//  4. empty — only allowed on RequireGlobal() routes.
 func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, next http.Handler) {
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
 	ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
 	ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
 	ctx = context.WithValue(ctx, ctxClaims, claims)
-	ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
+	ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 
-	orgID, roles, kind, ok := resolveCurrentOrg(r, claims)
+	tenantID, roles, kind, ok := resolveCurrentTenant(r, claims)
 	if ok {
-		ctx = context.WithValue(ctx, ctxOrgID, orgID)
-		ctx = context.WithValue(ctx, ctxOrgRoles, roles)
+		ctx = context.WithValue(ctx, ctxTenantID, tenantID)
+		ctx = context.WithValue(ctx, ctxTenantRoles, roles)
 		if kind != "" {
 			ctx = context.WithValue(ctx, ctxTenantKind, kind)
 		}
 	}
 
-	// If the client sent X-Org-ID but it doesn't match any membership,
+	// If the client sent X-Tenant-ID but it doesn't match any membership,
 	// reject immediately so a stale header can't leak data from another
 	// tenant. Missing header is fine — downstream middleware decides.
-	if h := r.Header.Get(OrgIDHeader); h != "" && !ok {
-		m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested organization").
-			WithOperation("resolve_org").
-			WithDetail("orgId", h).
+	if h := r.Header.Get(TenantIDHeader); h != "" && !ok {
+		m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested tenant").
+			WithOperation("resolve_tenant").
+			WithDetail("tenantId", h).
 			Build())
 		return
 	}
@@ -178,43 +179,43 @@ func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, 
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// resolveCurrentOrg picks the current org for this request. Returns the
-// resolved orgID, the user's roles in that org, the tenant kind
+// resolveCurrentTenant picks the current tenant for this request. Returns
+// the resolved tenantID, the user's roles in that tenant, the tenant kind
 // ("internal" | "external" or empty if not known), and ok=false when no
-// org can be resolved.
+// tenant can be resolved.
 //
 // Tier resolution order (ADR-0001):
 //  1. claims.ActingTenantID + ActingTenantKind when set by the issuer — the
 //     JWT was minted for a specific tenant, nothing else can override it.
-//  2. X-Org-ID header when the user is a member of that org.
-//  3. claims.DefaultOrgID.
-func resolveCurrentOrg(r *http.Request, claims *models.JWTClaims) (string, []string, string, bool) {
+//  2. X-Tenant-ID header when the user is a member of that tenant.
+//  3. claims.DefaultTenantID.
+func resolveCurrentTenant(r *http.Request, claims *models.JWTClaims) (string, []string, string, bool) {
 	// Stamped-in tenant on the JWT itself: client-portal tokens in Phase 3
 	// will always take this path. The header is ignored.
 	if claims.ActingTenantID != "" {
 		for _, mbr := range claims.Memberships {
-			if mbr.OrgUUID == claims.ActingTenantID {
+			if mbr.TenantUUID == claims.ActingTenantID {
 				kind := claims.ActingTenantKind
 				if kind == "" {
 					kind = mbr.TenantKind
 				}
-				return mbr.OrgUUID, mbr.Roles, kind, true
+				return mbr.TenantUUID, mbr.Roles, kind, true
 			}
 		}
 	}
-	requested := r.Header.Get(OrgIDHeader)
+	requested := r.Header.Get(TenantIDHeader)
 	if requested != "" {
 		for _, mbr := range claims.Memberships {
-			if mbr.OrgUUID == requested {
-				return mbr.OrgUUID, mbr.Roles, mbr.TenantKind, true
+			if mbr.TenantUUID == requested {
+				return mbr.TenantUUID, mbr.Roles, mbr.TenantKind, true
 			}
 		}
 		return "", nil, "", false
 	}
-	if claims.DefaultOrgID != "" {
+	if claims.DefaultTenantID != "" {
 		for _, mbr := range claims.Memberships {
-			if mbr.OrgUUID == claims.DefaultOrgID {
-				return mbr.OrgUUID, mbr.Roles, mbr.TenantKind, true
+			if mbr.TenantUUID == claims.DefaultTenantID {
+				return mbr.TenantUUID, mbr.Roles, mbr.TenantKind, true
 			}
 		}
 	}
@@ -310,10 +311,10 @@ func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
 			ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
 			ctx = context.WithValue(ctx, ctxClaims, claims)
-			ctx = context.WithValue(ctx, ctxOrgMemberships, claims.Memberships)
-			if orgID, roles, kind, ok := resolveCurrentOrg(r, claims); ok {
-				ctx = context.WithValue(ctx, ctxOrgID, orgID)
-				ctx = context.WithValue(ctx, ctxOrgRoles, roles)
+			ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
+			if tenantID, roles, kind, ok := resolveCurrentTenant(r, claims); ok {
+				ctx = context.WithValue(ctx, ctxTenantID, tenantID)
+				ctx = context.WithValue(ctx, ctxTenantRoles, roles)
 				if kind != "" {
 					ctx = context.WithValue(ctx, ctxTenantKind, kind)
 				}
@@ -360,25 +361,25 @@ func GetSystemRole(ctx context.Context) (string, bool) {
 	return role, ok
 }
 
-// GetOrgID extracts the current org UUID from the request context.
-// Returns ok=false when the request has no resolved org (global routes).
-func GetOrgID(ctx context.Context) (string, bool) {
-	orgID, ok := ctx.Value(ctxOrgID).(string)
-	if !ok || orgID == "" {
+// GetTenantID extracts the current tenant UUID from the request context.
+// Returns ok=false when the request has no resolved tenant (global routes).
+func GetTenantID(ctx context.Context) (string, bool) {
+	tenantID, ok := ctx.Value(ctxTenantID).(string)
+	if !ok || tenantID == "" {
 		return "", false
 	}
-	return orgID, true
+	return tenantID, true
 }
 
-// GetOrgRoles extracts the user's roles in the current org.
-func GetOrgRoles(ctx context.Context) ([]string, bool) {
-	roles, ok := ctx.Value(ctxOrgRoles).([]string)
+// GetTenantRoles extracts the user's roles in the current tenant.
+func GetTenantRoles(ctx context.Context) ([]string, bool) {
+	roles, ok := ctx.Value(ctxTenantRoles).([]string)
 	return roles, ok
 }
 
-// GetMemberships returns all org memberships the user has.
-func GetMemberships(ctx context.Context) ([]models.OrgMembership, bool) {
-	mbrs, ok := ctx.Value(ctxOrgMemberships).([]models.OrgMembership)
+// GetMemberships returns all tenant memberships the user has.
+func GetMemberships(ctx context.Context) ([]models.TenantMembership, bool) {
+	mbrs, ok := ctx.Value(ctxTenantMemberships).([]models.TenantMembership)
 	return mbrs, ok
 }
 
@@ -398,14 +399,14 @@ func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler)
 					WithOperation("require_permission").Build())
 				return
 			}
-			orgID, hasOrg := GetOrgID(r.Context())
-			if !hasOrg {
-				m.sendErrorResponse(w, r, errors.AuthorizationError("org context required").
+			tenantID, hasTenant := GetTenantID(r.Context())
+			if !hasTenant {
+				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_permission").
 					WithDetail("permission", permission).Build())
 				return
 			}
-			allowed, err := m.authz.HasPermission(r.Context(), userUUID, orgID, permission)
+			allowed, err := m.authz.HasPermission(r.Context(), userUUID, tenantID, permission)
 			if err != nil {
 				m.sendErrorResponse(w, r, errors.InternalError("permission check failed").
 					WithOperation("require_permission").
@@ -416,7 +417,7 @@ func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler)
 				m.sendErrorResponse(w, r, errors.AuthorizationError("insufficient permissions").
 					WithOperation("require_permission").
 					WithDetail("permission", permission).
-					WithDetail("orgId", orgID).Build())
+					WithDetail("tenantId", tenantID).Build())
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -464,14 +465,14 @@ func (m *AuthMiddleware) RequireEntitlement(feature string) func(http.Handler) h
 					WithOperation("require_entitlement").Build())
 				return
 			}
-			orgID, ok := GetOrgID(r.Context())
+			tenantID, ok := GetTenantID(r.Context())
 			if !ok {
-				m.sendErrorResponse(w, r, errors.AuthorizationError("org context required").
+				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_entitlement").
 					WithDetail("feature", feature).Build())
 				return
 			}
-			allowed, err := m.tenant.HasEntitlement(r.Context(), orgID, feature)
+			allowed, err := m.tenant.HasEntitlement(r.Context(), tenantID, feature)
 			if err != nil {
 				m.sendErrorResponse(w, r, errors.InternalError("entitlement check failed").
 					WithOperation("require_entitlement").
@@ -479,7 +480,7 @@ func (m *AuthMiddleware) RequireEntitlement(feature string) func(http.Handler) h
 				return
 			}
 			if !allowed {
-				m.sendPlanLimitResponse(w, r, feature, orgID)
+				m.sendPlanLimitResponse(w, r, feature, tenantID)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -588,7 +589,7 @@ func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Reques
 // sendPlanLimitResponse returns a 402 Payment Required when a feature isn't
 // included in the tenant's plan. This is a first-class error distinct from
 // 403 Forbidden so the frontend can surface an "upgrade your plan" UI.
-func (m *AuthMiddleware) sendPlanLimitResponse(w http.ResponseWriter, r *http.Request, feature, orgID string) {
+func (m *AuthMiddleware) sendPlanLimitResponse(w http.ResponseWriter, r *http.Request, feature, tenantID string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusPaymentRequired)
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -602,6 +603,6 @@ func (m *AuthMiddleware) sendPlanLimitResponse(w http.ResponseWriter, r *http.Re
 			"value":    "PLAN_LIMIT",
 		}},
 		"feature": feature,
-		"orgId":   orgID,
+		"tenantId": tenantID,
 	})
 }

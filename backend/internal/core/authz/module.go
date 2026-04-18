@@ -62,7 +62,7 @@ func (m *Module) Collections() []module.CollectionSpec {
 		}},
 		{Name: repository.CollRoles, Indexes: []module.IndexSpec{
 			{OrderedKeys: []module.IndexKey{
-				{Field: "orgId", Direction: 1},
+				{Field: "tenantId", Direction: 1},
 				{Field: "name", Direction: 1},
 			}, Unique: true},
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
@@ -70,7 +70,7 @@ func (m *Module) Collections() []module.CollectionSpec {
 		{Name: repository.CollBindings, Indexes: []module.IndexSpec{
 			{OrderedKeys: []module.IndexKey{
 				{Field: "userUUID", Direction: 1},
-				{Field: "orgId", Direction: 1},
+				{Field: "tenantId", Direction: 1},
 			}},
 			{Keys: map[string]int{"roleId": 1}},
 			{Keys: map[string]int{"expiresAt": 1}},

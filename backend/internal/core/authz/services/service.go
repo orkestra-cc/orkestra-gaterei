@@ -110,8 +110,8 @@ func roleElevatesPrivilege(roleName string) bool {
 
 // --- Provider interface ---
 
-func (s *Service) HasPermission(ctx context.Context, userUUID, orgID, permission string) (bool, error) {
-	perms, err := s.GetEffectivePermissions(ctx, userUUID, orgID)
+func (s *Service) HasPermission(ctx context.Context, userUUID, tenantID, permission string) (bool, error) {
+	perms, err := s.GetEffectivePermissions(ctx, userUUID, tenantID)
 	if err != nil {
 		return false, err
 	}
@@ -123,12 +123,12 @@ func (s *Service) HasPermission(ctx context.Context, userUUID, orgID, permission
 	return false, nil
 }
 
-func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID string) ([]string, error) {
+func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, tenantID string) ([]string, error) {
 	if userUUID == "" {
 		return nil, errors.New("authz: userUUID required")
 	}
 
-	if cached, ok := s.cacheGet(ctx, userUUID, orgID); ok {
+	if cached, ok := s.cacheGet(ctx, userUUID, tenantID); ok {
 		return cached, nil
 	}
 
@@ -174,7 +174,7 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 		s.mu.RUnlock()
 	}
 
-	// Union of global bindings (orgID="").
+	// Union of global bindings (tenantID="").
 	globals, err := s.repo.ListActiveBindingsForUser(ctx, userUUID, "")
 	if err != nil {
 		return nil, err
@@ -189,9 +189,9 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 		}
 	}
 
-	// Union of org-scoped bindings.
-	if orgID != "" {
-		scoped, err := s.repo.ListActiveBindingsForUser(ctx, userUUID, orgID)
+	// Union of tenant-scoped bindings.
+	if tenantID != "" {
+		scoped, err := s.repo.ListActiveBindingsForUser(ctx, userUUID, tenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -210,7 +210,7 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 	for k := range perms {
 		out = append(out, k)
 	}
-	s.cacheSet(ctx, userUUID, orgID, out)
+	s.cacheSet(ctx, userUUID, tenantID, out)
 	return out, nil
 }
 
@@ -247,7 +247,7 @@ func (s *Service) RegisterPermissions(ctx context.Context, specs []iface.Permiss
 // --- System role seeding ---
 
 // SeedSystemRoles creates the six default system roles on first boot. They
-// have orgId="" and IsSystem=true. Permission lists are derived from the
+// have tenantId="" and IsSystem=true. Permission lists are derived from the
 // permissions catalog that modules have registered by the time this runs.
 // Call this after RegisterPermissions has been called for every module.
 //
@@ -328,10 +328,10 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 
 // --- Role admin ---
 
-func (s *Service) CreateRole(ctx context.Context, orgID string, input models.CreateRoleInput) (*models.Role, error) {
+func (s *Service) CreateRole(ctx context.Context, tenantID string, input models.CreateRoleInput) (*models.Role, error) {
 	role := &models.Role{
 		UUID:        uuid.NewString(),
-		OrgID:       orgID,
+		TenantID:    tenantID,
 		Name:        input.Name,
 		Description: input.Description,
 		Permissions: input.Permissions,
@@ -392,12 +392,12 @@ func (s *Service) UpdateRole(ctx context.Context, roleUUID string, input models.
 	return s.repo.GetRoleByUUID(ctx, roleUUID)
 }
 
-func (s *Service) ListRoles(ctx context.Context, orgID string) ([]models.Role, error) {
+func (s *Service) ListRoles(ctx context.Context, tenantID string) ([]models.Role, error) {
 	if err := s.ensureSeeded(ctx); err != nil && s.logger != nil {
 		s.logger.Warn("authz ensureSeeded failed",
 			slog.String("error", err.Error()))
 	}
-	return s.repo.ListRoles(ctx, orgID)
+	return s.repo.ListRoles(ctx, tenantID)
 }
 
 // ensureSeeded re-runs the permission catalog + system-role seed if the
@@ -475,7 +475,7 @@ func (s *Service) ListPermissions(ctx context.Context) ([]models.Permission, err
 
 // --- Bindings ---
 
-func (s *Service) CreateBinding(ctx context.Context, orgID, grantedBy string, input models.CreateBindingInput) (*models.Binding, error) {
+func (s *Service) CreateBinding(ctx context.Context, tenantID, grantedBy string, input models.CreateBindingInput) (*models.Binding, error) {
 	role, err := s.repo.GetRoleByUUID(ctx, input.RoleUUID)
 	if err != nil {
 		return nil, err
@@ -486,7 +486,7 @@ func (s *Service) CreateBinding(ctx context.Context, orgID, grantedBy string, in
 	b := &models.Binding{
 		UUID:      uuid.NewString(),
 		UserUUID:  input.UserUUID,
-		OrgID:     orgID,
+		TenantID:  tenantID,
 		RoleUUID:  role.UUID,
 		RoleName:  role.Name,
 		GrantedBy: grantedBy,
@@ -513,8 +513,8 @@ func (s *Service) CreateBinding(ctx context.Context, orgID, grantedBy string, in
 	return b, nil
 }
 
-func (s *Service) ListBindings(ctx context.Context, orgID string) ([]models.Binding, error) {
-	return s.repo.ListBindingsByOrg(ctx, orgID)
+func (s *Service) ListBindings(ctx context.Context, tenantID string) ([]models.Binding, error) {
+	return s.repo.ListBindingsByTenant(ctx, tenantID)
 }
 
 func (s *Service) DeleteBinding(ctx context.Context, uuid string) error {
@@ -538,18 +538,18 @@ func (s *Service) flushCache(ctx context.Context) {
 
 // --- Cache ---
 
-func (s *Service) cacheKey(userUUID, orgID string) string {
-	if orgID == "" {
-		orgID = "-"
+func (s *Service) cacheKey(userUUID, tenantID string) string {
+	if tenantID == "" {
+		tenantID = "-"
 	}
-	return "authz:cache:" + userUUID + ":" + orgID
+	return "authz:cache:" + userUUID + ":" + tenantID
 }
 
-func (s *Service) cacheGet(ctx context.Context, userUUID, orgID string) ([]string, bool) {
+func (s *Service) cacheGet(ctx context.Context, userUUID, tenantID string) ([]string, bool) {
 	if s.redis == nil {
 		return nil, false
 	}
-	raw, err := s.redis.Get(ctx, s.cacheKey(userUUID, orgID))
+	raw, err := s.redis.Get(ctx, s.cacheKey(userUUID, tenantID))
 	if err != nil || raw == "" {
 		return nil, false
 	}
@@ -560,7 +560,7 @@ func (s *Service) cacheGet(ctx context.Context, userUUID, orgID string) ([]strin
 	return out, true
 }
 
-func (s *Service) cacheSet(ctx context.Context, userUUID, orgID string, perms []string) {
+func (s *Service) cacheSet(ctx context.Context, userUUID, tenantID string, perms []string) {
 	if s.redis == nil {
 		return
 	}
@@ -568,7 +568,7 @@ func (s *Service) cacheSet(ctx context.Context, userUUID, orgID string, perms []
 	if err != nil {
 		return
 	}
-	_ = s.redis.Set(ctx, s.cacheKey(userUUID, orgID), string(data), 60*time.Second)
+	_ = s.redis.Set(ctx, s.cacheKey(userUUID, tenantID), string(data), 60*time.Second)
 }
 
 func (s *Service) cacheInvalidate(ctx context.Context, userUUID string) {

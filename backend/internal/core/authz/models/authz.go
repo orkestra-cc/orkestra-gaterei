@@ -20,12 +20,12 @@ type Permission struct {
 
 // Role is a named bag of permissions. System roles (IsSystem=true) are
 // seeded on first boot of the authz module; custom roles are created by
-// org administrators and scoped to a specific orgId. System roles have
-// an empty orgId.
+// tenant administrators and scoped to a specific tenantId. System roles
+// have an empty tenantId.
 type Role struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 	UUID        string             `bson:"uuid" json:"id"`
-	OrgID       string             `bson:"orgId" json:"orgId"` // empty for system roles
+	TenantID    string             `bson:"tenantId" json:"tenantId"` // empty for system roles
 	Name        string             `bson:"name" json:"name"`
 	Description string             `bson:"description" json:"description"`
 	Permissions []string           `bson:"permissions" json:"permissions"`
@@ -35,15 +35,15 @@ type Role struct {
 	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
 
-// Binding grants a role to a user in a specific org (or globally when
-// OrgID is empty — used for system role bindings derived from the user's
+// Binding grants a role to a user in a specific tenant (or globally when
+// TenantID is empty — used for system role bindings derived from the user's
 // system role). Optional ExpiresAt supports contractor/trial grants and is
 // auto-reaped by a TTL index.
 type Binding struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 	UUID      string             `bson:"uuid" json:"id"`
 	UserUUID  string             `bson:"userUUID" json:"userUUID"`
-	OrgID     string             `bson:"orgId" json:"orgId"` // empty for system-level grants
+	TenantID  string             `bson:"tenantId" json:"tenantId"` // empty for system-level grants
 	RoleUUID  string             `bson:"roleId" json:"roleId"`
 	RoleName  string             `bson:"roleName" json:"roleName"`
 	GrantedBy string             `bson:"grantedBy,omitempty" json:"grantedBy,omitempty"`
@@ -85,7 +85,7 @@ type BindingListResponse struct {
 }
 
 type EffectivePermissionsResponse struct {
-	OrgID       string   `json:"orgId"`
+	TenantID    string   `json:"tenantId"`
 	Permissions []string `json:"permissions"`
 	SystemRole  string   `json:"systemRole"`
 }

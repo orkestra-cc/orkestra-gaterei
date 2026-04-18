@@ -16,18 +16,25 @@ type TokenPair struct {
 	RefreshCount int       `json:"refreshCount,omitempty"`
 }
 
-// OrgMembership is the subset of a tenant membership embedded in JWT claims.
-// Only org id, tenant kind, and role names are embedded — permissions are
-// resolved per-request by the authz module so revocation is instant.
+// TenantMembership is the subset of a tenant membership embedded in JWT
+// claims. Only tenant id, tenant kind, and role names are embedded —
+// permissions are resolved per-request by the authz module so revocation is
+// instant.
 //
 // TenantKind lets middleware dispatch on tier ("is this request acting in an
 // internal operator tenant or an external client tenant?") without a DB
 // lookup. See ADR-0001.
-type OrgMembership struct {
-	OrgUUID    string   `json:"oid"`
+type TenantMembership struct {
+	TenantUUID string   `json:"tid"`
 	TenantKind string   `json:"k,omitempty"`
 	Roles      []string `json:"r"`
 }
+
+// OrgMembership is a deprecated alias retained for pre-rename test fixtures.
+// Remove after all tests migrate to TenantMembership.
+//
+// Deprecated: use TenantMembership.
+type OrgMembership = TenantMembership
 
 type JWTClaims struct {
 	// Standard JWT claims
@@ -42,12 +49,12 @@ type JWTClaims struct {
 	Audience   string `json:"aud,omitempty"` // Token audience
 
 	// Multi-tenancy claims
-	Memberships  []OrgMembership `json:"mbr,omitempty"`  // orgs the user belongs to
-	DefaultOrgID string          `json:"dorg,omitempty"` // selected when X-Org-ID header is absent
+	Memberships     []TenantMembership `json:"mbr,omitempty"`  // tenants the user belongs to
+	DefaultTenantID string             `json:"dtid,omitempty"` // selected when X-Tenant-ID header is absent
 
 	// ActingTenantID is the tenant this specific token is minted for. When
 	// set, middleware uses it directly instead of deriving the current tenant
-	// from the X-Org-ID header. Phase 3 external-client flows always set
+	// from the X-Tenant-ID header. Phase 3 external-client flows always set
 	// this so a client portal token can never accidentally act on an internal
 	// tenant. See ADR-0001.
 	ActingTenantID string `json:"acting_tenant_id,omitempty"`

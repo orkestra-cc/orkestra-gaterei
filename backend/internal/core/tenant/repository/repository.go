@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	CollOrgs        = "tenant_orgs"
+	CollTenants     = "tenants"
 	CollMemberships = "tenant_memberships"
-	CollInvites     = "tenant_org_invites"
+	CollInvites     = "tenant_invites"
 	// CollAncestors materializes the transitive-closure hierarchy for
 	// external multi-tenant clients. See ADR-0001.
 	CollAncestors = "tenant_ancestors"
@@ -30,61 +30,45 @@ func New(db *mongo.Database) *Repository {
 	return &Repository{db: db}
 }
 
-// --- Orgs ---
+// --- Tenants ---
 
-func (r *Repository) CreateOrg(ctx context.Context, o *models.Org) error {
-	o.CreatedAt = time.Now()
-	o.UpdatedAt = o.CreatedAt
-	// Defaults applied at the repository boundary so callers that predate
-	// ADR-0001 (setup wizard, legacy tests) continue to produce valid rows.
-	// New code SHOULD set Kind + Status explicitly.
-	if !o.Kind.Valid() {
-		o.Kind = models.TenantKindInternal
+func (r *Repository) CreateTenant(ctx context.Context, t *models.Tenant) error {
+	t.CreatedAt = time.Now()
+	t.UpdatedAt = t.CreatedAt
+	if !t.Kind.Valid() {
+		t.Kind = models.TenantKindInternal
 	}
-	if !o.Status.Valid() {
-		o.Status = models.TenantStatusActive
+	if !t.Status.Valid() {
+		t.Status = models.TenantStatusActive
 	}
-	if o.Region == "" {
-		o.Region = "eu-west"
+	if t.Region == "" {
+		t.Region = "eu-west"
 	}
-	_, err := r.db.Collection(CollOrgs).InsertOne(ctx, o)
+	_, err := r.db.Collection(CollTenants).InsertOne(ctx, t)
 	return err
 }
 
-// ListOrgsByKind returns every tenant of a specific tier. Used by platform
-// operators to inspect the internal/external split (e.g. billing dashboards
-// that only care about Tier-2 clients).
-func (r *Repository) ListOrgsByKind(ctx context.Context, kind models.TenantKind, includeDeleted bool) ([]models.Org, error) {
-	filter := bson.M{"kind": string(kind)}
-	if !includeDeleted {
-		filter["deletedAt"] = nil
+func (r *Repository) GetTenantByUUID(ctx context.Context, uuid string) (*models.Tenant, error) {
+	var t models.Tenant
+	err := r.db.Collection(CollTenants).FindOne(ctx, bson.M{"uuid": uuid, "deletedAt": nil}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
 	}
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	cur, err := r.db.Collection(CollOrgs).Find(ctx, filter, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	var out []models.Org
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return &t, err
 }
 
-// UpdateOrgStatus transitions a tenant to a new lifecycle state. The caller
-// is responsible for validating the transition (services/service.go enforces
-// the state machine). SoftDeleteOrg is kept as a convenience alias that sets
-// Status=archived in addition to the legacy DeletedAt field.
-func (r *Repository) UpdateOrgStatus(ctx context.Context, uuid string, status models.TenantStatus) error {
-	update := bson.M{"status": string(status), "updatedAt": time.Now()}
-	if status == models.TenantStatusArchived {
-		update["archivedAt"] = time.Now()
+func (r *Repository) GetTenantBySlug(ctx context.Context, slug string) (*models.Tenant, error) {
+	var t models.Tenant
+	err := r.db.Collection(CollTenants).FindOne(ctx, bson.M{"slug": slug, "deletedAt": nil}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
 	}
-	if status == models.TenantStatusPurged {
-		update["purgedAt"] = time.Now()
-	}
-	res, err := r.db.Collection(CollOrgs).UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{"$set": update})
+	return &t, err
+}
+
+func (r *Repository) UpdateTenant(ctx context.Context, uuid string, update bson.M) error {
+	update["updatedAt"] = time.Now()
+	res, err := r.db.Collection(CollTenants).UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{"$set": update})
 	if err != nil {
 		return err
 	}
@@ -94,10 +78,236 @@ func (r *Repository) UpdateOrgStatus(ctx context.Context, uuid string, status mo
 	return nil
 }
 
+func (r *Repository) SoftDeleteTenant(ctx context.Context, uuid string) error {
+	now := time.Now()
+	res, err := r.db.Collection(CollTenants).UpdateOne(ctx,
+		bson.M{"uuid": uuid},
+		bson.M{"$set": bson.M{
+			"deletedAt":  now,
+			"updatedAt":  now,
+			"status":     string(models.TenantStatusArchived),
+			"archivedAt": now,
+		}})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListAllTenants returns every tenant in the system for platform-admin views.
+func (r *Repository) ListAllTenants(ctx context.Context, includeDeleted bool) ([]models.Tenant, error) {
+	filter := bson.M{}
+	if !includeDeleted {
+		filter["deletedAt"] = nil
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollTenants).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.Tenant
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListTenantsByKind returns every tenant of a specific tier. Used by platform
+// operators to inspect the internal/external split.
+func (r *Repository) ListTenantsByKind(ctx context.Context, kind models.TenantKind, includeDeleted bool) ([]models.Tenant, error) {
+	filter := bson.M{"kind": string(kind)}
+	if !includeDeleted {
+		filter["deletedAt"] = nil
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollTenants).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.Tenant
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UpdateTenantStatus transitions a tenant to a new lifecycle state.
+func (r *Repository) UpdateTenantStatus(ctx context.Context, uuid string, status models.TenantStatus) error {
+	update := bson.M{"status": string(status), "updatedAt": time.Now()}
+	if status == models.TenantStatusArchived {
+		update["archivedAt"] = time.Now()
+	}
+	if status == models.TenantStatusPurged {
+		update["purgedAt"] = time.Now()
+	}
+	res, err := r.db.Collection(CollTenants).UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{"$set": update})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CountMembersByTenants returns a map tenantUUID -> member count for the
+// given tenants. Uses a single $group aggregation on tenant_memberships so
+// list views can attach member counts without N round trips.
+func (r *Repository) CountMembersByTenants(ctx context.Context, tenantUUIDs []string) (map[string]int, error) {
+	out := make(map[string]int, len(tenantUUIDs))
+	if len(tenantUUIDs) == 0 {
+		return out, nil
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"tenantId": bson.M{"$in": tenantUUIDs}}}},
+		{{Key: "$group", Value: bson.M{"_id": "$tenantId", "count": bson.M{"$sum": 1}}}},
+	}
+	cur, err := r.db.Collection(CollMemberships).Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	for cur.Next(ctx) {
+		var row struct {
+			ID    string `bson:"_id"`
+			Count int    `bson:"count"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		out[row.ID] = row.Count
+	}
+	return out, cur.Err()
+}
+
+// --- Memberships ---
+
+func (r *Repository) CreateMembership(ctx context.Context, m *models.TenantMembership) error {
+	m.JoinedAt = time.Now()
+	_, err := r.db.Collection(CollMemberships).InsertOne(ctx, m)
+	return err
+}
+
+func (r *Repository) DeleteMembership(ctx context.Context, userUUID, tenantUUID string) error {
+	_, err := r.db.Collection(CollMemberships).DeleteOne(ctx, bson.M{"userUUID": userUUID, "tenantId": tenantUUID})
+	return err
+}
+
+func (r *Repository) ListMembershipsByUser(ctx context.Context, userUUID string) ([]models.TenantMembership, error) {
+	cur, err := r.db.Collection(CollMemberships).Find(ctx, bson.M{
+		"userUUID": userUUID,
+		"$or":      []bson.M{{"expiresAt": nil}, {"expiresAt": bson.M{"$gt": time.Now()}}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.TenantMembership
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *Repository) ListMembershipsByTenant(ctx context.Context, tenantUUID string) ([]models.TenantMembership, error) {
+	cur, err := r.db.Collection(CollMemberships).Find(ctx, bson.M{"tenantId": tenantUUID})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.TenantMembership
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *Repository) GetMembership(ctx context.Context, userUUID, tenantUUID string) (*models.TenantMembership, error) {
+	var m models.TenantMembership
+	err := r.db.Collection(CollMemberships).FindOne(ctx, bson.M{"userUUID": userUUID, "tenantId": tenantUUID}).Decode(&m)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	return &m, err
+}
+
+func (r *Repository) UpdateMembershipRoles(ctx context.Context, userUUID, tenantUUID string, roles []string) error {
+	_, err := r.db.Collection(CollMemberships).UpdateOne(ctx,
+		bson.M{"userUUID": userUUID, "tenantId": tenantUUID},
+		bson.M{"$set": bson.M{"roles": roles}})
+	return err
+}
+
+// --- Invites ---
+
+func (r *Repository) CreateInvite(ctx context.Context, inv *models.TenantInvite) error {
+	inv.CreatedAt = time.Now()
+	_, err := r.db.Collection(CollInvites).InsertOne(ctx, inv)
+	return err
+}
+
+// GetInviteByTokenHash looks up an invite by the SHA-256 hash of the raw
+// token. The caller computes the hash from the plaintext supplied by the
+// user; we never store or query the plaintext.
+func (r *Repository) GetInviteByTokenHash(ctx context.Context, tokenHash string) (*models.TenantInvite, error) {
+	var inv models.TenantInvite
+	err := r.db.Collection(CollInvites).FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&inv)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	return &inv, err
+}
+
+func (r *Repository) MarkInviteAccepted(ctx context.Context, uuid string) error {
+	now := time.Now()
+	_, err := r.db.Collection(CollInvites).UpdateOne(ctx,
+		bson.M{"uuid": uuid},
+		bson.M{"$set": bson.M{"acceptedAt": now}})
+	return err
+}
+
+// ListInvitesByTenant returns invites for a tenant. When onlyPending is
+// true, accepted and expired invites are filtered out.
+func (r *Repository) ListInvitesByTenant(ctx context.Context, tenantUUID string, onlyPending bool) ([]models.TenantInvite, error) {
+	filter := bson.M{"tenantId": tenantUUID}
+	if onlyPending {
+		filter["acceptedAt"] = nil
+		filter["expiresAt"] = bson.M{"$gt": time.Now()}
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollInvites).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.TenantInvite
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteInvite hard-deletes an invite scoped to the given tenant.
+func (r *Repository) DeleteInvite(ctx context.Context, tenantUUID, inviteUUID string) error {
+	res, err := r.db.Collection(CollInvites).DeleteOne(ctx, bson.M{"uuid": inviteUUID, "tenantId": tenantUUID})
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // --- Tenant hierarchy (closure table) ---
 
 // InsertSelfAncestor inserts the depth=0 self-row for a freshly created
-// tenant. Called inside CreateOrg (via the service).
+// tenant. Called inside CreateTenant (via the service).
 func (r *Repository) InsertSelfAncestor(ctx context.Context, tenantUUID string) error {
 	_, err := r.db.Collection(CollAncestors).InsertOne(ctx, &models.TenantAncestor{
 		DescendantUUID: tenantUUID,
@@ -110,11 +320,8 @@ func (r *Repository) InsertSelfAncestor(ctx context.Context, tenantUUID string) 
 
 // AttachToParent populates the closure table for a new descendant by copying
 // every ancestor row of the parent and adding one for the direct parent.
-// Call this when creating a sub-tenant. It is idempotent-unsafe — the caller
-// must only invoke it once per new tenant (the closure shape is linked to
-// tenant creation, not mutation).
+// Idempotent-unsafe — call once per tenant creation.
 func (r *Repository) AttachToParent(ctx context.Context, childUUID, parentUUID string) error {
-	// Pull all ancestors of the parent (including the parent itself at depth 0).
 	cur, err := r.db.Collection(CollAncestors).Find(ctx, bson.M{"descendantUUID": parentUUID})
 	if err != nil {
 		return err
@@ -160,9 +367,7 @@ func (r *Repository) ListAncestors(ctx context.Context, tenantUUID string) ([]mo
 	return out, nil
 }
 
-// ListDescendantUUIDs returns the UUIDs of every descendant (including self)
-// of the given tenant. Used for bulk operations that cascade — e.g. archiving
-// a parent must flag every sub-tenant as archived.
+// ListDescendantUUIDs returns the UUIDs of every descendant (including self).
 func (r *Repository) ListDescendantUUIDs(ctx context.Context, ancestorUUID string) ([]string, error) {
 	cur, err := r.db.Collection(CollAncestors).Find(ctx, bson.M{"ancestorUUID": ancestorUUID})
 	if err != nil {
@@ -180,7 +385,7 @@ func (r *Repository) ListDescendantUUIDs(ctx context.Context, ancestorUUID strin
 	return out, cur.Err()
 }
 
-// IsAncestorOf returns true if ancestorUUID is an ancestor (at any depth,
+// IsAncestorOf reports whether ancestorUUID is an ancestor (at any depth,
 // including equal) of descendantUUID. O(1) indexed lookup.
 func (r *Repository) IsAncestorOf(ctx context.Context, ancestorUUID, descendantUUID string) (bool, error) {
 	err := r.db.Collection(CollAncestors).FindOne(ctx, bson.M{
@@ -194,217 +399,4 @@ func (r *Repository) IsAncestorOf(ctx context.Context, ancestorUUID, descendantU
 		return false, nil
 	}
 	return false, err
-}
-
-func (r *Repository) GetOrgByUUID(ctx context.Context, uuid string) (*models.Org, error) {
-	var o models.Org
-	err := r.db.Collection(CollOrgs).FindOne(ctx, bson.M{"uuid": uuid, "deletedAt": nil}).Decode(&o)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, ErrNotFound
-	}
-	return &o, err
-}
-
-func (r *Repository) GetOrgBySlug(ctx context.Context, slug string) (*models.Org, error) {
-	var o models.Org
-	err := r.db.Collection(CollOrgs).FindOne(ctx, bson.M{"slug": slug, "deletedAt": nil}).Decode(&o)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, ErrNotFound
-	}
-	return &o, err
-}
-
-func (r *Repository) UpdateOrg(ctx context.Context, uuid string, update bson.M) error {
-	update["updatedAt"] = time.Now()
-	res, err := r.db.Collection(CollOrgs).UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{"$set": update})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-func (r *Repository) SoftDeleteOrg(ctx context.Context, uuid string) error {
-	now := time.Now()
-	res, err := r.db.Collection(CollOrgs).UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{"$set": bson.M{"deletedAt": now, "updatedAt": now}})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-// ListAllOrgs returns every org in the system for platform-admin views.
-// When includeDeleted is false, soft-deleted orgs are filtered out.
-func (r *Repository) ListAllOrgs(ctx context.Context, includeDeleted bool) ([]models.Org, error) {
-	filter := bson.M{}
-	if !includeDeleted {
-		filter["deletedAt"] = nil
-	}
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	cur, err := r.db.Collection(CollOrgs).Find(ctx, filter, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	var out []models.Org
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// CountMembersByOrgs returns a map orgUUID -> member count for the given
-// orgs. Uses a single $group aggregation on tenant_memberships so list
-// views can attach member counts without N round trips.
-func (r *Repository) CountMembersByOrgs(ctx context.Context, orgUUIDs []string) (map[string]int, error) {
-	out := make(map[string]int, len(orgUUIDs))
-	if len(orgUUIDs) == 0 {
-		return out, nil
-	}
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"orgId": bson.M{"$in": orgUUIDs}}}},
-		{{Key: "$group", Value: bson.M{"_id": "$orgId", "count": bson.M{"$sum": 1}}}},
-	}
-	cur, err := r.db.Collection(CollMemberships).Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	for cur.Next(ctx) {
-		var row struct {
-			ID    string `bson:"_id"`
-			Count int    `bson:"count"`
-		}
-		if err := cur.Decode(&row); err != nil {
-			return nil, err
-		}
-		out[row.ID] = row.Count
-	}
-	return out, cur.Err()
-}
-
-// --- Memberships ---
-
-func (r *Repository) CreateMembership(ctx context.Context, m *models.Membership) error {
-	m.JoinedAt = time.Now()
-	_, err := r.db.Collection(CollMemberships).InsertOne(ctx, m)
-	return err
-}
-
-func (r *Repository) DeleteMembership(ctx context.Context, userUUID, orgUUID string) error {
-	_, err := r.db.Collection(CollMemberships).DeleteOne(ctx, bson.M{"userUUID": userUUID, "orgId": orgUUID})
-	return err
-}
-
-func (r *Repository) ListMembershipsByUser(ctx context.Context, userUUID string) ([]models.Membership, error) {
-	cur, err := r.db.Collection(CollMemberships).Find(ctx, bson.M{
-		"userUUID": userUUID,
-		"$or":      []bson.M{{"expiresAt": nil}, {"expiresAt": bson.M{"$gt": time.Now()}}},
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	var out []models.Membership
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *Repository) ListMembershipsByOrg(ctx context.Context, orgUUID string) ([]models.Membership, error) {
-	cur, err := r.db.Collection(CollMemberships).Find(ctx, bson.M{"orgId": orgUUID})
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	var out []models.Membership
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *Repository) GetMembership(ctx context.Context, userUUID, orgUUID string) (*models.Membership, error) {
-	var m models.Membership
-	err := r.db.Collection(CollMemberships).FindOne(ctx, bson.M{"userUUID": userUUID, "orgId": orgUUID}).Decode(&m)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, ErrNotFound
-	}
-	return &m, err
-}
-
-func (r *Repository) UpdateMembershipRoles(ctx context.Context, userUUID, orgUUID string, roles []string) error {
-	_, err := r.db.Collection(CollMemberships).UpdateOne(ctx,
-		bson.M{"userUUID": userUUID, "orgId": orgUUID},
-		bson.M{"$set": bson.M{"roles": roles}})
-	return err
-}
-
-// --- Invites ---
-
-func (r *Repository) CreateInvite(ctx context.Context, inv *models.Invite) error {
-	inv.CreatedAt = time.Now()
-	_, err := r.db.Collection(CollInvites).InsertOne(ctx, inv)
-	return err
-}
-
-// GetInviteByTokenHash looks up an invite by the SHA-256 hash of the raw
-// token. The caller (tenant service) computes the hash from the plaintext
-// token supplied by the user; we never store or query the plaintext.
-func (r *Repository) GetInviteByTokenHash(ctx context.Context, tokenHash string) (*models.Invite, error) {
-	var inv models.Invite
-	err := r.db.Collection(CollInvites).FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&inv)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, ErrNotFound
-	}
-	return &inv, err
-}
-
-func (r *Repository) MarkInviteAccepted(ctx context.Context, uuid string) error {
-	now := time.Now()
-	_, err := r.db.Collection(CollInvites).UpdateOne(ctx,
-		bson.M{"uuid": uuid},
-		bson.M{"$set": bson.M{"acceptedAt": now}})
-	return err
-}
-
-// ListInvitesByOrg returns invites for an org. When onlyPending is true,
-// accepted and expired invites are filtered out.
-func (r *Repository) ListInvitesByOrg(ctx context.Context, orgUUID string, onlyPending bool) ([]models.Invite, error) {
-	filter := bson.M{"orgId": orgUUID}
-	if onlyPending {
-		filter["acceptedAt"] = nil
-		filter["expiresAt"] = bson.M{"$gt": time.Now()}
-	}
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-	cur, err := r.db.Collection(CollInvites).Find(ctx, filter, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	var out []models.Invite
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// DeleteInvite hard-deletes an invite scoped to the given org. The orgUUID
-// parameter is there to prevent cross-org ID spoofing from an attacker who
-// guessed an invite UUID.
-func (r *Repository) DeleteInvite(ctx context.Context, orgUUID, inviteUUID string) error {
-	res, err := r.db.Collection(CollInvites).DeleteOne(ctx, bson.M{"uuid": inviteUUID, "orgId": orgUUID})
-	if err != nil {
-		return err
-	}
-	if res.DeletedCount == 0 {
-		return ErrNotFound
-	}
-	return nil
 }

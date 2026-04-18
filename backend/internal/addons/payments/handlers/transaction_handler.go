@@ -113,7 +113,7 @@ func (h *TransactionHandler) Get(ctx context.Context, in *GetTransactionRequest)
 	if err != nil {
 		return nil, err
 	}
-	if err := assertOrgOwnsClient(ctx, h.svcReg, t.ClientUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, h.svcReg, t.ClientUUID); err != nil {
 		return nil, err
 	}
 	return &TransactionResponse{Body: *t}, nil
@@ -124,7 +124,7 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 	if err != nil {
 		return nil, huma.Error404NotFound("transaction not found", err)
 	}
-	if err := assertOrgOwnsClient(ctx, h.svcReg, tx.ClientUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, h.svcReg, tx.ClientUUID); err != nil {
 		return nil, err
 	}
 	if in.Body.AmountCents < 0 {
@@ -158,7 +158,7 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 }
 
 func (h *TransactionHandler) ListPaymentMethods(ctx context.Context, in *ListPaymentMethodsRequest) (*ListPaymentMethodsResponse, error) {
-	if err := assertOrgOwnsClient(ctx, h.svcReg, in.ClientUUID); err != nil {
+	if err := assertTenantOwnsClient(ctx, h.svcReg, in.ClientUUID); err != nil {
 		return nil, err
 	}
 	items, err := h.pmRepo.ListByClient(ctx, in.ClientUUID)

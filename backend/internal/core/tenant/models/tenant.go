@@ -1,3 +1,7 @@
+// Package models holds the tenant aggregate, membership, invite, and the
+// closure-table row for the tenant hierarchy. ADR-0001 reframes the old
+// "Org" aggregate as the unified Tenant aggregate with a Kind discriminator
+// for the two-tier architecture.
 package models
 
 import (
@@ -6,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// TenantKind discriminates the two tenant tiers (see ADR-0001).
+// TenantKind discriminates the two tenant tiers.
 //
 //   - Internal: the companies that run Orkestra (operator side). They manage
 //     their own users, FatturaPA invoicing, billing, and decide which modules
@@ -32,10 +36,9 @@ func (k TenantKind) Valid() bool {
 	return false
 }
 
-// TenantStatus drives the tenant lifecycle. Replaces the previous boolean
-// soft-delete model. See ADR-0001.
+// TenantStatus drives the tenant lifecycle.
 //
-//	provisioning → active → suspended ↔ active
+//	provisioning → active ↔ suspended
 //	                     ↘ archived → purged (terminal, triggers crypto-shred)
 type TenantStatus string
 
@@ -66,9 +69,8 @@ const (
 	SignupChannelInvite        = "invite"
 )
 
-// Plan names used by the tenant module. Kept for the short transition window
-// until Phase 2 capability-based entitlements ship (see ADR-0001 and
-// project_tenancy_plan_v2 memory). Do not add new plan values — introduce
+// Plan names. Kept for the short transition window until Phase 2
+// capability-based entitlements ship. Do not add new plan values — introduce
 // subscription products instead.
 const (
 	PlanFree       = "free"
@@ -76,9 +78,8 @@ const (
 	PlanEnterprise = "enterprise"
 )
 
-// Feature keys are the entitlements a plan can grant.
-//
-// Deprecated: superseded by capability-based entitlements in Phase 2.
+// FeatureWildcard — deprecated: superseded by capability-based entitlements
+// in Phase 2.
 const FeatureWildcard = "*"
 
 // ContactInfo is the primary point of contact for a tenant. Used for billing
@@ -91,7 +92,7 @@ type ContactInfo struct {
 
 // TenantAddress is the billing / legal address. Called TenantAddress (not
 // Address) to avoid Huma schema collisions with other modules that also
-// export an Address type (company, subscriptions.ClientAddress).
+// export an Address type.
 type TenantAddress struct {
 	Line1      string `bson:"line1,omitempty" json:"line1,omitempty"`
 	Line2      string `bson:"line2,omitempty" json:"line2,omitempty"`
@@ -101,20 +102,13 @@ type TenantAddress struct {
 	Country    string `bson:"country,omitempty" json:"country,omitempty"`
 }
 
-// Org is the tenant aggregate. The Go type name is kept as Org during the
-// transitional window to bound the blast radius of the Phase 0 rename — it
-// will be renamed to Tenant in a follow-up commit per ADR-0001. Semantically
-// this IS the Tenant aggregate: two-tier (Kind), hierarchical (ParentTenantUUID),
-// lifecycle-managed (Status).
-type Org struct {
+// Tenant is the unified aggregate for the two-tier tenancy model.
+type Tenant struct {
 	ID primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 
 	UUID string `bson:"uuid" json:"id" validate:"required"`
 
 	// Kind discriminates internal (operator) vs external (client) tenants.
-	// See ADR-0001. Defaults to internal at the repository layer if unset,
-	// preserving the implicit semantics of pre-ADR-0001 rows. New code MUST
-	// set Kind explicitly.
 	Kind TenantKind `bson:"kind" json:"kind"`
 
 	// ParentTenantUUID supports hierarchical external tenants (clients that
@@ -122,10 +116,7 @@ type Org struct {
 	// Internal tenants SHOULD NOT have a parent (enforced at service layer).
 	ParentTenantUUID *string `bson:"parentTenantUUID,omitempty" json:"parentTenantUUID,omitempty"`
 
-	// Status drives the tenant lifecycle. Replaces the boolean DeletedAt soft
-	// delete. DeletedAt is retained for a transitional period so existing
-	// queries that filter on it keep working; once every call site moves to
-	// Status checks, DeletedAt will be removed.
+	// Status drives the tenant lifecycle.
 	Status TenantStatus `bson:"status" json:"status"`
 
 	// Display + identity.
@@ -135,8 +126,8 @@ type Org struct {
 	DisplayName string `bson:"displayName,omitempty" json:"displayName,omitempty"`
 
 	// Ownership + contact.
-	OwnerUserUUID  string      `bson:"ownerUserUUID" json:"ownerUserUUID"`
-	PrimaryContact ContactInfo `bson:"primaryContact,omitempty" json:"primaryContact,omitempty"`
+	OwnerUserUUID  string        `bson:"ownerUserUUID" json:"ownerUserUUID"`
+	PrimaryContact ContactInfo   `bson:"primaryContact,omitempty" json:"primaryContact,omitempty"`
 	BillingAddress TenantAddress `bson:"billingAddress,omitempty" json:"billingAddress,omitempty"`
 
 	// Italian tax identifiers. Relevant for Tier-1 FatturaPA and for external
@@ -153,32 +144,25 @@ type Org struct {
 	// RetentionPolicyID — per-tenant data retention (Phase 4). Nil = platform default.
 	RetentionPolicyID *string `bson:"retentionPolicyID,omitempty" json:"-"`
 
-	// KMSKeyID — per-tenant envelope encryption key (Phase 4). Reserved now;
-	// populated when the KMS integration lands. GDPR crypto-shred on purge
-	// destroys this key.
+	// KMSKeyID — per-tenant envelope encryption key (Phase 4). Reserved now.
 	KMSKeyID *string `bson:"kmsKeyID,omitempty" json:"-"`
 
 	// Region — reserved for multi-region routing. Default "eu-west".
 	Region string `bson:"region,omitempty" json:"region,omitempty"`
 
-	// StripeCustomerID mirrors what used to live on subscriptions.Client.
-	// For external tenants this is the Stripe customer the subscription
-	// module charges; for internal tenants it is unused.
+	// StripeCustomerID is the Stripe customer for external tenants.
 	StripeCustomerID string `bson:"stripeCustomerID,omitempty" json:"stripeCustomerID,omitempty"`
 
 	// Metadata is a free-form map for callers that need to stash a small
-	// amount of tenant-scoped key-value state (e.g. feature flags scoped to
-	// one customer). Do not use for anything that needs to be queryable —
-	// model it as a first-class field instead.
+	// amount of tenant-scoped key-value state.
 	Metadata map[string]string `bson:"metadata,omitempty" json:"metadata,omitempty"`
 
-	// Plan + Features — deprecated. Kept to keep callers compiling during
-	// the Phase 2 capability+entitlement rewrite. Do not read these from
-	// new code; use the subscription entitlements projection once it ships.
+	// Plan + Features — deprecated. Kept during the Phase 2 capability
+	// rewrite. Do not read these from new code.
 	Plan     string   `bson:"plan,omitempty" json:"plan,omitempty"`
 	Features []string `bson:"features,omitempty" json:"features,omitempty"`
 
-	// Settings is a free-form UI config blob. Kept as-is for the frontend.
+	// Settings is a free-form UI config blob.
 	Settings map[string]string `bson:"settings,omitempty" json:"settings,omitempty"`
 
 	CreatedAt  time.Time  `bson:"createdAt" json:"createdAt"`
@@ -186,31 +170,28 @@ type Org struct {
 	ArchivedAt *time.Time `bson:"archivedAt,omitempty" json:"archivedAt,omitempty"`
 	PurgedAt   *time.Time `bson:"purgedAt,omitempty" json:"purgedAt,omitempty"`
 
-	// DeletedAt is retained during the Status migration. New code should
-	// set Status=archived instead and leave DeletedAt untouched. Existing
-	// queries filter deletedAt=null to hide archived rows; this is fine for
-	// the transition because SoftDelete sets both fields.
+	// DeletedAt is retained transitionally for lazy callers. New code uses
+	// Status=archived instead.
 	//
 	// Deprecated: use Status.
 	DeletedAt *time.Time `bson:"deletedAt,omitempty" json:"-"`
 }
 
 // IsInternal reports whether the tenant is a Tier-1 operator tenant.
-func (o *Org) IsInternal() bool { return o.Kind == TenantKindInternal }
+func (t *Tenant) IsInternal() bool { return t.Kind == TenantKindInternal }
 
 // IsExternal reports whether the tenant is a Tier-2 client tenant.
-func (o *Org) IsExternal() bool { return o.Kind == TenantKindExternal }
+func (t *Tenant) IsExternal() bool { return t.Kind == TenantKindExternal }
 
-// IsActive reports whether the tenant is in an operational state. Returns
-// false for provisioning/suspended/archived/purged rows.
-func (o *Org) IsActive() bool { return o.Status == TenantStatusActive }
+// IsActive reports whether the tenant is in an operational state.
+func (t *Tenant) IsActive() bool { return t.Status == TenantStatusActive }
 
-// HasFeature reports whether the org's plan includes the given feature.
+// HasFeature reports whether the tenant's plan includes the given feature.
 //
 // Deprecated: feature entitlements move to capability-based subscriptions
-// in Phase 2 (see ADR-0001).
-func (o *Org) HasFeature(feature string) bool {
-	for _, f := range o.Features {
+// in Phase 2.
+func (t *Tenant) HasFeature(feature string) bool {
+	for _, f := range t.Features {
 		if f == FeatureWildcard || f == feature {
 			return true
 		}
@@ -234,39 +215,34 @@ type TenantAncestor struct {
 	CreatedAt      time.Time          `bson:"createdAt" json:"createdAt"`
 }
 
-// Membership links a user to an org with a set of role names (defined in
-// the authz module). A user with no membership cannot access that org.
+// TenantMembership links a user to a tenant with a set of role names. A user
+// with no membership cannot access that tenant.
 //
-// In Phase 1 (Cedar authorization) the Roles slice will be reinterpreted as
-// Cedar role entities; for now it is still the denormalized list of authz
-// role names. TenantKind is cached here so middleware can dispatch on tier
-// without an extra tenant lookup.
-type Membership struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"-"`
-	UUID        string             `bson:"uuid" json:"id"`
-	UserUUID    string             `bson:"userUUID" json:"userUUID" validate:"required"`
-	OrgUUID     string             `bson:"orgId" json:"orgId" validate:"required"`
-	TenantKind  TenantKind         `bson:"tenantKind,omitempty" json:"tenantKind,omitempty"`
-	Roles       []string           `bson:"roles" json:"roles"`
-	IsOwner     bool               `bson:"isOwner" json:"isOwner"`
-	InvitedBy   string             `bson:"invitedBy,omitempty" json:"invitedBy,omitempty"`
-	JoinedAt    time.Time          `bson:"joinedAt" json:"joinedAt"`
-	ExpiresAt   *time.Time         `bson:"expiresAt,omitempty" json:"expiresAt,omitempty"`
-}
-
-// Invite is a pending invitation for a user to join an org. Tokens are
-// single-use, expire automatically via a TTL index on ExpiresAt, and are
-// stored as SHA-256 hashes rather than in plaintext — an attacker with DB
-// read access cannot replay a pending invite.
-//
-// Token is a transient field (bson:"-"): the service populates it with the
-// raw token exactly once on CreateInvite and returns it to the caller in the
-// create response. It is never persisted to MongoDB. TokenHash is the
-// SHA-256 hex digest of the raw token and is the field queried on accept.
-type Invite struct {
+// TenantKind is cached here so middleware can dispatch on tier without an
+// extra tenant lookup.
+type TenantMembership struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 	UUID       string             `bson:"uuid" json:"id"`
-	OrgUUID    string             `bson:"orgId" json:"orgId"`
+	UserUUID   string             `bson:"userUUID" json:"userUUID" validate:"required"`
+	TenantUUID string             `bson:"tenantId" json:"tenantId" validate:"required"`
+	TenantKind TenantKind         `bson:"tenantKind,omitempty" json:"tenantKind,omitempty"`
+	Roles      []string           `bson:"roles" json:"roles"`
+	IsOwner    bool               `bson:"isOwner" json:"isOwner"`
+	InvitedBy  string             `bson:"invitedBy,omitempty" json:"invitedBy,omitempty"`
+	JoinedAt   time.Time          `bson:"joinedAt" json:"joinedAt"`
+	ExpiresAt  *time.Time         `bson:"expiresAt,omitempty" json:"expiresAt,omitempty"`
+}
+
+// TenantInvite is a pending invitation for a user to join a tenant. Tokens
+// are single-use, expire via a TTL index on ExpiresAt, and are stored as
+// SHA-256 hashes rather than in plaintext.
+//
+// Token is transient (bson:"-"): populated once on create and returned to the
+// caller, never persisted. TokenHash is the SHA-256 hex digest.
+type TenantInvite struct {
+	ID         primitive.ObjectID `bson:"_id,omitempty" json:"-"`
+	UUID       string             `bson:"uuid" json:"id"`
+	TenantUUID string             `bson:"tenantId" json:"tenantId"`
 	Email      string             `bson:"email" json:"email"`
 	Roles      []string           `bson:"roles" json:"roles"`
 	Token      string             `bson:"-" json:"token,omitempty"`
@@ -279,22 +255,21 @@ type Invite struct {
 
 // --- API DTOs ---
 
-type CreateOrgInput struct {
+type CreateTenantInput struct {
 	Name string `json:"name" validate:"required,min=1,max=120"`
 	Slug string `json:"slug" validate:"required,min=1,max=80"`
 	Plan string `json:"plan,omitempty"`
 	// Kind lets administrators explicitly create an external tenant via the
-	// operator console. Empty defaults to internal so the pre-ADR-0001
-	// CreateOrg flow (used by the setup wizard and tests) keeps working.
-	// External client self-registration goes through a different handler
-	// (Phase 3) that always stamps Kind=external regardless of this field.
+	// operator console. Empty defaults to internal so the setup wizard and
+	// tests keep working. External client self-registration in Phase 3 goes
+	// through a dedicated handler that always stamps Kind=external.
 	Kind TenantKind `json:"kind,omitempty"`
 	// ParentTenantUUID lets an external-tenant admin create a sub-tenant.
 	// Ignored for internal tenants.
 	ParentTenantUUID *string `json:"parentTenantUUID,omitempty"`
 }
 
-type UpdateOrgInput struct {
+type UpdateTenantInput struct {
 	Name     *string           `json:"name,omitempty"`
 	Slug     *string           `json:"slug,omitempty"`
 	Settings map[string]string `json:"settings,omitempty"`
@@ -314,10 +289,10 @@ type AcceptInviteInput struct {
 	Token string `json:"token" validate:"required"`
 }
 
-type OrgListResponse struct {
-	Orgs []Org `json:"orgs"`
+type TenantListResponse struct {
+	Tenants []Tenant `json:"tenants"`
 }
 
 type MembershipListResponse struct {
-	Memberships []Membership `json:"memberships"`
+	Memberships []TenantMembership `json:"memberships"`
 }
