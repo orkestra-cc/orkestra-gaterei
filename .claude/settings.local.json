@@ -45,7 +45,8 @@
       "Bash(ORKESTRA_API_URL=http://localhost:3007 ./scripts/devtoken.sh super_admin --quiet)",
       "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && grep -A 20 \"func.*NavItems\" {}')",
       "Read(//usr/local/go/bin/**)",
-      "Read(//home/tore/go/bin/**)"
+      "Read(//home/tore/go/bin/**)",
+      "Bash(ORKESTRA_API_URL=http://localhost:3000 ./scripts/devtoken.sh administrator --quiet)"
     ]
   },
   "enableAllProjectMcpServers": true,
