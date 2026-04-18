@@ -137,6 +137,9 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		// developers cannot mutate data or read secrets even if their
 		// token is valid. Mirrors the role-seed output in SeedSystemRoles.
 		Production: deps.Config.IsProduction(),
+		// Environment is fed to the Cedar shadow-mode engine so
+		// platform.cedar can branch on prod vs non-prod developer rules.
+		Environment: deps.Config.GetEnvironment(),
 	})
 	m.handler = handlers.New(m.svc)
 

@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra/backend/internal/core/authz/cedar"
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -52,10 +54,17 @@ type Service struct {
 	startMFAGrace MFAGraceStarter
 	production    bool // when true, developer role is restricted to read-only
 
+	// cedarEngine is the Phase 1 shadow-mode Cedar evaluator. nil when
+	// Cedar is disabled (boot-time construction failure, or explicitly
+	// turned off for tests). When set, every HasPermission call also
+	// evaluates Cedar and emits a structured telemetry log. Enforcement
+	// remains on the role table until shadow-mode divergence is triaged.
+	cedarEngine *cedar.Engine
+
 	mu                  sync.RWMutex
-	systemPermissionSet map[string]struct{}     // keys declared with System=true
-	allPermissionSet    map[string]struct{}     // every registered permission
-	cachedPermSpecs     []iface.PermissionSpec  // full specs for lazy reseed after a DB wipe
+	systemPermissionSet map[string]struct{}    // keys declared with System=true
+	allPermissionSet    map[string]struct{}    // every registered permission
+	cachedPermSpecs     []iface.PermissionSpec // full specs for lazy reseed after a DB wipe
 }
 
 // UserSystemRoleLookup resolves a user's system role (from the user module).
@@ -69,21 +78,25 @@ type UserSystemRoleLookup func(ctx context.Context, userUUID string) (string, er
 type MFAGraceStarter func(ctx context.Context, userUUID string) error
 
 type Config struct {
-	Repo            *repository.Repository
-	Redis           *database.RedisClientAdapter
-	Logger          *slog.Logger
-	LookupUser      UserSystemRoleLookup
-	StartMFAGrace   MFAGraceStarter
+	Repo          *repository.Repository
+	Redis         *database.RedisClientAdapter
+	Logger        *slog.Logger
+	LookupUser    UserSystemRoleLookup
+	StartMFAGrace MFAGraceStarter
 	// Production gates sensitive role seeding decisions. When true, the
 	// `developer` system role is seeded with a read-only permission set
 	// (decision D9 in the Org-scoped RBAC plan). In dev and staging it
 	// gets the full administrator-equivalent set so engineers can
 	// actually debug things.
 	Production bool
+	// Environment is the deployment tag ("development" | "staging" |
+	// "production") fed to the Cedar engine so policies can branch on
+	// env. Empty defaults to "development" inside cedar.New.
+	Environment string
 }
 
 func New(cfg Config) *Service {
-	return &Service{
+	s := &Service{
 		repo:                cfg.Repo,
 		redis:               cfg.Redis,
 		logger:              cfg.Logger,
@@ -93,6 +106,22 @@ func New(cfg Config) *Service {
 		systemPermissionSet: make(map[string]struct{}),
 		allPermissionSet:    make(map[string]struct{}),
 	}
+	// Cedar shadow-mode engine. Failure to load the policies is a loud
+	// slog.Error but does not block construction — shadow mode is
+	// observability-only and must never turn a deployable binary into a
+	// broken one.
+	if eng, err := cedar.New(cfg.Environment); err == nil {
+		s.cedarEngine = eng
+		if cfg.Logger != nil {
+			cfg.Logger.Info("cedar: shadow mode enabled",
+				slog.Int("policies", eng.PolicyCount()),
+				slog.String("env", cfg.Environment))
+		}
+	} else if cfg.Logger != nil {
+		cfg.Logger.Error("cedar: failed to load policies — shadow mode disabled",
+			slog.String("error", err.Error()))
+	}
+	return s
 }
 
 // roleElevatesPrivilege reports whether granting the named role should eagerly
@@ -115,12 +144,79 @@ func (s *Service) HasPermission(ctx context.Context, userUUID, tenantID, permiss
 	if err != nil {
 		return false, err
 	}
+	roleDecision := false
 	for _, p := range perms {
 		if p == permission || p == "*" {
-			return true, nil
+			roleDecision = true
+			break
 		}
 	}
-	return false, nil
+	// Shadow-mode Cedar evaluation (Phase 1 of ADR-0001). The decision
+	// is emitted to the logger alongside the role-table decision so we
+	// can measure divergence before flipping enforcement.
+	s.shadowEvaluate(ctx, userUUID, tenantID, permission, roleDecision)
+	return roleDecision, nil
+}
+
+// shadowEvaluate runs the Cedar engine for the same (user, tenant,
+// permission) triple and logs the outcome. When Cedar agrees with the
+// role table, the line is emitted at Info level ("cedar: agree"). When
+// they disagree the level is Warn ("cedar: divergence") so operators can
+// triage before flipping enforcement. All branches are best-effort —
+// Cedar failures never propagate to the caller.
+func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permission string, roleDecision bool) {
+	if s.cedarEngine == nil || s.logger == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Warn("cedar: shadow eval panicked",
+				slog.String("permission", permission),
+				slog.Any("recover", r))
+		}
+	}()
+	start := time.Now()
+	systemRole := ""
+	if s.userRoles != nil {
+		if r, err := s.userRoles(ctx, userUUID); err == nil {
+			systemRole = r
+		}
+	}
+	tenantRoles, _ := middleware.GetTenantRoles(ctx)
+	tenantKind := middleware.TenantKindFromContext(ctx)
+	if tenantKind == "" {
+		// Fall back to "internal" for global/pre-ADR-0001 calls so
+		// tier-aware forbid rules don't fire against an unknown kind.
+		tenantKind = "internal"
+	}
+	principal := cedar.Principal{
+		UserUUID:    userUUID,
+		SystemRole:  systemRole,
+		TenantRoles: tenantRoles,
+	}
+	resource := cedar.Resource{
+		TenantUUID:   tenantID,
+		TenantKind:   tenantKind,
+		TenantStatus: "active",
+	}
+	decision := s.cedarEngine.IsAuthorized(principal, permission, resource)
+	attrs := []any{
+		slog.String("user_uuid", userUUID),
+		slog.String("tenant_id", tenantID),
+		slog.String("permission", permission),
+		slog.Bool("role_allow", roleDecision),
+		slog.Bool("cedar_allow", decision.Allowed),
+		slog.String("matched_policy", decision.MatchedPolicy),
+		slog.Int64("latency_us", time.Since(start).Microseconds()),
+	}
+	if len(decision.Errors) > 0 {
+		attrs = append(attrs, slog.Any("cedar_errors", decision.Errors))
+	}
+	if decision.Allowed == roleDecision {
+		s.logger.Debug("cedar: agree", attrs...)
+	} else {
+		s.logger.Warn("cedar: divergence", attrs...)
+	}
 }
 
 func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, tenantID string) ([]string, error) {
