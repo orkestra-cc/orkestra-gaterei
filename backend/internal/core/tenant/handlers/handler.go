@@ -104,9 +104,9 @@ func (h *Handler) RegisterGlobalRoutes(api huma.API) {
 	}, h.acceptInvite)
 }
 
-// RegisterScopedRoutes registers routes that operate on a specific org.
-// They require the caller to be an org administrator.
-func (h *Handler) RegisterScopedRoutes(api huma.API) {
+// RegisterScopedReadRoutes registers read-only per-org routes. Safe to mount
+// behind the tenant.org.read permission without MFA.
+func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-org",
 		Method:      http.MethodGet,
@@ -115,6 +115,20 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 		Tags:        []string{"Organizations"},
 	}, h.getOrg)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "list-members",
+		Method:      http.MethodGet,
+		Path:        "/v1/orgs/{orgId}/members",
+		Summary:     "List org members",
+		Tags:        []string{"Organizations"},
+	}, h.listMembers)
+}
+
+// RegisterScopedMutationRoutes registers per-org mutations. Each of these
+// can either modify another user's standing in the org, change the plan
+// entitlements, or destroy the org entirely — Block B requires an MFA
+// step-up for all of them so a stolen pwd-only token can't make them stick.
+func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "update-org",
 		Method:      http.MethodPatch,
@@ -138,14 +152,6 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 		Summary:     "Change plan and features",
 		Tags:        []string{"Organizations"},
 	}, h.updatePlan)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "list-members",
-		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/members",
-		Summary:     "List org members",
-		Tags:        []string{"Organizations"},
-	}, h.listMembers)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-member",

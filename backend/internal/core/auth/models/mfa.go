@@ -40,4 +40,9 @@ type MFAFactorDoc struct {
 	CreatedAt         time.Time          `bson:"createdAt" json:"createdAt"`
 	LastUsedAt        *time.Time         `bson:"lastUsedAt,omitempty" json:"lastUsedAt,omitempty"`
 	BackupCodesHashed []string           `bson:"backupCodesHashed" json:"-"`
+	// LastUsedStep is the most recent TOTP step index (unix / period)
+	// accepted for this factor. Verify refuses any candidate whose step
+	// is ≤ LastUsedStep, preventing replay of a just-captured code within
+	// its 30s window.
+	LastUsedStep int64 `bson:"lastUsedStep,omitempty" json:"-"`
 }

@@ -69,35 +69,44 @@ type AuthService interface {
 
 // AuthConfig holds configuration for the auth service
 type AuthConfig struct {
-	AuthRepo          repository.AuthRepository
-	UserService       iface.UserProvider
-	OAuthProviderRepo repository.OAuthProviderRepository
-	RefreshTokenRepo  repository.RefreshTokenRepository
-	AuthSessionRepo   repository.AuthSessionRepository
-	JWTService        JWTService
-	FirstAdminClaimer FirstAdminClaimer // race-proofs first-user super_admin on OAuth signup
+	AuthRepo            repository.AuthRepository
+	UserService         iface.UserProvider
+	TenantProvider      iface.TenantProvider // used by MFA policy evaluation on OAuth login
+	OAuthProviderRepo   repository.OAuthProviderRepository
+	RefreshTokenRepo    repository.RefreshTokenRepository
+	AuthSessionRepo     repository.AuthSessionRepository
+	JWTService          JWTService
+	MFAFactorRepo       repository.MFAFactorRepository // nil disables MFA gating (tests/minimal)
+	MFAChallengeService MFAChallengeService            // required alongside MFAFactorRepo
+	FirstAdminClaimer   FirstAdminClaimer              // race-proofs first-user super_admin on OAuth signup
 }
 
 type authService struct {
-	authRepo          repository.AuthRepository
-	userService       iface.UserProvider
-	oauthProviderRepo repository.OAuthProviderRepository
-	refreshTokenRepo  repository.RefreshTokenRepository
-	authSessionRepo   repository.AuthSessionRepository
-	jwtService        JWTService
-	firstAdminClaimer FirstAdminClaimer
+	authRepo            repository.AuthRepository
+	userService         iface.UserProvider
+	tenantProvider      iface.TenantProvider
+	oauthProviderRepo   repository.OAuthProviderRepository
+	refreshTokenRepo    repository.RefreshTokenRepository
+	authSessionRepo     repository.AuthSessionRepository
+	jwtService          JWTService
+	mfaFactorRepo       repository.MFAFactorRepository
+	mfaChallengeService MFAChallengeService
+	firstAdminClaimer   FirstAdminClaimer
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(config *AuthConfig) (AuthService, error) {
 	return &authService{
-		authRepo:          config.AuthRepo,
-		userService:       config.UserService,
-		oauthProviderRepo: config.OAuthProviderRepo,
-		refreshTokenRepo:  config.RefreshTokenRepo,
-		authSessionRepo:   config.AuthSessionRepo,
-		jwtService:        config.JWTService,
-		firstAdminClaimer: config.FirstAdminClaimer,
+		authRepo:            config.AuthRepo,
+		userService:         config.UserService,
+		tenantProvider:      config.TenantProvider,
+		oauthProviderRepo:   config.OAuthProviderRepo,
+		refreshTokenRepo:    config.RefreshTokenRepo,
+		authSessionRepo:     config.AuthSessionRepo,
+		jwtService:          config.JWTService,
+		mfaFactorRepo:       config.MFAFactorRepo,
+		mfaChallengeService: config.MFAChallengeService,
+		firstAdminClaimer:   config.FirstAdminClaimer,
 	}, nil
 }
 
@@ -253,6 +262,14 @@ func (s *authService) TerminateAllSessionsByUUID(ctx context.Context, userUUID s
 }
 
 func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenResponse, error) {
+	// MFA gating for OAuth-resolved users. Mirrors the password login path:
+	// privileged users with an enrolled factor receive a partial response
+	// and must call /v1/auth/mfa/login/verify; without a factor, the grace
+	// window applies.
+	if resp, handled, err := s.evaluateMFAForOAuth(ctx, user, deviceInfo, securityCtx); handled {
+		return resp, err
+	}
+
 	fmt.Printf("[AUTH_DEBUG] ==> GenerateEnhancedTokenPair called for user: %s\n", user.UUID)
 	fmt.Printf("[AUTH_DEBUG] Token creation source: OAuth Login Flow\n")
 	fmt.Printf("[AUTH_DEBUG] Current active tokens for user before creation: querying database...\n")
@@ -268,9 +285,12 @@ func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userM
 		fmt.Printf("[AUTH_DEBUG] WARNING: Failed to query existing tokens: %v\n", err)
 	}
 
-	// Generate JWT tokens
+	// Generate JWT tokens. OAuth logins get amr:["oauth"] so the token
+	// encodes how the user authenticated — aligns with password logins'
+	// amr:["pwd"] (see password_auth_service.completeLogin) and enables
+	// RequireMFA / step-up middleware to distinguish primary factors.
 	fmt.Printf("[AUTH_DEBUG] Generating JWT access token...\n")
-	accessToken, err := s.jwtService.GenerateAccessToken(user)
+	accessToken, err := s.jwtService.GenerateAccessTokenWithAMR(user, []string{"oauth"}, 0)
 	if err != nil {
 		fmt.Printf("[AUTH_DEBUG] ERROR: Failed to generate access token: %v\n", err)
 		return nil, err
@@ -840,4 +860,79 @@ func convertUserResponseToAuthModel(userResponse *userModels.UserManagementRespo
 	// They would need to be fetched separately if needed
 
 	return user
+}
+
+// evaluateMFAForOAuth applies the Block B decision tree to an OAuth-resolved
+// user before any token is minted. Returns (response, handled, error):
+//   - handled=true means evaluateMFAForOAuth produced the final result and
+//     GenerateEnhancedTokenPair should return immediately
+//   - handled=false means MFA is not required or not wired; caller proceeds
+//     with the normal full-token issuance path
+func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenResponse, bool, error) {
+	if user == nil || s.mfaFactorRepo == nil || s.mfaChallengeService == nil {
+		return nil, false, nil
+	}
+	memberships := s.loadMembershipsAsAuthModel(ctx, user.UUID)
+	if !RoleRequiresMFA(user, memberships) {
+		return nil, false, nil
+	}
+
+	factor, err := s.mfaFactorRepo.FindByUserAndType(ctx, user.UUID, models.MFAFactorTOTP)
+	if err == nil && factor != nil {
+		in := LoginChallengeInput{
+			UserUUID:  user.UUID,
+			SourceAMR: []string{"oauth"},
+		}
+		if deviceInfo != nil {
+			in.DeviceID = deviceInfo.DeviceID
+			in.Platform = deviceInfo.Platform
+			in.Fingerprint = deviceInfo.Fingerprint
+		}
+		if securityCtx != nil {
+			in.IPAddress = securityCtx.IPAddress
+		}
+		ch, err := s.mfaChallengeService.BeginLogin(ctx, in)
+		if err != nil {
+			return nil, true, err
+		}
+		return &models.TokenResponse{
+			RequiresMFA: true,
+			MFAToken:    ch.ID,
+			User:        user.ToResponse(),
+		}, true, nil
+	}
+	if err != nil && !errors.Is(err, repository.ErrMFAFactorNotFound) {
+		return nil, true, err
+	}
+
+	// Privileged user without a factor → grace window.
+	now := time.Now()
+	if GraceExpired(user, now) {
+		return nil, true, ErrMFAEnrollmentRequired
+	}
+	if user.MFAGraceStartedAt == nil {
+		_ = s.userService.StartMFAGraceIfUnset(ctx, user.UUID)
+	}
+	// caller continues to issue a full token — the completeLogin branch
+	// for the token response enrichment happens in the OAuth handler layer.
+	return nil, false, nil
+}
+
+// loadMembershipsAsAuthModel mirrors the password service helper — converts
+// tenant memberships into the lightweight auth-model shape RoleRequiresMFA
+// consumes. Returns nil on error; RoleRequiresMFA then falls back to the
+// system-role check alone.
+func (s *authService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []models.OrgMembership {
+	if s.tenantProvider == nil {
+		return nil
+	}
+	list, err := s.tenantProvider.ListUserMemberships(ctx, userUUID)
+	if err != nil || len(list) == 0 {
+		return nil
+	}
+	out := make([]models.OrgMembership, 0, len(list))
+	for _, m := range list {
+		out = append(out, models.OrgMembership{OrgUUID: m.OrgUUID, Roles: m.Roles})
+	}
+	return out
 }

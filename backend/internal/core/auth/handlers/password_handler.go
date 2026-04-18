@@ -85,11 +85,17 @@ type PasswordLoginRequest struct {
 type PasswordLoginResponse struct {
 	SetCookie string `header:"Set-Cookie"`
 	Body      struct {
-		Success     bool                        `json:"success"`
-		AccessToken string                      `json:"accessToken"`
-		TokenType   string                      `json:"tokenType"`
-		ExpiresIn   int64                       `json:"expiresIn"`
-		User        interface{}                 `json:"user"`
+		Success     bool        `json:"success"`
+		AccessToken string      `json:"accessToken,omitempty"`
+		TokenType   string      `json:"tokenType,omitempty"`
+		ExpiresIn   int64       `json:"expiresIn,omitempty"`
+		User        interface{} `json:"user,omitempty"`
+		// MFA fields: when RequiresMFA is true, AccessToken is empty and the
+		// client must call POST /v1/auth/mfa/login/verify with MFAToken.
+		RequiresMFA           bool        `json:"requiresMfa,omitempty"`
+		MFAToken              string      `json:"mfaToken,omitempty"`
+		MFAEnrollmentRequired bool        `json:"mfaEnrollmentRequired,omitempty"`
+		MFAGraceExpiresAt     interface{} `json:"mfaGraceExpiresAt,omitempty"`
 	}
 }
 
@@ -106,12 +112,25 @@ func (h *PasswordAuthHandler) Login(ctx context.Context, req *PasswordLoginReque
 	}
 
 	resp := &PasswordLoginResponse{}
-	resp.SetCookie = buildRefreshCookie(h.cookieName, tokens.RefreshToken, h.cookieDomain, h.cookieSecure)
 	resp.Body.Success = true
+
+	// Partial response — caller must complete MFA before receiving tokens.
+	if tokens.RequiresMFA {
+		resp.Body.RequiresMFA = true
+		resp.Body.MFAToken = tokens.MFAToken
+		resp.Body.User = tokens.User
+		return resp, nil
+	}
+
+	resp.SetCookie = buildRefreshCookie(h.cookieName, tokens.RefreshToken, h.cookieDomain, h.cookieSecure)
 	resp.Body.AccessToken = tokens.AccessToken
 	resp.Body.TokenType = tokens.TokenType
 	resp.Body.ExpiresIn = tokens.ExpiresIn
 	resp.Body.User = tokens.User
+	if tokens.MFAEnrollmentRequired {
+		resp.Body.MFAEnrollmentRequired = true
+		resp.Body.MFAGraceExpiresAt = tokens.MFAGraceExpiresAt
+	}
 	return resp, nil
 }
 
@@ -259,6 +278,8 @@ func mapPasswordError(err error) error {
 		return huma.Error400BadRequest("New password must differ from the current one")
 	case errors.Is(err, services.ErrNotificationDown):
 		return huma.Error503ServiceUnavailable("Email delivery is not configured — signups are temporarily unavailable. Please contact an administrator.")
+	case errors.Is(err, services.ErrMFAEnrollmentRequired):
+		return huma.Error403Forbidden("MFA enrollment required — the grace period for this account has expired. Please complete MFA setup via an admin before signing in.")
 	case errors.Is(err, services.ErrPasswordTooShort),
 		errors.Is(err, services.ErrPasswordTooLong),
 		errors.Is(err, services.ErrPasswordContainsEmail),

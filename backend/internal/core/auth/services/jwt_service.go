@@ -42,6 +42,11 @@ type JWTService interface {
 	ValidateRefreshTokenWithRisk(tokenString string) (*models.JWTClaims, error)
 
 	GenerateTokenPair(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenPair, error)
+	// GenerateTokenPairWithAMR is identical to GenerateTokenPair but stamps
+	// the access token's amr + last_otp_at claims. Used by the MFA login
+	// verify endpoint and anywhere else that needs to record which factors
+	// were completed for a freshly minted session.
+	GenerateTokenPairWithAMR(user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext, amr []string, lastOTPAt int64) (*models.TokenPair, error)
 
 	RefreshTokensWithRotation(refreshToken string, deviceInfo *models.DeviceInfo) (*models.TokenPair, error)
 
@@ -238,6 +243,22 @@ func (s *jwtService) GenerateTokenPair(
 		IssuedAt:     time.Now(),
 		RefreshCount: 0,
 	}, nil
+}
+
+func (s *jwtService) GenerateTokenPairWithAMR(
+	user *userModels.User,
+	deviceInfo *models.DeviceInfo,
+	securityCtx *models.SecurityContext,
+	amr []string,
+	lastOTPAt int64,
+) (*models.TokenPair, error) {
+	// Inject amr + last_otp_at into the context struct so the existing
+	// access-token path picks them up; refresh tokens don't carry amr
+	// (they're not presented to protected routes directly).
+	ctx := *securityCtx
+	ctx.AMR = amr
+	ctx.LastOTPAt = lastOTPAt
+	return s.GenerateTokenPair(user, deviceInfo, &ctx)
 }
 
 func (s *jwtService) ValidateAccessTokenWithRisk(tokenString string) (*models.JWTClaims, error) {

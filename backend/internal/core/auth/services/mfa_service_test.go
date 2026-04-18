@@ -59,6 +59,23 @@ func (r *fakeFactorRepo) UpdateLastUsed(_ context.Context, uuid string, when tim
 	return nil
 }
 
+func (r *fakeFactorRepo) AdvanceLastUsedStep(_ context.Context, uuid string, step int64, when time.Time) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, d := range r.byUser {
+		if d.UUID != uuid {
+			continue
+		}
+		if d.LastUsedStep > 0 && step <= d.LastUsedStep {
+			return false, nil
+		}
+		d.LastUsedStep = step
+		d.LastUsedAt = &when
+		return true, nil
+	}
+	return false, nil
+}
+
 func (r *fakeFactorRepo) ConsumeBackupCode(_ context.Context, userUUID, hashed string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -222,6 +239,34 @@ func TestEnrollmentIdempotentReset(t *testing.T) {
 	code, _ := totp.GenerateCode(begin2.SecretBase32, time.Now())
 	if _, err := svc.ConfirmEnrollment(context.Background(), user.UUID, begin2.ChallengeID, code); err != nil {
 		t.Fatalf("confirm on second begin: %v", err)
+	}
+}
+
+func TestTOTPReplayRejected(t *testing.T) {
+	// Two verifies of the same code within its 30s window: first wins, second
+	// loses. This is the core of the Block B replay guard — a captured code
+	// can't be used to satisfy a fresh login challenge while still valid.
+	t.Setenv("MFA_SECRET_ENCRYPTION_KEY", hex32())
+
+	repo := newFakeFactorRepo()
+	challenges := NewMFAChallengeService(NewMemoryOAuthStateStore())
+	pw := NewPasswordService(slog.Default(), false)
+	svc := NewMFAService(repo, challenges, pw, "Orkestra", slog.Default())
+
+	user := &testUser{UUID: "u-replay", Email: "r@example.com"}
+	begin, _ := svc.BeginEnrollment(context.Background(), user.toUser())
+	code, _ := totp.GenerateCode(begin.SecretBase32, time.Now())
+	if _, err := svc.ConfirmEnrollment(context.Background(), user.UUID, begin.ChallengeID, code); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+
+	live, _ := totp.GenerateCode(begin.SecretBase32, time.Now())
+	if err := svc.Verify(context.Background(), user.UUID, live); err != nil {
+		t.Fatalf("first verify: %v", err)
+	}
+	// Second verify with the same live code inside the same step must fail.
+	if err := svc.Verify(context.Background(), user.UUID, live); err == nil {
+		t.Fatalf("replay should have been rejected")
 	}
 }
 

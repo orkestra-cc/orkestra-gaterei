@@ -891,6 +891,42 @@ func (s *userService) ClearFailedLogins(ctx context.Context, userUUID string) er
 	return s.userRepo.ClearFailedLogins(ctx, userUUID)
 }
 
+// StartMFAGraceIfUnset stamps the MFA grace timestamp only when it isn't
+// already set. Called on first login of a privileged user without a factor,
+// and on admin-triggered privilege grants — both paths want to leave an
+// existing countdown in place so multiple role changes don't reset it.
+func (s *userService) StartMFAGraceIfUnset(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	user, err := s.userRepo.GetByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	if user.MFAGraceStartedAt != nil && !user.MFAGraceStartedAt.IsZero() {
+		return nil
+	}
+	return s.userRepo.SetMFAGraceStartedAt(ctx, userUUID, time.Now())
+}
+
+// ResetMFAGrace unconditionally overwrites the grace timestamp with now.
+// Used by the admin MFA reset endpoint after clearing a user's factor, so
+// the target has a fresh enrollment window regardless of prior state.
+func (s *userService) ResetMFAGrace(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.SetMFAGraceStartedAt(ctx, userUUID, time.Now())
+}
+
+// ClearMFAGrace removes the grace stamp after a successful enrollment.
+func (s *userService) ClearMFAGrace(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return ErrInvalidInput
+	}
+	return s.userRepo.ClearMFAGraceStartedAt(ctx, userUUID)
+}
+
 // ValidateUserActive checks if a user is active
 func (s *userService) ValidateUserActive(ctx context.Context, id string) (bool, error) {
 	if id == "" {

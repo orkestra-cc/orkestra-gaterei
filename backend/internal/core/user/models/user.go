@@ -99,6 +99,12 @@ type User struct {
 	FailedLoginCount  int        `bson:"failedLoginCount,omitempty" json:"-"`
 	LockedUntil       *time.Time `bson:"lockedUntil,omitempty" json:"-"`
 
+	// MFAGraceStartedAt is set when a privileged user logs in without an
+	// enrolled MFA factor. They have a bounded window from this timestamp
+	// to enroll before login begins failing with mfa_enrollment_required.
+	// Nil = grace has not begun (and isn't yet relevant for this user).
+	MFAGraceStartedAt *time.Time `bson:"mfaGraceStartedAt,omitempty" json:"-"`
+
 	// Status and metadata
 	IsActive      bool       `bson:"isActive" json:"isActive"`
 	EmailVerified bool       `bson:"emailVerified" json:"emailVerified"`

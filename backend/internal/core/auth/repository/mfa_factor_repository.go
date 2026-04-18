@@ -20,6 +20,12 @@ type MFAFactorRepository interface {
 	Insert(ctx context.Context, doc *models.MFAFactorDoc) error
 	FindByUserAndType(ctx context.Context, userUUID string, factorType models.MFAFactorType) (*models.MFAFactorDoc, error)
 	UpdateLastUsed(ctx context.Context, uuid string, when time.Time) error
+	// AdvanceLastUsedStep atomically updates LastUsedStep only if the
+	// supplied step is strictly greater than the stored value. Returns
+	// (true, nil) when the write landed, (false, nil) when another
+	// concurrent verify beat this one to the same step. The concurrency
+	// guarantee is what prevents replay within the 30-second TOTP window.
+	AdvanceLastUsedStep(ctx context.Context, uuid string, step int64, when time.Time) (bool, error)
 	ConsumeBackupCode(ctx context.Context, userUUID, hashedCode string) (bool, error)
 	Delete(ctx context.Context, uuid string) error
 }
@@ -61,6 +67,27 @@ func (r *mfaFactorRepository) UpdateLastUsed(ctx context.Context, uuid string, w
 		bson.M{"$set": bson.M{"lastUsedAt": when}},
 	)
 	return err
+}
+
+// AdvanceLastUsedStep updates the step only if strictly newer than the
+// stored value. The filter's `$lt` predicate turns the CAS into a single
+// atomic op; a concurrent Verify that races a second call with the same
+// step sees ModifiedCount==0 and knows its code was already consumed.
+func (r *mfaFactorRepository) AdvanceLastUsedStep(ctx context.Context, uuid string, step int64, when time.Time) (bool, error) {
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{
+			"uuid": uuid,
+			"$or": []bson.M{
+				{"lastUsedStep": bson.M{"$lt": step}},
+				{"lastUsedStep": bson.M{"$exists": false}},
+			},
+		},
+		bson.M{"$set": bson.M{"lastUsedStep": step, "lastUsedAt": when}},
+	)
+	if err != nil {
+		return false, err
+	}
+	return res.ModifiedCount > 0, nil
 }
 
 // ConsumeBackupCode removes a single backup-code hash from the user's factor.

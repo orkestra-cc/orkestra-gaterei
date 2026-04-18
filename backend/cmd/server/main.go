@@ -197,12 +197,21 @@ func main() {
 	)
 	setup.NewHandler(setupSvc, cfg.Auth.Cookie).RegisterRoutes(publicAPI)
 
-	// Admin module management routes: platform-level, not per-org.
+	// Admin module management routes: platform-level, not per-org. Split
+	// into reads and mutations so Block B can require MFA on the paths
+	// that write secrets or flip module enablement. Both share the same
+	// system permission; the MFA gate on the mutation group layers on top.
+	moduleAdminHandler := module.NewModuleAdminHandler(configService, modRegistry)
 	protectedRouter.Group(func(r chi.Router) {
 		r.Use(authMW.RequireSystemPermission("system.modules.admin"))
 		adminAPI := humachi.New(r, apiConfig)
-		moduleAdminHandler := module.NewModuleAdminHandler(configService, modRegistry)
-		module.RegisterAdminModuleRoutes(adminAPI, moduleAdminHandler)
+		module.RegisterAdminModuleReadRoutes(adminAPI, moduleAdminHandler)
+	})
+	protectedRouter.Group(func(r chi.Router) {
+		r.Use(authMW.RequireSystemPermission("system.modules.admin"))
+		r.Use(authMW.RequireMFA())
+		adminAPI := humachi.New(r, apiConfig)
+		module.RegisterAdminModuleMutationRoutes(adminAPI, moduleAdminHandler)
 	})
 
 	router.Mount("/", protectedRouter)

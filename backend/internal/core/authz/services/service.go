@@ -45,11 +45,12 @@ var ErrRoleInactive = errors.New("authz: role is disabled")
 // Results are cached in Redis for 60 seconds per (userUUID, orgID) key and
 // invalidated when bindings or roles change.
 type Service struct {
-	repo       *repository.Repository
-	redis      *database.RedisClientAdapter
-	logger     *slog.Logger
-	userRoles  UserSystemRoleLookup
-	production bool // when true, developer role is restricted to read-only
+	repo          *repository.Repository
+	redis         *database.RedisClientAdapter
+	logger        *slog.Logger
+	userRoles     UserSystemRoleLookup
+	startMFAGrace MFAGraceStarter
+	production    bool // when true, developer role is restricted to read-only
 
 	mu                  sync.RWMutex
 	systemPermissionSet map[string]struct{}     // keys declared with System=true
@@ -61,11 +62,18 @@ type Service struct {
 // Kept as a plain function type so we don't need to import the user module.
 type UserSystemRoleLookup func(ctx context.Context, userUUID string) (string, error)
 
+// MFAGraceStarter starts the MFA enrollment grace clock for a user if it
+// has not already started. Used as a post-binding hook when the caller
+// just granted a privileged role — the callee owns the idempotency so a
+// repeated grant doesn't reset an already-running clock.
+type MFAGraceStarter func(ctx context.Context, userUUID string) error
+
 type Config struct {
-	Repo       *repository.Repository
-	Redis      *database.RedisClientAdapter
-	Logger     *slog.Logger
-	LookupUser UserSystemRoleLookup
+	Repo            *repository.Repository
+	Redis           *database.RedisClientAdapter
+	Logger          *slog.Logger
+	LookupUser      UserSystemRoleLookup
+	StartMFAGrace   MFAGraceStarter
 	// Production gates sensitive role seeding decisions. When true, the
 	// `developer` system role is seeded with a read-only permission set
 	// (decision D9 in the Org-scoped RBAC plan). In dev and staging it
@@ -80,10 +88,24 @@ func New(cfg Config) *Service {
 		redis:               cfg.Redis,
 		logger:              cfg.Logger,
 		userRoles:           cfg.LookupUser,
+		startMFAGrace:       cfg.StartMFAGrace,
 		production:          cfg.Production,
 		systemPermissionSet: make(map[string]struct{}),
 		allPermissionSet:    make(map[string]struct{}),
 	}
+}
+
+// roleElevatesPrivilege reports whether granting the named role should eagerly
+// start the MFA enrollment grace clock for the target user. We match the same
+// roles RoleRequiresMFA (in the auth module) considers privileged — keeping
+// both in lock-step is load-bearing; if they drift a user could be gated at
+// login without ever having had their grace window started.
+func roleElevatesPrivilege(roleName string) bool {
+	switch roleName {
+	case "super_admin", "administrator", "org_owner", "org_admin":
+		return true
+	}
+	return false
 }
 
 // --- Provider interface ---
@@ -474,6 +496,20 @@ func (s *Service) CreateBinding(ctx context.Context, orgID, grantedBy string, in
 		return nil, err
 	}
 	s.cacheInvalidate(ctx, input.UserUUID)
+
+	// Post-binding hook: privileged role grants eagerly start the MFA grace
+	// clock so the 7-day window begins at promotion rather than at next
+	// login. StartMFAGraceIfUnset on the user side is idempotent, so
+	// repeated grants don't reset the clock.
+	if s.startMFAGrace != nil && roleElevatesPrivilege(role.Name) {
+		if err := s.startMFAGrace(ctx, input.UserUUID); err != nil {
+			s.logger.Warn("authz: start MFA grace failed after binding",
+				"userUUID", input.UserUUID,
+				"role", role.Name,
+				"error", err.Error(),
+			)
+		}
+	}
 	return b, nil
 }
 

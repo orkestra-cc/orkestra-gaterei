@@ -158,15 +158,26 @@ Registered from two handlers — `auth_handler.go` for OAuth/session/refresh, `p
 | GET | `/v1/auth/me/mfa` | `RequireGlobal()` | Return `{status, type, backupCodesRemaining}` |
 | POST | `/v1/auth/me/mfa/remove` | `RequireGlobal()` | Remove own factor — requires a live TOTP code (upgrades to `RequireStepUp` in Block D) |
 | POST | `/v1/auth/mfa/verify` | `RequireGlobal()` | Verify TOTP or backup code; mint a stepped-up access token with `amr:["pwd","otp"]` + `last_otp_at=now` |
+| POST | `/v1/admin/users/{userId}/mfa/reset` | `RequireSystemPermission("system.users.mfa_reset")` + `RequireMFA()` | Admin: delete target user's MFA factor and restart their enrollment grace |
 
-`change-password` and all MFA routes are deliberately global (no org context) because they're user-level self-service flows.
+And a public endpoint that completes a login after a partial response:
+
+| Method | Path | Gate | Purpose |
+|---|---|---|---|
+| POST | `/v1/auth/mfa/login/verify` | none (uses `challengeId`) | Complete a login by validating TOTP/backup; mints full token pair with `amr:[source,otp]` |
+
+`change-password` and the self-service MFA routes are deliberately global (no org context) because they're user-level flows.
 
 ### MFA implementation notes
 
+- **Privilege policy** lives in `services/mfa_policy.go`. `RoleRequiresMFA(user, memberships)` returns true for `super_admin`, `administrator`, and any org membership carrying `org_owner`/`org_admin`. `developer` is intentionally excluded — its prod downgrade to read-only covers the risk.
+- **Grace period is 7 days** (`MFAEnrollmentGraceWindow`). A privileged user logging in without a factor has `User.MFAGraceStartedAt` stamped on that login (idempotent via `UserProvider.StartMFAGraceIfUnset`). Past the window, login returns 403 `mfa_enrollment_required`. Granting a privileged role via authz `CreateBinding` also eagerly starts the clock so the 7 days begin at promotion, not next login.
+- **Login state machine** (`PasswordAuthService.completeLogin`; OAuth mirrors via `AuthService.evaluateMFAForOAuth`): (a) non-privileged → full token with `amr:["pwd"]`/`["oauth"]`; (b) privileged with factor → partial 200 response `{requiresMfa: true, mfaToken: <challengeId>}` and no access token — client must call `/v1/auth/mfa/login/verify`; (c) privileged without factor within grace → full token + `mfaEnrollmentRequired:true` + `mfaGraceExpiresAt`; (d) privileged without factor past grace → `ErrMFAEnrollmentRequired` → 403.
 - Factor secrets are AES-256-GCM encrypted with `MFA_SECRET_ENCRYPTION_KEY` (falls back to `OAUTH_TOKEN_ENCRYPTION_KEY` for single-key dev setups). Backup codes are argon2id hashed via the existing `PasswordService`.
-- Challenge state (enrollment pending secret, attempt counter) lives in Redis under `mfa:challenge:<uuid>` with a 5-minute TTL. After 5 failed verifications the challenge is deleted.
-- `JWTClaims.AMR` (RFC 8176) and `JWTClaims.LastOTPAt` are emitted `omitempty` so tokens minted before Block A still validate. Issuance sites today: the MFA verify endpoint sets `amr:["pwd","otp"]` + `last_otp_at=now`; password and OAuth login still emit `amr:["pwd"]` / `amr:["oauth"]` is **not** yet set — that wiring lands with Block B's partial-response login.
-- `RoleMiddleware.RequireMFA()` is implemented on both `AuthMiddleware` and `JWTValidator` but is not applied to any route in Block A. Block B wires it into authz binding mutations and module secret writes.
+- Challenge state lives in Redis under `mfa:challenge:<uuid>` with a 5-minute TTL; after 5 failed verifications the challenge is deleted. Login challenges additionally carry `DeviceID`/`Platform`/`IPAddress`/`Fingerprint`/`SourceAMR` so the public login-verify endpoint can mint a token pair without re-posting the user's password.
+- **TOTP replay guard** — `MFAFactorDoc.LastUsedStep` advances via an atomic `AdvanceLastUsedStep` CAS in the repo (`$or: lastUsedStep < step OR $exists:false`). A captured code cannot be used twice within its 30-second window, whether by the same caller or a concurrent one.
+- `JWTClaims.AMR` (RFC 8176) and `JWTClaims.LastOTPAt` are emitted `omitempty` so pre-Block-A tokens still validate. Password login sets `amr:["pwd"]`, OAuth `amr:["oauth"]`, MFA verify sets `amr:[source,"otp"]` + `last_otp_at=now`.
+- `RoleMiddleware.RequireMFA()` is applied to the routes whose abuse MFA exists to prevent: authz role + binding mutations (create/update/delete-role, create/delete-binding), tenant scoped mutations (update/delete-org, update-plan, remove-member, create-invite), and module config writes (`update-module`, `update-module-environment`, `set-active-environment`). Read paths stay open.
 
 ## Service contract
 
@@ -195,8 +206,10 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - Org membership, invite lifecycle, plan entitlements → **tenant** module
 - Permission evaluation, role bindings, system role seeding → **authz** module
 - Rendering and sending emails → **notification** module (auth just passes `TemplatedNotificationRequest`)
-- MFA enforcement at login — Block A landed the TOTP machinery (enroll/verify/backup codes, `amr` + `last_otp_at` JWT claims, `RequireMFA` middleware skeleton on both `AuthMiddleware` and `JWTValidator`) but no route is gated yet and `/v1/auth/login` still returns a full token pair with `amr:["pwd"]`. Gating + login partial response arrive in Block B. WebAuthn is still reserved.
-- OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term
+- Step-up middleware (`RequireStepUp(maxAge)`) that rejects stale MFA proofs — Block D. Until then, `RequireMFA` only checks `amr` presence, not freshness, and the self-service MFA remove endpoint enforces via an in-handler live-code check.
+- Refresh-token family rotation + replay-after-rotate detection — Block C. Today tokens are single-rotated but there's no family-wide revocation on replay.
+- WebAuthn — reserved in `MFAFactorType`; not implemented.
+- OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term.
 
 ## Rules
 

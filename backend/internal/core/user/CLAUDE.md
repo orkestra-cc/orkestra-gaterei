@@ -82,7 +82,7 @@ Key method groups:
 
 - **Identity / lookup** — `GetUserByID`, `GetUserByEmail`, `GetUserForAuth` (includes password hash + lockout fields; auth-only), `GetUserCount`
 - **Creation** — `CreateUserWithPassword` (called by password signup), `CreateUserFromOAuth` (called by OAuth flows)
-- **Auth-side mutations** — `UpdatePasswordHash`, `MarkEmailVerified`, `RecordFailedLogin` (optional `lockUntil`), `ClearFailedLogins`, `UpdateUserLastLogin`
+- **Auth-side mutations** — `UpdatePasswordHash`, `MarkEmailVerified`, `RecordFailedLogin` (optional `lockUntil`), `ClearFailedLogins`, `UpdateUserLastLogin`, `StartMFAGraceIfUnset` (idempotent — preserves an existing clock), `ResetMFAGrace` (unconditionally restarts — used by admin MFA reset), `ClearMFAGrace` (wipe on successful enrollment)
 - **OAuth link management** — `GetUserOAuthLinks`, `RemoveOAuthLinkFromUser`, `SetPrimaryOAuthLink`
 - **General mutation** — `UpdateUser`, `DeleteUser`
 
@@ -95,6 +95,7 @@ Key method groups:
 - **Validator `oneof`** in `user.go:77,120,143,193` enforces the six role names on every create/update/filter DTO. If you rename a role, update all four lines in lock-step.
 - **Email uniqueness** is enforced at the DB level by the unique index plus at the service level by a pre-insert existence check. Concurrent creates with the same email will have one succeed and one error.
 - **Soft delete only** — `DeleteUser` sets `DeletedAt` on the document. The unique email index still matches soft-deleted rows, so reactivating a soft-deleted account requires either a hard delete or a permanent email alias.
+- **`User.MFAGraceStartedAt` is stamped by the auth module**, cleared by the auth module (on successful enrollment), and read by both auth (to decide login grace vs 403) and the admin MFA reset flow (which calls `ResetMFAGrace` to restart the countdown). The field is non-serialized (`json:"-"`) — it's internal bookkeeping, not part of the public user surface.
 - **Driver document fields are legacy but live.** `LicenseNumber`, `LicenseExpiry`, `DriverCardNumber`, `DriverCardExpiry`, `CQCExpiry`, `ADRNumber`, `ADRExpiry`, `TachigrafExpiry`, `MedicalChecks` are fleet-management artifacts from the product's original scope. The expiry endpoints exist because Italian transport compliance needs them — do not delete them as dead code.
 - **`OAuthLinks` is embedded in the user document**, not a separate collection. The auth module has its *own* `auth_oauth_providers` collection for provider-side metadata (IDs, tokens). The two are synced but serve different roles: `User.OAuthLinks` is the "connected accounts" list surfaced to the user; `auth_oauth_providers` is the provider-lookup index used during OAuth callback.
 

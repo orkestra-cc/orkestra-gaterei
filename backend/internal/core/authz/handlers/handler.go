@@ -96,8 +96,10 @@ func (h *Handler) RegisterGlobalRoutes(api huma.API) {
 	}, h.listPermissions)
 }
 
-// RegisterScopedRoutes registers per-org role and binding admin routes.
-func (h *Handler) RegisterScopedRoutes(api huma.API) {
+// RegisterScopedReadRoutes registers read-only per-org role and binding
+// routes. Split from mutations so the module wiring can apply RequireMFA
+// only to the paths that actually grant privilege.
+func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-roles",
 		Method:      http.MethodGet,
@@ -106,6 +108,27 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 		Tags:        []string{"Authorization"},
 	}, h.listRoles)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "list-bindings",
+		Method:      http.MethodGet,
+		Path:        "/v1/orgs/{orgId}/authz/bindings",
+		Summary:     "List role bindings in the org",
+		Tags:        []string{"Authorization"},
+	}, h.listBindings)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-effective-permissions",
+		Method:      http.MethodGet,
+		Path:        "/v1/orgs/{orgId}/authz/me",
+		Summary:     "Get the current user's effective permissions in the org",
+		Tags:        []string{"Authorization"},
+	}, h.getEffective)
+}
+
+// RegisterScopedMutationRoutes registers per-org role and binding mutations.
+// These are the operations Block B's MFA enforcement covers — every path
+// below can grant or revoke effective permissions for another user.
+func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-role",
 		Method:      http.MethodPost,
@@ -131,14 +154,6 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 	}, h.deleteRole)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-bindings",
-		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/authz/bindings",
-		Summary:     "List role bindings in the org",
-		Tags:        []string{"Authorization"},
-	}, h.listBindings)
-
-	huma.Register(api, huma.Operation{
 		OperationID: "create-binding",
 		Method:      http.MethodPost,
 		Path:        "/v1/orgs/{orgId}/authz/bindings",
@@ -153,14 +168,6 @@ func (h *Handler) RegisterScopedRoutes(api huma.API) {
 		Summary:     "Revoke a role binding",
 		Tags:        []string{"Authorization"},
 	}, h.deleteBinding)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "get-effective-permissions",
-		Method:      http.MethodGet,
-		Path:        "/v1/orgs/{orgId}/authz/me",
-		Summary:     "Get the current user's effective permissions in the org",
-		Tags:        []string{"Authorization"},
-	}, h.getEffective)
 }
 
 // --- Handler implementations ---

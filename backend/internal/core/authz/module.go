@@ -117,11 +117,21 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		return "", err
 	}
 
+	// Post-binding grace hook. Binding creates that land a privileged role
+	// eagerly start the target user's MFA enrollment clock so the 7-day
+	// window begins at promotion rather than at their next login. We pass
+	// a thin closure so the authz service stays free of a direct user
+	// module import.
+	startMFAGrace := func(ctx context.Context, userUUID string) error {
+		return userSvc.StartMFAGraceIfUnset(ctx, userUUID)
+	}
+
 	m.svc = services.New(services.Config{
-		Repo:       repo,
-		Redis:      deps.RedisAdapter,
-		Logger:     deps.Logger,
-		LookupUser: lookup,
+		Repo:          repo,
+		Redis:         deps.RedisAdapter,
+		Logger:        deps.Logger,
+		LookupUser:    lookup,
+		StartMFAGrace: startMFAGrace,
 		// Production flag restricts the developer system role to read-only
 		// semantics (D9): dev/staging developers debug freely; prod
 		// developers cannot mutate data or read secrets even if their
@@ -142,11 +152,20 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 		m.handler.RegisterGlobalRoutes(api)
 	})
 
-	// Scoped admin routes require authz.* permissions in the target org.
+	// Scoped admin routes split by mutation vs read: reads need the base
+	// permission, mutations additionally require a second factor (Block B)
+	// so a stolen pwd-only token cannot silently grant a role or bump
+	// permissions. The caller must step up via /v1/auth/mfa/verify first.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.AuthMW.RequirePermission("authz.role.read"))
 		api := humachi.New(r, ri.APIConfig)
-		m.handler.RegisterScopedRoutes(api)
+		m.handler.RegisterScopedReadRoutes(api)
+	})
+	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.AuthMW.RequirePermission("authz.role.read"))
+		r.Use(ri.AuthMW.RequireMFA())
+		api := humachi.New(r, ri.APIConfig)
+		m.handler.RegisterScopedMutationRoutes(api)
 	})
 }
 

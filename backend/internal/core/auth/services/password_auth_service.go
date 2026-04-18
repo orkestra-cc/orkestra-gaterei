@@ -21,12 +21,13 @@ import (
 )
 
 var (
-	ErrInvalidCredentials = stderrors.New("invalid credentials")
-	ErrEmailNotVerified   = stderrors.New("email not verified")
-	ErrAccountLocked      = stderrors.New("account temporarily locked")
-	ErrUserInactive       = stderrors.New("user account is not active")
-	ErrPasswordReused     = stderrors.New("new password must differ from the current one")
-	ErrNotificationDown   = stderrors.New("notifications disabled — cannot send email")
+	ErrInvalidCredentials     = stderrors.New("invalid credentials")
+	ErrEmailNotVerified       = stderrors.New("email not verified")
+	ErrAccountLocked          = stderrors.New("account temporarily locked")
+	ErrUserInactive           = stderrors.New("user account is not active")
+	ErrPasswordReused         = stderrors.New("new password must differ from the current one")
+	ErrNotificationDown       = stderrors.New("notifications disabled — cannot send email")
+	ErrMFAEnrollmentRequired  = stderrors.New("mfa enrollment required — grace period expired")
 )
 
 // FirstAdminClaimer is the contract the password auth service uses to
@@ -42,12 +43,15 @@ type FirstAdminClaimer interface {
 // PasswordAuthConfig configures the password auth service.
 type PasswordAuthConfig struct {
 	UserService              iface.UserProvider
+	TenantProvider           iface.TenantProvider // required: drives RoleRequiresMFA check at login
 	PasswordService          PasswordService
 	JWTService               JWTService
 	EmailTokenRepo           repository.EmailTokenRepository
 	RefreshTokenRepo         repository.RefreshTokenRepository
 	AuthSessionRepo          repository.AuthSessionRepository
-	FirstAdminClaimer        FirstAdminClaimer // required: atomic first-admin claim
+	MFAFactorRepo            repository.MFAFactorRepository  // required: decides partial vs full response
+	MFAChallengeService      MFAChallengeService             // required: mints login-continuation challenges
+	FirstAdminClaimer        FirstAdminClaimer               // required: atomic first-admin claim
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string
@@ -61,11 +65,14 @@ type PasswordAuthConfig struct {
 // password flows. It complements the existing OAuth-focused AuthService.
 type PasswordAuthService struct {
 	userService              iface.UserProvider
+	tenantProvider           iface.TenantProvider
 	passwordService          PasswordService
 	jwtService               JWTService
 	emailTokenRepo           repository.EmailTokenRepository
 	refreshTokenRepo         repository.RefreshTokenRepository
 	authSessionRepo          repository.AuthSessionRepository
+	mfaFactorRepo            repository.MFAFactorRepository
+	mfaChallengeService      MFAChallengeService
 	firstAdminClaimer        FirstAdminClaimer
 	notifier                 iface.NotificationSender
 	rateLimiter              *sharederrors.RateLimiter
@@ -80,11 +87,14 @@ type PasswordAuthService struct {
 func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 	return &PasswordAuthService{
 		userService:              cfg.UserService,
+		tenantProvider:           cfg.TenantProvider,
 		passwordService:          cfg.PasswordService,
 		jwtService:               cfg.JWTService,
 		emailTokenRepo:           cfg.EmailTokenRepo,
 		refreshTokenRepo:         cfg.RefreshTokenRepo,
 		authSessionRepo:          cfg.AuthSessionRepo,
+		mfaFactorRepo:            cfg.MFAFactorRepo,
+		mfaChallengeService:      cfg.MFAChallengeService,
 		firstAdminClaimer:        cfg.FirstAdminClaimer,
 		notifier:                 cfg.Notifier,
 		rateLimiter:              cfg.RateLimiter,
@@ -247,7 +257,7 @@ func (s *PasswordAuthService) RegisterInitialAdmin(ctx context.Context, email, p
 	}
 	user.EmailVerified = true
 
-	return s.issueTokens(ctx, user, LoginInput{IP: ip, Platform: "web"})
+	return s.issueTokens(ctx, user, LoginInput{IP: ip, Platform: "web"}, []string{"pwd"}, 0)
 }
 
 // LoginInput is the payload for email/password login.
@@ -325,7 +335,96 @@ func (s *PasswordAuthService) Login(ctx context.Context, in LoginInput) (*authMo
 	// Successful login: clear the failed counter.
 	_ = s.userService.ClearFailedLogins(ctx, user.UUID)
 
-	return s.issueTokens(ctx, user, in)
+	return s.completeLogin(ctx, user, in, []string{"pwd"})
+}
+
+// completeLogin applies the MFA decision tree to a user who has already
+// satisfied primary credentials. `sourceAMR` is the list of factors used so
+// far (["pwd"] for password, ["oauth"] for OAuth). Returns one of:
+//   - full TokenResponse (no MFA required, or grace window still open)
+//   - partial TokenResponse with RequiresMFA=true (factor enrolled, client
+//     must call /v1/auth/mfa/login/verify)
+//   - ErrMFAEnrollmentRequired (privileged user, no factor, grace expired)
+func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModels.User, in LoginInput, sourceAMR []string) (*authModels.TokenResponse, error) {
+	memberships := s.loadMembershipsAsAuthModel(ctx, user.UUID)
+	requires := RoleRequiresMFA(user, memberships)
+	if !requires {
+		return s.issueTokens(ctx, user, in, sourceAMR, 0)
+	}
+
+	// Privileged user: check enrollment.
+	if s.mfaFactorRepo != nil {
+		factor, err := s.mfaFactorRepo.FindByUserAndType(ctx, user.UUID, authModels.MFAFactorTOTP)
+		if err == nil && factor != nil {
+			// Factor enrolled — partial response; client must complete MFA.
+			if s.mfaChallengeService == nil {
+				return nil, fmt.Errorf("mfa challenge service not wired")
+			}
+			ch, err := s.mfaChallengeService.BeginLogin(ctx, LoginChallengeInput{
+				UserUUID:  user.UUID,
+				SourceAMR: sourceAMR,
+				DeviceID:  in.DeviceID,
+				Platform:  in.Platform,
+				IPAddress: in.IP,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return &authModels.TokenResponse{
+				RequiresMFA: true,
+				MFAToken:    ch.ID,
+				User:        user.ToResponse(),
+			}, nil
+		}
+		// FindByUserAndType returned ErrMFAFactorNotFound or another error.
+		// Treat not-found as "no factor" and fall through to grace logic;
+		// any other error is surfaced.
+		if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return nil, err
+		}
+	}
+
+	// Privileged, no factor → grace logic.
+	now := time.Now()
+	if GraceExpired(user, now) {
+		return nil, ErrMFAEnrollmentRequired
+	}
+	if user.MFAGraceStartedAt == nil {
+		_ = s.userService.StartMFAGraceIfUnset(ctx, user.UUID)
+		// Re-read so the response carries the correct expiry.
+		if fresh, err := s.userService.GetUserForAuth(ctx, user.Email); err == nil && fresh != nil {
+			user = fresh
+		}
+	}
+	resp, err := s.issueTokens(ctx, user, in, sourceAMR, 0)
+	if err != nil {
+		return nil, err
+	}
+	resp.MFAEnrollmentRequired = true
+	if user.MFAGraceStartedAt != nil {
+		deadline := user.MFAGraceStartedAt.Add(MFAEnrollmentGraceWindow)
+		resp.MFAGraceExpiresAt = &deadline
+	}
+	return resp, nil
+}
+
+// loadMembershipsAsAuthModel pulls the user's memberships from the tenant
+// provider and converts them to the lightweight OrgMembership shape the
+// policy helper consumes. Returns nil on error or when the provider is
+// missing — RoleRequiresMFA then falls back to the system-role check.
+func (s *PasswordAuthService) loadMembershipsAsAuthModel(ctx context.Context, userUUID string) []authModels.OrgMembership {
+	if s.tenantProvider == nil {
+		return nil
+	}
+	list, err := s.tenantProvider.ListUserMemberships(ctx, userUUID)
+	if err != nil || len(list) == 0 {
+		return nil
+	}
+	out := make([]authModels.OrgMembership, 0, len(list))
+	for _, m := range list {
+		out = append(out, authModels.OrgMembership{OrgUUID: m.OrgUUID, Roles: m.Roles})
+	}
+	return out
 }
 
 // VerifyEmail consumes a verification token and marks the user verified.
@@ -555,7 +654,17 @@ func (s *PasswordAuthService) lookupEmailToken(ctx context.Context, raw, purpose
 	return doc, nil
 }
 
-func (s *PasswordAuthService) issueTokens(ctx context.Context, user *userModels.User, in LoginInput) (*authModels.TokenResponse, error) {
+// IssueLoginTokens mints a full access + refresh pair for an already-
+// authenticated user and persists the refresh token / session rows.
+// Exposed for consumers that complete a login outside the password flow —
+// currently the MFA login-verify handler, later the refresh rotation path.
+// amr records which factors were completed; lastOTPAt is 0 when no OTP
+// step has happened on this request.
+func (s *PasswordAuthService) IssueLoginTokens(ctx context.Context, user *userModels.User, deviceID, platform, ip string, amr []string, lastOTPAt int64) (*authModels.TokenResponse, error) {
+	return s.issueTokens(ctx, user, LoginInput{DeviceID: deviceID, Platform: platform, IP: ip}, amr, lastOTPAt)
+}
+
+func (s *PasswordAuthService) issueTokens(ctx context.Context, user *userModels.User, in LoginInput, amr []string, lastOTPAt int64) (*authModels.TokenResponse, error) {
 	deviceID := in.DeviceID
 	if deviceID == "" {
 		deviceID = "password-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
@@ -565,7 +674,7 @@ func (s *PasswordAuthService) issueTokens(ctx context.Context, user *userModels.
 		platform = "web"
 	}
 
-	accessToken, err := s.jwtService.GenerateAccessToken(user)
+	accessToken, err := s.jwtService.GenerateAccessTokenWithAMR(user, amr, lastOTPAt)
 	if err != nil {
 		return nil, err
 	}

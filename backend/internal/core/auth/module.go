@@ -176,14 +176,22 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		logger.Warn("first-admin claimer not wired — signup flows will fall through to non-atomic first-user heuristic")
 	}
 
+	// MFA challenge store is needed by both the auth service (OAuth login
+	// partial response) and the password auth service (password login
+	// partial response), so build it before either consumer.
+	mfaChallengeSvc := services.NewMFAChallengeService(redisStore)
+
 	authService, err := services.NewAuthService(&services.AuthConfig{
-		AuthRepo:          authRepo,
-		UserService:       userService,
-		OAuthProviderRepo: oauthProviderRepo,
-		RefreshTokenRepo:  refreshTokenRepo,
-		AuthSessionRepo:   authSessionRepo,
-		JWTService:        jwtService,
-		FirstAdminClaimer: firstAdminClaimer,
+		AuthRepo:            authRepo,
+		UserService:         userService,
+		TenantProvider:      tenantProvider,
+		OAuthProviderRepo:   oauthProviderRepo,
+		RefreshTokenRepo:    refreshTokenRepo,
+		AuthSessionRepo:     authSessionRepo,
+		JWTService:          jwtService,
+		MFAFactorRepo:       mfaFactorRepo,
+		MFAChallengeService: mfaChallengeSvc,
+		FirstAdminClaimer:   firstAdminClaimer,
 	})
 	if err != nil {
 		return err
@@ -211,11 +219,14 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 
 	passwordAuthSvc := services.NewPasswordAuthService(services.PasswordAuthConfig{
 		UserService:              userService,
+		TenantProvider:           tenantProvider,
 		PasswordService:          passwordSvc,
 		JWTService:               jwtService,
 		EmailTokenRepo:           emailTokenRepo,
 		RefreshTokenRepo:         refreshTokenRepo,
 		AuthSessionRepo:          authSessionRepo,
+		MFAFactorRepo:            mfaFactorRepo,
+		MFAChallengeService:      mfaChallengeSvc,
 		FirstAdminClaimer:        firstAdminClaimer,
 		Notifier:                 notifier,
 		RateLimiter:              rateLimiter,
@@ -233,17 +244,18 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Secure,
 	)
 
-	// MFA service. Reuses the OAuth Redis store (same Get/Set/Delete shape)
-	// for the short-lived challenge cache, and borrows the password service's
-	// argon2id hasher for backup-code storage.
-	mfaChallengeSvc := services.NewMFAChallengeService(redisStore)
+	// MFA orchestrator — issuer drives the TOTP provisioning URI label.
+	// Borrows the password service's argon2id hasher for backup-code
+	// storage so we don't ship a second hasher.
 	mfaIssuer := getEnvOrDefault("APP_NAME", "Orkestra")
 	mfaSvc := services.NewMFAService(mfaFactorRepo, mfaChallengeSvc, passwordSvc, mfaIssuer, logger)
 
 	m.mfaHandler = handlers.NewMFAHandler(
 		mfaSvc,
+		mfaChallengeSvc,
 		jwtService,
 		userService,
+		passwordAuthSvc,
 		cfg.Auth.Cookie.Name,
 		cfg.Auth.Cookie.Domain,
 		cfg.Auth.Cookie.Secure,
@@ -290,14 +302,25 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		})
 	}
 
-	// MFA endpoints are all self-service (no org context required). Block A
-	// does not gate any existing route with RequireMFA — the middleware is
-	// available for Block B to wire up without further module changes.
+	// MFA endpoints split into three halves:
+	//   - public: /v1/auth/mfa/login/verify completes an in-flight login
+	//     (the caller has a challengeId, not yet a bearer token)
+	//   - protected: enroll/remove/status/verify — require RequireGlobal()
+	//     so the caller is already authenticated with a primary factor.
+	//   - admin: POST /v1/admin/users/{id}/mfa/reset — system permission
+	//     plus RequireMFA so the acting admin has completed their own OTP.
 	if m.mfaHandler != nil {
+		m.mfaHandler.RegisterPublicRoutes(ri.PublicAPI)
 		ri.ProtectedRouter.Group(func(r chi.Router) {
 			r.Use(ri.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterProtectedRoutes(api)
+		})
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireSystemPermission("system.users.mfa_reset"))
+			r.Use(ri.AuthMW.RequireMFA())
+			api := humachi.New(r, ri.APIConfig)
+			m.mfaHandler.RegisterAdminRoutes(api)
 		})
 	}
 }

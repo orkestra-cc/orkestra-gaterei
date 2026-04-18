@@ -70,17 +70,22 @@ Three route groups, each with a different gate:
 | POST | `/v1/orgs` | Create a new org — caller becomes owner + administrator |
 | POST | `/v1/orgs/accept-invite` | Redeem an invite token and join the target org |
 
-### Per-org — `RequirePermission("tenant.org.read")`
-
-These read the target org from the `{orgId}` path and check that the caller's bindings in that org include `tenant.org.read`. Further permissions (e.g. `tenant.org.update`) are enforced inside the handler/service layer when needed.
+### Per-org — read (`RequirePermission("tenant.org.read")`)
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/v1/orgs/{orgId}` | Get org by id |
+| GET | `/v1/orgs/{orgId}/members` | List members |
+
+### Per-org — mutation (`RequirePermission("tenant.org.read")` + `RequireMFA()`)
+
+Block B gates every tenant mutation behind an MFA step-up. Each can transfer ownership-adjacent data, change plan entitlements, or destroy the org — a pwd-only token fails with 401 `mfa_required` and the client steps up via `/v1/auth/mfa/verify` before retrying.
+
+| Method | Path | Purpose |
+|---|---|---|
 | PATCH | `/v1/orgs/{orgId}` | Update org name, slug, or settings |
 | DELETE | `/v1/orgs/{orgId}` | Soft-delete (owner only) |
 | PATCH | `/v1/orgs/{orgId}/plan` | Change plan and recompute features |
-| GET | `/v1/orgs/{orgId}/members` | List members |
 | DELETE | `/v1/orgs/{orgId}/members/{userUUID}` | Remove a member |
 | POST | `/v1/orgs/{orgId}/invites` | Create an invite token |
 

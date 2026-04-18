@@ -103,11 +103,20 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 
 	// Org-scoped routes: need the caller to be an administrator of the
 	// org in X-Org-ID. tenant.* permissions are granted by the system
-	// administrator role seeded by the authz module.
+	// administrator role seeded by the authz module. Reads pass through
+	// with just the permission; mutations additionally require an MFA
+	// step-up (Block B) because they can transfer ownership data, change
+	// plan entitlements, or destroy the org.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.AuthMW.RequirePermission("tenant.org.read"))
 		api := humachi.New(r, ri.APIConfig)
-		m.handler.RegisterScopedRoutes(api)
+		m.handler.RegisterScopedReadRoutes(api)
+	})
+	ri.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.AuthMW.RequirePermission("tenant.org.read"))
+		r.Use(ri.AuthMW.RequireMFA())
+		api := humachi.New(r, ri.APIConfig)
+		m.handler.RegisterScopedMutationRoutes(api)
 	})
 
 	// Platform-admin routes: visible to super_admin / administrator /

@@ -44,6 +44,13 @@ type UserRepository interface {
 	RecordFailedLogin(ctx context.Context, userUUID string, lockUntil *time.Time) error
 	ClearFailedLogins(ctx context.Context, userUUID string) error
 
+	// MFA grace-period operations — used by the auth module when a privileged
+	// user first logs in without an enrolled factor (set) or when an admin
+	// forces a reset (set again to restart the countdown). Clearing happens
+	// on successful enrollment.
+	SetMFAGraceStartedAt(ctx context.Context, userUUID string, when time.Time) error
+	ClearMFAGraceStartedAt(ctx context.Context, userUUID string) error
+
 	// OAuth Operations
 	GetByOAuthID(ctx context.Context, provider models.OAuthProvider, oauthID string) (*models.User, error)
 	GetByOAuthLink(ctx context.Context, provider models.OAuthProvider, providerID string) (*models.User, error)
@@ -961,6 +968,50 @@ func (r *mongoUserRepository) ClearFailedLogins(ctx context.Context, userUUID st
 	_, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("clear failed logins: %w", err)
+	}
+	return nil
+}
+
+// SetMFAGraceStartedAt stamps the grace-period clock on the user document.
+// The caller is responsible for deciding whether the user is eligible —
+// this method only persists. Idempotency is a concern for the service layer
+// (StartMFAGraceIfUnset); this repo method unconditionally overwrites.
+func (r *mongoUserRepository) SetMFAGraceStartedAt(ctx context.Context, userUUID string, when time.Time) error {
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"mfaGraceStartedAt": when,
+			"updatedAt":         time.Now(),
+		},
+	}
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("set mfa grace: %w", err)
+	}
+	if result.MatchedCount == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// ClearMFAGraceStartedAt removes the grace stamp — called on successful
+// enrollment so a future privilege revocation followed by re-grant starts
+// a fresh window rather than inheriting the stale one.
+func (r *mongoUserRepository) ClearMFAGraceStartedAt(ctx context.Context, userUUID string) error {
+	filter := bson.M{
+		"uuid":      userUUID,
+		"deletedAt": bson.M{"$exists": false},
+	}
+	update := bson.M{
+		"$unset": bson.M{"mfaGraceStartedAt": ""},
+		"$set":   bson.M{"updatedAt": time.Now()},
+	}
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("clear mfa grace: %w", err)
 	}
 	return nil
 }

@@ -36,8 +36,9 @@ const MFAMaxAttempts = 5
 var ErrMFAChallengeNotFound = errors.New("mfa challenge not found")
 
 // MFAChallenge is the Redis-stored payload. PendingSecret is only populated
-// for enrollment challenges — login and step-up flows reference the user's
-// already-persisted factor instead.
+// for enrollment challenges; device and source-AMR fields are populated for
+// login challenges so the verify endpoint can mint a token pair without
+// round-tripping the user's password.
 type MFAChallenge struct {
 	ID            string              `json:"id"`
 	UserUUID      string              `json:"userUuid"`
@@ -46,6 +47,30 @@ type MFAChallenge struct {
 	Attempts      int                 `json:"attempts"`
 	CreatedAt     time.Time           `json:"createdAt"`
 	ExpiresAt     time.Time           `json:"expiresAt"`
+
+	// Login-continuation fields — populated only for MFAPurposeLogin.
+	// SourceAMR records the factors already completed at login time
+	// (typically ["pwd"] or ["oauth"]); "otp" is appended on successful
+	// verify to form the final token's amr claim.
+	DeviceID    string   `json:"deviceId,omitempty"`
+	Platform    string   `json:"platform,omitempty"`
+	IPAddress   string   `json:"ipAddress,omitempty"`
+	Fingerprint string   `json:"fingerprint,omitempty"`
+	SourceAMR   []string `json:"sourceAmr,omitempty"`
+}
+
+// LoginChallengeInput bundles the device + network context the login flow
+// needs to stash alongside a challenge. Keeping this as a struct rather
+// than a grab-bag of parameters keeps the call sites readable and lets
+// future fields (e.g. risk score) slot in without rippling through the
+// function signature.
+type LoginChallengeInput struct {
+	UserUUID    string
+	SourceAMR   []string
+	DeviceID    string
+	Platform    string
+	IPAddress   string
+	Fingerprint string
 }
 
 // MFAChallengeService issues, looks up, and consumes short-lived challenges
@@ -53,6 +78,10 @@ type MFAChallenge struct {
 // the MFA service; this layer is just secure state for a single flow.
 type MFAChallengeService interface {
 	Begin(ctx context.Context, userUUID string, purpose MFAChallengePurpose, pendingSecret string) (*MFAChallenge, error)
+	// BeginLogin mints a login-continuation challenge carrying enough
+	// device/network context to mint a TokenPair after verify. Purpose is
+	// always MFAPurposeLogin; pendingSecret is never set.
+	BeginLogin(ctx context.Context, in LoginChallengeInput) (*MFAChallenge, error)
 	Peek(ctx context.Context, id string) (*MFAChallenge, error)
 	Consume(ctx context.Context, id string) (*MFAChallenge, error)
 	IncrementAttempts(ctx context.Context, id string) (int, error)
@@ -90,6 +119,34 @@ func (s *mfaChallengeService) Begin(ctx context.Context, userUUID string, purpos
 	}
 	if err := s.store.Set(ctx, buildMFAChallengeKey(ch.ID), payload, MFAChallengeTTL); err != nil {
 		return nil, fmt.Errorf("store mfa challenge: %w", err)
+	}
+	return ch, nil
+}
+
+func (s *mfaChallengeService) BeginLogin(ctx context.Context, in LoginChallengeInput) (*MFAChallenge, error) {
+	if in.UserUUID == "" {
+		return nil, fmt.Errorf("userUUID is required")
+	}
+	now := time.Now()
+	ch := &MFAChallenge{
+		ID:          uuid.NewString(),
+		UserUUID:    in.UserUUID,
+		Purpose:     MFAPurposeLogin,
+		Attempts:    0,
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(MFAChallengeTTL),
+		DeviceID:    in.DeviceID,
+		Platform:    in.Platform,
+		IPAddress:   in.IPAddress,
+		Fingerprint: in.Fingerprint,
+		SourceAMR:   in.SourceAMR,
+	}
+	payload, err := json.Marshal(ch)
+	if err != nil {
+		return nil, fmt.Errorf("marshal mfa login challenge: %w", err)
+	}
+	if err := s.store.Set(ctx, buildMFAChallengeKey(ch.ID), payload, MFAChallengeTTL); err != nil {
+		return nil, fmt.Errorf("store mfa login challenge: %w", err)
 	}
 	return ch, nil
 }

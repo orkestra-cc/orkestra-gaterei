@@ -50,6 +50,19 @@ type UserProvider interface {
 	RemoveOAuthLinkFromUser(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error
 	SetPrimaryOAuthLink(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error
 	GetUserCount(ctx context.Context, filters *userModels.UserFilters) (int64, error)
+
+	// StartMFAGraceIfUnset stamps MFAGraceStartedAt on the user if nil.
+	// Idempotent — an existing grace timestamp is preserved so repeated
+	// privileged logins during the grace window don't keep resetting the
+	// countdown.
+	StartMFAGraceIfUnset(ctx context.Context, userUUID string) error
+	// ResetMFAGrace unconditionally restarts the grace clock. Used by the
+	// admin MFA reset flow after a factor is deleted so the target must
+	// re-enroll within the full window, regardless of prior state.
+	ResetMFAGrace(ctx context.Context, userUUID string) error
+	// ClearMFAGrace removes the grace stamp — called on successful
+	// enrollment so a later privilege revoke → re-grant starts afresh.
+	ClearMFAGrace(ctx context.Context, userUUID string) error
 }
 
 // ---------------------------------------------------------------------------

@@ -70,20 +70,27 @@ Two route groups (`module.go:113-127`):
 |---|---|---|
 | GET | `/v1/authz/permissions` | List the permission catalog (system-generated) |
 
-### Per-org — `RequirePermission("authz.role.read")`
+### Per-org — read (`RequirePermission("authz.role.read")`)
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/v1/orgs/{orgId}/authz/roles` | List roles (system + custom scoped to this org) |
+| GET | `/v1/orgs/{orgId}/authz/bindings` | List role bindings in the org |
+| GET | `/v1/orgs/{orgId}/authz/me` | Return the caller's effective permissions in this org |
+
+### Per-org — mutation (`RequirePermission("authz.role.read")` + `RequireMFA()`)
+
+Block B gates every mutation path behind an MFA step-up because each can grant or revoke effective permissions. A pwd-only or oauth-only token fails with 401 `mfa_required`; the client steps up via `/v1/auth/mfa/verify` then retries.
+
+| Method | Path | Purpose |
+|---|---|---|
 | POST | `/v1/orgs/{orgId}/authz/roles` | Create a custom role |
 | PATCH | `/v1/orgs/{orgId}/authz/roles/{roleId}` | Update role — custom: name/description/permissions/isActive; system: `isActive` only |
 | DELETE | `/v1/orgs/{orgId}/authz/roles/{roleId}` | Delete custom role — cascades bindings |
-| GET | `/v1/orgs/{orgId}/authz/bindings` | List role bindings in the org |
 | POST | `/v1/orgs/{orgId}/authz/bindings` | Grant a role with optional expiration |
 | DELETE | `/v1/orgs/{orgId}/authz/bindings/{bindingId}` | Revoke a binding |
-| GET | `/v1/orgs/{orgId}/authz/me` | Return the caller's effective permissions in this org |
 
-Route registration in `handlers/handler.go::RegisterGlobalRoutes` and `::RegisterScopedRoutes`.
+Route registration in `handlers/handler.go::RegisterGlobalRoutes`, `::RegisterScopedReadRoutes`, and `::RegisterScopedMutationRoutes`.
 
 ## Service contract
 
@@ -127,6 +134,7 @@ Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEff
 - **Effective-permission cache: 60s in Redis**, keyed on `authz:cache:<userUUID>:<orgID>`. Cache is invalidated on binding create/delete and on role update/delete via `flushCache` / `cacheInvalidate`.
 - **Lazy-heal uses an in-memory spec cache.** `RegisterPermissions` stores the full `[]PermissionSpec` under the service's mutex as `cachedPermSpecs`. `ensureSeeded` reuses it to rebuild the catalog if the DB is dropped at runtime. If you touch `RegisterPermissions`, make sure the cache is still populated — otherwise the first admin who drops the DB in dev will get an empty `/admin/roles` and no automatic recovery.
 - **`CreateBinding` does not currently enforce a cascade rule.** An administrator can grant any role to any user, including another administrator. Client-side role-management UI filters the picker, but the server accepts it. Cascade enforcement ("you can only assign roles strictly below your own level") is planned but not yet implemented — see the out-of-scope note below.
+- **`CreateBinding` eagerly starts the target's MFA enrollment grace clock** when the granted role is `super_admin`, `administrator`, `org_owner`, or `org_admin`. Implemented via the `MFAGraceStarter` callback (see `Config.StartMFAGrace`) so the service stays free of a direct user-module import. The callback is idempotent — repeated grants don't reset an already-running clock. This list must stay in sync with `auth/services/mfa_policy.go::RoleRequiresMFA`; if they drift a user could be gated at login without ever having had their grace window started.
 - **Binding expiration is advisory, not TTL.** The `expiresAt` index exists, but it's not declared as a TTL index. Expired bindings are filtered out by `ListActiveBindingsForUser` but they stay in the collection. A background reaper is future work.
 - **`DeleteRole` cascades bindings.** The service calls `DeleteBindingsByRoleUUID` before the role delete so nothing is left pointing at a nonexistent role. System roles refuse to delete regardless (via the repository's `isSystem=false` filter).
 

@@ -88,16 +88,28 @@ type SecurityEvent struct {
 
 // TokenResponse represents the response containing tokens and session info
 type TokenResponse struct {
-	AccessToken    string                             `json:"accessToken"`
+	AccessToken    string                             `json:"accessToken,omitempty"`
 	RefreshToken   string                             `json:"refreshToken,omitempty"` // Not sent for mobile (stored in cookie)
-	TokenType      string                             `json:"tokenType"`
-	ExpiresIn      int64                              `json:"expiresIn"`
-	User           *userModels.UserManagementResponse `json:"user"`
+	TokenType      string                             `json:"tokenType,omitempty"`
+	ExpiresIn      int64                              `json:"expiresIn,omitempty"`
+	User           *userModels.UserManagementResponse `json:"user,omitempty"`
 	OAuthProviders []OAuthProviderInfo                `json:"oauthProviders,omitempty"`
-	SessionID      string                             `json:"sessionId"`
+	SessionID      string                             `json:"sessionId,omitempty"`
 	DeviceID       string                             `json:"deviceId,omitempty"`
-	RequiresMFA    bool                               `json:"requiresMfa,omitempty"`
-	MFAToken       string                             `json:"mfaToken,omitempty"` // Temporary token for MFA completion
+	// RequiresMFA is set when the caller presented valid primary credentials
+	// but must complete a second factor before receiving an access token.
+	// AccessToken/RefreshToken are empty in this case; clients exchange
+	// MFAToken via POST /v1/auth/mfa/login/verify.
+	RequiresMFA bool   `json:"requiresMfa,omitempty"`
+	MFAToken    string `json:"mfaToken,omitempty"`
+	// MFAEnrollmentRequired indicates a privileged user logged in without
+	// an enrolled factor. The token is issued (so they can enroll) but the
+	// client should redirect to the enrollment flow.
+	MFAEnrollmentRequired bool `json:"mfaEnrollmentRequired,omitempty"`
+	// MFAGraceExpiresAt is the deadline after which logins without a factor
+	// will fail with mfa_enrollment_required. Only set when a grace window
+	// is active.
+	MFAGraceExpiresAt *time.Time `json:"mfaGraceExpiresAt,omitempty"`
 }
 
 // SessionsResponse represents the response for listing user sessions

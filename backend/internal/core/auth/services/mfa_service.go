@@ -209,10 +209,25 @@ func (s *mfaService) Verify(ctx context.Context, userUUID, code string) error {
 	if err != nil {
 		return fmt.Errorf("decrypt totp secret: %w", err)
 	}
-	if !validateTOTP(secret, code) {
+	now := time.Now()
+	step, ok := matchTOTPStep(secret, code, now)
+	if !ok {
 		return ErrMFAInvalidCode
 	}
-	_ = s.factors.UpdateLastUsed(ctx, factor.UUID, time.Now())
+	// Replay guard: reject any step we've already consumed (including the
+	// current one on a second attempt within the 30s window). CAS via the
+	// repository ensures concurrent verifies can't both win.
+	if factor.LastUsedStep > 0 && step <= factor.LastUsedStep {
+		return ErrMFAInvalidCode
+	}
+	advanced, err := s.factors.AdvanceLastUsedStep(ctx, factor.UUID, step, now)
+	if err != nil {
+		return fmt.Errorf("advance totp step: %w", err)
+	}
+	if !advanced {
+		// Another verify won the race — the code is already spent.
+		return ErrMFAInvalidCode
+	}
 	return nil
 }
 
@@ -289,8 +304,8 @@ func (s *mfaService) Status(ctx context.Context, userUUID string) (*MFAStatusSna
 }
 
 // validateTOTP accepts the current step ± 1 to absorb 30s of clock skew each
-// side — a commonly recommended window. Caller is responsible for rate
-// limiting and replay prevention (the latter arrives with Block B).
+// side. Kept for the enrollment-confirm path which has no factor row yet
+// (nothing to advance). Login/step-up use matchTOTPStep for replay guard.
 func validateTOTP(secret, code string) bool {
 	valid, err := totp.ValidateCustom(code, secret, time.Now(), totp.ValidateOpts{
 		Period:    30,
@@ -302,6 +317,53 @@ func validateTOTP(secret, code string) bool {
 		return false
 	}
 	return valid
+}
+
+// matchTOTPStep returns the step index (unix / period) whose generated code
+// matches the supplied value within the ±1 skew window. Callers use the
+// returned step to advance LastUsedStep and prevent replay. ok=false means
+// no match in the window.
+func matchTOTPStep(secret, code string, now time.Time) (int64, bool) {
+	const period = 30
+	current := now.Unix() / period
+	for _, offset := range [...]int64{0, -1, 1} {
+		step := current + offset
+		stepTime := time.Unix(step*period, 0)
+		candidate, err := totp.GenerateCodeCustom(secret, stepTime, totp.ValidateOpts{
+			Period:    period,
+			Skew:      0,
+			Digits:    otp.DigitsSix,
+			Algorithm: otp.AlgorithmSHA1,
+		})
+		if err != nil {
+			continue
+		}
+		if subtleConstantTimeEq(candidate, code) {
+			return step, true
+		}
+	}
+	return 0, false
+}
+
+// subtleConstantTimeEq is a length-safe constant-time compare used by the
+// TOTP matcher. stdlib's subtle.ConstantTimeCompare requires equal length;
+// we want a consistent "not equal" without short-circuiting on length.
+func subtleConstantTimeEq(a, b string) bool {
+	if len(a) != len(b) {
+		// Still run a comparison so the branch doesn't leak length info
+		// beyond what the code-length convention already reveals.
+		var x byte
+		for i := 0; i < len(a); i++ {
+			x |= a[i] ^ a[i]
+		}
+		_ = x
+		return false
+	}
+	var diff byte
+	for i := 0; i < len(a); i++ {
+		diff |= a[i] ^ b[i]
+	}
+	return diff == 0
 }
 
 // generateBackupCodes returns (plaintext, hashed) pairs. Plaintext is shown
