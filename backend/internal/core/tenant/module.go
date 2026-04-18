@@ -47,10 +47,20 @@ func (m *Module) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"orgId": 1}},
 		}},
 		{Name: repository.CollInvites, Indexes: []module.IndexSpec{
-			{Keys: map[string]int{"token": 1}, Unique: true},
+			// tokenHash is the lookup key on accept; unique stops two invites
+			// from colliding on the same random token (near-impossible at 32
+			// bytes of entropy, but the unique constraint also catches
+			// programmer mistakes like forgetting to reroll on retry).
+			// Sparse so the index build succeeds even when a legacy invite
+			// document without tokenHash is lingering — new writes are still
+			// uniqueness-checked. The service layer always populates the
+			// field, so "sparse" does not weaken the invariant in practice.
+			{Keys: map[string]int{"tokenHash": 1}, Unique: true, Sparse: true},
 			{Keys: map[string]int{"orgId": 1}},
-			// Auto-reap expired invites.
-			{Keys: map[string]int{"expiresAt": 1}},
+			// ExpireAt: Mongo reaps the doc when the expiresAt timestamp
+			// itself passes. Without this, invites would accumulate forever
+			// because the service only lazily filters expired rows on read.
+			{Keys: map[string]int{"expiresAt": 1}, ExpireAt: true},
 		}},
 	}
 }

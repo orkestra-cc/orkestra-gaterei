@@ -141,8 +141,12 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	oauthResolver := services.NewOAuthConfigResolver(deps.ConfigService)
 
 	// JWT service. The tenant provider is wired in so that token issuance
-	// can embed the user's current memberships in the JWT.
-	jwtService := services.NewJWTService(cfg.Auth.JWT.PrivateKey, cfg.Auth.JWT.PublicKey)
+	// can embed the user's current memberships in the JWT. The environment
+	// is stamped into the iss claim (orkestra.<env>) so a token minted in
+	// one deployment is rejected by another even if the signing keys ever
+	// overlap. Keys themselves should differ per environment — this claim
+	// is defense in depth.
+	jwtService := services.NewJWTService(cfg.Auth.JWT.PrivateKey, cfg.Auth.JWT.PublicKey, cfg.Server.Environment)
 	tenantProvider := module.MustGetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	jwtService.SetTenantProvider(tenantProvider)
 
@@ -154,6 +158,16 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	userService := module.MustGetTyped[iface.UserProvider](deps.Services, module.ServiceUserService)
 
 	// Auth service
+	// First-admin claimer is shared between OAuth and password signup. The
+	// lookup is lifted here from its earlier spot in the password section
+	// so both services see the same instance.
+	var firstAdminClaimer services.FirstAdminClaimer
+	if c, ok := module.GetTyped[services.FirstAdminClaimer](deps.Services, module.ServiceFirstAdminClaimer); ok {
+		firstAdminClaimer = c
+	} else {
+		logger.Warn("first-admin claimer not wired — signup flows will fall through to non-atomic first-user heuristic")
+	}
+
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:          authRepo,
 		UserService:       userService,
@@ -161,6 +175,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		RefreshTokenRepo:  refreshTokenRepo,
 		AuthSessionRepo:   authSessionRepo,
 		JWTService:        jwtService,
+		FirstAdminClaimer: firstAdminClaimer,
 	})
 	if err != nil {
 		return err
@@ -185,6 +200,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	}
 
 	rateLimiter := sharederrors.NewRateLimiter()
+
 	passwordAuthSvc := services.NewPasswordAuthService(services.PasswordAuthConfig{
 		UserService:              userService,
 		PasswordService:          passwordSvc,
@@ -192,6 +208,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		EmailTokenRepo:           emailTokenRepo,
 		RefreshTokenRepo:         refreshTokenRepo,
 		AuthSessionRepo:          authSessionRepo,
+		FirstAdminClaimer:        firstAdminClaimer,
 		Notifier:                 notifier,
 		RateLimiter:              rateLimiter,
 		FrontendURL:              cfg.Server.FrontendURL,

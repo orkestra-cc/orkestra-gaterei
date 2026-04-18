@@ -58,7 +58,8 @@ type IndexSpec struct {
 	OrderedKeys []IndexKey     `json:"orderedKeys,omitempty"` // compound indexes with deterministic order
 	Unique      bool           `json:"unique,omitempty"`
 	Sparse      bool           `json:"sparse,omitempty"`
-	TTL         time.Duration  `json:"ttl,omitempty"`         // 0 = no TTL
+	TTL         time.Duration  `json:"ttl,omitempty"`         // reap docs TTL after the indexed timestamp; 0 = no TTL
+	ExpireAt    bool           `json:"expireAt,omitempty"`    // reap docs *at* the indexed timestamp (expireAfterSeconds=0). Mutually exclusive with TTL; use for absolute-expiry fields like `expiresAt`.
 	Text        bool           `json:"text,omitempty"`        // text index (overrides Keys)
 }
 

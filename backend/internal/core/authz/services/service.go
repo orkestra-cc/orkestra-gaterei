@@ -45,10 +45,11 @@ var ErrRoleInactive = errors.New("authz: role is disabled")
 // Results are cached in Redis for 60 seconds per (userUUID, orgID) key and
 // invalidated when bindings or roles change.
 type Service struct {
-	repo      *repository.Repository
-	redis     *database.RedisClientAdapter
-	logger    *slog.Logger
-	userRoles UserSystemRoleLookup
+	repo       *repository.Repository
+	redis      *database.RedisClientAdapter
+	logger     *slog.Logger
+	userRoles  UserSystemRoleLookup
+	production bool // when true, developer role is restricted to read-only
 
 	mu                  sync.RWMutex
 	systemPermissionSet map[string]struct{}     // keys declared with System=true
@@ -65,6 +66,12 @@ type Config struct {
 	Redis      *database.RedisClientAdapter
 	Logger     *slog.Logger
 	LookupUser UserSystemRoleLookup
+	// Production gates sensitive role seeding decisions. When true, the
+	// `developer` system role is seeded with a read-only permission set
+	// (decision D9 in the Org-scoped RBAC plan). In dev and staging it
+	// gets the full administrator-equivalent set so engineers can
+	// actually debug things.
+	Production bool
 }
 
 func New(cfg Config) *Service {
@@ -73,6 +80,7 @@ func New(cfg Config) *Service {
 		redis:               cfg.Redis,
 		logger:              cfg.Logger,
 		userRoles:           cfg.LookupUser,
+		production:          cfg.Production,
 		systemPermissionSet: make(map[string]struct{}),
 		allPermissionSet:    make(map[string]struct{}),
 	}
@@ -113,16 +121,32 @@ func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, orgID s
 	perms := make(map[string]struct{})
 
 	// System role shortcuts. super_admin gets the wildcard; administrator
-	// and developer both inherit every system-level permission so they can
-	// hit platform admin endpoints without needing explicit org bindings.
-	// The finer distinction between administrator and developer is enforced
-	// by the role-assignment cascade (future work), not by the permission set.
+	// inherits every system-level permission. developer is environment-gated:
+	// dev/staging also inherits every system-level permission; production
+	// restricts it to read-level system perms (D9 of the Org-scoped RBAC
+	// plan) so a leaked developer token cannot mutate prod data or write
+	// secrets. The shortcut must mirror the seeded-role permission set —
+	// otherwise a production developer could skip the seeded list via the
+	// shortcut and regain full access.
 	switch systemRole {
 	case "super_admin":
 		perms["*"] = struct{}{}
-	case "administrator", "developer":
+	case "administrator":
 		s.mu.RLock()
 		for k := range s.systemPermissionSet {
+			perms[k] = struct{}{}
+		}
+		s.mu.RUnlock()
+	case "developer":
+		s.mu.RLock()
+		for k := range s.systemPermissionSet {
+			if s.production {
+				if !strings.HasSuffix(k, ".read") &&
+					!strings.HasSuffix(k, ".view") &&
+					!strings.HasSuffix(k, ".self") {
+					continue
+				}
+			}
 			perms[k] = struct{}{}
 		}
 		s.mu.RUnlock()
@@ -240,10 +264,28 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 		return strings.HasSuffix(p, ".read")
 	})
 
+	// Developer role is environment-gated (D9 of the Org-scoped RBAC plan):
+	// in dev/staging it mirrors administrator so engineers can touch
+	// anything while debugging; in production it collapses to read-only
+	// (plus .view and .self) so a leaked or misused developer token can't
+	// mutate data or exfil secrets. The env flag is captured at service
+	// construction — changes require a reboot (or a manual reseed by a
+	// super_admin wiping authz_roles and letting the lazy-heal kick in).
+	developerPermissions := allKeys
+	developerDescription := "Technical power user — all permissions. Cannot manage administrator or super_admin accounts."
+	if s.production {
+		developerPermissions = filter(allKeys, func(p string) bool {
+			return strings.HasSuffix(p, ".read") ||
+				strings.HasSuffix(p, ".view") ||
+				strings.HasSuffix(p, ".self")
+		})
+		developerDescription = "Technical power user — PRODUCTION: read-only access (read/view/self suffixes only). Full access restored automatically in dev/staging."
+	}
+
 	roles := []models.Role{
 		{UUID: uuid.NewString(), Name: "super_admin", Description: "Full power — wildcard permission, can assign every role.", Permissions: []string{"*"}, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "administrator", Description: "Organization administrator — all permissions. Cannot elevate peers to administrator or super_admin.", Permissions: allKeys, IsSystem: true, IsActive: true},
-		{UUID: uuid.NewString(), Name: "developer", Description: "Technical power user — all permissions. Cannot manage administrator or super_admin accounts.", Permissions: allKeys, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "developer", Description: developerDescription, Permissions: developerPermissions, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "manager", Description: "Read/write, no admin, no delete.", Permissions: manager, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "operator", Description: "Read-only + self-service.", Permissions: operator, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "guest", Description: "Read-only access.", Permissions: guest, IsSystem: true, IsActive: true},

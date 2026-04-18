@@ -61,18 +61,27 @@ type Membership struct {
 }
 
 // Invite is a pending invitation for a user to join an org. Tokens are
-// single-use and expire automatically via a TTL index on expiresAt.
+// single-use, expire automatically via a TTL index on ExpiresAt, and are
+// stored as SHA-256 hashes rather than in plaintext — an attacker with DB
+// read access cannot replay a pending invite.
 //
-// The raw Token is serialized with `omitempty` so it appears on the create
-// response (where the service populates it) but is scrubbed from list
-// responses by the service zeroing the field before return.
+// Token is a transient field (bson:"-"): the service populates it with the
+// raw token exactly once on CreateInvite and returns it to the caller in the
+// create response. It is never persisted to MongoDB. TokenHash is the
+// SHA-256 hex digest of the raw token and is the field queried on accept.
+//
+// The raw Token is only useful to the invitee; if the create response is
+// dropped or lost, the admin must revoke and re-issue rather than retrieve.
+// This mirrors the established pattern in the auth module for verification
+// and password-reset tokens (see password_auth_service.go::generateEmailToken).
 type Invite struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 	UUID       string             `bson:"uuid" json:"id"`
 	OrgUUID    string             `bson:"orgId" json:"orgId"`
 	Email      string             `bson:"email" json:"email"`
 	Roles      []string           `bson:"roles" json:"roles"`
-	Token      string             `bson:"token" json:"token,omitempty"`
+	Token      string             `bson:"-" json:"token,omitempty"`
+	TokenHash  string             `bson:"tokenHash" json:"-"`
 	InvitedBy  string             `bson:"invitedBy" json:"invitedBy"`
 	CreatedAt  time.Time          `bson:"createdAt" json:"createdAt"`
 	ExpiresAt  time.Time          `bson:"expiresAt" json:"expiresAt"`

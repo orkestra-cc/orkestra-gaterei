@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base32"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -209,13 +211,23 @@ func (s *Service) SetMemberRoles(ctx context.Context, orgUUID, userUUID string, 
 
 // --- Invites ---
 
+// CreateInvite generates a single-use invite token, persists only its hash,
+// and returns the raw token exactly once on the struct's transient Token
+// field. Callers must relay the raw token to the invitee (over email or a
+// copy-paste UI) immediately; after this function returns there is no way to
+// recover it — the database only has the hash.
 func (s *Service) CreateInvite(ctx context.Context, orgUUID, invitedBy string, input models.InviteInput) (*models.Invite, error) {
+	raw, hash, err := generateInviteToken()
+	if err != nil {
+		return nil, fmt.Errorf("tenant: generate invite token: %w", err)
+	}
 	inv := &models.Invite{
 		UUID:      uuid.Must(uuid.NewV7()).String(),
 		OrgUUID:   orgUUID,
 		Email:     strings.ToLower(strings.TrimSpace(input.Email)),
 		Roles:     input.Roles,
-		Token:     randomToken(32),
+		Token:     raw, // transient: returned to caller, not persisted
+		TokenHash: hash,
 		InvitedBy: invitedBy,
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
@@ -246,7 +258,9 @@ func (s *Service) RevokeInvite(ctx context.Context, orgUUID, inviteUUID string) 
 }
 
 func (s *Service) AcceptInvite(ctx context.Context, userUUID, token string) (*models.Org, error) {
-	inv, err := s.repo.GetInviteByToken(ctx, token)
+	// Look up by hash, not plaintext — the plaintext only exists in the
+	// invitee's email/UI, never in the database.
+	inv, err := s.repo.GetInviteByTokenHash(ctx, hashInviteToken(token))
 	if err != nil {
 		return nil, err
 	}
@@ -308,8 +322,20 @@ func slugify(s string) string {
 	return strings.TrimRight(b.String(), "-")
 }
 
-func randomToken(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return strings.TrimRight(base32.StdEncoding.EncodeToString(b), "=")
+// generateInviteToken mirrors auth/services/password_auth_service.go's
+// generateEmailToken: 32 random bytes → base64url → SHA-256 hex digest.
+// The raw token is returned to the caller once; only the hash is stored.
+func generateInviteToken() (raw, hash string, err error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", "", err
+	}
+	raw = base64.RawURLEncoding.EncodeToString(buf)
+	hash = hashInviteToken(raw)
+	return raw, hash, nil
+}
+
+func hashInviteToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }

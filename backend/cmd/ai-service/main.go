@@ -108,8 +108,10 @@ func main() {
 		log.Fatalf("Failed to initialize AI modules: %v", err)
 	}
 
-	// JWT validator — public key only, no auth module needed
-	jwtValidator, err := middleware.NewJWTValidator(cfg.Auth.JWT.PublicKeyPath)
+	// JWT validator — public key only, no auth module needed. Env stamp
+	// matches what the monolith mints (orkestra.<env>); cross-env tokens
+	// are rejected.
+	jwtValidator, err := middleware.NewJWTValidator(cfg.Auth.JWT.PublicKeyPath, cfg.Server.Environment)
 	if err != nil {
 		log.Fatalf("Failed to create JWT validator: %v", err)
 	}

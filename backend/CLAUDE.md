@@ -55,16 +55,21 @@ backend/
 │   │   ├── subscriptions/          # Recurring services catalog, clients, subscriptions
 │   │   ├── payments/               # Stripe gateway, refunds, webhooks
 │   │   └── dev/                    # Dev token generator
-│   └── shared/                     # Infrastructure — used by core and addons
-│       ├── module/                 # Module interface, registry, config service
-│       ├── iface/                  # Cross-module interfaces
-│       ├── config/                 # App configuration
-│       ├── database/               # MongoDB, Redis, Graph connections
-│       ├── middleware/             # Auth, JWT validator, rate limiting
-│       ├── remote/                 # Remote service clients (HTTP)
-│       ├── setup/                  # First-install wizard endpoints (/v1/setup/*)
-│       ├── errors/                 # Error management
-│       └── utils/                  # Utilities
+│   ├── shared/                     # Infrastructure — used by core and addons
+│   │   ├── module/                 # Module interface, registry, config service
+│   │   ├── iface/                  # Cross-module interfaces
+│   │   ├── config/                 # App configuration
+│   │   ├── database/               # MongoDB, Redis, Graph connections
+│   │   ├── middleware/             # Auth, JWT validator, rate limiting
+│   │   ├── remote/                 # Remote service clients (HTTP)
+│   │   ├── setup/                  # First-install wizard endpoints (/v1/setup/*)
+│   │   ├── systeminit/             # Atomic first-admin sentinel (system_init collection)
+│   │   ├── tenantrepo/             # orgId scope helpers (every addon repo must use these)
+│   │   ├── errors/                 # Error management
+│   │   └── utils/                  # Utilities
+│   └── testkit/                    # Test helpers for auth identity + context
+├── tools/
+│   └── tenantscope/                # Static analyzer: enforces tenantrepo use in addons (CI gate)
 ├── Dockerfile                      # Multi-stage: dev (AIR) / production — Chainguard hardened base
 ├── Dockerfile.minimal              # Public-image build (golang:1.25-alpine → alpine:3.20) used by the minimal compose profile
 ├── Dockerfile.ai-service           # AI service build

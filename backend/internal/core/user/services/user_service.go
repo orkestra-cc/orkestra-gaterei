@@ -835,6 +835,11 @@ func (s *userService) CreateUserWithPassword(ctx context.Context, input *models.
 	}
 
 	user := models.NewUser()
+	if input.UUID != "" {
+		// Caller pre-minted the UUID (e.g. the auth module claimed the
+		// system_init sentinel with this value before calling us).
+		user.UUID = input.UUID
+	}
 	user.Email = input.Email
 	user.Username = input.Username
 	user.FullName = input.FullName

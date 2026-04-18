@@ -25,6 +25,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/remote"
 	"github.com/orkestra/backend/internal/shared/setup"
+	"github.com/orkestra/backend/internal/shared/systeminit"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -74,8 +75,17 @@ func main() {
 	configRepo := module.NewModuleConfigRepository(db)
 	configService := module.NewModuleConfigService(configRepo, redisAdapter, logger)
 
+	// Platform bootstrap sentinel: makes "first user becomes super_admin"
+	// atomic instead of TOCTOU-racy. Constructed before the module registry
+	// so the auth module's Init can pull it from the service registry.
+	firstAdminClaimer, err := systeminit.NewRepo(ctx, db)
+	if err != nil {
+		log.Fatalf("Failed to initialize system-init repository: %v", err)
+	}
+
 	// Initialize module registry
 	svcRegistry := module.NewServiceRegistry()
+	svcRegistry.Register(module.ServiceFirstAdminClaimer, firstAdminClaimer)
 	modRegistry := module.NewModuleRegistry(logger)
 	modRegistry.SetConfigService(configService)
 	modRegistry.SetContainerManager(container.NewManager(logger))

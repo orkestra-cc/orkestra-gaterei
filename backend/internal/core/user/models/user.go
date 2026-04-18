@@ -110,6 +110,12 @@ type User struct {
 
 // CreateUserInput represents input for creating a new user
 type CreateUserInput struct {
+	// UUID lets the caller pre-mint the user's UUID so the systeminit
+	// first-admin sentinel can be claimed with the same UUID that will
+	// end up on the user document. Leave empty for the service to mint a
+	// UUIDv7. Never exposed over the JSON API surface — external callers
+	// do not get to pick UUIDs.
+	UUID             string                 `json:"-"`
 	Email            string                 `json:"email" validate:"required,email"`
 	Username         string                 `json:"username" validate:"omitempty,min=3,max=50"`
 	FullName         string                 `json:"fullName" validate:"required,min=1,max=100"`

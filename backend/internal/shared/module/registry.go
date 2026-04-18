@@ -770,6 +770,11 @@ func buildIndexModels(specs []IndexSpec) []mongo.IndexModel {
 		}
 		if spec.TTL > 0 {
 			opts.SetExpireAfterSeconds(int32(spec.TTL.Seconds()))
+		} else if spec.ExpireAt {
+			// ExpireAfterSeconds=0 on a date-typed field means "reap the doc
+			// when the field's timestamp passes". Used for absolute-expiry
+			// indexes like tenant_org_invites.expiresAt.
+			opts.SetExpireAfterSeconds(0)
 		}
 
 		models = append(models, mongo.IndexModel{Keys: keys, Options: opts})

@@ -154,6 +154,44 @@ Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEff
 - **TTL on `authz_bindings.expiresAt`** — flip the plain index to a TTL index so expired contractor grants auto-reap.
 - **Audit trail for role CRUD and binding CRUD** — part of future SOC2 work.
 
+## Org-scoping invariants (system-wide)
+
+These invariants apply across **every** module, not just authz. They are the enforceable contract the org-scoped RBAC plan ([memory](../../../../../home/tore/.claude/projects/-mnt-c-Users-tore-orkestra/memory/project_org_rbac_plan.md) / PR description) delivers. Where an invariant is not yet enforced, it's marked **planned**; implementation phase is noted.
+
+| # | Invariant | Enforcement today | Full enforcement |
+|---|---|---|---|
+| 1 | Every non-global data read/write carries `ctxOrgID` | `tenantrepo.Scope()` helper exists; panics in dev when missing | **planned (Phase 0)**: CI linter `tools/tenantscope` flags raw `collection.Find/UpdateOne/...` in `internal/addons/**` when filter doesn't come from `tenantrepo.Scope*`. **Phase 4**: every addon repo migrated to use it. |
+| 2 | `X-Org-ID` must match a membership carried in the JWT | ✅ `shared/middleware/auth.go::resolveCurrentOrg` | Keep. |
+| 3 | System roles (`super_admin`/`administrator`/`developer`/`manager`/`operator`/`guest`) are **platform-level**; org roles (`org_owner`/`org_admin`/`org_member`/`org_viewer`/`org_billing`) are **tenant-level**. Never mix. | Partial — system roles exist (`User.Role`); org role catalog not yet seeded | **planned (Phase 2)**: seed 5 default org roles on org creation; cannot grant system roles via org bindings. |
+| 4 | Permission checks always run in a resolved org context unless the route uses `RequireGlobal()` or `RequireSystemPermission()` | ✅ middleware chain | Keep. |
+| 5 | A user cannot grant a role whose permissions they themselves lack | ❌ — administrator can grant any role to anyone | **planned (Phase 2)**: cascade rule inside `CreateBinding`. Bindings with permissions beyond caller's effective set return 403. |
+| 6 | Org owner is immutable without a transfer flow (`ownerUserUUID` cannot be directly reassigned) | ❌ — no transfer flow today | **planned (Phase 2)**: two-step `POST /v1/orgs/{id}/transfer-ownership` (initiate → accept); both parties emailed; audit logged. |
+| 7 | All secrets AES-256-GCM encrypted at rest | ✅ `shared/module/config_service.go` | Keep. Phase 5 extends to per-org secrets via `(module, env, orgId)` key. |
+| 8 | All mutations audited to an append-only, tamper-evident log | ❌ — only session events logged in `auth_sessions.securityEvents` | **planned (Phase 3)**: `audit_events` collection (hash-chained, insert-only role) → Loki (90d observability) → S3 Object Lock EU (7y WORM) dual-sink. SOC2 requirement. |
+| 9 | Every side effect references both actor (userUUID) and principal (orgID), including background jobs | ❌ — jobs today carry no identity context | **planned (Phase 3)**: audit middleware populates both; background jobs run under a synthetic "system" actor with logged justification. |
+
+Violating one of these is a security bug. When reviewing a PR that touches any `addons/**` module, walk the 9 invariants as a checklist.
+
+## Permission naming convention
+
+Target form: `<module>.<resource>.<action>[.<scope>]`
+
+- **Actions**: `read`, `create`, `update`, `delete`, `admin` — plus a small set of domain-verbs where the operation is specific enough that the generic action would mislead: `send` (billing), `refund` (payments), `ingest` (rag), `query` (rag/agents/graph), `generate` (documents), `enrich` (company), `run` (sales), `test` (notification).
+- **Scopes** (optional suffix): `self` (actor's own row), `own` (rows where `createdBy == actor`). Unscoped = every row the role reaches within the resolved org.
+
+Current catalog status (snapshot as of this doc update — the live catalog is in each module's `Permissions()` method):
+
+| Form | Count | Examples | Status |
+|---|---|---|---|
+| `<mod>.<resource>.<action>` | ~30 | `billing.invoice.read`, `tenant.org.update` | ✅ compliant |
+| `<mod>.<action>` (no resource, action is the full capability) | ~10 | `rag.query`, `agents.admin`, `auth.self` | ✅ acceptable where the module has one main resource |
+| `system.<resource>.admin` | 3 | `system.modules.admin`, `system.users.admin`, `system.tenants.admin` | ✅ platform-level reserved prefix |
+| `<mod>.<resource>.view` | 13 | `subscriptions.client.view`, `payments.transaction.view` | ⚠️ **rename to `read`** in Phase 4 along with collection migration (avoid touching `authz_permissions` twice) |
+| `<mod>.<resource>.manage` | 8 | `billing.customer.manage`, `documents.template.manage` | ⚠️ semantically "create+update+delete" — leave as-is for v1; split into `.update` + `.delete` only when `.own` scope introduces asymmetry |
+| `<mod>.<resource>.<action>.own` | 0 | — | planned (Phase 4) for per-module self-service (`billing.invoice.read.own`) |
+
+**When adding a new permission:** declare it in the owning module's `Permissions()` only. Never write directly to `authz_permissions`. Include `System: true` only for platform-level operations that system roles inherit without a binding.
+
 ## Related
 
 - [`../user/CLAUDE.md`](../user/CLAUDE.md) — provides the system role lookup

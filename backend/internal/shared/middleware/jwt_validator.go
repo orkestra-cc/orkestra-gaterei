@@ -24,13 +24,18 @@ import (
 // It satisfies module.RoleMiddleware so it can be dropped in wherever the
 // main monolith uses AuthMiddleware.
 type JWTValidator struct {
-	publicKey *rsa.PublicKey
-	tenant    iface.TenantProvider
-	authz     iface.AuthzProvider
+	publicKey      *rsa.PublicKey
+	expectedIssuer string
+	tenant         iface.TenantProvider
+	authz          iface.AuthzProvider
 }
 
 // NewJWTValidator creates a JWTValidator from a PEM-encoded RSA public key file.
-func NewJWTValidator(publicKeyPath string) (*JWTValidator, error) {
+// env is the deployment environment (e.g. "production"); validation rejects
+// tokens whose iss claim doesn't match `orkestra.<env>`. This matches the
+// stamp applied by auth/services.NewJWTService so the monolith and sidecar
+// agree on which environment's tokens they accept.
+func NewJWTValidator(publicKeyPath, env string) (*JWTValidator, error) {
 	keyData, err := os.ReadFile(publicKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("jwt_validator: read public key %s: %w", publicKeyPath, err)
@@ -51,7 +56,14 @@ func NewJWTValidator(publicKeyPath string) (*JWTValidator, error) {
 		return nil, fmt.Errorf("jwt_validator: key is not RSA")
 	}
 
-	return &JWTValidator{publicKey: rsaPub}, nil
+	if env == "" {
+		env = "development"
+	}
+
+	return &JWTValidator{
+		publicKey:      rsaPub,
+		expectedIssuer: "orkestra." + env,
+	}, nil
 }
 
 // SetTenantProvider wires the tenant provider for entitlement checks.
@@ -89,6 +101,15 @@ func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 
 		if getStr(mapClaims, "type") == "refresh" {
 			writeErr(w, http.StatusUnauthorized, "refresh tokens not accepted")
+			return
+		}
+
+		if iss := getStr(mapClaims, "iss"); iss != v.expectedIssuer {
+			// Cross-environment replay guard: a token minted in staging must
+			// not validate in production even if the signing key somehow
+			// overlaps (test deploy, leaked key, misconfig). Matching the
+			// monolith's check in jwt_service.validateTokenEnhanced.
+			writeErr(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
 

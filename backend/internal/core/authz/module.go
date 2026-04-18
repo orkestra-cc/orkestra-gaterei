@@ -122,6 +122,11 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		Redis:      deps.RedisAdapter,
 		Logger:     deps.Logger,
 		LookupUser: lookup,
+		// Production flag restricts the developer system role to read-only
+		// semantics (D9): dev/staging developers debug freely; prod
+		// developers cannot mutate data or read secrets even if their
+		// token is valid. Mirrors the role-seed output in SeedSystemRoles.
+		Production: deps.Config.IsProduction(),
 	})
 	m.handler = handlers.New(m.svc)
 

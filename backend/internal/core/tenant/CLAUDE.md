@@ -29,7 +29,7 @@ Declared in `module.go:35-55`.
 |---|---|---|
 | `tenant_orgs` | `uuid` unique, `slug` unique sparse, `ownerUserUUID` | — |
 | `tenant_memberships` | compound `(userUUID, orgId)` unique, `orgId` | — |
-| `tenant_org_invites` | `token` unique, `orgId`, `expiresAt` | `expiresAt` index (Mongo will reap when you add a TTL; today it's a plain index — see Rules) |
+| `tenant_org_invites` | `tokenHash` unique, `orgId`, `expiresAt` TTL(ExpireAt) | `expiresAt` is a TTL index with `expireAfterSeconds=0` so Mongo reaps the doc the moment the timestamp passes. |
 
 Collection name constants live in `repository/repository.go` as `CollOrgs`, `CollMemberships`, `CollInvites`.
 
@@ -144,7 +144,7 @@ Typical consumers:
 - **Owner is auto-enrolled as administrator** on org creation (`services/service.go:115-122`) — the first membership is inserted with `Roles: ["administrator"]` and `IsOwner: true`. The `administrator` string must match an authz role name.
 - **Slug uniqueness + auto-generation**. Unique sparse index on `slug`. `CreateOrg` falls back to `slugify(input.Name)` when no slug is provided (`services/service.go:88-94`); the slugifier is in `services/service.go:238-255`.
 - **Soft delete only.** `DeleteOrg` sets a `deletedAt` timestamp. Every read query filters these out at the Mongo layer unless `includeDeleted` is explicitly requested (admin list only). The plain `DeleteOrg` has no owner-check today — the platform-admin path reuses it directly.
-- **Invite tokens are plaintext random base32, not hashed.** `randomToken(32)` writes a plaintext token to `tenant_org_invites.token` and returns it on the create response (`models/org.go::Invite.Token` uses `json:"token,omitempty"`). List endpoints (`ListInvites`, admin or not) zero the field in the service layer before returning, so `omitempty` drops it on the wire. Hashing on write + compare on accept is a **planned** improvement — the current rule "never store plaintext" in the Rules section is aspirational, not how the code behaves today. Expired invites stay in the collection (no TTL) until explicitly reaped.
+- **Invite tokens are stored as SHA-256 hashes, never plaintext.** `generateInviteToken` (services/service.go) produces 32 bytes of randomness → base64url → SHA-256 hex. The raw token is populated on `models.Invite.Token` (a `bson:"-"` transient field) and returned once on the create response; the database only holds `tokenHash`. `AcceptInvite` hashes the supplied token and looks up by `tokenHash`. This mirrors the email-token pattern in the auth module. Expired invites are auto-reaped by the `expiresAt` TTL index (`expireAfterSeconds=0`).
 - **`Membership.Roles` is a denormalization.** It's an array of authz role names. When authz bindings change, the tenant service is **not automatically kept in sync** — there's no event hook yet. If you see a divergence between authz bindings and the tenant membership's `Roles`, the authz bindings are the source of truth.
 - **`HasEntitlement` treats `"*"` as "yes"** (`models/org.go::HasFeature`). This is how enterprise plans bypass the per-feature gate.
 
@@ -159,15 +159,23 @@ Typical consumers:
 ## Rules
 
 - **Platform-admin delete bypasses ownership.** The `/v1/admin/orgs/{orgId}` DELETE route is gated by `system.tenants.admin` (system roles only). The plain per-org DELETE route at `/v1/orgs/{orgId}` has no owner check today; adding one is pending the "transfer ownership" flow.
-- **Never store a plaintext invite token.** Planned — today the code does store plaintext. When you hash, do it in `services.CreateInvite` (write side) and `services.AcceptInvite` (compare side), and keep the raw token on the `models.Invite` struct as an unstored field so the create response can still carry it.
+- **Never store a plaintext invite token.** Enforced: `models.Invite.Token` is `bson:"-"`; only `TokenHash` is persisted. If you add a second invite-like flow (e.g. a public "share link"), use the same pattern and never add a plaintext field to the document.
 - **When you add a new feature flag**, update `defaultFeaturesForPlan` in `services/service.go:227-236` and document the string in a Plans/Features section above. Frontend code reads these strings.
 - **If you add a new permission**, put it in `module.go::Permissions()` and gate the relevant handler in `module.go::RegisterRoutes` — don't scatter `RequirePermission` calls across the handlers package, keep them at the route-group boundary.
 - **Do not keep `Membership.Roles` in sync with authz bindings by hand.** Long term this denormalization needs an event-based sync; until then, treat `Membership.Roles` as a hint the JWT can read quickly, and `authz.GetEffectivePermissions` as the source of truth.
 
+## Org-scoping invariants
+
+The system-wide invariants that govern tenant isolation live in [`../authz/CLAUDE.md`](../authz/CLAUDE.md#org-scoping-invariants-system-wide). Three of them are directly owned by this module:
+
+- **Invariant #1** — every addon `collection.Find/Update/Delete/Aggregate` must derive its filter from `shared/tenantrepo.Scope*`. Enforced at dev time by panic in the helper; CI-enforced in Phase 0 by the `tools/tenantscope` analyzer.
+- **Invariant #2** — `X-Org-ID` header must match a membership in the JWT. Already enforced in `shared/middleware/auth.go::resolveCurrentOrg`.
+- **Invariant #6** — `tenant_orgs.ownerUserUUID` is immutable without a two-step owner-transfer flow. **Not yet enforced** — Phase 2 work. Until then, platform admins changing `ownerUserUUID` directly is a known gap.
+
 ## Related
 
 - [`../user/CLAUDE.md`](../user/CLAUDE.md) — hard dep; user accounts must exist before memberships
-- [`../authz/CLAUDE.md`](../authz/CLAUDE.md) — provides the role-name vocabulary this module stores in `Membership.Roles`
+- [`../authz/CLAUDE.md`](../authz/CLAUDE.md) — provides the role-name vocabulary this module stores in `Membership.Roles`; owns the **Org-scoping invariants** table
 - [`../auth/CLAUDE.md`](../auth/CLAUDE.md) — embeds memberships in JWT claims via `TenantProvider.ListUserMemberships`
 - [`../../shared/iface/interfaces.go:175-196`](../../shared/iface/interfaces.go) — `TenantProvider` interface definition
 - [`../../shared/tenantrepo/`](../../shared/tenantrepo) — helpers for other modules that need to scope queries by org

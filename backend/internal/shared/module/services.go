@@ -31,6 +31,12 @@ const (
 	ServiceTenantProvider ServiceKey = "tenant.provider"
 	ServiceAuthzProvider  ServiceKey = "authz.provider"
 
+	// ServiceFirstAdminClaimer gates the platform's one-time super_admin seat.
+	// Registered by main.go wiring; consumed by password auth + setup wizard
+	// to race-proof their first-user heuristic. Value: *systeminit.Repo
+	// (structurally an auth/services.FirstAdminClaimer).
+	ServiceFirstAdminClaimer ServiceKey = "system.first_admin_claimer"
+
 	ServicePaymentProvider        ServiceKey = "payments.provider"
 	ServiceSubscriptionReconciler ServiceKey = "subscriptions.reconciler"
 	ServiceClientOwnership        ServiceKey = "subscriptions.client_ownership"

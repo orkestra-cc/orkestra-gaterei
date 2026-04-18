@@ -75,6 +75,7 @@ type AuthConfig struct {
 	RefreshTokenRepo  repository.RefreshTokenRepository
 	AuthSessionRepo   repository.AuthSessionRepository
 	JWTService        JWTService
+	FirstAdminClaimer FirstAdminClaimer // race-proofs first-user super_admin on OAuth signup
 }
 
 type authService struct {
@@ -84,6 +85,7 @@ type authService struct {
 	refreshTokenRepo  repository.RefreshTokenRepository
 	authSessionRepo   repository.AuthSessionRepository
 	jwtService        JWTService
+	firstAdminClaimer FirstAdminClaimer
 }
 
 // NewAuthService creates a new auth service
@@ -95,6 +97,7 @@ func NewAuthService(config *AuthConfig) (AuthService, error) {
 		refreshTokenRepo:  config.RefreshTokenRepo,
 		authSessionRepo:   config.AuthSessionRepo,
 		jwtService:        config.JWTService,
+		firstAdminClaimer: config.FirstAdminClaimer,
 	}, nil
 }
 
@@ -572,20 +575,24 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 			newUUID := models.GenerateUUIDv7()
 			fmt.Printf("[AUTH_DEBUG] Generated new UUID for user: %s\n", newUUID)
 
-			// Check if this is the first user in the system
-			userCount, err := s.userService.GetUserCount(ctx, nil)
-			if err != nil {
-				fmt.Printf("[AUTH_DEBUG] WARNING: Failed to get user count: %v, defaulting to 'operator' role\n", err)
-				userCount = 1 // Default to non-first-user behavior on error
-			}
-
+			// Atomic first-admin claim (replaces the former count-based race).
+			// If the sentinel is already taken by another concurrent signup,
+			// fall through to operator role.
 			role := "operator"
-			if userCount == 0 {
-				role = "super_admin"
-				fmt.Printf("[AUTH_DEBUG] First user detected, assigning 'super_admin' role\n")
+			claimed := false
+			if s.firstAdminClaimer != nil {
+				c, err := s.firstAdminClaimer.ClaimFirstAdmin(ctx, newUUID)
+				if err != nil {
+					fmt.Printf("[AUTH_DEBUG] WARNING: first-admin claim failed: %v; defaulting to operator\n", err)
+				} else if c {
+					claimed = true
+					role = "super_admin"
+					fmt.Printf("[AUTH_DEBUG] First-admin sentinel claimed; assigning 'super_admin' role\n")
+				}
 			}
 
 			createInput := &userModels.CreateUserInput{
+				UUID:     newUUID,
 				Email:    email,
 				FullName: userInfo["name"].(string),
 				Role:     role,
@@ -595,6 +602,11 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 			userModel, err := s.userService.CreateUserFromOAuth(ctx, createInput)
 			if err != nil {
 				fmt.Printf("[AUTH_DEBUG] ERROR: Failed to create user: %v\n", err)
+				if claimed && s.firstAdminClaimer != nil {
+					if relErr := s.firstAdminClaimer.Release(ctx, newUUID); relErr != nil {
+						fmt.Printf("[AUTH_DEBUG] WARNING: first-admin sentinel rollback failed: %v — sentinel is orphaned\n", relErr)
+					}
+				}
 				return nil, fmt.Errorf("failed to create user: %w", err)
 			}
 			user = convertUserModelToAuthModel(userModel)

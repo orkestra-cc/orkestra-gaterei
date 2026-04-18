@@ -194,9 +194,12 @@ func (r *Repository) CreateInvite(ctx context.Context, inv *models.Invite) error
 	return err
 }
 
-func (r *Repository) GetInviteByToken(ctx context.Context, token string) (*models.Invite, error) {
+// GetInviteByTokenHash looks up an invite by the SHA-256 hash of the raw
+// token. The caller (tenant service) computes the hash from the plaintext
+// token supplied by the user; we never store or query the plaintext.
+func (r *Repository) GetInviteByTokenHash(ctx context.Context, tokenHash string) (*models.Invite, error) {
 	var inv models.Invite
-	err := r.db.Collection(CollInvites).FindOne(ctx, bson.M{"token": token}).Decode(&inv)
+	err := r.db.Collection(CollInvites).FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&inv)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, ErrNotFound
 	}

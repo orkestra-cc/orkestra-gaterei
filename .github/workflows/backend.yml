@@ -38,6 +38,25 @@ jobs:
           working-directory: backend
           args: --config=.golangci.yml
 
+  tenantscope:
+    name: Tenant-scoping analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tenantscope unit tests
+        run: go test ./tools/tenantscope/...
+
+      - name: Enforce tenant-scoping invariant on addons
+        run: go run ./tools/tenantscope/cmd/tenantscope -baseline=tools/tenantscope/baseline.txt ./internal/addons/...
+
   test:
     name: Test
     runs-on: ubuntu-latest

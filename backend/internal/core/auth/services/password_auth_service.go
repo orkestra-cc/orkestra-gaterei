@@ -29,6 +29,16 @@ var (
 	ErrNotificationDown   = stderrors.New("notifications disabled — cannot send email")
 )
 
+// FirstAdminClaimer is the contract the password auth service uses to
+// atomically reserve the platform's super_admin seat on a fresh install.
+// shared/systeminit.Repo satisfies it. Inlining the interface here keeps
+// the auth module free of a hard import on shared/systeminit while still
+// letting tests stub the claim behaviour.
+type FirstAdminClaimer interface {
+	ClaimFirstAdmin(ctx context.Context, userUUID string) (bool, error)
+	Release(ctx context.Context, userUUID string) error
+}
+
 // PasswordAuthConfig configures the password auth service.
 type PasswordAuthConfig struct {
 	UserService              iface.UserProvider
@@ -37,6 +47,7 @@ type PasswordAuthConfig struct {
 	EmailTokenRepo           repository.EmailTokenRepository
 	RefreshTokenRepo         repository.RefreshTokenRepository
 	AuthSessionRepo          repository.AuthSessionRepository
+	FirstAdminClaimer        FirstAdminClaimer // required: atomic first-admin claim
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string
@@ -55,6 +66,7 @@ type PasswordAuthService struct {
 	emailTokenRepo           repository.EmailTokenRepository
 	refreshTokenRepo         repository.RefreshTokenRepository
 	authSessionRepo          repository.AuthSessionRepository
+	firstAdminClaimer        FirstAdminClaimer
 	notifier                 iface.NotificationSender
 	rateLimiter              *sharederrors.RateLimiter
 	frontendURL              string
@@ -73,6 +85,7 @@ func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 		emailTokenRepo:           cfg.EmailTokenRepo,
 		refreshTokenRepo:         cfg.RefreshTokenRepo,
 		authSessionRepo:          cfg.AuthSessionRepo,
+		firstAdminClaimer:        cfg.FirstAdminClaimer,
 		notifier:                 cfg.Notifier,
 		rateLimiter:              cfg.RateLimiter,
 		frontendURL:              cfg.FrontendURL,
@@ -113,20 +126,43 @@ func (s *PasswordAuthService) Register(ctx context.Context, in RegisterInput) (*
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	// First-user heuristic: if no users exist, assign super_admin role.
-	userCount, _ := s.userService.GetUserCount(ctx, nil)
+	// Atomic first-admin claim. Previous implementation checked
+	// GetUserCount()==0 and then created the user, racing with concurrent
+	// signups. Now the first caller to upsert the system_init sentinel wins
+	// super_admin; losers fall through to operator. The userUUID is minted
+	// up front so we can hand it to both the claimer and the user-create
+	// call.
+	proposedUUID := uuid.New().String()
 	role := "operator"
-	if userCount == 0 {
-		role = "super_admin"
+	claimed := false
+	if s.firstAdminClaimer != nil {
+		claimed, err = s.firstAdminClaimer.ClaimFirstAdmin(ctx, proposedUUID)
+		if err != nil {
+			return nil, fmt.Errorf("claim first admin: %w", err)
+		}
+		if claimed {
+			role = "super_admin"
+		}
 	}
 
 	user, err := s.userService.CreateUserWithPassword(ctx, &userModels.CreateUserInput{
+		UUID:         proposedUUID,
 		Email:        email,
 		FullName:     in.FullName,
 		PasswordHash: hash,
 		Role:         role,
 	})
 	if err != nil {
+		// Rollback the sentinel if we claimed it but failed to materialize
+		// the user — otherwise the sentinel would block all future signups
+		// from ever becoming super_admin.
+		if claimed && s.firstAdminClaimer != nil {
+			if relErr := s.firstAdminClaimer.Release(ctx, proposedUUID); relErr != nil {
+				s.logger.Error("first-admin rollback failed — sentinel is now orphaned",
+					slog.String("userUUID", proposedUUID),
+					slog.String("error", relErr.Error()))
+			}
+		}
 		return nil, err
 	}
 
@@ -152,9 +188,10 @@ func (s *PasswordAuthService) Register(ctx context.Context, in RegisterInput) (*
 // on the first-user heuristic in Register. Returns a full TokenResponse so the
 // wizard can log the operator straight in.
 //
-// Callers must gate this by "no users exist yet." The unique index on
-// users.email is the only protection against concurrent callers slipping
-// through that gate at the same instant.
+// Atomically claims the system_init first-admin sentinel before creating
+// the user; returns ErrAlreadyCompleted-equivalent behaviour via the
+// claimer if someone else has already taken the seat. The unique index on
+// users.email is a secondary guard but no longer the primary race defense.
 func (s *PasswordAuthService) RegisterInitialAdmin(ctx context.Context, email, password, fullName, ip string) (*authModels.TokenResponse, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" || password == "" || fullName == "" {
@@ -170,13 +207,35 @@ func (s *PasswordAuthService) RegisterInitialAdmin(ctx context.Context, email, p
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
+	// Pre-mint the UUID so the sentinel references the user we're about
+	// to create. Claim must succeed — this flow exists specifically to
+	// promote super_admin.
+	proposedUUID := uuid.New().String()
+	if s.firstAdminClaimer != nil {
+		claimed, err := s.firstAdminClaimer.ClaimFirstAdmin(ctx, proposedUUID)
+		if err != nil {
+			return nil, fmt.Errorf("claim first admin: %w", err)
+		}
+		if !claimed {
+			return nil, fmt.Errorf("initial admin already exists")
+		}
+	}
+
 	user, err := s.userService.CreateUserWithPassword(ctx, &userModels.CreateUserInput{
+		UUID:         proposedUUID,
 		Email:        email,
 		FullName:     fullName,
 		PasswordHash: hash,
 		Role:         "super_admin",
 	})
 	if err != nil {
+		if s.firstAdminClaimer != nil {
+			if relErr := s.firstAdminClaimer.Release(ctx, proposedUUID); relErr != nil {
+				s.logger.Error("RegisterInitialAdmin: sentinel rollback failed",
+					slog.String("userUUID", proposedUUID),
+					slog.String("error", relErr.Error()))
+			}
+		}
 		return nil, err
 	}
 

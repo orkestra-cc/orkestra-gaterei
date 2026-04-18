@@ -56,15 +56,31 @@ type jwtService struct {
 	tenant        iface.TenantProvider
 }
 
-func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) JWTService {
+// NewJWTService builds a JWT issuer/validator with an environment-stamped
+// issuer claim. `env` is the deployment environment (e.g. "production",
+// "staging", "development"); tokens are minted with iss=`orkestra.<env>` and
+// validation rejects any other value. This prevents a token signed in one
+// environment from being accepted by another even if the signing keys were
+// accidentally shared (or leaked across deployments).
+func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, env string) JWTService {
 	return &jwtService{
 		privateKey:    privateKey,
 		publicKey:     publicKey,
 		accessExpiry:  15 * time.Minute,
 		refreshExpiry: 30 * 24 * time.Hour,
-		issuer:        "orkestra",
+		issuer:        issuerFor(env),
 		audience:      "orkestra-api",
 	}
+}
+
+// issuerFor produces the canonical iss claim value for a given environment.
+// An empty env is normalised to "development" so local dev and test code
+// paths produce consistent tokens.
+func issuerFor(env string) string {
+	if env == "" {
+		env = "development"
+	}
+	return "orkestra." + env
 }
 
 func (s *jwtService) SetTenantProvider(tp iface.TenantProvider) {
