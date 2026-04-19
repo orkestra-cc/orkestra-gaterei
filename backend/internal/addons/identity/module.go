@@ -1,15 +1,19 @@
 // Package identity is the Phase-3 BYO-IdP module.
 //
-// Each external tenant can plug in its own OpenID Connect provider by
-// storing a single `identity_idp_configs` document (issuer URL, client
-// credentials, claim mapping, enabled flag). Orkestra stands up the OIDC
-// login flow on top of `coreos/go-oidc`, verifies ID tokens against the
-// IdP's published keys, and mints an Orkestra session via the existing
-// PasswordAuthService token-issuance path.
+// Two responsibilities:
+//
+//  1. BYO OpenID Connect login — per-tenant IdP configuration plus the
+//     `/v1/identity/oidc/*` login surface. Tenants configure their own
+//     IdP (Okta, Entra, Auth0, …) and users sign in against it; Orkestra
+//     mints its own session after verifying the ID token.
+//  2. SCIM 2.0 stubs — `/scim/v2/*` endpoints so IdPs can point their
+//     provisioning clients at Orkestra without erroring. v1 ships full
+//     metadata endpoints plus stubbed CRUD; persistence is a follow-up.
 //
 // The module is toggleable — operators can disable it entirely via the
-// admin UI, which gates the public /start + /callback routes behind a
-// 503. Per-tenant control is via `IdPConfig.Enabled`.
+// admin UI, which gates every route behind a 503. Per-tenant control
+// for OIDC is via `IdPConfig.Enabled`; SCIM is gated by the presence of
+// a live bearer token (rotated by an authenticated admin).
 package identity
 
 import (
@@ -21,6 +25,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/identity/handlers"
 	"github.com/orkestra/backend/internal/addons/identity/models"
 	"github.com/orkestra/backend/internal/addons/identity/repository"
+	"github.com/orkestra/backend/internal/addons/identity/scim"
 	"github.com/orkestra/backend/internal/addons/identity/services"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
 	"github.com/orkestra/backend/internal/shared/config"
@@ -31,19 +36,24 @@ import (
 // Module wires the identity module's handlers + service.
 type Module struct {
 	module.BaseModule
-	admin  *handlers.AdminHandler
-	public *handlers.PublicHandler
-	logger *slog.Logger
+	admin     *handlers.AdminHandler
+	public    *handlers.PublicHandler
+	scimAdmin *handlers.ScimAdminHandler
+	scim      *handlers.ScimHandler
+
+	scimTokens *repository.ScimTokenRepository
+	tenant     iface.TenantProvider
+	logger     *slog.Logger
 }
 
 // NewModule constructs an empty module; Init wires collaborators.
 func NewModule() *Module { return &Module{} }
 
-func (m *Module) Name() string                     { return "identity" }
-func (m *Module) DisplayName() string              { return "Identity (BYO IdP)" }
-func (m *Module) Description() string              { return "Per-tenant BYO OpenID Connect login. Tenants configure their own IdP (Okta, Entra, Auth0, …) and users sign in against it; Orkestra mints its own session after verifying the ID token." }
-func (m *Module) Category() module.ModuleCategory  { return module.CategoryToggleable }
-func (m *Module) Enabled(_ *config.Config) bool    { return true }
+func (m *Module) Name() string                    { return "identity" }
+func (m *Module) DisplayName() string             { return "Identity (BYO IdP + SCIM)" }
+func (m *Module) Description() string             { return "Per-tenant BYO OpenID Connect login and SCIM 2.0 provisioning stubs. Tenants configure their own IdP; users sign in against it and (future) are provisioned via SCIM." }
+func (m *Module) Category() module.ModuleCategory { return module.CategoryToggleable }
+func (m *Module) Enabled(_ *config.Config) bool   { return true }
 
 // Dependencies: auth owns the token-issuance service we delegate to at
 // the end of callback; tenant owns slug/UUID resolution. Both are core
@@ -58,9 +68,10 @@ func (m *Module) RequiredServices() []module.ServiceKey {
 	}
 }
 
-// Collections declares the one collection the module owns. Composite
-// unique on (tenantId, protocol) so v1's one-config-per-tenant-per-
-// protocol invariant is enforced at the DB layer.
+// Collections declares the collections the module owns:
+//   - identity_idp_configs (composite unique on (tenantId, protocol))
+//   - identity_scim_tokens (one active row per tenant — enforced at the
+//     service layer via the rotate-revokes-previous pattern)
 func (m *Module) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
 		{Name: models.IdPConfigsCollection, Indexes: []module.IndexSpec{
@@ -70,16 +81,24 @@ func (m *Module) Collections() []module.CollectionSpec {
 				{Field: "protocol", Direction: 1},
 			}, Unique: true},
 		}},
+		{Name: models.ScimTokensCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			// tokenHash is the login lookup key, indexed non-unique so
+			// revoked rows for the same tenant can coexist for audit.
+			{Keys: map[string]int{"tokenHash": 1}},
+			{Keys: map[string]int{"tenantId": 1}},
+		}},
 	}
 }
 
-// Init wires the repository, OIDC service, and handlers.
+// Init wires the repositories, OIDC service, and handlers.
 func (m *Module) Init(deps *module.Dependencies) error {
 	passwordAuth := module.MustGetTyped[*authServices.PasswordAuthService](deps.Services, module.ServicePasswordAuthService)
 	tenantProvider := module.MustGetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	userProvider := module.MustGetTyped[iface.UserProvider](deps.Services, module.ServiceUserService)
 
 	repo := repository.New(deps.DB)
+	scimTokens := repository.NewScimTokenRepository(deps.DB)
 	svc := services.New(services.Config{
 		Repo:         repo,
 		Users:        userProvider,
@@ -91,16 +110,24 @@ func (m *Module) Init(deps *module.Dependencies) error {
 
 	m.admin = handlers.NewAdminHandler(repo)
 	m.public = handlers.NewPublicHandler(svc)
+	m.scimAdmin = handlers.NewScimAdminHandler(scimTokens)
+	m.scim = handlers.NewScimHandler()
+	m.scimTokens = scimTokens
+	m.tenant = tenantProvider
 	m.logger = deps.Logger
 
 	deps.Logger.Info("Identity module initialized")
 	return nil
 }
 
-// RegisterRoutes mounts public (start/callback) and admin (CRUD) routes.
-// Admin routes live under the protected router gated by RequirePermission
-// on the tenant admin surface — the same gate the tenant module uses for
-// its own mutations.
+// RegisterRoutes mounts three distinct route groups:
+//
+//   - Public OIDC flow (`/v1/identity/oidc/*`) on the public API.
+//   - Admin CRUD (`/v1/identity/idp` + `/v1/identity/scim/*`) under the
+//     protected router, gated by `tenant.org.update`.
+//   - SCIM protocol surface (`/scim/v2/*`) on the root router behind the
+//     identity module's own Bearer middleware (which resolves the tenant
+//     directly from the token, without the JWT auth middleware).
 func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 	if m.public != nil {
 		handlers.RegisterPublicRoutes(ri.PublicAPI, m.public)
@@ -110,6 +137,13 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.AuthMW.RequirePermission("tenant.org.update"))
 			api := humachi.New(r, ri.APIConfig)
 			handlers.RegisterAdminRoutes(api, m.admin)
+			handlers.RegisterScimAdminRoutes(api, m.scimAdmin)
+		})
+	}
+	if m.scim != nil && m.scimTokens != nil {
+		ri.Router.Route("/scim/v2", func(r chi.Router) {
+			r.Use(scim.BearerMiddleware(m.scimTokens, m.tenant))
+			m.scim.Mount(r)
 		})
 	}
 }
