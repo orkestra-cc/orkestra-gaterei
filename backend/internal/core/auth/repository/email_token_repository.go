@@ -19,6 +19,10 @@ type EmailTokenRepository interface {
 	GetByHash(ctx context.Context, hash string) (*models.EmailTokenDoc, error)
 	MarkUsed(ctx context.Context, hash string) error
 	InvalidateByUserAndPurpose(ctx context.Context, userUUID, purpose string) error
+	// DeleteAllByUser hard-deletes every email token (used, unused,
+	// expired) for the user. Used by the GDPR DSR right-to-erasure
+	// pipeline.
+	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
 }
 
 type emailTokenRepository struct {
@@ -71,4 +75,12 @@ func (r *emailTokenRepository) InvalidateByUserAndPurpose(ctx context.Context, u
 		bson.M{"$set": bson.M{"usedAt": now}},
 	)
 	return err
+}
+
+func (r *emailTokenRepository) DeleteAllByUser(ctx context.Context, userUUID string) (int64, error) {
+	res, err := r.coll.DeleteMany(ctx, bson.M{"userUuid": userUUID})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
 }

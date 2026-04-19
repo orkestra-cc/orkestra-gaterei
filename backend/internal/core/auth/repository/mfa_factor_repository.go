@@ -28,6 +28,10 @@ type MFAFactorRepository interface {
 	AdvanceLastUsedStep(ctx context.Context, uuid string, step int64, when time.Time) (bool, error)
 	ConsumeBackupCode(ctx context.Context, userUUID, hashedCode string) (bool, error)
 	Delete(ctx context.Context, uuid string) error
+	// DeleteAllByUser hard-deletes every MFA factor row for the user.
+	// Used by the GDPR DSR right-to-erasure pipeline — the rows contain
+	// encrypted TOTP secrets and hashed backup codes tied to userUUID.
+	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
 }
 
 type mfaFactorRepository struct {
@@ -111,4 +115,12 @@ func (r *mfaFactorRepository) ConsumeBackupCode(ctx context.Context, userUUID, h
 func (r *mfaFactorRepository) Delete(ctx context.Context, uuid string) error {
 	_, err := r.coll.DeleteOne(ctx, bson.M{"uuid": uuid})
 	return err
+}
+
+func (r *mfaFactorRepository) DeleteAllByUser(ctx context.Context, userUUID string) (int64, error) {
+	res, err := r.coll.DeleteMany(ctx, bson.M{"userUuid": userUUID})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
 }

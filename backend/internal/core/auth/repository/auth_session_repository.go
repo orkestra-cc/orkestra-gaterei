@@ -30,6 +30,10 @@ type AuthSessionRepository interface {
 	TerminateSessionByDevice(ctx context.Context, userUUID, deviceID string) error
 	TerminateAllUserSessions(ctx context.Context, userUUID string) error
 	TerminateExpiredSessions(ctx context.Context) (int64, error)
+	// DeleteAllByUser hard-deletes every session row for the user. Used
+	// by the GDPR DSR right-to-erasure pipeline — TerminateAllUserSessions
+	// only flips isActive, erasure requires the rows to be gone.
+	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
 
 	// Session queries
 	GetSessionStats(ctx context.Context, userUUID string) (*SessionStats, error)
@@ -72,6 +76,16 @@ type DeviceSession struct {
 
 type authSessionRepository struct {
 	collection *mongo.Collection
+}
+
+// DeleteAllByUser removes every session row for userUUID. Hard delete,
+// distinct from TerminateAllUserSessions which sets isActive=false.
+func (r *authSessionRepository) DeleteAllByUser(ctx context.Context, userUUID string) (int64, error) {
+	res, err := r.collection.DeleteMany(ctx, bson.M{"userUuid": userUUID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete sessions by user: %w", err)
+	}
+	return res.DeletedCount, nil
 }
 
 // NewAuthSessionRepository creates a new auth session repository

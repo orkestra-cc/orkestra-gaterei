@@ -61,6 +61,10 @@ type RefreshTokenRepository interface {
 
 	// Cleanup operations
 	CleanupExpiredTokens(ctx context.Context) (int64, error)
+	// DeleteAllByUser hard-deletes every refresh token (active or revoked)
+	// for the user. Used by the GDPR DSR right-to-erasure pipeline —
+	// distinct from RevokeTokensByUser which only flips isRevoked.
+	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
 	// CleanupRevokedTokens removes revoked rows whose RevokedAt is older
 	// than `olderThan`. MUST be called with a value ≥ the refresh-token
 	// lifetime, otherwise a replay within the live window won't find the
@@ -486,6 +490,18 @@ func (r *refreshTokenRepository) RevokeTokensBySession(ctx context.Context, sess
 	}
 
 	return nil
+}
+
+// DeleteAllByUser permanently removes every refresh token row for the
+// user. Used by the GDPR DSR right-to-erasure path — revocation alone
+// leaves personal data (userUUID, IP, device ID) in place, erasure
+// requires the rows to be gone.
+func (r *refreshTokenRepository) DeleteAllByUser(ctx context.Context, userUUID string) (int64, error) {
+	res, err := r.collection.DeleteMany(ctx, bson.M{"userUuid": userUUID})
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete refresh tokens by user: %w", err)
+	}
+	return res.DeletedCount, nil
 }
 
 func (r *refreshTokenRepository) RevokeTokensByUser(ctx context.Context, userUUID string, reason string) error {

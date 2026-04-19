@@ -37,6 +37,10 @@ type UserRepository interface {
 	UpdateLastLoginByObjectID(ctx context.Context, id primitive.ObjectID) error
 	Delete(ctx context.Context, id string) error
 	DeleteByObjectID(ctx context.Context, id primitive.ObjectID) error
+	// HardDelete removes the row entirely — used by the GDPR DSR pipeline
+	// for right-to-erasure. Distinct from Delete which soft-deletes via a
+	// deletedAt stamp (keeps the row for audit + re-activation).
+	HardDelete(ctx context.Context, id string) error
 
 	// Password-auth operations
 	UpdatePasswordHash(ctx context.Context, userUUID, hash string) error
@@ -254,6 +258,21 @@ func (r *mongoUserRepository) Delete(ctx context.Context, id string) error {
 		return ErrUserNotFound
 	}
 
+	return nil
+}
+
+// HardDelete permanently removes the user row. Intended for the GDPR
+// DSR right-to-erasure pipeline — the row is personal data and cannot
+// simply be soft-deleted. Idempotent: missing rows return ErrUserNotFound
+// so callers can tell a no-op from a hit.
+func (r *mongoUserRepository) HardDelete(ctx context.Context, id string) error {
+	result, err := r.collection.DeleteOne(ctx, bson.M{"uuid": id})
+	if err != nil {
+		return fmt.Errorf("failed to hard-delete user: %w", err)
+	}
+	if result.DeletedCount == 0 {
+		return ErrUserNotFound
+	}
 	return nil
 }
 

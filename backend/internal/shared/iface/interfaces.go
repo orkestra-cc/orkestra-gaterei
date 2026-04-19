@@ -11,6 +11,7 @@ package iface
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
@@ -541,4 +542,94 @@ type AuditSink interface {
 	// internally and never returned — auditing must never break the
 	// hot path.
 	Emit(ctx context.Context, event AuditEvent)
+}
+
+// ---------------------------------------------------------------------------
+// PIIProducer — consumed by: the compliance module's DSR service.
+//
+// Modules that hold personal data tied to a user UUID implement this
+// interface and register themselves with the PIIProducerRegistry during
+// their own Init. The compliance module enumerates registered producers
+// to satisfy GDPR right-of-access (export) and right-to-erasure (purge)
+// requests — Phase 4.2 of ADR-0001.
+// ---------------------------------------------------------------------------
+
+// PersonalDataBundle is the exported payload returned by the DSR
+// pipeline. Keys are producer subject names (stable identifiers like
+// "user", "auth"); values are each producer's serializable personal-data
+// projection. JSON-round-trippable so the bundle can be written to a
+// file or streamed to the DSR requester.
+type PersonalDataBundle = map[string]any
+
+// PurgeResult summarizes the data a single producer erased. Bundled into
+// the DSR audit event so auditors can reconstruct exactly what was wiped
+// without reading the now-deleted rows.
+type PurgeResult struct {
+	RowsDeleted    int      `json:"rowsDeleted"`
+	RowsAnonymized int      `json:"rowsAnonymized"`
+	Collections    []string `json:"collections,omitempty"`
+}
+
+// PIIProducer is implemented by modules that hold personal data tied to
+// a user UUID. The compliance module's DSR service enumerates registered
+// producers.
+type PIIProducer interface {
+	// Subject is the stable identifier used as the bundle-key for this
+	// producer's data. Must not change after first use — DSR audit rows
+	// reference it by value.
+	Subject() string
+
+	// ExportPersonalData returns a JSON-serializable projection of every
+	// record the producer holds for userUUID. Returning (nil, nil) is
+	// interpreted as "no data held" and the key is omitted from the
+	// bundle — errors bubble up so the caller can decide whether to
+	// include partial results or abort.
+	ExportPersonalData(ctx context.Context, userUUID string) (any, error)
+
+	// PurgePersonalData deletes or anonymizes every record the producer
+	// holds for userUUID. GDPR right-to-erasure semantics apply: a row
+	// that merely sets a deleted-at flag is not erased. Returns a
+	// summary so the DSR audit log can record what was wiped without
+	// re-reading the now-deleted rows.
+	PurgePersonalData(ctx context.Context, userUUID string) (PurgeResult, error)
+}
+
+// PIIProducerRegistry is the boot-time catalog of registered producers.
+// cmd/server/main.go constructs it before InitAll so producer modules
+// can register during their own Init. The compliance module resolves
+// the registry when servicing DSR requests.
+//
+// Concurrency: safe for concurrent reads and writes. In practice writes
+// happen serially during boot and reads happen during request handling,
+// but the locking makes the life-cycle explicit.
+type PIIProducerRegistry struct {
+	mu        sync.RWMutex
+	producers []PIIProducer
+}
+
+// NewPIIProducerRegistry constructs an empty registry.
+func NewPIIProducerRegistry() *PIIProducerRegistry { return &PIIProducerRegistry{} }
+
+// Register appends p to the producer list. Idempotent only in the sense
+// that duplicate registrations are allowed — the DSR service happily
+// runs both, and the resulting bundle key collisions are the module
+// authors' responsibility to avoid by picking unique Subject values.
+func (r *PIIProducerRegistry) Register(p PIIProducer) {
+	if p == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.producers = append(r.producers, p)
+}
+
+// List returns a snapshot of registered producers. Safe to call from
+// request handlers — the returned slice is a copy so callers can iterate
+// without holding the lock.
+func (r *PIIProducerRegistry) List() []PIIProducer {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]PIIProducer, len(r.producers))
+	copy(out, r.producers)
+	return out
 }

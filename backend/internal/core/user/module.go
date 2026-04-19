@@ -60,6 +60,13 @@ func (m *UserModule) Init(deps *module.Dependencies) error {
 	svc := services.NewUserService(userRepo, oauthProviderRepo)
 	m.handler = handlers.NewUserHandler(svc)
 	deps.Services.Register(module.ServiceUserService, svc)
+
+	// Register the user PII producer with the DSR registry pre-created in
+	// main.go. Missing registry means the platform was booted without
+	// compliance infrastructure — tolerate and skip.
+	if reg, ok := module.GetTyped[*iface.PIIProducerRegistry](deps.Services, module.ServicePIIProducerRegistry); ok {
+		reg.Register(services.NewPIIProducer(userRepo))
+	}
 	return nil
 }
 

@@ -269,6 +269,20 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServicePasswordService, passwordSvc)
 	deps.Services.Register(module.ServicePasswordAuthService, passwordAuthSvc)
 
+	// Register the auth PII producer with the DSR registry pre-created in
+	// main.go. Registers even when the registry is absent so the main
+	// path stays uniform — the helper is a no-op when the key is missing.
+	if reg, ok := module.GetTyped[*iface.PIIProducerRegistry](deps.Services, module.ServicePIIProducerRegistry); ok {
+		securityEvents, err := services.NewSecurityEventService(deps.DB)
+		if err != nil {
+			// Nothing else in auth currently writes security events, so a
+			// failure here is survivable — DSR purge of that collection
+			// becomes a no-op until the collection is initialized.
+			logger.Warn("auth: security event service init failed; DSR will skip the collection", slog.String("error", err.Error()))
+		}
+		reg.Register(services.NewPIIProducer(refreshTokenRepo, authSessionRepo, emailTokenRepo, mfaFactorRepo, securityEvents))
+	}
+
 	return nil
 }
 

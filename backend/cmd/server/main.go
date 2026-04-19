@@ -86,6 +86,10 @@ func main() {
 	// Initialize module registry
 	svcRegistry := module.NewServiceRegistry()
 	svcRegistry.Register(module.ServiceFirstAdminClaimer, firstAdminClaimer)
+	// PII producer registry is pre-created here so producer modules can
+	// register themselves during their own Init; compliance reads it when
+	// servicing DSR requests. See iface.PIIProducerRegistry.
+	svcRegistry.Register(module.ServicePIIProducerRegistry, iface.NewPIIProducerRegistry())
 	modRegistry := module.NewModuleRegistry(logger)
 	modRegistry.SetConfigService(configService)
 	modRegistry.SetContainerManager(container.NewManager(logger))

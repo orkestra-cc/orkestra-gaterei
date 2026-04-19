@@ -21,6 +21,10 @@ type SecurityEventService interface {
 	AnalyzeSecurityTrends(ctx context.Context, userUUID string, hours int) (*SecurityTrendAnalysis, error)
 	GetFailedLoginAttempts(ctx context.Context, userUUID string, hours int) (int, error)
 	GetSuspiciousActivityScore(ctx context.Context, userUUID string) (float64, error)
+	// DeleteAllByUser hard-deletes every security event row for the
+	// user. Used by the GDPR DSR right-to-erasure pipeline — events
+	// carry PII (IPs, device fingerprints, locations) tied to userUUID.
+	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
 }
 
 type SecurityTrendAnalysis struct {
@@ -89,6 +93,14 @@ func NewSecurityEventService(db *mongo.Database) (SecurityEventService, error) {
 		db:         db,
 		collection: collection,
 	}, nil
+}
+
+func (s *securityEventService) DeleteAllByUser(ctx context.Context, userUUID string) (int64, error) {
+	res, err := s.collection.DeleteMany(ctx, bson.M{"userUuid": userUUID})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
 }
 
 func (s *securityEventService) RecordEvent(ctx context.Context, event *models.SecurityEvent) error {

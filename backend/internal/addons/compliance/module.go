@@ -29,11 +29,12 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
-// Module wires the audit sink and admin read handler.
+// Module wires the audit sink, DSR pipeline, and admin/me handlers.
 type Module struct {
 	module.BaseModule
 	sink   *services.AuditSink
 	admin  *handlers.AdminHandler
+	me     *handlers.MeHandler
 	logger *slog.Logger
 }
 
@@ -110,9 +111,9 @@ func (m *Module) Collections() []module.CollectionSpec {
 	}
 }
 
-// Init constructs the repository, the sink, and the admin handler, then
-// registers the sink in the service registry and pushes it into consumer
-// services that accept post-init wiring.
+// Init constructs the repository, the sink, the DSR service, and the
+// handlers, then registers the sink in the service registry and pushes
+// it into consumer services that accept post-init wiring.
 func (m *Module) Init(deps *module.Dependencies) error {
 	repo := repository.New(deps.DB)
 	m.sink = services.NewSink(repo, deps.Logger)
@@ -121,6 +122,14 @@ func (m *Module) Init(deps *module.Dependencies) error {
 
 	sink := iface.AuditSink(m.sink)
 	deps.Services.Register(module.ServiceAuditSink, sink)
+
+	// DSR pipeline — optional by design. If the main.go bootstrap never
+	// created a producer registry (unusual) the handler is simply not
+	// mounted and POST /v1/me/dsr/* returns 404.
+	if reg, ok := module.GetTyped[*iface.PIIProducerRegistry](deps.Services, module.ServicePIIProducerRegistry); ok {
+		dsrSvc := services.NewDSRService(reg, sink, deps.Logger)
+		m.me = handlers.NewMeHandler(dsrSvc)
+	}
 
 	// Push the sink into known consumer services. Each receiver is optional
 	// — missing services (module disabled, out of init order) are ignored so
@@ -149,17 +158,25 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	return nil
 }
 
-// RegisterRoutes mounts the admin list endpoint on the protected router
-// behind the system-level read permission. No public surface in 4.1.
+// RegisterRoutes mounts two groups: the admin audit read behind the
+// system-level permission, and the DSR self-service endpoints behind
+// RequireGlobal (any authenticated user can export / erase their own
+// data).
 func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
-	if m.admin == nil {
-		return
+	if m.admin != nil {
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireSystemPermission("system.compliance.audit.read"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.Register(api, m.admin)
+		})
 	}
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireSystemPermission("system.compliance.audit.read"))
-		api := humachi.New(r, ri.APIConfig)
-		handlers.Register(api, m.admin)
-	})
+	if m.me != nil {
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterMeRoutes(api, m.me)
+		})
+	}
 }
 
 // Sink exposes the concrete sink for modules that inject it via a setter

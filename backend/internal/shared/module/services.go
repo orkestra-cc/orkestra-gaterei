@@ -74,6 +74,14 @@ const (
 	// self-subscribed) land on the audit trail alongside the module's
 	// own subscriptions_activity log.
 	ServiceSubscriptionService ServiceKey = "subscriptions.service"
+
+	// ServicePIIProducerRegistry is the boot-time catalog of PII
+	// producers. Pre-created in cmd/server/main.go before InitAll so
+	// producer modules can Register themselves during their own Init.
+	// The compliance module resolves it when servicing DSR (GDPR
+	// right-of-access / right-to-erasure) requests. Value: a concrete
+	// *iface.PIIProducerRegistry.
+	ServicePIIProducerRegistry ServiceKey = "compliance.pii_producer_registry"
 )
 
 // ServiceRegistry is a typed key-value store for cross-module service sharing.

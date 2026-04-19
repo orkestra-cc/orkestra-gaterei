@@ -1,0 +1,204 @@
+package services
+
+import (
+	"context"
+
+	authModels "github.com/orkestra/backend/internal/core/auth/models"
+	"github.com/orkestra/backend/internal/core/auth/repository"
+	"github.com/orkestra/backend/internal/shared/iface"
+)
+
+// piiProducer implements iface.PIIProducer for the auth module. It
+// aggregates the PII-bearing repositories (refresh tokens, sessions,
+// email tokens, MFA factors, security events) behind a single subject so
+// DSR export produces one coherent payload and erasure wipes everything
+// in one pass.
+//
+// Hash fields (tokenHash, passwordHash) are intentionally excluded from
+// the exported payload — they are server secrets the user cannot
+// meaningfully consume. Everything that *is* PII (IPs, device
+// fingerprints, timestamps, user agents, backup-code counts) is
+// included.
+type piiProducer struct {
+	refresh  repository.RefreshTokenRepository
+	sessions repository.AuthSessionRepository
+	emails   repository.EmailTokenRepository
+	mfa      repository.MFAFactorRepository
+	events   SecurityEventService
+}
+
+// NewPIIProducer builds the auth PII producer.
+func NewPIIProducer(
+	refresh repository.RefreshTokenRepository,
+	sessions repository.AuthSessionRepository,
+	emails repository.EmailTokenRepository,
+	mfa repository.MFAFactorRepository,
+	events SecurityEventService,
+) iface.PIIProducer {
+	return &piiProducer{refresh: refresh, sessions: sessions, emails: emails, mfa: mfa, events: events}
+}
+
+// Subject is the stable bundle-key identifier for this producer.
+func (p *piiProducer) Subject() string { return "auth" }
+
+// ExportPersonalData returns every auth-owned record tied to userUUID.
+// Token hashes are scrubbed (users can't do anything with them and they
+// are not PII in the GDPR sense); timestamps, IPs, and device info are
+// included since those are the personal-identifier surface.
+func (p *piiProducer) ExportPersonalData(ctx context.Context, userUUID string) (any, error) {
+	out := map[string]any{}
+
+	if p.refresh != nil {
+		tokens, err := p.refresh.GetActiveTokensByUser(ctx, userUUID)
+		if err == nil {
+			out["refreshTokens"] = scrubRefreshTokens(tokens)
+		}
+	}
+	if p.sessions != nil {
+		sessions, err := p.sessions.GetActiveSessionsByUser(ctx, userUUID)
+		if err == nil {
+			out["sessions"] = scrubSessions(sessions)
+		}
+	}
+	if p.events != nil {
+		// Cap the event export at 1000 rows so a noisy attacker account
+		// doesn't blow up the export payload. If a subject needs more,
+		// they can request the audit trail separately.
+		events, err := p.events.GetUserEvents(ctx, userUUID, 1000)
+		if err == nil {
+			out["securityEvents"] = scrubSecurityEvents(events)
+		}
+	}
+	if p.mfa != nil {
+		// Report factor presence and type without exposing the encrypted
+		// secret. The user already knows they've enrolled; the secret is
+		// only useful server-side.
+		if factor, err := p.mfa.FindByUserAndType(ctx, userUUID, authModels.MFAFactorTOTP); err == nil && factor != nil {
+			out["mfaFactors"] = []map[string]any{{
+				"type":                 string(factor.Type),
+				"createdAt":            factor.CreatedAt,
+				"lastUsedAt":           factor.LastUsedAt,
+				"backupCodesRemaining": len(factor.BackupCodesHashed),
+			}}
+		}
+	}
+
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// PurgePersonalData wipes every auth-owned PII collection for the user.
+// Collections reported back match the actual Mongo names so the DSR
+// audit row is legible to auditors. The refresh-token reaper's
+// replay-detection window (~7 days) tolerates deletions here —
+// subsequent reuse of a now-deleted family would fail with
+// "token not found" rather than triggering a family revocation.
+func (p *piiProducer) PurgePersonalData(ctx context.Context, userUUID string) (iface.PurgeResult, error) {
+	var rows int64
+	collections := make([]string, 0, 5)
+
+	if p.refresh != nil {
+		n, err := p.refresh.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.RefreshTokensCollection)
+		}
+	}
+	if p.sessions != nil {
+		n, err := p.sessions.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.AuthSessionsCollection)
+		}
+	}
+	if p.emails != nil {
+		n, err := p.emails.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.EmailTokensCollection)
+		}
+	}
+	if p.mfa != nil {
+		n, err := p.mfa.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.MFAFactorsCollection)
+		}
+	}
+	if p.events != nil {
+		n, err := p.events.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.SecurityEventsCollection)
+		}
+	}
+
+	return iface.PurgeResult{RowsDeleted: int(rows), Collections: collections}, nil
+}
+
+// --- internal scrubbers ---
+
+func scrubRefreshTokens(tokens []*authModels.RefreshTokenDoc) []map[string]any {
+	out := make([]map[string]any, 0, len(tokens))
+	for _, t := range tokens {
+		out = append(out, map[string]any{
+			"uuid":      t.UUID,
+			"deviceId":  t.DeviceID,
+			"ipAddress": t.IPAddress,
+			"userAgent": t.UserAgent,
+			"createdAt": t.CreatedAt,
+			"expiresAt": t.ExpiresAt,
+		})
+	}
+	return out
+}
+
+func scrubSessions(sessions []*authModels.AuthSessionDoc) []map[string]any {
+	out := make([]map[string]any, 0, len(sessions))
+	for _, s := range sessions {
+		m := map[string]any{
+			"uuid":         s.UUID,
+			"deviceId":     s.DeviceID,
+			"lastActivity": s.LastActivity,
+			"createdAt":    s.CreatedAt,
+			"isActive":     s.IsActive,
+		}
+		m["deviceName"] = s.DeviceInfo.DeviceName
+		m["platform"] = s.DeviceInfo.Platform
+		out = append(out, m)
+	}
+	return out
+}
+
+func scrubSecurityEvents(events []*authModels.SecurityEvent) []map[string]any {
+	out := make([]map[string]any, 0, len(events))
+	for _, e := range events {
+		out = append(out, map[string]any{
+			"eventType": e.EventType,
+			"ipAddress": e.IPAddress,
+			"riskScore": e.RiskScore,
+			"timestamp": e.Timestamp,
+		})
+	}
+	return out
+}
+
+// compile-time assertion: iface.PIIProducer is satisfied by piiProducer.
+var _ iface.PIIProducer = (*piiProducer)(nil)
