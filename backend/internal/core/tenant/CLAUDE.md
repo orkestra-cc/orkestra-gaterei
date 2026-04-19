@@ -133,6 +133,7 @@ HasCapability(ctx, tenantUUID, capabilityID) (bool, error)
 GrantCapability(ctx, GrantCapabilityInput) error
 RevokeCapability(ctx, tenantUUID, capabilityID) error
 ListCapabilityIDs(ctx, tenantUUID) ([]string, error)
+ProvisionExternalTenant(ctx, ownerUserUUID, OnboardingTenantInput) (*Tenant, error)
 ```
 
 `Tenant` exposes `UUID, Kind, ParentTenantUUID, Status, Name, Slug, Plan`. `TenantMembership` exposes `TenantUUID, TenantName, TenantSlug, TenantKind, Roles, IsOwner`. Both are intentionally trimmed — anything richer lives in `tenant/models` and is only reachable via the concrete service, not through the provider interface.
@@ -142,6 +143,7 @@ Typical consumers:
 - **middleware** — `IsMember` on every protected request that resolves an `X-Org-ID` header; `HasCapability` on routes gated by `RequireCapability(capID)` (returns 402 on a miss).
 - **authz (Cedar shadow evaluator)** — `ListCapabilityIDs` populates `cedar.Principal.Capabilities` so the `capability_grants.cedar` forbid-unless-entitled rule can reason about entitlements.
 - **subscriptions (entitlement syncer)** — `GrantCapability` / `RevokeCapability` on every subscription lifecycle transition so paid capabilities appear on the tenant's projection.
+- **onboarding (public signup)** — `ProvisionExternalTenant` on the anonymous `POST /v1/onboarding/register` path, creating a Tier-2 tenant in `provisioning` state with `SignupChannel=self_serve`.
 - **tenant handlers themselves** — use the concrete service for richer operations that don't fit on the interface.
 
 ## Key invariants

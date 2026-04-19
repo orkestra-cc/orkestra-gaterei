@@ -49,6 +49,9 @@ func (s *stubTenantProvider) RevokeCapability(_ context.Context, tenantUUID, cap
 func (s *stubTenantProvider) ListCapabilityIDs(context.Context, string) ([]string, error) {
 	return nil, nil
 }
+func (s *stubTenantProvider) ProvisionExternalTenant(context.Context, string, iface.OnboardingTenantInput) (*iface.Tenant, error) {
+	return nil, nil
+}
 
 // stubServiceRepo satisfies repository.ServiceRepository with an in-memory map.
 type stubServiceRepo struct {

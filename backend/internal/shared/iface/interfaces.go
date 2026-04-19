@@ -269,6 +269,28 @@ type TenantProvider interface {
 	// order. Thin projection of ListEntitlements for consumers (e.g. the
 	// Cedar engine's principal builder) that only need the IDs.
 	ListCapabilityIDs(ctx context.Context, tenantUUID string) ([]string, error)
+	// ProvisionExternalTenant is the onboarding entry point for anonymous
+	// self-service signup. Creates a Tier-2 tenant owned by the given user
+	// in the provisioning lifecycle state (kind=external, signup=self_serve).
+	// A follow-up activate-on-verify hook flips the status to active after
+	// the owner has completed email verification. Distinct from the
+	// admin-facing CreateTenant surface — different defaults, narrower
+	// input shape.
+	ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in OnboardingTenantInput) (*Tenant, error)
+}
+
+// OnboardingTenantInput is the cross-module payload for self-service
+// external-tenant creation. Kept minimal: anonymous signups only carry
+// the bare identifiers; richer fields (legal name, VAT, address) are
+// collected later in the onboarding wizard.
+type OnboardingTenantInput struct {
+	Name string
+	// Slug is optional — when empty, the tenant service derives it from
+	// Name via the same slugifier the authenticated create path uses.
+	Slug string
+	// Plan is optional — defaults to "free" when empty. Entitlements are
+	// driven by subscriptions, not plan name, so this is a label only.
+	Plan string
 }
 
 // GrantCapabilityInput is the cross-module payload for granting a capability

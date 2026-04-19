@@ -11,6 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"github.com/orkestra/backend/internal/core/tenant/repository"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GrantCapability creates an active entitlement for the tenant on the
@@ -145,3 +146,44 @@ const (
 	CapabilitySourceGrant        = string(models.EntitlementSourceGrant)
 	CapabilitySourceTrial        = string(models.EntitlementSourceTrial)
 )
+
+// ProvisionExternalTenant is the onboarding entry point for anonymous
+// self-service signup. Delegates to CreateExternalTenant for the
+// Tier-2 bookkeeping (status=provisioning, signupChannel=self_serve,
+// owner membership) and returns the DTO shape so callers crossing the
+// module boundary don't import models.Tenant. Implements
+// iface.TenantProvider.ProvisionExternalTenant.
+func (s *Service) ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in iface.OnboardingTenantInput) (*iface.Tenant, error) {
+	if ownerUserUUID == "" {
+		return nil, errors.New("tenant: ProvisionExternalTenant requires ownerUserUUID")
+	}
+	if in.Name == "" {
+		return nil, errors.New("tenant: ProvisionExternalTenant requires Name")
+	}
+	t, err := s.CreateExternalTenant(ctx, ownerUserUUID, in.Name, in.Slug, models.SignupChannelSelfServe, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tenant: ProvisionExternalTenant: %w", err)
+	}
+	if in.Plan != "" && t.Plan != in.Plan {
+		if err := s.repo.UpdateTenant(ctx, t.UUID, bson.M{"plan": in.Plan}); err != nil {
+			return nil, fmt.Errorf("tenant: ProvisionExternalTenant: set plan: %w", err)
+		}
+		t.Plan = in.Plan
+	}
+	kind := string(t.Kind)
+	if kind == "" {
+		kind = iface.TenantKindExternal
+	}
+	status := string(t.Status)
+	if status == "" {
+		status = iface.TenantStatusProvisioning
+	}
+	return &iface.Tenant{
+		UUID:   t.UUID,
+		Kind:   kind,
+		Status: status,
+		Name:   t.Name,
+		Slug:   t.Slug,
+		Plan:   t.Plan,
+	}, nil
+}

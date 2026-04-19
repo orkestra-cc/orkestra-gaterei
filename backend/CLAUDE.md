@@ -1,6 +1,6 @@
 # Backend — Go Modular Server
 
-Single Go binary. 4 core modules (always loaded) + 9 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
+Single Go binary. 4 core modules (always loaded) + 12 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
 
 ## Stack
 
@@ -54,6 +54,7 @@ backend/
 │   │   ├── sales/                  # AI prospect analysis
 │   │   ├── subscriptions/          # Recurring services catalog, clients, subscriptions
 │   │   ├── payments/               # Stripe gateway, refunds, webhooks
+│   │   ├── onboarding/             # Anonymous self-service signup (external tenant + owner)
 │   │   └── dev/                    # Dev token generator
 │   ├── shared/                     # Infrastructure — used by core and addons
 │   │   ├── module/                 # Module interface, registry, config service
