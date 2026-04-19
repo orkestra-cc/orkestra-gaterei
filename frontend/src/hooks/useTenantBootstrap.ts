@@ -15,17 +15,17 @@ import {
 } from 'store/api/tenantApi';
 
 /**
- * useTenantBootstrap fetches the user's org memberships and effective
- * permissions for the current org after login, and refetches on org
+ * useTenantBootstrap fetches the user's tenant memberships and effective
+ * permissions for the current tenant after login, and refetches on tenant
  * switch. Drop it into a top-level layout component (e.g. MainLayout) so
  * tenant state is always fresh.
  *
  * Flow:
  *   1. User logs in → authSlice.isAuthenticated goes true
- *   2. GET /v1/orgs → dispatch setMemberships
- *      (the slice auto-picks a default current org if none is stored)
- *   3. GET /v1/orgs/{currentOrgId}/authz/me → dispatch setEffectivePermissions
- *   4. GET /v1/orgs/{currentOrgId} → dispatch setFeatures
+ *   2. GET /v1/tenants → dispatch setMemberships
+ *      (the slice auto-picks a default current tenant if none is stored)
+ *   3. GET /v1/tenants/{currentOrgId}/authz/me → dispatch setEffectivePermissions
+ *   4. GET /v1/tenants/{currentOrgId} → dispatch setFeatures
  */
 const STORAGE_KEY = 'orkestra.currentOrgId';
 

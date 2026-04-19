@@ -132,7 +132,7 @@ const OverviewTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
   const onSave = async () => {
     try {
       await updateOrg({
-        orgId: org.id,
+        tenantId: org.id,
         body: {
           name: name !== org.name ? name : undefined,
           slug: slug !== org.slug ? slug : undefined,
@@ -205,7 +205,7 @@ const PlanTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
 
   const onSave = async () => {
     try {
-      await updatePlan({ orgId: org.id, body: { plan, features } }).unwrap();
+      await updatePlan({ tenantId: org.id, body: { plan, features } }).unwrap();
       toast.success('Plan updated');
     } catch (err: unknown) {
       toast.error('Plan update failed: ' + extractError(err));
@@ -269,7 +269,7 @@ const MembersTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
 
   const onRemove = async (userUUID: string) => {
     try {
-      await removeMember({ orgId: org.id, userUUID }).unwrap();
+      await removeMember({ tenantId: org.id, userUUID }).unwrap();
       toast.success('Member removed');
     } catch (err: unknown) {
       toast.error('Remove failed: ' + extractError(err));
@@ -356,7 +356,7 @@ const MembersTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
 // --- Invites tab ---
 
 const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
-  const { data, isLoading, error } = useListOrgInvitesAdminQuery({ orgId: org.id });
+  const { data, isLoading, error } = useListOrgInvitesAdminQuery({ tenantId: org.id });
   const [createInvite, { isLoading: isCreating }] = useCreateOrgInviteAdminMutation();
   const [revokeInvite] = useRevokeOrgInviteAdminMutation();
 
@@ -375,7 +375,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
     }
     try {
       const inv = await createInvite({
-        orgId: org.id,
+        tenantId: org.id,
         body: { email, roles },
       }).unwrap();
       setFreshInvite(inv);
@@ -388,7 +388,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
 
   const onRevoke = async (inviteId: string) => {
     try {
-      await revokeInvite({ orgId: org.id, inviteId }).unwrap();
+      await revokeInvite({ tenantId: org.id, inviteId }).unwrap();
       toast.success('Invite revoked');
     } catch (err: unknown) {
       toast.error('Revoke failed: ' + extractError(err));

@@ -9,30 +9,32 @@ export const setNavigateToLogin = (fn: (location?: string) => void) => {
   navigateToLogin = fn;
 };
 
-// Endpoints that must NOT carry X-Org-ID because they run before the current
-// org is known (login, refresh, org listing, org creation, invite accept),
-// or because they are platform-level (module admin, first-install setup)
-// and the backend's org-resolution middleware would reject a stray header.
-const ORG_AGNOSTIC_PATHS = [
+// Endpoints that must NOT carry X-Tenant-ID because they run before the
+// current tenant is known (login, refresh, tenant listing, tenant creation,
+// invite accept), or because they are platform-level (module admin,
+// first-install setup) and the backend's tenant-resolution middleware would
+// reject a stray header.
+const TENANT_AGNOSTIC_PATHS = [
   '/v1/auth/',
-  '/v1/orgs',                 // GET list, POST create
-  '/v1/orgs/accept-invite',
+  '/v1/tenants',              // GET list, POST create
+  '/v1/tenants/accept-invite',
   '/v1/notifications/preferences',
-  '/v1/admin/modules',        // platform-level module admin, not per-org
-  '/v1/admin/orgs',           // platform-level tenant admin, not per-org
+  '/v1/admin/modules',        // platform-level module admin, not per-tenant
+  '/v1/admin/tenants',        // platform-level tenant admin, not per-tenant
   '/v1/setup',                // first-install wizard endpoints
 ];
 
-function isOrgAgnostic(url: string): boolean {
-  // Exact-match /v1/orgs (listing/creation) but pass through for /v1/orgs/{orgId}/...
-  if (url === '/v1/orgs' || url.startsWith('/v1/orgs?')) return true;
-  if (url === '/v1/orgs/accept-invite') return true;
-  return ORG_AGNOSTIC_PATHS.some((p) => p !== '/v1/orgs' && url.startsWith(p));
+function isTenantAgnostic(url: string): boolean {
+  // Exact-match /v1/tenants (listing/creation) but pass through for
+  // /v1/tenants/{tenantId}/...
+  if (url === '/v1/tenants' || url.startsWith('/v1/tenants?')) return true;
+  if (url === '/v1/tenants/accept-invite') return true;
+  return TENANT_AGNOSTIC_PATHS.some((p) => p !== '/v1/tenants' && url.startsWith(p));
 }
 
-// Base fetch with cookies + Bearer token. Tenant context (X-Org-ID) is
+// Base fetch with cookies + Bearer token. Tenant context (X-Tenant-ID) is
 // injected by baseQueryWithRetry below, where we have access to the request
-// args and can decide whether the endpoint is org-scoped.
+// args and can decide whether the endpoint is tenant-scoped.
 const baseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}`,
   credentials: 'include',
@@ -59,16 +61,16 @@ const baseQueryWithRetry: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  // Inject X-Org-ID for every tenant-scoped request. The backend validates
+  // Inject X-Tenant-ID for every tenant-scoped request. The backend validates
   // the header against the caller's JWT memberships and rejects mismatches.
   const state = api.getState() as RootState;
   const currentOrgId = state.tenant?.currentOrgId;
   if (currentOrgId) {
     const url = typeof args === 'string' ? args : args.url;
-    if (!isOrgAgnostic(url)) {
+    if (!isTenantAgnostic(url)) {
       const merged: FetchArgs = typeof args === 'string'
-        ? { url: args, headers: { 'X-Org-ID': currentOrgId } }
-        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Org-ID': currentOrgId } };
+        ? { url: args, headers: { 'X-Tenant-ID': currentOrgId } }
+        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Tenant-ID': currentOrgId } };
       args = merged;
     }
   }

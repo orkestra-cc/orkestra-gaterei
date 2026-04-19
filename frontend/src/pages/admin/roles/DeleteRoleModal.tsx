@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { useDeleteRoleMutation, type Role } from 'store/api/tenantApi';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
   role: Role | null;
   show: boolean;
   onHide: () => void;
@@ -19,7 +19,7 @@ interface Props {
  * System roles never land here — the delete button is hidden for them in
  * RolesTable. We still gate on `role.isSystem` as a defensive noop.
  */
-const DeleteRoleModal: React.FC<Props> = ({ orgId, role, show, onHide }) => {
+const DeleteRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
   const [deleteRole, { isLoading }] = useDeleteRoleMutation();
 
   const onConfirm = async () => {
@@ -28,7 +28,7 @@ const DeleteRoleModal: React.FC<Props> = ({ orgId, role, show, onHide }) => {
       return;
     }
     try {
-      await deleteRole({ orgId, roleId: role.id }).unwrap();
+      await deleteRole({ tenantId, roleId: role.id }).unwrap();
       toast.success(`Role "${role.name}" deleted`);
       onHide();
     } catch (err: unknown) {

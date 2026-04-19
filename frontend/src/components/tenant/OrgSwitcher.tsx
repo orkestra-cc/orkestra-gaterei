@@ -7,9 +7,9 @@ import {
 } from 'store/slices/tenantSlice';
 
 /**
- * OrgSwitcher renders a dropdown of the current user's org memberships and
- * switches the active org in Redux. Switching is instant — the baseApi
- * interceptor will pick up the new orgId on the next request, so no token
+ * OrgSwitcher renders a dropdown of the current user's tenant memberships and
+ * switches the active tenant in Redux. Switching is instant — the baseApi
+ * interceptor will pick up the new tenantId on the next request, so no token
  * refresh is needed.
  *
  * Drop this into the top navbar next to the user avatar.
@@ -40,9 +40,9 @@ export default function OrgSwitcher() {
         <Dropdown.Header>Your organizations</Dropdown.Header>
         {memberships.map((m) => (
           <Dropdown.Item
-            key={m.orgId}
-            active={m.orgId === current?.orgId}
-            onClick={() => dispatch(setCurrentOrg(m.orgId))}
+            key={m.tenantId}
+            active={m.tenantId === current?.tenantId}
+            onClick={() => dispatch(setCurrentOrg(m.tenantId))}
           >
             <div className="d-flex justify-content-between align-items-center">
               <span>{m.name}</span>

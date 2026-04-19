@@ -22,7 +22,7 @@ import EditRoleModal from './EditRoleModal';
 import DeleteRoleModal from './DeleteRoleModal';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
 }
 
 // System roles are rendered highest-privilege first. Unknown names fall to the
@@ -56,8 +56,8 @@ const systemRoleRank = (name: string): number => {
  * before the user clicks anything. Both sections share a single search
  * input that matches against name, description, and permission keys.
  */
-const RolesTable: React.FC<Props> = ({ orgId }) => {
-  const { data, isLoading, error } = useListRolesQuery(orgId);
+const RolesTable: React.FC<Props> = ({ tenantId }) => {
+  const { data, isLoading, error } = useListRolesQuery(tenantId);
   const [updateRole] = useUpdateRoleMutation();
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Role | null>(null);
@@ -93,7 +93,7 @@ const RolesTable: React.FC<Props> = ({ orgId }) => {
   const onToggleActive = async (role: Role) => {
     try {
       await updateRole({
-        orgId,
+        tenantId,
         roleId: role.id,
         body: { isActive: !role.isActive },
       }).unwrap();
@@ -221,15 +221,15 @@ const RolesTable: React.FC<Props> = ({ orgId }) => {
         </RoleSection>
       </div>
 
-      <CreateRoleModal orgId={orgId} show={showCreate} onHide={() => setShowCreate(false)} />
+      <CreateRoleModal tenantId={tenantId} show={showCreate} onHide={() => setShowCreate(false)} />
       <EditRoleModal
-        orgId={orgId}
+        tenantId={tenantId}
         role={editing}
         show={editing !== null}
         onHide={() => setEditing(null)}
       />
       <DeleteRoleModal
-        orgId={orgId}
+        tenantId={tenantId}
         role={deleting}
         show={deleting !== null}
         onHide={() => setDeleting(null)}

@@ -85,7 +85,7 @@ const TenantManagementPage: React.FC = () => {
   const [pendingDelete, setPendingDelete] = useState<AdminOrgListItem | null>(null);
 
   const stats = useMemo(() => {
-    const orgs = data?.orgs ?? [];
+    const orgs = data?.tenants ?? [];
     const active = orgs.filter((o) => !o.deletedAt);
     const deleted = orgs.filter((o) => !!o.deletedAt);
     const planBreakdown: Record<string, number> = {};
@@ -208,7 +208,7 @@ const TenantManagementPage: React.FC = () => {
       </Row>
 
       <TenantTable
-        orgs={data?.orgs ?? []}
+        orgs={data?.tenants ?? []}
         isLoading={isLoading}
         error={!!error}
         includeDeleted={includeDeleted}

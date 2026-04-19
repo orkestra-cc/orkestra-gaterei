@@ -31,7 +31,7 @@ const slugify = (input: string): string =>
 
 /**
  * Third step of the setup wizard: creates the first organization and
- * enrolls the fresh administrator as its owner. Calls POST /v1/orgs
+ * enrolls the fresh administrator as its owner. Calls POST /v1/tenants
  * (already a global, non-org-scoped endpoint) via the existing
  * tenantApi.createOrg mutation — no new backend surface.
  *
@@ -80,15 +80,15 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
 
     try {
       const created = await createOrg({ name: trimmedName, slug, plan: 'enterprise' }).unwrap();
-      // Seed tenant state with the freshly created org so the remaining
+      // Seed tenant state with the freshly created tenant so the remaining
       // wizard steps (and the post-wizard dashboard navigation) run with a
-      // valid X-Org-ID. createOrg's onQueryStarted already refreshes the
+      // valid X-Tenant-ID. createOrg's onQueryStarted already refreshes the
       // JWT so the new membership is in claims.Memberships; this hydrates
       // the Redux side so baseApi stops sending a stale header.
       dispatch(
         setMemberships([
           {
-            orgId: created.id,
+            tenantId: created.id,
             name: created.name,
             slug: created.slug,
             plan: created.plan,

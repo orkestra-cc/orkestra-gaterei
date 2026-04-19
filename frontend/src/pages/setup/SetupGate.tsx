@@ -34,8 +34,8 @@ const SetupGate = ({ children }: SetupGateProps) => {
   // If the backend reports the install is not yet set up, drop any
   // tenant state left over from a previous session (e.g. a currentOrgId
   // in localStorage from a database that has since been wiped). Otherwise
-  // baseApi would attach a stale X-Org-ID to wizard requests and the
-  // backend's org-resolution middleware would 403 them.
+  // baseApi would attach a stale X-Tenant-ID to wizard requests and the
+  // backend's tenant-resolution middleware would 403 them.
   useEffect(() => {
     if (data && !data.setupCompleted) {
       dispatch(resetTenantState());

@@ -10,7 +10,7 @@ import {
 import CreateBindingModal from './CreateBindingModal';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
 }
 
 /**
@@ -18,8 +18,8 @@ interface Props {
  * administrators grant new bindings or revoke existing ones. Expired
  * bindings are reaped automatically by the backend TTL index.
  */
-const BindingsTable: React.FC<Props> = ({ orgId }) => {
-  const { data, isLoading, error } = useListBindingsQuery(orgId);
+const BindingsTable: React.FC<Props> = ({ tenantId }) => {
+  const { data, isLoading, error } = useListBindingsQuery(tenantId);
   const [deleteBinding, { isLoading: isDeleting }] = useDeleteBindingMutation();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -45,7 +45,7 @@ const BindingsTable: React.FC<Props> = ({ orgId }) => {
   const onRevoke = async (b: Binding) => {
     if (!window.confirm(`Revoke ${b.roleName} from ${shortUUID(b.userUUID)}?`)) return;
     try {
-      await deleteBinding({ orgId, bindingId: b.id }).unwrap();
+      await deleteBinding({ tenantId, bindingId: b.id }).unwrap();
       toast.success('Binding revoked');
     } catch (err: unknown) {
       toast.error('Revoke failed: ' + extractError(err));
@@ -121,7 +121,7 @@ const BindingsTable: React.FC<Props> = ({ orgId }) => {
       )}
 
       <CreateBindingModal
-        orgId={orgId}
+        tenantId={tenantId}
         show={showCreate}
         onHide={() => setShowCreate(false)}
       />

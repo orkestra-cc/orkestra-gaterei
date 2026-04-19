@@ -6,9 +6,9 @@ import RolesTable from './RolesTable';
 import BindingsTable from './BindingsTable';
 
 /**
- * Role Management page — per-org view of roles and bindings backed by the
- * authz module. Requires an org context (X-Org-ID header) so you must have
- * selected an organization in the top navbar before opening this page.
+ * Role Management page — per-tenant view of roles and bindings backed by the
+ * authz module. Requires a tenant context (X-Tenant-ID header) so you must
+ * have selected a tenant in the top navbar before opening this page.
  */
 const RoleManagementPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,10 +60,10 @@ const RoleManagementPage: React.FC = () => {
               className="mb-3"
             >
               <Tab eventKey="roles" title="Roles">
-                <RolesTable orgId={currentOrgId} />
+                <RolesTable tenantId={currentOrgId} />
               </Tab>
               <Tab eventKey="bindings" title="Role Bindings">
-                <BindingsTable orgId={currentOrgId} />
+                <BindingsTable tenantId={currentOrgId} />
               </Tab>
             </Tabs>
           </Card.Body>

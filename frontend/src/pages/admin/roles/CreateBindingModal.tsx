@@ -7,7 +7,7 @@ import {
 } from 'store/api/tenantApi';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
   show: boolean;
   onHide: () => void;
 }
@@ -17,8 +17,8 @@ interface Props {
  * optional expiry timestamp for contractor/trial access. The TTL index on
  * authz_bindings auto-reaps expired entries.
  */
-const CreateBindingModal: React.FC<Props> = ({ orgId, show, onHide }) => {
-  const { data: rolesData, isLoading: rolesLoading } = useListRolesQuery(orgId, {
+const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
+  const { data: rolesData, isLoading: rolesLoading } = useListRolesQuery(tenantId, {
     skip: !show
   });
   const [createBinding, { isLoading: isSaving }] = useCreateBindingMutation();
@@ -41,7 +41,7 @@ const CreateBindingModal: React.FC<Props> = ({ orgId, show, onHide }) => {
   const onSave = async () => {
     try {
       await createBinding({
-        orgId,
+        tenantId,
         body: {
           userUUID: userUUID.trim(),
           roleId,

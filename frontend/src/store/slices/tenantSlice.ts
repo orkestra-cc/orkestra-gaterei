@@ -2,24 +2,25 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../index';
 
 /**
- * Membership entry returned by GET /v1/orgs. Mirrors the backend
+ * Membership entry returned by GET /v1/tenants. Mirrors the backend
  * memberDTO in tenant/handlers/handler.go.
  */
 export interface Membership {
-  orgId: string;
+  tenantId: string;
   name: string;
   slug: string;
   plan: string;
+  kind?: string;
   roles: string[];
   isOwner: boolean;
 }
 
 /**
  * Effective-permissions payload returned by
- * GET /v1/orgs/{orgId}/authz/me.
+ * GET /v1/tenants/{tenantId}/authz/me.
  */
 export interface EffectivePermissions {
-  orgId: string;
+  tenantId: string;
   permissions: string[];
   systemRole: string;
 }
@@ -41,7 +42,7 @@ const STORAGE_KEY = 'orkestra.currentOrgId';
 // currentOrgId starts null and is rehydrated from localStorage only after
 // memberships load, validated against the fresh list. This prevents a stale
 // localStorage value (e.g. after a backend DB wipe) from injecting
-// X-Org-ID on requests before we know what orgs the user actually has.
+// X-Tenant-ID on requests before we know what tenants the user actually has.
 const initialState: TenantState = {
   memberships: [],
   currentOrgId: null,
@@ -64,12 +65,12 @@ const tenantSlice = createSlice({
       // through before memberships are known.
       const stored =
         typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-      const valid = action.payload.some((m) => m.orgId === stored);
+      const valid = action.payload.some((m) => m.tenantId === stored);
       if (valid) {
         state.currentOrgId = stored;
       } else {
         const owned = action.payload.find((m) => m.isOwner);
-        state.currentOrgId = owned?.orgId || action.payload[0]?.orgId || null;
+        state.currentOrgId = owned?.tenantId || action.payload[0]?.tenantId || null;
       }
       if (state.currentOrgId && typeof window !== 'undefined') {
         window.localStorage.setItem(STORAGE_KEY, state.currentOrgId);
@@ -79,7 +80,7 @@ const tenantSlice = createSlice({
     },
 
     setCurrentOrg: (state, action: PayloadAction<string>) => {
-      const exists = state.memberships.some((m) => m.orgId === action.payload);
+      const exists = state.memberships.some((m) => m.tenantId === action.payload);
       if (!exists) return;
       state.currentOrgId = action.payload;
       if (typeof window !== 'undefined') {
@@ -91,7 +92,7 @@ const tenantSlice = createSlice({
     },
 
     setEffectivePermissions: (state, action: PayloadAction<EffectivePermissions>) => {
-      if (action.payload.orgId !== state.currentOrgId) return;
+      if (action.payload.tenantId !== state.currentOrgId) return;
       state.permissions = action.payload.permissions;
       state.systemRole = action.payload.systemRole;
       // Features come from the membership's plan — the memberships list
@@ -139,7 +140,7 @@ export const selectCurrentOrgId = (state: RootState) => state.tenant.currentOrgI
 export const selectCurrentMembership = (state: RootState): Membership | null => {
   const id = state.tenant.currentOrgId;
   if (!id) return null;
-  return state.tenant.memberships.find((m) => m.orgId === id) || null;
+  return state.tenant.memberships.find((m) => m.tenantId === id) || null;
 };
 export const selectPermissions = (state: RootState) => state.tenant.permissions;
 export const selectFeatures = (state: RootState) => state.tenant.features;

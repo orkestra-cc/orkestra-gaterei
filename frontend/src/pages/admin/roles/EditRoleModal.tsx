@@ -10,7 +10,7 @@ import {
 import PermissionPicker from './PermissionPicker';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
   role: Role | null;
   show: boolean;
   onHide: () => void;
@@ -26,7 +26,7 @@ interface Props {
  * The submit dispatches a PATCH with only the fields that actually changed
  * vs the role snapshot at open time.
  */
-const EditRoleModal: React.FC<Props> = ({ orgId, role, show, onHide }) => {
+const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
   const [updateRole, { isLoading: isSaving }] = useUpdateRoleMutation();
 
   const [name, setName] = useState('');
@@ -84,7 +84,7 @@ const EditRoleModal: React.FC<Props> = ({ orgId, role, show, onHide }) => {
       return;
     }
     try {
-      await updateRole({ orgId, roleId: role.id, body: patch }).unwrap();
+      await updateRole({ tenantId, roleId: role.id, body: patch }).unwrap();
       toast.success(`Role "${role.name}" updated`);
       onHide();
     } catch (err: unknown) {

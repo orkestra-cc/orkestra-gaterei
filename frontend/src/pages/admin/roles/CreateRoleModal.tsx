@@ -6,7 +6,7 @@ import { useCreateRoleMutation } from 'store/api/tenantApi';
 import PermissionPicker from './PermissionPicker';
 
 interface Props {
-  orgId: string;
+  tenantId: string;
   show: boolean;
   onHide: () => void;
 }
@@ -16,7 +16,7 @@ interface Props {
  * permission-picker state lives inside PermissionPicker — this component
  * only owns name, description, and the save mutation.
  */
-const CreateRoleModal: React.FC<Props> = ({ orgId, show, onHide }) => {
+const CreateRoleModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
   const [createRole, { isLoading: isSaving }] = useCreateRoleMutation();
 
   const [name, setName] = useState('');
@@ -36,7 +36,7 @@ const CreateRoleModal: React.FC<Props> = ({ orgId, show, onHide }) => {
   const onSave = async () => {
     try {
       await createRole({
-        orgId,
+        tenantId,
         body: {
           name: name.trim(),
           description: description.trim(),
