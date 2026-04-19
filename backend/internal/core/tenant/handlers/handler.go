@@ -237,6 +237,19 @@ func (h *Handler) deleteTenant(ctx context.Context, in *tenantIDPath) (*struct{}
 	return &struct{}{}, nil
 }
 
+// purgeTenant is the irreversible GDPR erasure path — flips status to
+// purged AND crypto-shreds the tenant's KMS key. After this call every
+// ciphertext wrapped with that key is unrecoverable. Gated (at the
+// route level) by system.tenants.admin; future work adds a second MFA
+// step-up + a 7-day delay between archive and purge to match SOC2
+// expectations.
+func (h *Handler) purgeTenant(ctx context.Context, in *tenantIDPath) (*struct{}, error) {
+	if err := h.svc.PurgeTenant(ctx, in.TenantID); err != nil {
+		return nil, huma.Error400BadRequest("purge failed: " + err.Error())
+	}
+	return &struct{}{}, nil
+}
+
 func (h *Handler) updatePlan(ctx context.Context, in *updatePlanInput) (*tenantOutput, error) {
 	if err := h.svc.UpdatePlan(ctx, in.TenantID, in.Body); err != nil {
 		return nil, huma.Error400BadRequest("plan update failed: " + err.Error())
@@ -358,6 +371,15 @@ func (h *Handler) RegisterAdminRoutes(api huma.API) {
 		Summary:     "Archive a tenant (platform admin)",
 		Tags:        []string{"Tenants Admin"},
 	}, h.deleteTenant)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "purge-tenant-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/tenants/{tenantId}/purge",
+		Summary:     "Purge a tenant (irreversible — crypto-shreds the KMS key)",
+		Description: "GDPR right-to-erasure at the tenant level. Flips the tenant status to purged AND deletes the wrapped DEK; every ciphertext sealed with that key becomes cryptographically unrecoverable. There is no undo.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.purgeTenant)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-tenant-plan-admin",

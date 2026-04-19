@@ -633,3 +633,66 @@ func (r *PIIProducerRegistry) List() []PIIProducer {
 	copy(out, r.producers)
 	return out
 }
+
+// ---------------------------------------------------------------------------
+// KMSProvider — consumed by: tenant (creates a key on provisioning,
+// shreds on purge) and any module that envelope-encrypts per-tenant
+// data (e.g. a future PII-field encryption layer).
+//
+// Implementations: local Mongo-backed provider in compliance (dev +
+// simple prod deployments), AWS KMS provider in a later phase (prod HSM
+// backing). The interface is intentionally narrow so both satisfy it.
+// ---------------------------------------------------------------------------
+
+// ErrKMSKeyNotFound is the sentinel returned when a key lookup fails,
+// either because the key never existed or because it was shredded.
+// Defined here so callers can branch on it without importing the
+// compliance implementation.
+var ErrKMSKeyNotFound = newStringError("kms: key not found")
+
+// ErrKMSKeyDeleted signals the key exists in the metadata table but its
+// wrapped DEK has been scheduled for deletion (crypto-shred). Decrypt
+// returns this when called against a shredded key.
+var ErrKMSKeyDeleted = newStringError("kms: key scheduled for deletion")
+
+// KMSProvider manages per-tenant envelope-encryption keys. Each
+// tenant's data is encrypted with a tenant-scoped Data Encryption Key
+// (DEK); the DEK is wrapped with a master key never exposed to
+// consumers. Shredding a tenant's DEK ( DeleteKey ) makes every
+// ciphertext encrypted with it cryptographically unrecoverable — the
+// GDPR crypto-shred primitive.
+type KMSProvider interface {
+	// CreateKey mints a fresh DEK for tenantUUID, wraps it with the
+	// master key, persists the wrapped form, and returns the opaque
+	// keyID callers stamp on their tenant row. Idempotent at the
+	// tenant level: if a key already exists for tenantUUID, returns
+	// the existing keyID rather than overwriting — avoids wiping data
+	// when a create path runs twice.
+	CreateKey(ctx context.Context, tenantUUID string) (keyID string, err error)
+
+	// Encrypt seals plaintext with the tenant's DEK. The returned
+	// ciphertext is self-contained (carries the nonce + auth tag)
+	// and safe to store alongside other tenant-scoped data.
+	Encrypt(ctx context.Context, keyID string, plaintext []byte) (ciphertext []byte, err error)
+
+	// Decrypt opens ciphertext previously produced by Encrypt with
+	// the same keyID. Returns ErrKMSKeyDeleted if the key has been
+	// shredded — the "dead" signal crypto-shred relies on.
+	Decrypt(ctx context.Context, keyID string, ciphertext []byte) (plaintext []byte, err error)
+
+	// DeleteKey performs crypto-shred: the wrapped DEK is destroyed
+	// (or marked for destruction, depending on the backend). After
+	// this call, any ciphertext encrypted with keyID is unrecoverable
+	// — there is no undo even by an operator with DB access, because
+	// the DEK no longer exists anywhere. Call on PurgeTenant.
+	DeleteKey(ctx context.Context, keyID string) error
+}
+
+// newStringError is a tiny helper so iface can declare sentinels
+// without pulling in errors.New at package top-level formatting. Kept
+// unexported.
+func newStringError(s string) error { return &stringError{s: s} }
+
+type stringError struct{ s string }
+
+func (e *stringError) Error() string { return e.s }

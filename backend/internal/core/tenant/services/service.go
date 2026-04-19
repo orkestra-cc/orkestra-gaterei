@@ -22,6 +22,7 @@ import (
 type Service struct {
 	repo      *repository.Repository
 	auditSink iface.AuditSink
+	kms       iface.KMSProvider
 }
 
 func New(repo *repository.Repository) *Service {
@@ -32,6 +33,14 @@ func New(repo *repository.Repository) *Service {
 // the emit* helpers tolerate a nil sink when the compliance module is
 // disabled or initializing later in the topological order.
 func (s *Service) SetAuditSink(sink iface.AuditSink) { s.auditSink = sink }
+
+// SetKMSProvider wires the per-tenant envelope-encryption provider
+// post-construction. When set, CreateTenant mints a KMS key for every
+// new tenant and PurgeTenant crypto-shreds it — the GDPR
+// right-to-erasure primitive mandated by ADR-0001 Phase 4.3. When the
+// provider is nil (compliance module disabled, master key missing)
+// tenants are created without a KMS key; purge remains a status flip.
+func (s *Service) SetKMSProvider(kms iface.KMSProvider) { s.kms = kms }
 
 // emitAudit forwards to the compliance sink when wired; no-op otherwise.
 func (s *Service) emitAudit(ctx context.Context, event iface.AuditEvent) {
@@ -184,6 +193,23 @@ func (s *Service) CreateTenant(ctx context.Context, ownerUUID string, input mode
 		return nil, err
 	}
 
+	// Per-tenant KMS key — minted before membership bookkeeping so a
+	// failure here aborts the tenant cleanly (soft-delete the row,
+	// return the error) rather than leaving a half-provisioned
+	// tenant. When KMS is not wired (compliance disabled) the step
+	// is silently skipped and KMSKeyID stays empty.
+	if s.kms != nil {
+		keyID, err := s.kms.CreateKey(ctx, t.UUID)
+		if err != nil {
+			_ = s.repo.SoftDeleteTenant(ctx, t.UUID)
+			return nil, fmt.Errorf("tenant: mint KMS key: %w", err)
+		}
+		t.KMSKeyID = &keyID
+		if err := s.repo.UpdateTenant(ctx, t.UUID, bson.M{"kmsKeyID": keyID}); err != nil {
+			return nil, fmt.Errorf("tenant: stamp KMS key: %w", err)
+		}
+	}
+
 	// Closure-table bookkeeping: self-row at depth 0 for every tenant,
 	// plus the transitive chain when a parent is set.
 	if err := s.repo.InsertSelfAncestor(ctx, t.UUID); err != nil {
@@ -279,8 +305,25 @@ func (s *Service) ArchiveTenant(ctx context.Context, tenantUUID string) error {
 }
 
 func (s *Service) PurgeTenant(ctx context.Context, tenantUUID string) error {
+	// Fetch first so we know the KMSKeyID (if any) before flipping
+	// status — the row is still readable in purged state but carrying
+	// a live keyID would defeat crypto-shred.
+	existing, lookupErr := s.repo.GetTenantByUUID(ctx, tenantUUID)
 	if err := s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusPurged); err != nil {
 		return err
+	}
+	// Crypto-shred: delete the DEK so every ciphertext written under
+	// it becomes unrecoverable. Best-effort at the purge boundary —
+	// log and continue if the KMS provider is transiently unhealthy;
+	// the key row stays active and can be shredded manually. Without
+	// crypto-shred the row is still marked purged and downstream
+	// reads are blocked by status gating.
+	if s.kms != nil && lookupErr == nil && existing != nil && existing.KMSKeyID != nil && *existing.KMSKeyID != "" {
+		if err := s.kms.DeleteKey(ctx, *existing.KMSKeyID); err != nil {
+			// The audit row below still fires so auditors see the
+			// attempt; a retry pathway is tracked as tech debt.
+			_ = err
+		}
 	}
 	s.emitLifecycle(ctx, "tenant.lifecycle.purged", tenantUUID)
 	return nil

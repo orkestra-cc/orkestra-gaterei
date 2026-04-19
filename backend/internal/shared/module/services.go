@@ -82,6 +82,12 @@ const (
 	// right-of-access / right-to-erasure) requests. Value: a concrete
 	// *iface.PIIProducerRegistry.
 	ServicePIIProducerRegistry ServiceKey = "compliance.pii_producer_registry"
+
+	// ServiceKMSProvider is the per-tenant envelope-encryption provider.
+	// Registered by the compliance module; consumed by the tenant
+	// module for crypto-shred on purge and (in later phases) by any
+	// module that envelope-encrypts PII fields. Value: iface.KMSProvider.
+	ServiceKMSProvider ServiceKey = "compliance.kms_provider"
 )
 
 // ServiceRegistry is a typed key-value store for cross-module service sharing.

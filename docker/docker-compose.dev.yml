@@ -37,6 +37,11 @@ services:
       # OAuth Token Encryption
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
 
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped
+      # DEK. Keep env-derived so operators can rotate without a rebuild.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
+
       # Cookie Configuration
       COOKIE_SECRET: ${COOKIE_SECRET}
       COOKIE_NAME: ${COOKIE_NAME:-orkestra_cookie}

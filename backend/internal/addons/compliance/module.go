@@ -108,12 +108,17 @@ func (m *Module) Collections() []module.CollectionSpec {
 			// retention config in this phase.
 			{Keys: map[string]int{"timestamp": 1}, TTL: 2 * 365 * 24 * time.Hour},
 		}},
+		{Name: models.KMSKeysCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"tenantUuid": 1}, Unique: true},
+		}},
 	}
 }
 
-// Init constructs the repository, the sink, the DSR service, and the
-// handlers, then registers the sink in the service registry and pushes
-// it into consumer services that accept post-init wiring.
+// Init constructs the repository, the sink, the DSR service, the KMS
+// provider, and the handlers, then registers everything in the service
+// registry and pushes setters into consumer services that accept
+// post-init wiring.
 func (m *Module) Init(deps *module.Dependencies) error {
 	repo := repository.New(deps.DB)
 	m.sink = services.NewSink(repo, deps.Logger)
@@ -122,6 +127,23 @@ func (m *Module) Init(deps *module.Dependencies) error {
 
 	sink := iface.AuditSink(m.sink)
 	deps.Services.Register(module.ServiceAuditSink, sink)
+
+	// KMS provider — per-tenant envelope encryption + crypto-shred on
+	// purge (Phase 4.3). Boots lazily: if the master key env is
+	// missing the provider is absent and the tenant service runs
+	// without crypto-shred (dev deployments that opt out). A future
+	// AWS KMS provider swaps in here.
+	kmsRepo := repository.NewKMSKeyRepo(deps.DB)
+	if kms, err := services.NewLocalKMS(kmsRepo); err == nil {
+		deps.Services.Register(module.ServiceKMSProvider, iface.KMSProvider(kms))
+		if ts, ok := module.GetTyped[*tenantServices.Service](deps.Services, module.ServiceTenantService); ok {
+			ts.SetKMSProvider(kms)
+		}
+	} else {
+		deps.Logger.Warn("compliance: KMS provider disabled — ORKESTRA_KMS_MASTER_KEY missing or invalid",
+			slog.String("error", err.Error()),
+		)
+	}
 
 	// DSR pipeline — optional by design. If the main.go bootstrap never
 	// created a producer registry (unusual) the handler is simply not
