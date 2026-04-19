@@ -16,6 +16,7 @@ var (
 	ErrSubscriptionTierNotFound = errors.New("pricing tier not found on service")
 	ErrSubscriptionCancelled    = errors.New("subscription is already cancelled")
 	ErrSubscriptionNotPausable  = errors.New("subscription cannot be reactivated from current state")
+	ErrSubscriptionServiceCode  = errors.New("service code not found or inactive")
 )
 
 // SubscriptionService owns the state machine and period math for a
@@ -88,6 +89,59 @@ func (s *SubscriptionService) Create(ctx context.Context, clientUUID, serviceUUI
 	// tier's capability bundle immediately (payment is confirmed on the
 	// first renewal tick). The syncer is a no-op when TenantUUID is empty —
 	// legacy client-only subs keep working without capability grants.
+	s.entitlement.OnActivate(ctx, sub)
+	return sub, nil
+}
+
+// CreateForTenant is the Phase-3 self-service subscribe path. Unlike
+// Create, it takes a TenantUUID (Tier-2 external tenant) and a human-
+// typed service/tier code pair — there is no Client row. Activation fires
+// immediately via the entitlement syncer so the tenant's capability
+// projection receives the tier's grants before the first renewal tick.
+//
+// This intentionally bypasses the Client entity: under ADR-0001 the
+// external Tenant replaces Client, and the self-service path should never
+// resurrect the legacy shape. Operator-created subscriptions still flow
+// through Create (with a Client row) while the catalog-admin UI exists.
+func (s *SubscriptionService) CreateForTenant(ctx context.Context, tenantUUID, serviceCode, tierCode, actor string) (*models.Subscription, error) {
+	if tenantUUID == "" {
+		return nil, errors.New("subscriptions: CreateForTenant requires tenantUUID")
+	}
+	svc, err := s.services.GetByCode(ctx, serviceCode)
+	if err != nil || svc == nil || !svc.Active {
+		return nil, ErrSubscriptionServiceCode
+	}
+	tier := svc.FindTier(tierCode)
+	if tier == nil {
+		return nil, ErrSubscriptionTierNotFound
+	}
+
+	now := time.Now().UTC()
+	sub := &models.Subscription{
+		UUID:               uuid.NewString(),
+		TenantUUID:         tenantUUID,
+		ServiceUUID:        svc.UUID,
+		TierCode:           tier.Code,
+		Status:             models.SubActive,
+		StartedAt:          now,
+		CurrentPeriodStart: now,
+		CurrentPeriodEnd:   AdvancePeriod(now, tier.Cycle),
+		NextBillingAt:      now,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	if err := s.subs.Create(ctx, sub); err != nil {
+		return nil, err
+	}
+	s.activity.Log(ctx, sub, actor, models.ActivityCreated, "Subscription created (self-service)", map[string]any{
+		"serviceCode": svc.Code,
+		"tierCode":    tier.Code,
+		"tenantUUID":  tenantUUID,
+	})
+	// Grant the tier's capabilities to the tenant right away so the user
+	// can consume gated routes immediately after subscribing. The first
+	// charge still happens on the next renewal tick; if that charge fails,
+	// the normal past_due → suspended state machine revokes the grants.
 	s.entitlement.OnActivate(ctx, sub)
 	return sub, nil
 }

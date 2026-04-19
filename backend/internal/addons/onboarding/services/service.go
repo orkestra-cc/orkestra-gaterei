@@ -93,10 +93,75 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*RegisterResu
 		return nil, fmt.Errorf("onboarding: provision tenant: %w", err)
 	}
 
+	// Short-circuit activation when the environment skips email verification
+	// (dev / smoke tests / AUTH_REQUIRE_EMAIL_VERIFICATION=false). Without
+	// this branch the tenant would remain in `provisioning` forever because
+	// no VerifyEmail call ever fires. In production-like envs user.EmailVerified
+	// is false here and the activator runs later from the verify-email hook.
+	if user.EmailVerified {
+		if err := s.tenant.ActivateTenant(ctx, tenant.UUID); err != nil {
+			s.logger.Warn("onboarding: immediate activation failed",
+				slog.String("userUUID", user.UUID),
+				slog.String("tenantUUID", tenant.UUID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
 	return &RegisterResult{
 		UserUUID:             user.UUID,
 		TenantUUID:           tenant.UUID,
 		TenantSlug:           tenant.Slug,
 		RequiresVerification: !user.EmailVerified,
 	}, nil
+}
+
+// ActivateOnVerify flips every `provisioning` tenant the user owns into
+// `active`. Invoked from PasswordAuthService via the OnboardingActivator
+// callback after a successful email verification. The hook is best-effort:
+// returning an error is logged by the auth service but does not roll back
+// the verification itself.
+//
+// Why iterate memberships: a user may own multiple tenants (e.g. an agency
+// that spun up several external tenants from the same login). We activate
+// every provisioning tenant they own; tenants they merely belong to but
+// don't own are not touched. Status is read fresh from the tenant service
+// so suspended/archived tenants are never resurrected by this path.
+func (s *Service) ActivateOnVerify(ctx context.Context, userUUID string) error {
+	if userUUID == "" {
+		return errors.New("onboarding: ActivateOnVerify requires userUUID")
+	}
+	memberships, err := s.tenant.ListUserMemberships(ctx, userUUID)
+	if err != nil {
+		return fmt.Errorf("onboarding: list memberships: %w", err)
+	}
+	for _, m := range memberships {
+		if !m.IsOwner {
+			continue
+		}
+		t, err := s.tenant.GetTenant(ctx, m.TenantUUID)
+		if err != nil || t == nil {
+			s.logger.Warn("onboarding: skip activate, tenant lookup failed",
+				slog.String("userUUID", userUUID),
+				slog.String("tenantUUID", m.TenantUUID),
+			)
+			continue
+		}
+		if t.Status != iface.TenantStatusProvisioning {
+			continue
+		}
+		if err := s.tenant.ActivateTenant(ctx, m.TenantUUID); err != nil {
+			s.logger.Warn("onboarding: activate tenant failed",
+				slog.String("userUUID", userUUID),
+				slog.String("tenantUUID", m.TenantUUID),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		s.logger.Info("onboarding: tenant activated on email verification",
+			slog.String("userUUID", userUUID),
+			slog.String("tenantUUID", m.TenantUUID),
+		)
+	}
+	return nil
 }

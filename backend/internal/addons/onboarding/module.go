@@ -56,6 +56,13 @@ func (m *Module) RequiredServices() []module.ServiceKey {
 
 // Init fetches PasswordAuthService + TenantProvider from the registry and
 // wires them into the orchestration service. No collections, no seeds.
+//
+// The onboarding service also owns the activate-on-verify hook: it's set on
+// PasswordAuthService after construction so the auth module stays free of a
+// runtime dependency on onboarding. Disabling the onboarding module at
+// runtime leaves the callback set (the auth module never re-initializes) —
+// that's acceptable because the callback is side-effect-only. Future work
+// can clear it on Stop() if a clean toggle matters.
 func (m *Module) Init(deps *module.Dependencies) error {
 	passwordAuth := module.MustGetTyped[*authServices.PasswordAuthService](deps.Services, module.ServicePasswordAuthService)
 	tenantProvider := module.MustGetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
@@ -63,6 +70,8 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	svc := services.New(passwordAuth, tenantProvider, deps.Logger)
 	m.handler = handlers.New(svc)
 	m.logger = deps.Logger
+
+	passwordAuth.SetOnboardingActivator(svc.ActivateOnVerify)
 
 	deps.Logger.Info("Onboarding module initialized")
 	return nil

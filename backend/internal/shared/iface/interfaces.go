@@ -277,6 +277,14 @@ type TenantProvider interface {
 	// admin-facing CreateTenant surface — different defaults, narrower
 	// input shape.
 	ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in OnboardingTenantInput) (*Tenant, error)
+	// ActivateTenant transitions a tenant from `provisioning` to `active`.
+	// Idempotent: calling it on an already-active tenant is a no-op on the
+	// status field. The onboarding activate-on-verify hook uses this after
+	// the owner has completed email verification. Does not validate the
+	// previous state — admin callers can also use it to unsuspend, though
+	// that is not the primary use case and richer transitions live on the
+	// concrete tenant service.
+	ActivateTenant(ctx context.Context, tenantUUID string) error
 }
 
 // OnboardingTenantInput is the cross-module payload for self-service

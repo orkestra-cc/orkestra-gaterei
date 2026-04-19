@@ -52,6 +52,7 @@ func (s *stubTenantProvider) ListCapabilityIDs(context.Context, string) ([]strin
 func (s *stubTenantProvider) ProvisionExternalTenant(context.Context, string, iface.OnboardingTenantInput) (*iface.Tenant, error) {
 	return nil, nil
 }
+func (s *stubTenantProvider) ActivateTenant(context.Context, string) error { return nil }
 
 // stubServiceRepo satisfies repository.ServiceRepository with an in-memory map.
 type stubServiceRepo struct {

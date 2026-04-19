@@ -147,6 +147,17 @@ const (
 	CapabilitySourceTrial        = string(models.EntitlementSourceTrial)
 )
 
+// ActivateTenant flips a tenant's lifecycle state to `active`. Thin wrapper
+// over MarkTenantActive so it can satisfy iface.TenantProvider without the
+// caller reaching into the concrete tenant service. Idempotent at the repo
+// layer — re-activating an already-active tenant is a no-op write.
+func (s *Service) ActivateTenant(ctx context.Context, tenantUUID string) error {
+	if tenantUUID == "" {
+		return errors.New("tenant: ActivateTenant requires tenantUUID")
+	}
+	return s.MarkTenantActive(ctx, tenantUUID)
+}
+
 // ProvisionExternalTenant is the onboarding entry point for anonymous
 // self-service signup. Delegates to CreateExternalTenant for the
 // Tier-2 bookkeeping (status=provisioning, signupChannel=self_serve,

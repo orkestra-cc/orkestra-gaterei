@@ -14,6 +14,21 @@ import (
 
 var subscriptionsSec = []map[string][]string{{"bearerAuth": {}}}
 
+// --- Public catalog (no auth) ---
+
+// RegisterPublicCatalogRoutes mounts the anonymous pricing endpoint on the
+// public API so the signup UI can render plans before any credentials
+// exist. The payload is the PublicCatalog* projection, not the full
+// admin Service model, so metadata/timestamps never leak to anonymous
+// callers.
+func RegisterPublicCatalogRoutes(api huma.API, h *handlers.ServiceHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "public-catalog-list-services",
+		Method:      http.MethodGet, Path: "/v1/public/catalog/services",
+		Summary: "List active catalog services (anonymous)", Tags: []string{"Public Catalog"},
+	}, h.PublicList)
+}
+
 // --- Services (catalog) ---
 
 // RegisterServiceReadRoutes — gate with `subscriptions.service.view`.
@@ -122,6 +137,22 @@ func RegisterSubscriptionWriteRoutes(api huma.API, h *handlers.SubscriptionHandl
 		Method:      http.MethodPost, Path: "/v1/subscriptions/subscriptions/{id}/retry-charge",
 		Summary: "Retry charge", Tags: []string{"Subscriptions"}, Security: subscriptionsSec,
 	}, h.RetryCharge)
+}
+
+// --- Self-service (tenant-owner, no per-route permission) ---
+
+// RegisterSelfServiceRoutes mounts /v1/me/subscriptions on a router the
+// caller has already gated with RequireGlobal(). No RBAC permission
+// grant is required — the handler validates that the caller owns the
+// target tenant via TenantProvider memberships.
+func RegisterSelfServiceRoutes(api huma.API, h *handlers.SubscriptionHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "subscriptions-self-subscribe",
+		Method:      http.MethodPost, Path: "/v1/me/subscriptions",
+		Summary:  "Self-service subscribe (tenant-owner only)",
+		Tags:     []string{"Subscriptions - Self-service"},
+		Security: subscriptionsSec,
+	}, h.SelfSubscribe)
 }
 
 // --- Nested reads ---

@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"context"
+	"errors"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
@@ -15,6 +18,10 @@ type SubscriptionHandler struct {
 	invoices  repository.InvoiceRepository
 	activity  *services.ActivityService
 	ownership *services.ClientOwnershipService
+	// tenants powers the self-subscribe ownership check. nil in setups that
+	// run subscriptions without the tenant module — self-subscribe returns
+	// 503 in that case (the route refuses to guess ownership from thin air).
+	tenants iface.TenantProvider
 }
 
 func NewSubscriptionHandler(
@@ -23,6 +30,7 @@ func NewSubscriptionHandler(
 	invoices repository.InvoiceRepository,
 	activity *services.ActivityService,
 	ownership *services.ClientOwnershipService,
+	tenants iface.TenantProvider,
 ) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subs:      subs,
@@ -30,6 +38,7 @@ func NewSubscriptionHandler(
 		invoices:  invoices,
 		activity:  activity,
 		ownership: ownership,
+		tenants:   tenants,
 	}
 }
 
@@ -206,6 +215,71 @@ func (h *SubscriptionHandler) ListActivity(ctx context.Context, in *ListActivity
 	resp.Body.Items = items
 	resp.Body.Total = len(items)
 	return resp, nil
+}
+
+// SelfSubscribeInput is the wire-level payload for the self-service
+// subscribe endpoint. Tenant is identified by UUID (typed by the caller
+// who read it off their own memberships in the JWT) so the route can
+// be used from global context without an X-Tenant-ID header, and the
+// ownership check runs against the same provider the JWT builder does.
+type SelfSubscribeInput struct {
+	TenantUUID  string `json:"tenantUuid" doc:"UUID of the tenant the caller owns"`
+	ServiceCode string `json:"serviceCode" doc:"Stable SKU code of a catalog service (e.g. 'pro')"`
+	TierCode    string `json:"tierCode" doc:"Tier code within the service (e.g. 'monthly')"`
+}
+
+// SelfSubscribeRequest is the Huma wrapper. The body shape is concretely
+// named so the OpenAPI schema registry keeps it distinct from the
+// operator-facing CreateSubscriptionInput.
+type SelfSubscribeRequest struct {
+	Body SelfSubscribeInput
+}
+
+// SelfSubscribe creates a subscription for a tenant the caller owns.
+// Anonymous self-service checkout (public Stripe checkout session) is
+// deferred — today we require an authenticated caller, gated to owners
+// only. The entitlement syncer grants capabilities on activation so the
+// tenant can hit RequireCapability-gated addons immediately; the first
+// payment attempt still happens on the next renewal tick.
+func (h *SubscriptionHandler) SelfSubscribe(ctx context.Context, req *SelfSubscribeRequest) (*SubscriptionResponse, error) {
+	if h.tenants == nil {
+		return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
+	}
+	userUUID, ok := middleware.GetUserUUID(ctx)
+	if !ok || userUUID == "" {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	if req.Body.TenantUUID == "" || req.Body.ServiceCode == "" || req.Body.TierCode == "" {
+		return nil, huma.Error400BadRequest("tenantUuid, serviceCode and tierCode are required")
+	}
+
+	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	ownsTenant := false
+	for _, m := range memberships {
+		if m.TenantUUID == req.Body.TenantUUID && m.IsOwner {
+			ownsTenant = true
+			break
+		}
+	}
+	if !ownsTenant {
+		return nil, huma.Error403Forbidden("caller is not owner of requested tenant")
+	}
+
+	sub, err := h.subs.CreateForTenant(ctx, req.Body.TenantUUID, req.Body.ServiceCode, req.Body.TierCode, userUUID)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrSubscriptionServiceCode):
+			return nil, huma.Error404NotFound("service not found")
+		case errors.Is(err, services.ErrSubscriptionTierNotFound):
+			return nil, huma.Error404NotFound("tier not found on service")
+		default:
+			return nil, err
+		}
+	}
+	return &SubscriptionResponse{Body: *sub}, nil
 }
 
 // guardSubscriptionOwnership resolves the owning client for the subscription

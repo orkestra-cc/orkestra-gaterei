@@ -156,7 +156,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 
 	m.serviceHandler = handlers.NewServiceHandler(serviceSvc)
 	m.clientHandler = handlers.NewClientHandler(clientSvc)
-	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, ownershipSvc)
+	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, ownershipSvc, tenantProvider)
 
 	interval := deps.GetConfigDuration("subscriptions", "renewalInterval", time.Hour)
 	m.renewalJob = jobs.NewRenewalJob(renewalSvc, interval, deps.Logger)
@@ -175,6 +175,13 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
+	// Public catalog — no auth, no gate. Mounted on ri.PublicAPI so
+	// anonymous signup UIs can render pricing before login. Disabling the
+	// subscriptions module via /admin/modules does NOT detach this route
+	// at runtime (same caveat as onboarding.RegisterRoutes in commit 3.1) —
+	// operators restart with MODULES= to fully stop public exposure.
+	RegisterPublicCatalogRoutes(ri.PublicAPI, m.serviceHandler)
+
 	// Each permission bucket gets its own chi subgroup. Mutations (POST,
 	// PATCH, DELETE) live behind the `.manage` grants so view-level users
 	// cannot create clients, change pricing, cancel subscriptions, etc.
@@ -215,6 +222,16 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.subscription.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSubscriptionWriteRoutes(api, m.subscriptionHandler)
+		})
+
+		// Self-service subscribe — RequireGlobal() so callers don't need a
+		// tenant-scoping header, then the handler enforces ownership via
+		// TenantProvider.ListUserMemberships. No permission grant is
+		// required; tenant owners are an implicit role here.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			RegisterSelfServiceRoutes(api, m.subscriptionHandler)
 		})
 
 		// Nested reads
