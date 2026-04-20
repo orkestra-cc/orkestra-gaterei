@@ -14,9 +14,17 @@
 // missing, but that only catches paths that get exercised. A compile-time
 // analyzer catches the rest.
 //
-// Scope: the analyzer only inspects packages whose import path contains
-// "/internal/addons/". Core modules (user, auth, tenant, notification, authz,
-// navigation) manage platform-global or user-global data and are exempt.
+// Scope: the analyzer inspects packages whose import path contains
+// "/internal/addons/", "/internal/core/", or "/internal/shared/". Phase
+// 5.4 extended the scope from addons-only to every module under
+// internal/ because core and shared packages were not previously
+// audited — a raw bson.M filter in core/user/repository could leak
+// cross-tenant without anyone noticing. A handful of packages that
+// manage platform-global state legitimately skip tenant-scoping; they
+// carry //tenantscope:allow comments that document why.
+//
+// Packages that are part of the analyzer itself (tools/tenantscope) are
+// always exempt — they don't talk to MongoDB.
 //
 // Target call sites: method calls named Find, FindOne, FindOneAndUpdate,
 // FindOneAndDelete, FindOneAndReplace, UpdateOne, UpdateMany, ReplaceOne,
@@ -47,8 +55,10 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -128,9 +138,22 @@ var scopeFuncs = map[string]bool{
 // slip through.
 const allowComment = "//tenantscope:allow"
 
+// inScope reports whether the analyzer should inspect the given package
+// path. Phase 5.4 extended the set from addons-only to every module
+// under internal/. The tools/ directory is always skipped (the
+// analyzer reflects on its own code would be a fun sort of embarrassing
+// footgun).
+func inScope(pkgPath string) bool {
+	if strings.Contains(pkgPath, "/tools/") {
+		return false
+	}
+	return strings.Contains(pkgPath, "/internal/addons/") ||
+		strings.Contains(pkgPath, "/internal/core/") ||
+		strings.Contains(pkgPath, "/internal/shared/")
+}
+
 func run(pass *analysis.Pass) (any, error) {
-	pkgPath := pass.Pkg.Path()
-	if !strings.Contains(pkgPath, "/internal/addons/") {
+	if !inScope(pass.Pkg.Path()) {
 		return nil, nil
 	}
 
@@ -320,11 +343,27 @@ func isScopedExpr(e ast.Expr, scopedVars map[string]bool) bool {
 	return false
 }
 
+// allowUntilRE matches the optional expiry clause in an allow comment:
+//
+//	//tenantscope:allow admin-view: operator-wide lookup
+//	//tenantscope:allow-until=2026-12-31 admin-view: temporary shim until X
+//
+// The capturing group returns the YYYY-MM-DD substring. Phase 5.4
+// introduced this so rationales expire rather than pile up — after the
+// date, the analyzer treats the call site as unscoped again.
+var allowUntilRE = regexp.MustCompile(`allow-until=(\d{4}-\d{2}-\d{2})`)
+
 // hasAllowComment reports whether the line immediately above the given
-// position carries a //tenantscope:allow comment with a non-trivial reason.
-// We require a reason so reviewers can see why the audit is OK; the minimum
-// length (5 chars after the colon) is just enough to reject a bare
-// "//tenantscope:allow" from sneaking past review.
+// position carries a //tenantscope:allow comment with a non-trivial
+// reason. Phase 5.4 additions:
+//
+//   - An optional allow-until=YYYY-MM-DD clause is honored: if the date
+//     is in the past (relative to "now"), the allow comment no longer
+//     suppresses the diagnostic.
+//   - Reasons should begin with one of the canonical prefixes so the
+//     audit is self-categorizing: "admin-view:", "webhook:", "system:".
+//     The analyzer still accepts bare reasons today to avoid a
+//     per-site rewrite; a future Phase 5.x sub-phase can tighten it.
 func hasAllowComment(pass *analysis.Pass, pos token.Pos) bool {
 	file := pass.Fset.File(pos)
 	if file == nil {
@@ -348,11 +387,33 @@ func hasAllowComment(pass *analysis.Pass, pos token.Pos) bool {
 				// Require "//tenantscope:allow <reason>" with reason >= 5 chars.
 				reason := strings.TrimSpace(strings.TrimPrefix(c.Text, allowComment))
 				reason = strings.TrimPrefix(reason, ":")
-				if len(strings.TrimSpace(reason)) >= 5 {
-					return true
+				if len(strings.TrimSpace(reason)) < 5 {
+					continue
 				}
+				// Optional expiry: allow-until=YYYY-MM-DD. If it's in
+				// the past (relative to the clock at analyze time)
+				// the comment no longer suppresses the diagnostic.
+				if m := allowUntilRE.FindStringSubmatch(c.Text); len(m) == 2 {
+					if expired, _ := isExpired(m[1]); expired {
+						continue
+					}
+				}
+				return true
 			}
 		}
 	}
 	return false
+}
+
+// isExpired reports whether the given YYYY-MM-DD date is strictly before
+// today's UTC date. Any parse error is treated as "not expired" so a
+// typo in the allow comment doesn't silently break the build; the
+// diagnostic surface is already the reason-length check above.
+func isExpired(date string) (bool, error) {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return false, err
+	}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	return t.Before(today), nil
 }

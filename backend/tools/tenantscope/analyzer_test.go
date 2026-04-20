@@ -139,9 +139,17 @@ func hasAllowCommentTest(tp *testPass, pos token.Pos) bool {
 				}
 				reason := strings.TrimSpace(strings.TrimPrefix(c.Text, allowComment))
 				reason = strings.TrimPrefix(reason, ":")
-				if len(strings.TrimSpace(reason)) >= 5 {
-					return true
+				if len(strings.TrimSpace(reason)) < 5 {
+					continue
 				}
+				// Phase 5.4: honor allow-until=YYYY-MM-DD. Expired
+				// clauses no longer suppress.
+				if m := allowUntilRE.FindStringSubmatch(c.Text); len(m) == 2 {
+					if expired, _ := isExpired(m[1]); expired {
+						continue
+					}
+				}
+				return true
 			}
 		}
 	}
@@ -302,6 +310,57 @@ func (r *repo) audit(ctx context.Context) {
 	got := runOn(t, src)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 diagnostic (no reason), got %d: %v", len(got), got)
+	}
+}
+
+func TestAnalyzer_AllowUntil_FutureSuppresses(t *testing.T) {
+	src := prelude + `
+func (r *repo) audit(ctx context.Context) {
+	//tenantscope:allow-until=2999-01-01 system: pending migration next quarter
+	r.coll.Find(ctx, map[string]any{"x": 1})
+}`
+	got := runOn(t, src)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 diagnostics (future allow-until should suppress), got %d: %v", len(got), got)
+	}
+}
+
+func TestAnalyzer_AllowUntil_PastNoLongerSuppresses(t *testing.T) {
+	src := prelude + `
+func (r *repo) audit(ctx context.Context) {
+	//tenantscope:allow-until=2000-01-01 system: rationale expired years ago
+	r.coll.Find(ctx, map[string]any{"x": 1})
+}`
+	got := runOn(t, src)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 diagnostic (expired allow-until must not suppress), got %d: %v", len(got), got)
+	}
+}
+
+func TestIsExpired(t *testing.T) {
+	if expired, _ := isExpired("2000-01-01"); !expired {
+		t.Errorf("date 2000-01-01 must be expired")
+	}
+	if expired, _ := isExpired("2999-01-01"); expired {
+		t.Errorf("date 2999-01-01 must NOT be expired")
+	}
+	if _, err := isExpired("not-a-date"); err == nil {
+		t.Errorf("expected parse error for malformed date")
+	}
+}
+
+func TestInScope(t *testing.T) {
+	cases := map[string]bool{
+		"github.com/orkestra/backend/internal/addons/billing":     true,
+		"github.com/orkestra/backend/internal/core/auth":          true,
+		"github.com/orkestra/backend/internal/shared/middleware":  true,
+		"github.com/orkestra/backend/tools/tenantscope":           false,
+		"github.com/orkestra/backend/cmd/server":                  false,
+	}
+	for pkg, want := range cases {
+		if got := inScope(pkg); got != want {
+			t.Errorf("inScope(%q) = %v, want %v", pkg, got, want)
+		}
 	}
 }
 
