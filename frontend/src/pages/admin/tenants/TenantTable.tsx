@@ -104,14 +104,20 @@ const TenantTable: React.FC<Props> = ({
             </thead>
             <tbody>
               {filtered.map((org) => {
-                const deleted = !!org.deletedAt;
+                const purged = org.status === 'purged';
+                const deleted = !purged && (!!org.deletedAt || org.status === 'archived');
+                const statusBadge = purged
+                  ? { bg: 'dark' as BadgeColor, label: 'purged' }
+                  : deleted
+                    ? { bg: 'danger' as BadgeColor, label: 'deleted' }
+                    : { bg: 'success' as BadgeColor, label: 'active' };
                 return (
                   <tr
                     key={org.id}
                     className="align-middle"
                     style={{
                       cursor: 'pointer',
-                      opacity: deleted ? 0.55 : 1,
+                      opacity: purged ? 0.4 : deleted ? 0.55 : 1,
                     }}
                     onClick={() => onRowClick(org)}
                   >
@@ -130,15 +136,9 @@ const TenantTable: React.FC<Props> = ({
                     <td className="text-end">{org.memberCount}</td>
                     <td className="text-muted">{formatDate(org.createdAt)}</td>
                     <td>
-                      {deleted ? (
-                        <SubtleBadge bg="danger" pill>
-                          deleted
-                        </SubtleBadge>
-                      ) : (
-                        <SubtleBadge bg="success" pill>
-                          active
-                        </SubtleBadge>
-                      )}
+                      <SubtleBadge bg={statusBadge.bg} pill>
+                        {statusBadge.label}
+                      </SubtleBadge>
                     </td>
                     <td
                       className="text-end pe-4"
@@ -152,12 +152,13 @@ const TenantTable: React.FC<Props> = ({
                       >
                         Manage
                       </Button>
-                      {!deleted && (
+                      {!deleted && !purged && (
                         <Button
                           variant="link"
                           size="sm"
                           className="p-0 text-danger text-decoration-none"
                           onClick={() => onDeleteClick(org)}
+                          title="Archive (soft-delete)"
                         >
                           <FontAwesomeIcon icon="trash" />
                         </Button>

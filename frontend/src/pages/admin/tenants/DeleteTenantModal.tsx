@@ -50,9 +50,10 @@ const DeleteTenantModal: React.FC<Props> = ({ org, show, onHide }) => {
           can still view it with the "Include soft-deleted" toggle.
         </p>
         <Alert variant="warning" className="fs-10 mb-3">
-          <strong>Bindings and memberships remain in place.</strong> To
-          permanently delete the tenant you must run a backend purge — which
-          is not yet exposed in the UI.
+          <strong>Bindings and memberships remain in place.</strong> If you
+          also need to crypto-shred the tenant's encryption key (GDPR
+          right-to-erasure), open the tenant's detail modal and use the{' '}
+          <em>Purge</em> action instead.
         </Alert>
         <Form.Group>
           <Form.Label className="fw-semibold fs-10">

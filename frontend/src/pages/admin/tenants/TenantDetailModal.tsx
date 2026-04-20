@@ -30,6 +30,7 @@ interface Props {
   show: boolean;
   onHide: () => void;
   onDelete: (org: AdminOrgListItem) => void;
+  onPurge: (org: AdminOrgListItem) => void;
 }
 
 // Mirrors backend/internal/core/tenant/services/service.go::defaultFeaturesForPlan.
@@ -48,7 +49,7 @@ const planColors: Record<string, BadgeColor> = {
   enterprise: 'success',
 };
 
-const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete }) => {
+const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete, onPurge }) => {
   const [tab, setTab] = useState<'overview' | 'plan' | 'members' | 'invites'>('overview');
 
   useEffect(() => {
@@ -66,11 +67,15 @@ const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete }) => 
           <SubtleBadge bg={planColors[org.plan] || 'secondary'} pill>
             {org.plan}
           </SubtleBadge>
-          {org.deletedAt && (
+          {org.status === 'purged' ? (
+            <SubtleBadge bg="dark" pill>
+              purged
+            </SubtleBadge>
+          ) : org.deletedAt || org.status === 'archived' ? (
             <SubtleBadge bg="danger" pill>
               deleted
             </SubtleBadge>
-          )}
+          ) : null}
         </Modal.Title>
       </Modal.Header>
       <Modal.Body>
@@ -96,17 +101,31 @@ const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete }) => 
           </Tab>
         </Tabs>
       </Modal.Body>
-      <Modal.Footer className="d-flex justify-content-between">
-        {!org.deletedAt ? (
-          <Button variant="outline-danger" size="sm" onClick={() => onDelete(org)}>
-            <FontAwesomeIcon icon="trash" className="me-1" />
-            Delete tenant
-          </Button>
-        ) : (
-          <span className="text-muted fs-10">
-            Soft-deleted on {new Date(org.deletedAt).toLocaleString()}
-          </span>
-        )}
+      <Modal.Footer className="d-flex justify-content-between flex-wrap gap-2">
+        <div className="d-flex gap-2 flex-wrap">
+          {org.status !== 'purged' && !org.deletedAt && (
+            <Button variant="outline-danger" size="sm" onClick={() => onDelete(org)}>
+              <FontAwesomeIcon icon="trash" className="me-1" />
+              Delete tenant
+            </Button>
+          )}
+          {org.status !== 'purged' && (
+            <Button variant="danger" size="sm" onClick={() => onPurge(org)}>
+              <FontAwesomeIcon icon="exclamation-triangle" className="me-1" />
+              Purge (crypto-shred)
+            </Button>
+          )}
+          {org.status === 'purged' && org.purgedAt && (
+            <span className="text-muted fs-10">
+              Purged on {new Date(org.purgedAt).toLocaleString()} — key shredded.
+            </span>
+          )}
+          {org.status !== 'purged' && org.deletedAt && (
+            <span className="text-muted fs-10">
+              Soft-deleted on {new Date(org.deletedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
         <Button variant="secondary" onClick={onHide}>
           Close
         </Button>

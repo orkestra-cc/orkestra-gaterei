@@ -16,6 +16,7 @@ import TenantTable from './TenantTable';
 import TenantDetailModal from './TenantDetailModal';
 import CreateTenantModal from './CreateTenantModal';
 import DeleteTenantModal from './DeleteTenantModal';
+import PurgeTenantModal from './PurgeTenantModal';
 
 // Subtle "Apple-style" stat card: muted label, big animated number, one
 // colorful icon chip on the right, optional badge + footnote beneath the
@@ -83,6 +84,7 @@ const TenantManagementPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<AdminOrgListItem | null>(null);
+  const [pendingPurge, setPendingPurge] = useState<AdminOrgListItem | null>(null);
 
   const stats = useMemo(() => {
     const orgs = data?.tenants ?? [];
@@ -228,12 +230,22 @@ const TenantManagementPage: React.FC = () => {
           setShowDetail(false);
           setPendingDelete(o);
         }}
+        onPurge={(o) => {
+          setShowDetail(false);
+          setPendingPurge(o);
+        }}
       />
 
       <DeleteTenantModal
         org={pendingDelete}
         show={!!pendingDelete}
         onHide={() => setPendingDelete(null)}
+      />
+
+      <PurgeTenantModal
+        org={pendingPurge}
+        show={!!pendingPurge}
+        onHide={() => setPendingPurge(null)}
       />
     </>
   );

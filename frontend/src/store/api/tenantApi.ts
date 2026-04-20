@@ -3,6 +3,19 @@ import { authApi } from './authApi';
 import { setAccessToken } from '../slices/authSlice';
 import type { Membership, EffectivePermissions } from '../slices/tenantSlice';
 
+/**
+ * Tenant lifecycle status — mirrors models.TenantStatus on the backend.
+ * The canonical transitions are:
+ *   provisioning → active ↔ suspended
+ *                           ↘ archived → purged (terminal, crypto-shred)
+ */
+export type TenantStatus =
+  | 'provisioning'
+  | 'active'
+  | 'suspended'
+  | 'archived'
+  | 'purged';
+
 export interface Org {
   id: string;
   name: string;
@@ -13,6 +26,14 @@ export interface Org {
   settings?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
+  /** Preferred state flag (see TenantStatus). Legacy rows may omit it. */
+  status?: TenantStatus;
+  /** Tenant tier — 'internal' (operator) or 'external' (client). */
+  kind?: 'internal' | 'external';
+  /** Set by the platform admin purge flow. Crypto-shred timestamp. */
+  purgedAt?: string | null;
+  /** Soft-archive timestamp. Succeeds the deprecated `deletedAt`. */
+  archivedAt?: string | null;
 }
 
 export interface CreateOrgInput {
@@ -261,6 +282,21 @@ export const tenantApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Platform-admin purge — irreversible. Crypto-shreds the tenant's KMS
+    // key; downstream data becomes mathematically unrecoverable even if
+    // the ciphertext rows linger. Gated at the route level by
+    // system.tenants.admin.
+    purgeOrgAdmin: builder.mutation<void, string>({
+      query: (tenantId) => ({
+        url: `/v1/admin/tenants/${tenantId}/purge`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_, __, tenantId) => [
+        { type: 'AdminOrg', id: tenantId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
     updateOrgPlanAdmin: builder.mutation<Org, { tenantId: string; body: UpdatePlanInput }>({
       query: ({ tenantId, body }) => ({ url: `/v1/admin/tenants/${tenantId}/plan`, method: 'PATCH', body }),
       invalidatesTags: (_, __, { tenantId }) => [
@@ -335,6 +371,7 @@ export const {
   useGetOrgAdminQuery,
   useUpdateOrgAdminMutation,
   useDeleteOrgAdminMutation,
+  usePurgeOrgAdminMutation,
   useUpdateOrgPlanAdminMutation,
   useListOrgMembersAdminQuery,
   useRemoveOrgMemberAdminMutation,
