@@ -36,6 +36,16 @@ const IdPConfigForm: React.FC = () => {
   const [putConfig, { isLoading: isSaving }] = usePutIdPConfigMutation();
   const [deleteConfig, { isLoading: isDeleting }] = useDeleteIdPConfigMutation();
 
+  // 404 is the happy "no config yet" path. Distinguish it from real
+  // errors (403, 5xx, network) so we render the empty form rather than
+  // the permission-denied message.
+  const notFound =
+    !!error &&
+    typeof error === 'object' &&
+    'status' in error &&
+    (error as { status?: number | string }).status === 404;
+  const realError = !!error && !notFound;
+
   const [draft, setDraft] = useState<IdPConfigPayload>(emptyDraft);
   const [secretTouched, setSecretTouched] = useState(false);
 
@@ -58,11 +68,11 @@ const IdPConfigForm: React.FC = () => {
         enabled: data.enabled ?? true,
       });
       setSecretTouched(false);
-    } else if (data === null) {
+    } else if (notFound) {
       setDraft(emptyDraft);
       setSecretTouched(false);
     }
-  }, [data]);
+  }, [data, notFound]);
 
   const update = (patch: Partial<IdPConfigPayload>) =>
     setDraft((prev) => ({ ...prev, ...patch }));
@@ -127,14 +137,14 @@ const IdPConfigForm: React.FC = () => {
             <Spinner animation="border" size="sm" />
           </div>
         )}
-        {!isLoading && error && (
+        {!isLoading && realError && (
           <Alert variant="danger" className="fs-10 mb-0">
             Failed to load IdP configuration. You need the{' '}
             <code>tenant.update</code> permission on the current tenant to
             view or edit this page.
           </Alert>
         )}
-        {!isLoading && !error && (
+        {!isLoading && !realError && (
           <Form onSubmit={handleSubmit}>
             <Row className="g-3">
               <Col md={6}>

@@ -13,17 +13,12 @@ import type {
 export const identityApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     // --- IdP (OIDC) config ---
-    getIdPConfig: builder.query<IdPConfigView | null, void>({
-      // 404 is the happy path for "unset" — normalise to null so callers
-      // render the empty state without having to interpret the error.
-      queryFn: async (_arg, _api, _extra, baseQueryFn) => {
-        const res = await baseQueryFn({ url: '/v1/identity/idp', method: 'GET' });
-        if (res.error) {
-          if (res.error.status === 404) return { data: null };
-          return { error: res.error };
-        }
-        return { data: res.data as IdPConfigView };
-      },
+    // 404 is the happy path for "unset" — surfaces to the page as
+    // `data === undefined && error.status === 404`, which the page
+    // treats as the empty state. Keeping the shape simple avoids the
+    // queryFn indirection.
+    getIdPConfig: builder.query<IdPConfigView, void>({
+      query: () => ({ url: '/v1/identity/idp', method: 'GET' }),
       providesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }],
     }),
 
