@@ -106,6 +106,8 @@ Schema keys below are what handlers and the resolver look up. The `EnvVar` colum
 |---|---|---|
 | `AUTH_JWT_PRIVATE_KEY` / `AUTH_JWT_PUBLIC_KEY` | RS256 key pair (paths or PEM) | — (required) |
 | `AUTH_REQUIRE_EMAIL_VERIFICATION` | Gate signup on successful verification | `true` in prod, `false` otherwise |
+| `JWT_ACCESS_TOKEN_EXPIRY` | Access-token TTL (Go `time.Duration`, e.g. `15m`, `1h`). Applied by `NewJWTService`; zero/unset falls back to `15m`. | `15m` |
+| `JWT_REFRESH_TOKEN_EXPIRY` | Refresh-token TTL. Applied by `NewJWTService`; zero/unset falls back to `720h` (30d). | `7d` |
 | `COOKIE_NAME` / `COOKIE_DOMAIN` / `COOKIE_SECURE` | Refresh-token cookie attributes | set in `cfg.Auth.Cookie` |
 | `APP_NAME` / `SUPPORT_EMAIL` | Rendered into verification/reset email templates | `Orkestra` / empty |
 

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
+	"time"
 
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
@@ -16,7 +17,7 @@ func TestAMRClaimRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	svc := NewJWTService(priv, &priv.PublicKey, "test")
+	svc := NewJWTService(priv, &priv.PublicKey, "test", 15*time.Minute, 30*24*time.Hour)
 
 	user := &userModels.User{UUID: "u-1", Email: "alice@example.com", Role: "administrator"}
 
@@ -38,6 +39,33 @@ func TestAMRClaimRoundTrip(t *testing.T) {
 	}
 }
 
+// TestAccessTokenTTLHonoursConstructor asserts that the access-token TTL
+// passed into NewJWTService reaches the minted token's exp claim. Guards
+// the previous bug where NewJWTService hardcoded 15 minutes and silently
+// ignored JWT_ACCESS_TOKEN_EXPIRY.
+func TestAccessTokenTTLHonoursConstructor(t *testing.T) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	const want = 42 * time.Minute
+	svc := NewJWTService(priv, &priv.PublicKey, "test", want, 30*24*time.Hour)
+
+	user := &userModels.User{UUID: "u-1", Email: "a@b.com", Role: "administrator"}
+	token, err := svc.GenerateAccessToken(user)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	claims, err := svc.ValidateAccessToken(token)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	got := time.Duration(claims.ExpiresAt-claims.IssuedAt) * time.Second
+	if got != want {
+		t.Fatalf("access token ttl: want %v, got %v", want, got)
+	}
+}
+
 // TestAMROmittedWhenEmpty ensures we don't emit a stray amr claim for
 // pre-Block-A call sites (dev tokens, legacy refresh paths).
 func TestAMROmittedWhenEmpty(t *testing.T) {
@@ -45,7 +73,7 @@ func TestAMROmittedWhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	svc := NewJWTService(priv, &priv.PublicKey, "test")
+	svc := NewJWTService(priv, &priv.PublicKey, "test", 15*time.Minute, 30*24*time.Hour)
 	user := &userModels.User{UUID: "u-1", Email: "a@b.com", Role: "user"}
 
 	token, err := svc.GenerateAccessToken(user)

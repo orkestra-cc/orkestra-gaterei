@@ -156,7 +156,13 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// one deployment is rejected by another even if the signing keys ever
 	// overlap. Keys themselves should differ per environment — this claim
 	// is defense in depth.
-	jwtService := services.NewJWTService(cfg.Auth.JWT.PrivateKey, cfg.Auth.JWT.PublicKey, cfg.Server.Environment)
+	jwtService := services.NewJWTService(
+		cfg.Auth.JWT.PrivateKey,
+		cfg.Auth.JWT.PublicKey,
+		cfg.Server.Environment,
+		cfg.Auth.JWT.AccessTokenExpiry,
+		cfg.Auth.JWT.RefreshTokenExpiry,
+	)
 	tenantProvider := module.MustGetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	jwtService.SetTenantProvider(tenantProvider)
 

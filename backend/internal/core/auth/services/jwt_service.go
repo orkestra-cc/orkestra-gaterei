@@ -70,12 +70,23 @@ type jwtService struct {
 // validation rejects any other value. This prevents a token signed in one
 // environment from being accepted by another even if the signing keys were
 // accidentally shared (or leaked across deployments).
-func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, env string) JWTService {
+//
+// accessTTL/refreshTTL are sourced from cfg.Auth.JWT (env vars
+// JWT_ACCESS_TOKEN_EXPIRY / JWT_REFRESH_TOKEN_EXPIRY). Zero or negative
+// values fall back to safe defaults so unit tests and any future caller
+// that doesn't care about TTL don't need to pass anything explicit.
+func NewJWTService(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey, env string, accessTTL, refreshTTL time.Duration) JWTService {
+	if accessTTL <= 0 {
+		accessTTL = 15 * time.Minute
+	}
+	if refreshTTL <= 0 {
+		refreshTTL = 30 * 24 * time.Hour
+	}
 	return &jwtService{
 		privateKey:    privateKey,
 		publicKey:     publicKey,
-		accessExpiry:  15 * time.Minute,
-		refreshExpiry: 30 * 24 * time.Hour,
+		accessExpiry:  accessTTL,
+		refreshExpiry: refreshTTL,
 		issuer:        issuerFor(env),
 		audience:      "orkestra-api",
 	}

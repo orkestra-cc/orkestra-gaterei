@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
 import { toast } from 'react-toastify';
 import type { RootState } from '../index';
+import { setAccessToken, clearAccessToken } from '../slices/authSlice';
 
 // Navigation helper - will be set by the auth provider
 let navigateToLogin: ((location?: string) => void) | null = null;
@@ -8,6 +9,58 @@ let navigateToLogin: ((location?: string) => void) | null = null;
 export const setNavigateToLogin = (fn: (location?: string) => void) => {
   navigateToLogin = fn;
 };
+
+// Endpoints for which a 401 must NOT trigger a silent refresh attempt —
+// either because they *are* the refresh/login/logout endpoints (retrying
+// would loop) or because a 401 here already means "user is not signed in"
+// and the correct UX is to fall through to the caller.
+const AUTH_ENDPOINT_PATHS = [
+  'v1/auth/login',
+  'v1/auth/logout',
+  'v1/auth/refresh',
+  'v1/auth/refresh-cookie',
+  'v1/auth/register',
+  'v1/auth/mfa/login/verify',
+];
+
+function isAuthEndpoint(url: string): boolean {
+  return AUTH_ENDPOINT_PATHS.some((p) => url.includes(p));
+}
+
+// Shared in-flight refresh promise. Any 401 arriving while a refresh is
+// already in progress awaits the same promise instead of firing N parallel
+// refresh requests that would rotate the refresh token N times and trip
+// the backend's family-replay guard.
+type RefreshResult =
+  | { ok: true; accessToken: string; expiresIn: number }
+  | { ok: false };
+let inFlightRefresh: Promise<RefreshResult> | null = null;
+
+async function performRefresh(baseUrl: string): Promise<RefreshResult> {
+  if (inFlightRefresh) return inFlightRefresh;
+  inFlightRefresh = (async () => {
+    try {
+      const res = await fetch(`${baseUrl}/v1/auth/refresh-cookie`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) return { ok: false } as const;
+      const body = (await res.json()) as { accessToken?: string; expiresIn?: number };
+      if (!body.accessToken || !body.expiresIn) return { ok: false } as const;
+      return { ok: true, accessToken: body.accessToken, expiresIn: body.expiresIn } as const;
+    } catch {
+      return { ok: false } as const;
+    } finally {
+      // Clear after the current microtask so concurrent awaiters all see
+      // the same result, but a future 401 can kick off a fresh attempt.
+      setTimeout(() => {
+        inFlightRefresh = null;
+      }, 0);
+    }
+  })();
+  return inFlightRefresh;
+}
 
 // Endpoints that must NOT carry X-Tenant-ID because they run before the
 // current tenant is known (login, refresh, tenant listing, tenant creation,
@@ -87,9 +140,9 @@ const baseQueryWithRetry: BaseQueryFn<
   if (result.error && result.error.status === 401) {
     // Note: No localStorage cleanup needed - using HttpOnly cookies only
 
-    // Check if this is a session endpoint specifically
-    const isSessionEndpoint = typeof args === 'string' && args.includes('v1/auth/session');
-    const isAuthCheck = typeof args === 'string' && (args.includes('v1/auth/me') || args.includes('v1/auth/session'));
+    const requestUrl = typeof args === 'string' ? args : args.url;
+    const isSessionEndpoint = requestUrl.includes('v1/auth/session');
+    const isAuthCheck = requestUrl.includes('v1/auth/me') || requestUrl.includes('v1/auth/session');
 
     // On a fresh install the session endpoint legitimately returns 401
     // because no user exists yet. The SetupGate should be steering the
@@ -111,6 +164,32 @@ const baseQueryWithRetry: BaseQueryFn<
       return result;
     }
 
+    // Silent refresh: if the failing call was a normal protected endpoint,
+    // try to rotate the refresh cookie and retry once. The refresh cookie
+    // is HttpOnly and its TTL is independent of the access-token TTL, so
+    // the user stays signed in for as long as the refresh token is valid
+    // instead of being kicked out every access-token window.
+    if (!isAuthEndpoint(requestUrl) && !isSessionEndpoint) {
+      const refreshResult = await performRefresh(
+        import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+      );
+      if (refreshResult.ok) {
+        api.dispatch(
+          setAccessToken({
+            accessToken: refreshResult.accessToken,
+            expiresIn: refreshResult.expiresIn,
+          })
+        );
+        result = await baseQuery(args, api, extraOptions);
+        if (!result.error || result.error.status !== 401) {
+          return result;
+        }
+        // Retry still returned 401 — fall through to the logout branch.
+      }
+      // Refresh itself failed: drop the stale access token before redirecting.
+      api.dispatch(clearAccessToken());
+    }
+
     // If session endpoint returns 401, redirect to login immediately
     if (isSessionEndpoint && navigateToLogin) {
       console.log('🔐 Session endpoint returned 401 - redirecting to login');
@@ -124,6 +203,9 @@ const baseQueryWithRetry: BaseQueryFn<
         toastId: 'auth-expired',
         autoClose: 5000,
       });
+      if (navigateToLogin) {
+        navigateToLogin(window.location.pathname);
+      }
     }
   }
 
