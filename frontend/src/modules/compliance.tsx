@@ -9,6 +9,7 @@ import FalconLoader from 'components/common/FalconLoader';
 // permission together are the access controls.
 const AuditEventsPage = lazy(() => import('pages/admin/audit-events'));
 const Soc2EvidencePage = lazy(() => import('pages/admin/compliance/soc2'));
+const UserPrivacyPage = lazy(() => import('pages/user/privacy'));
 
 export const complianceManifest: ModuleManifest = {
   name: 'compliance',
@@ -33,6 +34,19 @@ export const complianceManifest: ModuleManifest = {
         >
           <Suspense key="admin-compliance-soc2" fallback={<FalconLoader />}>
             <Soc2EvidencePage />
+          </Suspense>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      // GDPR DSR self-service — any authenticated user can export / erase
+      // their own data. No role gate beyond auth; the backend enforces
+      // userUUID-scoped access via the JWT.
+      path: 'user/privacy',
+      element: (
+        <ProtectedRoute>
+          <Suspense key="user-privacy" fallback={<FalconLoader />}>
+            <UserPrivacyPage />
           </Suspense>
         </ProtectedRoute>
       ),

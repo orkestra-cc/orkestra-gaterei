@@ -1,5 +1,7 @@
 import { baseApi } from './baseApi';
 import type {
+  DsrEraseResponse,
+  DsrExportResponse,
   ListAuditEventsParams,
   ListAuditEventsResponse,
   Soc2Evidence,
@@ -44,8 +46,22 @@ export const complianceApi = baseApi.injectEndpoints({
       // invalidating Soc2Evidence forces a fresh fetch.
       providesTags: [{ type: 'Soc2Evidence' as const, id: 'SNAPSHOT' }],
     }),
+
+    // DSR — data subject rights. Both endpoints derive their subject from
+    // the caller's JWT (see me_handler.go) so no body is needed.
+    exportMyData: builder.mutation<DsrExportResponse, void>({
+      query: () => ({ url: '/v1/me/dsr/export', method: 'POST' }),
+    }),
+    eraseMyData: builder.mutation<DsrEraseResponse, void>({
+      query: () => ({ url: '/v1/me/dsr/erase', method: 'POST' }),
+    }),
   }),
   overrideExisting: false,
 });
 
-export const { useListAuditEventsQuery, useGetSoc2EvidenceQuery } = complianceApi;
+export const {
+  useListAuditEventsQuery,
+  useGetSoc2EvidenceQuery,
+  useExportMyDataMutation,
+  useEraseMyDataMutation,
+} = complianceApi;

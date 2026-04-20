@@ -73,3 +73,28 @@ export interface Soc2Evidence {
   controls: Record<string, unknown>;
   summary: Soc2EvidenceSummary;
 }
+
+// --- DSR (data subject rights) ---
+//
+// Mirrors handlers.ExportOutput / handlers.EraseOutput on the backend
+// (compliance/handlers/me_handler.go). A producer is a module that
+// contributed personal data to the bundle; the keys in `bundle` match
+// the producers' Subject() identifiers.
+
+export interface DsrExportResponse {
+  bundle: Record<string, unknown>;
+  producers: string[];
+  errors?: Record<string, string>;
+}
+
+export interface DsrPurgeResult {
+  rowsDeleted: number;
+  rowsAnonymized: number;
+  collections?: string[];
+}
+
+export interface DsrEraseResponse {
+  purged: Record<string, DsrPurgeResult>;
+  totalRows: number;
+  errors?: Record<string, string>;
+}

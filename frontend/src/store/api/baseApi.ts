@@ -23,6 +23,7 @@ const TENANT_AGNOSTIC_PATHS = [
   '/v1/admin/tenants',        // platform-level tenant admin, not per-tenant
   '/v1/admin/audit-events',   // platform-level audit read, not per-tenant
   '/v1/admin/compliance',     // platform-level compliance (SOC2 evidence, …)
+  '/v1/me/dsr',               // DSR endpoints operate on the caller's own subject
   '/v1/setup',                // first-install wizard endpoints
 ];
 
