@@ -2,6 +2,7 @@ import { baseApi } from './baseApi';
 import type {
   ListAuditEventsParams,
   ListAuditEventsResponse,
+  Soc2Evidence,
 } from '../../types/compliance';
 
 // complianceApi wraps the platform-admin compliance endpoints. The backend
@@ -35,8 +36,16 @@ export const complianceApi = baseApi.injectEndpoints({
             ]
           : [{ type: 'AuditEvent' as const, id: 'LIST' }],
     }),
+
+    getSoc2Evidence: builder.query<Soc2Evidence, void>({
+      query: () => ({ url: '/v1/admin/compliance/soc2/evidence', method: 'GET' }),
+      // The backend recomputes from source on every call; no persisted
+      // snapshot exists in v1. Tag for the "Regenerate" button path so
+      // invalidating Soc2Evidence forces a fresh fetch.
+      providesTags: [{ type: 'Soc2Evidence' as const, id: 'SNAPSHOT' }],
+    }),
   }),
   overrideExisting: false,
 });
 
-export const { useListAuditEventsQuery } = complianceApi;
+export const { useListAuditEventsQuery, useGetSoc2EvidenceQuery } = complianceApi;

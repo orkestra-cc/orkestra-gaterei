@@ -221,6 +221,7 @@ export const baseApi = createApi({
     'PaymentWebhookEvent',
     // Compliance module
     'AuditEvent',
+    'Soc2Evidence',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

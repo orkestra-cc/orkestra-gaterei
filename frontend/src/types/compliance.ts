@@ -49,3 +49,27 @@ export interface ListAuditEventsResponse {
   limit: number;
   offset: number;
 }
+
+// --- SOC2 evidence ---
+//
+// Mirrors services.Evidence on the backend (compliance/services/soc2.go).
+// `controls` is a loose map keyed by the SOC2 control identifier; each
+// value is a nested object whose shape depends on the control. `summary`
+// surfaces the small handful of scalar counters the UI renders as stat
+// cards — stable keys auditors sample against.
+
+export interface Soc2EvidenceSummary {
+  privileged_users?: number;
+  privileged_with_mfa?: number;
+  failed_logins_24h?: number;
+  kms_keys_active?: number;
+  kms_keys_shredded?: number;
+  audit_rows_24h?: number;
+  [key: string]: number | undefined;
+}
+
+export interface Soc2Evidence {
+  generatedAt: string;
+  controls: Record<string, unknown>;
+  summary: Soc2EvidenceSummary;
+}

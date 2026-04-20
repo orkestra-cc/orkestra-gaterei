@@ -8,6 +8,7 @@ import FalconLoader from 'components/common/FalconLoader';
 // ModuleGate; the ProtectedRoute + the backend's `system.compliance.audit.read`
 // permission together are the access controls.
 const AuditEventsPage = lazy(() => import('pages/admin/audit-events'));
+const Soc2EvidencePage = lazy(() => import('pages/admin/compliance/soc2'));
 
 export const complianceManifest: ModuleManifest = {
   name: 'compliance',
@@ -20,6 +21,18 @@ export const complianceManifest: ModuleManifest = {
         >
           <Suspense key="admin-audit-events" fallback={<FalconLoader />}>
             <AuditEventsPage />
+          </Suspense>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: 'admin/compliance/soc2',
+      element: (
+        <ProtectedRoute
+          requiredPermissions={[['super_admin', 'administrator', 'developer']]}
+        >
+          <Suspense key="admin-compliance-soc2" fallback={<FalconLoader />}>
+            <Soc2EvidencePage />
           </Suspense>
         </ProtectedRoute>
       ),

@@ -79,6 +79,7 @@ func (m *Module) ProvidedServices() []module.ServiceKey {
 func (m *Module) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
 		{Group: "System Administration", Name: "Audit Events", Icon: "clipboard-list", Path: "/admin/audit-events", MinRole: "administrator", Active: true},
+		{Group: "System Administration", Name: "SOC2 Evidence", Icon: "shield-alt", Path: "/admin/compliance/soc2", MinRole: "administrator", Active: true},
 	}
 }
 
