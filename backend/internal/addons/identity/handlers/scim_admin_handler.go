@@ -118,7 +118,7 @@ func (h *ScimAdminHandler) Status(ctx context.Context, _ *struct{}) (*ScimTokenS
 }
 
 // RegisterScimAdminRoutes mounts the rotate + status endpoints. Caller
-// is expected to wrap the API in RequirePermission("tenant.org.update")
+// is expected to wrap the API in RequirePermission("tenant.update")
 // — see module.go.
 func RegisterScimAdminRoutes(api huma.API, h *ScimAdminHandler) {
 	huma.Register(api, huma.Operation{

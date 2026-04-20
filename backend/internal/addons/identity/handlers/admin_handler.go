@@ -22,7 +22,7 @@ import (
 )
 
 // AdminHandler exposes tenant-scoped IdP config CRUD to authenticated
-// tenant administrators. All routes require the `tenant.org.update`
+// tenant administrators. All routes require the `tenant.update`
 // permission — the same gate the tenant module uses for its own mutation
 // surface — so only operators who can already manage the tenant can edit
 // its IdP.

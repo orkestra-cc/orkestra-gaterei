@@ -141,7 +141,7 @@ func (m *Module) Init(deps *module.Dependencies) error {
 //
 //   - Public OIDC flow (`/v1/identity/oidc/*`) on the public API.
 //   - Admin CRUD (`/v1/identity/idp` + `/v1/identity/scim/*`) under the
-//     protected router, gated by `tenant.org.update`.
+//     protected router, gated by `tenant.update`.
 //   - SCIM protocol surface (`/scim/v2/*`) on the root router behind the
 //     identity module's own Bearer middleware (which resolves the tenant
 //     directly from the token, without the JWT auth middleware).
@@ -151,7 +151,7 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 	}
 	if m.admin != nil {
 		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequirePermission("tenant.org.update"))
+			r.Use(ri.AuthMW.RequirePermission("tenant.update"))
 			api := humachi.New(r, ri.APIConfig)
 			handlers.RegisterAdminRoutes(api, m.admin)
 			handlers.RegisterScimAdminRoutes(api, m.scimAdmin)

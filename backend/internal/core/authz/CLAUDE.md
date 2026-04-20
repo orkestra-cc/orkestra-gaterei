@@ -191,7 +191,7 @@ Current catalog status (snapshot as of this doc update — the live catalog is i
 
 | Form | Count | Examples | Status |
 |---|---|---|---|
-| `<mod>.<resource>.<action>` | ~30 | `billing.invoice.read`, `tenant.org.update` | ✅ compliant |
+| `<mod>.<resource>.<action>` | ~30 | `billing.invoice.read`, `tenant.plan.update` | ✅ compliant |
 | `<mod>.<action>` (no resource, action is the full capability) | ~10 | `rag.query`, `agents.admin`, `auth.self` | ✅ acceptable where the module has one main resource |
 | `system.<resource>.admin` | 3 | `system.modules.admin`, `system.users.admin`, `system.tenants.admin` | ✅ platform-level reserved prefix |
 | `<mod>.<resource>.view` | 13 | `subscriptions.client.view`, `payments.transaction.view` | ⚠️ **rename to `read`** in Phase 4 along with collection migration (avoid touching `authz_permissions` twice) |

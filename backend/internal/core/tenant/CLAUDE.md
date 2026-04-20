@@ -43,13 +43,13 @@ Collection name constants live in `repository/repository.go` as `CollOrgs`, `Col
 
 | Key | System? | Purpose |
 |---|---|---|
-| `tenant.org.read` | no | Read org details |
-| `tenant.org.update` | no | Update org name, slug, settings |
-| `tenant.org.delete` | no | Soft-delete the org |
+| `tenant.read` | no | Read tenant details |
+| `tenant.update` | no | Update tenant name, slug, settings (also gates identity IdP + SCIM admin CRUD) |
+| `tenant.delete` | no | Archive the tenant |
 | `tenant.plan.update` | no | Change plan and features |
-| `tenant.member.read` | no | List org members |
+| `tenant.member.read` | no | List tenant members |
 | `tenant.member.invite` | no | Invite new members |
-| `tenant.member.remove` | no | Remove members from the org |
+| `tenant.member.remove` | no | Remove members from the tenant |
 | `system.tenants.admin` | **yes** | Administer every tenant platform-wide (powers `/v1/admin/orgs/*`) |
 
 ## Lifecycle
@@ -70,14 +70,14 @@ Three route groups, each with a different gate:
 | POST | `/v1/orgs` | Create a new org — caller becomes owner + administrator |
 | POST | `/v1/orgs/accept-invite` | Redeem an invite token and join the target org |
 
-### Per-org — read (`RequirePermission("tenant.org.read")`)
+### Per-org — read (`RequirePermission("tenant.read")`)
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/v1/orgs/{orgId}` | Get org by id |
 | GET | `/v1/orgs/{orgId}/members` | List members |
 
-### Per-org — mutation (`RequirePermission("tenant.org.read")` + `RequireMFA()`)
+### Per-org — mutation (`RequirePermission("tenant.read")` + `RequireMFA()`)
 
 Block B gates every tenant mutation behind an MFA step-up. Each can transfer ownership-adjacent data, change plan entitlements, or destroy the org — a pwd-only token fails with 401 `mfa_required` and the client steps up via `/v1/auth/mfa/verify` before retrying.
 
