@@ -5,7 +5,12 @@ import "time"
 // PaymentMethod is a tokenized card/SEPA/etc. stored on a provider customer.
 // We never store raw PANs — only the provider's reference token (pm_xxx).
 type PaymentMethod struct {
-	UUID             string       `bson:"uuid" json:"uuid"`
+	UUID string `bson:"uuid" json:"uuid"`
+	// TenantUUID is the forward-looking tenant binding (ADR-0001 Phase 1).
+	// Dual-written alongside ClientUUID until the legacy SubscriptionClient
+	// model is retired. Prefer this field on reads.
+	TenantUUID string `bson:"tenantUUID,omitempty" json:"tenantUUID,omitempty"`
+	// Deprecated: use TenantUUID. Retained for dual-write compatibility.
 	ClientUUID       string       `bson:"clientUUID" json:"clientUUID"`
 	Provider         ProviderName `bson:"provider" json:"provider"`
 	ProviderMethodID string       `bson:"providerMethodID" json:"providerMethodID"` // pm_xxx

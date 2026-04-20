@@ -48,7 +48,7 @@ func (m *PaymentsModule) HotReloadConfig() bool         { return true }
 func (m *PaymentsModule) Dependencies() []string { return nil }
 
 func (m *PaymentsModule) ProvidedServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServicePaymentProvider}
+	return []module.ServiceKey{module.ServicePaymentProvider, module.ServiceTenantPaymentProvider}
 }
 
 func (m *PaymentsModule) OptionalServices() []module.ServiceKey {
@@ -70,11 +70,15 @@ func (m *PaymentsModule) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{OrderedKeys: []module.IndexKey{{Field: "provider", Direction: 1}, {Field: "providerTxID", Direction: 1}}, Unique: true, Sparse: true},
 			{Keys: map[string]int{"subscriptionUUID": 1, "createdAt": -1}},
+			// Tenant-scoped lookups for the Phase 2 aggregator endpoint
+			// GET /v1/admin/tenants/{id}/payments.
+			{OrderedKeys: []module.IndexKey{{Field: "tenantUUID", Direction: 1}, {Field: "createdAt", Direction: -1}}, Sparse: true},
 			{Keys: map[string]int{"status": 1}},
 		}},
 		{Name: models.PaymentMethodsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"clientUUID": 1, "provider": 1}},
+			{Keys: map[string]int{"tenantUUID": 1, "provider": 1}, Sparse: true},
 			{Keys: map[string]int{"providerMethodID": 1}, Unique: true, Sparse: true},
 		}},
 		{Name: models.WebhookEventsCollection, Indexes: []module.IndexSpec{
@@ -144,6 +148,11 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 	// simply error out until a key is set via the admin UI).
 	deps.Services.Register(module.ServicePaymentProvider, m.payment)
 
+	// Publish the tenant-scoped payment read view so core/tenant's admin
+	// aggregator endpoint can list a tenant's transactions without
+	// importing this module. Matches the subscriptions adapter pattern.
+	deps.Services.Register(module.ServiceTenantPaymentProvider, iface.TenantPaymentProvider(services.NewTenantPaymentAdapter(txRepo)))
+
 	deps.Logger.Info("Payments module initialized",
 		slog.String("defaultProvider", string(defaultProvider)),
 		slog.Bool("stripeConfigured", m.hasStripe),
@@ -156,28 +165,35 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// dedicated RequirePermission middleware. Refunds sit behind the
 	// distinct `payments.transaction.refund` grant so read access cannot
 	// authorise a mutation.
+	// Admin API — all operator-only. Each bucket gates by Kind
+	// (RequireInternalTenant) so an external-tenant token cannot hit the
+	// admin read/refund/method/webhook-log surfaces.
 	ri.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("payments.transaction.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterTransactionReadRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("payments.transaction.refund"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterTransactionRefundRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("payments.method.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterPaymentMethodReadRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("payments.webhook.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterWebhookEventReadRoutes(api, m.txHandler)

@@ -21,6 +21,10 @@ interface Props {
   onRowClick: (org: AdminOrgListItem) => void;
   onCreateClick: () => void;
   onDeleteClick: (org: AdminOrgListItem) => void;
+  /** Toolbar heading — see TenantTableHeader.Props.title. */
+  title?: string;
+  /** "New …" button label — see TenantTableHeader.Props.createLabel. */
+  createLabel?: string;
 }
 
 const TenantTable: React.FC<Props> = ({
@@ -32,6 +36,8 @@ const TenantTable: React.FC<Props> = ({
   onRowClick,
   onCreateClick,
   onDeleteClick,
+  title,
+  createLabel,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('');
@@ -82,6 +88,8 @@ const TenantTable: React.FC<Props> = ({
           includeDeleted={includeDeleted}
           onIncludeDeletedChange={onIncludeDeletedChange}
           onCreateClick={onCreateClick}
+          title={title}
+          createLabel={createLabel}
         />
       </Card.Header>
       <Card.Body className="p-0">

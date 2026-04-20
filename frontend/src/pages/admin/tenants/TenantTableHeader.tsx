@@ -9,6 +9,12 @@ interface Props {
   includeDeleted: boolean;
   onIncludeDeletedChange: (value: boolean) => void;
   onCreateClick: () => void;
+  /** Heading shown at the left of the toolbar. Defaults to "Tenant
+   * Management" for backwards compatibility with the legacy /admin/tenants
+   * route; the Phase 3 split passes "Internal Tenants" / "Clients". */
+  title?: string;
+  /** Label on the "New …" button. Defaults to "New Tenant". */
+  createLabel?: string;
 }
 
 const TenantTableHeader: React.FC<Props> = ({
@@ -17,11 +23,13 @@ const TenantTableHeader: React.FC<Props> = ({
   planFilter,
   onPlanChange,
   onCreateClick,
+  title = 'Tenant Management',
+  createLabel = 'New Tenant',
 }) => {
   return (
     <Row className="align-items-center g-3">
       <Col xs="auto">
-        <h5 className="mb-0">Tenant Management</h5>
+        <h5 className="mb-0">{title}</h5>
       </Col>
       <Col>
         <Form.Control
@@ -47,7 +55,7 @@ const TenantTableHeader: React.FC<Props> = ({
       <Col xs="auto">
         <Button variant="primary" size="sm" onClick={onCreateClick}>
           <FontAwesomeIcon icon="plus" className="me-1" />
-          New Tenant
+          {createLabel}
         </Button>
       </Col>
     </Row>

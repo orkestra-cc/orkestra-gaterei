@@ -297,6 +297,19 @@ type RoleMiddleware interface {
 	// error="mfa_required" so the frontend can prompt for a TOTP code and
 	// retry against /v1/auth/mfa/verify.
 	RequireMFA() func(http.Handler) http.Handler
+
+	// RequireInternalTenant rejects requests whose resolved tenant is not
+	// internal (Tier-1 operator). Use on operator-only routes: billing /
+	// FatturaPA, subscription-admin, payments-admin. Warn-mode (set via
+	// TENANT_KIND_ENFORCEMENT=warn) logs mismatches and passes through so
+	// operators can stage the rollout before it starts returning 403.
+	RequireInternalTenant() func(http.Handler) http.Handler
+
+	// RequireExternalTenant rejects requests whose resolved tenant is not
+	// external (Tier-2 client). Use on client-only routes: self-service
+	// checkout, client portal. Honours the same warn/enforce env as
+	// RequireInternalTenant.
+	RequireExternalTenant() func(http.Handler) http.Handler
 }
 
 // RouteInfo provides the routing infrastructure for module route registration.

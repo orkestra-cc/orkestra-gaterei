@@ -346,6 +346,20 @@ func (v *JWTValidator) RequireMFA() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireInternalTenant and RequireExternalTenant on the JWTValidator are
+// implemented as no-op pass-throughs for the AI sidecar: the sidecar trusts
+// the monolith's kind enforcement on the public boundary and never performs
+// independent kind-based routing. Implemented to satisfy the
+// module.RoleMiddleware interface so sidecar modules compile against the
+// same contract.
+func (v *JWTValidator) RequireInternalTenant() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return next }
+}
+
+func (v *JWTValidator) RequireExternalTenant() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return next }
+}
+
 func extractBearer(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if h == "" {

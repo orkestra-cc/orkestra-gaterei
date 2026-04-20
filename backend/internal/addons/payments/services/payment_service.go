@@ -90,11 +90,16 @@ func (s *PaymentService) ChargeSubscription(ctx context.Context, in iface.Subscr
 		ProviderTxID:     result.ProviderTxID,
 		SubscriptionUUID: in.SubscriptionUUID,
 		InvoiceUUID:      in.InvoiceUUID,
-		ClientUUID:       customerClientFromMetadata(in.Metadata),
-		AmountCents:      in.AmountCents,
-		Currency:         in.Currency,
-		Description:      in.Description,
-		Metadata:         in.Metadata,
+		// ADR-0001 Phase 1 dual-write: both ClientUUID (legacy) and TenantUUID
+		// (forward-looking) are populated from the charge metadata so the
+		// Phase 2 aggregator GET /v1/admin/tenants/{id}/payments can find
+		// transactions by tenant without joining through subscriptions_clients.
+		ClientUUID:  metadataID(in.Metadata, "clientUUID"),
+		TenantUUID:  metadataID(in.Metadata, "tenantUUID"),
+		AmountCents: in.AmountCents,
+		Currency:    in.Currency,
+		Description: in.Description,
+		Metadata:    in.Metadata,
 	}
 	now := time.Now().UTC()
 	switch {
@@ -187,9 +192,13 @@ func (s *PaymentService) Provider(name models.ProviderName) (iface.PaymentProvid
 	return p, ok
 }
 
-func customerClientFromMetadata(md map[string]string) string {
+// metadataID returns the value stored under key in the subscription-charge
+// metadata map, or the empty string when the map is nil or the key is
+// absent. Used for both the legacy clientUUID and the forward-looking
+// tenantUUID dual-write on Transaction rows.
+func metadataID(md map[string]string, key string) string {
 	if md == nil {
 		return ""
 	}
-	return md["clientUUID"]
+	return md[key]
 }

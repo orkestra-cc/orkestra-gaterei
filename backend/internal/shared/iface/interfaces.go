@@ -278,6 +278,14 @@ type TenantProvider interface {
 	// admin-facing CreateTenant surface — different defaults, narrower
 	// input shape.
 	ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in OnboardingTenantInput) (*Tenant, error)
+	// FindOrProvisionLegacyClientTenant ensures a paired external tenant
+	// exists for the given legacy SubscriptionClient UUID (ADR-0001 Phase 1
+	// migration). Idempotent: a second call with the same LegacyClientUUID
+	// returns the existing tenant instead of creating a duplicate. Backed by
+	// the unique sparse index on tenant_orgs.metadata.legacyClientUUID. The
+	// tenant is created in `active` state (operator-seeded, not self-serve),
+	// with SignupChannel=migrated.
+	FindOrProvisionLegacyClientTenant(ctx context.Context, in LegacyClientTenantSpec) (*Tenant, error)
 	// ActivateTenant transitions a tenant from `provisioning` to `active`.
 	// Idempotent: calling it on an already-active tenant is a no-op on the
 	// status field. The onboarding activate-on-verify hook uses this after
@@ -300,6 +308,30 @@ type OnboardingTenantInput struct {
 	// Plan is optional — defaults to "free" when empty. Entitlements are
 	// driven by subscriptions, not plan name, so this is a label only.
 	Plan string
+}
+
+// LegacyClientTenantSpec is the input for FindOrProvisionLegacyClientTenant.
+// The subscription migration path supplies this when a legacy
+// SubscriptionClient is encountered without an OrgUUID; the tenant service
+// either returns the existing paired tenant (same LegacyClientUUID) or
+// creates a new one with SignupChannel=migrated and the back-pointer
+// stamped into metadata.
+type LegacyClientTenantSpec struct {
+	// LegacyClientUUID uniquely identifies the paired SubscriptionClient.
+	// Persisted in tenant metadata so re-runs are idempotent.
+	LegacyClientUUID string
+	// OwnerUserUUID is the initial tenant owner — typically the operator who
+	// triggered the migration or created the subscription. Must be non-empty.
+	OwnerUserUUID string
+	Name          string
+	Slug          string
+	Plan          string
+	// VATNumber, FiscalCode, and StripeCustomerID, when set, are stamped on
+	// the tenant so the external-tenant record carries forward what the
+	// legacy Client knew. All optional.
+	VATNumber        string
+	FiscalCode       string
+	StripeCustomerID string
 }
 
 // GrantCapabilityInput is the cross-module payload for granting a capability
@@ -485,6 +517,67 @@ type ClientOwnershipProvider interface {
 	// empty string if the client is not scoped to an org. Returns an error
 	// when the client does not exist.
 	GetClientOrgUUID(ctx context.Context, clientUUID string) (string, error)
+}
+
+// ---------------------------------------------------------------------------
+// TenantSubscriptionProvider — consumed by: core/tenant admin aggregator
+//
+// Exposes a read-only view of a tenant's subscriptions so the Phase 2
+// endpoint GET /v1/admin/tenants/{id}/subscriptions can return data without
+// importing the subscriptions addon from the core package. The returned
+// shape is intentionally flat (no Service/Tier joins) — the aggregator
+// trusts the caller to fetch richer details through the subscriptions API.
+// ---------------------------------------------------------------------------
+
+type TenantSubscription struct {
+	UUID               string
+	TenantUUID         string
+	ClientUUID         string
+	ServiceUUID        string
+	TierCode           string
+	Status             string
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+	NextBillingAt      time.Time
+	CreatedAt          time.Time
+}
+
+type TenantSubscriptionProvider interface {
+	// ListByTenant returns every subscription bound to the tenant via
+	// Subscription.TenantUUID (Phase 1 forward-pointer). Does not include
+	// legacy rows that still only carry ClientUUID — Phase 1 backfill
+	// populates TenantUUID across the board.
+	ListByTenant(ctx context.Context, tenantUUID string) ([]TenantSubscription, error)
+}
+
+// ---------------------------------------------------------------------------
+// TenantPaymentProvider — consumed by: core/tenant admin aggregator
+//
+// Parallels TenantSubscriptionProvider for payments. Flattened to the
+// subset the aggregator endpoint needs.
+// ---------------------------------------------------------------------------
+
+type TenantPayment struct {
+	UUID             string
+	TenantUUID       string
+	ClientUUID       string
+	SubscriptionUUID string
+	InvoiceUUID      string
+	Provider         string
+	ProviderTxID     string
+	Status           string
+	AmountCents      int64
+	Currency         string
+	RefundedCents    int64
+	ChargedAt        *time.Time
+	RefundedAt       *time.Time
+	CreatedAt        time.Time
+}
+
+type TenantPaymentProvider interface {
+	// ListByTenant returns every transaction bound to the tenant via
+	// Transaction.TenantUUID. Sorted by createdAt desc.
+	ListByTenant(ctx context.Context, tenantUUID string) ([]TenantPayment, error)
 }
 
 // ---------------------------------------------------------------------------

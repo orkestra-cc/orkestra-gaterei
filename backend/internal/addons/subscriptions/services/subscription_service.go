@@ -28,7 +28,13 @@ type SubscriptionService struct {
 	services    repository.ServiceRepository
 	activity    *ActivityService
 	entitlement *EntitlementSyncer
-	logger      *slog.Logger
+	// tenants resolves the paired external tenant for a legacy Client so
+	// every new Subscription carries TenantUUID (ADR-0001 Phase 1
+	// dual-write). Optional: nil when the tenant module is not loaded —
+	// in that case Create still runs, and the row carries ClientUUID only
+	// (the Phase 1 backfill fills in TenantUUID later).
+	tenants iface.TenantProvider
+	logger  *slog.Logger
 	// auditSink is wired post-construction by the compliance module so
 	// subscription lifecycle events land on the platform audit trail
 	// alongside this module's own subscriptions_activity log.
@@ -64,6 +70,7 @@ func NewSubscriptionService(
 	services repository.ServiceRepository,
 	activity *ActivityService,
 	entitlement *EntitlementSyncer,
+	tenants iface.TenantProvider,
 	logger *slog.Logger,
 ) *SubscriptionService {
 	return &SubscriptionService{
@@ -72,6 +79,7 @@ func NewSubscriptionService(
 		services:    services,
 		activity:    activity,
 		entitlement: entitlement,
+		tenants:     tenants,
 		logger:      logger,
 	}
 }
@@ -92,10 +100,18 @@ func (s *SubscriptionService) Create(ctx context.Context, clientUUID, serviceUUI
 		return nil, ErrSubscriptionTierNotFound
 	}
 
+	// ADR-0001 Phase 1 dual-write: every new subscription carries both the
+	// legacy ClientUUID and the forward-looking TenantUUID. The tenant
+	// service's index on metadata.legacyClientUUID makes lazy provisioning
+	// idempotent — a second Create on the same Client reuses the first
+	// paired tenant rather than creating a duplicate.
+	tenantUUID := s.resolveTenantForClient(ctx, client, actor)
+
 	now := time.Now().UTC()
 	sub := &models.Subscription{
 		UUID:               uuid.NewString(),
 		ClientUUID:         client.UUID,
+		TenantUUID:         tenantUUID,
 		ServiceUUID:        svc.UUID,
 		TierCode:           tier.Code,
 		Status:             models.SubActive,
@@ -125,6 +141,63 @@ func (s *SubscriptionService) Create(ctx context.Context, clientUUID, serviceUUI
 	// tier's capability bundle immediately (payment is confirmed on the
 	// first renewal tick). The syncer is a no-op when TenantUUID is empty —
 	// legacy client-only subs keep working without capability grants.
+	s.entitlement.OnActivate(ctx, sub)
+	return sub, nil
+}
+
+// CreateForTenantUUID is the operator-admin variant of CreateForTenant. It
+// accepts the internal serviceUUID (instead of the human-typed serviceCode)
+// so the admin UI can pass the stable identifier it already has on the
+// service catalog row. No Client row is involved — the subscription points
+// directly at the Tier-2 Tenant via TenantUUID.
+//
+// Entitlements are granted immediately on activation so admin-created
+// subscriptions let the tenant hit gated routes without waiting for the
+// first renewal tick; if the first charge later fails, the standard
+// past_due → suspended flow revokes them.
+func (s *SubscriptionService) CreateForTenantUUID(ctx context.Context, tenantUUID, serviceUUID, tierCode, actor string) (*models.Subscription, error) {
+	if tenantUUID == "" {
+		return nil, errors.New("subscriptions: CreateForTenantUUID requires tenantUUID")
+	}
+	svc, err := s.services.GetByUUID(ctx, serviceUUID)
+	if err != nil {
+		return nil, fmt.Errorf("load service: %w", err)
+	}
+	tier := svc.FindTier(tierCode)
+	if tier == nil {
+		return nil, ErrSubscriptionTierNotFound
+	}
+
+	now := time.Now().UTC()
+	sub := &models.Subscription{
+		UUID:               uuid.NewString(),
+		TenantUUID:         tenantUUID,
+		ServiceUUID:        svc.UUID,
+		TierCode:           tier.Code,
+		Status:             models.SubActive,
+		StartedAt:          now,
+		CurrentPeriodStart: now,
+		CurrentPeriodEnd:   AdvancePeriod(now, tier.Cycle),
+		NextBillingAt:      now,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	if err := s.subs.Create(ctx, sub); err != nil {
+		return nil, err
+	}
+	s.activity.Log(ctx, sub, actor, models.ActivityCreated, "Subscription created (operator, tenant-bound)", map[string]any{
+		"serviceCode": svc.Code,
+		"tierCode":    tier.Code,
+		"tenantUUID":  tenantUUID,
+	})
+	s.emitAudit(ctx, iface.AuditEvent{
+		TenantID:     sub.TenantUUID,
+		ActorUserID:  actor,
+		Action:       "subscription.created",
+		ResourceType: "subscription",
+		ResourceID:   sub.UUID,
+		Metadata:     subscriptionMetadata(sub),
+	})
 	s.entitlement.OnActivate(ctx, sub)
 	return sub, nil
 }
@@ -289,6 +362,71 @@ func (s *SubscriptionService) Reactivate(ctx context.Context, uuid string, actor
 	// entitled without needing a separate admin intervention.
 	s.entitlement.OnActivate(ctx, sub)
 	return sub, nil
+}
+
+// resolveTenantForClient returns the external-tenant UUID paired with the
+// given legacy Client. Behaviour during the Phase 1 migration window:
+//   - If Client.OrgUUID is already set, return it (fast path, no cross-module
+//     call).
+//   - Otherwise and if the tenant provider is wired, lazily provision a paired
+//     external tenant via iface.TenantProvider.FindOrProvisionLegacyClientTenant
+//     (idempotent; keyed on metadata.legacyClientUUID unique sparse index),
+//     back-stamp Client.OrgUUID so subsequent reads take the fast path, and
+//     return the new tenant UUID.
+//   - On any failure (tenant provider nil, slug clash, provider error), return
+//     an empty string and log. The subscription still persists with ClientUUID
+//     only; the Phase 1 backfill migration catches the tail.
+//
+// actor is the authenticated user driving the create call — used as the
+// initial owner of the lazily-created tenant. In the operator-admin flow
+// this is the ops user; the invite/transfer flow later hands ownership to
+// the real external user.
+func (s *SubscriptionService) resolveTenantForClient(ctx context.Context, client *models.Client, actor string) string {
+	if client == nil {
+		return ""
+	}
+	if client.OrgUUID != "" {
+		return client.OrgUUID
+	}
+	if s.tenants == nil || actor == "" {
+		return ""
+	}
+	name := client.DisplayName
+	if name == "" {
+		name = client.LegalName
+	}
+	if name == "" {
+		name = client.Email
+	}
+	if name == "" {
+		return ""
+	}
+	t, err := s.tenants.FindOrProvisionLegacyClientTenant(ctx, iface.LegacyClientTenantSpec{
+		LegacyClientUUID: client.UUID,
+		OwnerUserUUID:    actor,
+		Name:             name,
+		VATNumber:        client.VATNumber,
+		FiscalCode:       client.FiscalCode,
+		StripeCustomerID: client.StripeCustomerID,
+	})
+	if err != nil || t == nil {
+		s.logger.Warn("subscriptions: lazy-provision paired tenant failed, subscription persists with ClientUUID only",
+			slog.String("clientUUID", client.UUID),
+			slog.Any("error", err),
+		)
+		return ""
+	}
+	// Best-effort back-stamp so the next subscription on this client skips
+	// the cross-module hop. A failure here is non-fatal — the tenant exists,
+	// the unique sparse index will find it on the next call.
+	if err := s.clients.SetOrgUUID(ctx, client.UUID, t.UUID); err != nil {
+		s.logger.Warn("subscriptions: back-stamp Client.OrgUUID failed",
+			slog.String("clientUUID", client.UUID),
+			slog.String("tenantUUID", t.UUID),
+			slog.Any("error", err),
+		)
+	}
+	return t.UUID
 }
 
 // AdvancePeriod returns the end of the next billing period for the given cycle.

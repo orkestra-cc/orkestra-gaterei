@@ -136,6 +136,74 @@ func (r *Repository) ListTenantsByKind(ctx context.Context, kind models.TenantKi
 	return out, nil
 }
 
+// TenantListFilter narrows platform-admin tenant lookups. All fields are
+// optional; zero values mean "no filter on that axis". Used by the admin list
+// endpoint to back the split between Internal Operations and Client
+// Management.
+type TenantListFilter struct {
+	// Kind, when non-empty, restricts to one tier. Must be a valid TenantKind.
+	Kind models.TenantKind
+	// ParentTenantUUID, when non-nil, restricts to direct children of that
+	// tenant (exact match on the parentTenantUUID field). Pointer so callers
+	// can distinguish "no filter" from "roots only" via RootsOnly.
+	ParentTenantUUID *string
+	// RootsOnly, when true, restricts to tenants that have no parent. Useful
+	// for the Clients list page where divisions should not appear. Mutually
+	// exclusive with ParentTenantUUID — if both are set, RootsOnly wins.
+	RootsOnly bool
+	// IncludeDeleted returns soft-deleted rows when true.
+	IncludeDeleted bool
+}
+
+// ListTenants is the general-purpose admin list with optional filters. Sorts
+// by createdAt descending.
+func (r *Repository) ListTenants(ctx context.Context, f TenantListFilter) ([]models.Tenant, error) {
+	filter := bson.M{}
+	if f.Kind != "" {
+		filter["kind"] = string(f.Kind)
+	}
+	switch {
+	case f.RootsOnly:
+		filter["$or"] = []bson.M{
+			{"parentTenantUUID": bson.M{"$exists": false}},
+			{"parentTenantUUID": nil},
+			{"parentTenantUUID": ""},
+		}
+	case f.ParentTenantUUID != nil:
+		filter["parentTenantUUID"] = *f.ParentTenantUUID
+	}
+	if !f.IncludeDeleted {
+		filter["deletedAt"] = nil
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	cur, err := r.db.Collection(CollTenants).Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []models.Tenant
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetTenantByLegacyClientUUID looks up a tenant that was lazily provisioned
+// from a legacy SubscriptionClient by the Phase 1 migration. Returns
+// ErrNotFound if no paired tenant exists. Relies on the unique sparse index
+// on metadata.legacyClientUUID.
+func (r *Repository) GetTenantByLegacyClientUUID(ctx context.Context, legacyClientUUID string) (*models.Tenant, error) {
+	var t models.Tenant
+	err := r.db.Collection(CollTenants).FindOne(ctx, bson.M{
+		"metadata.legacyClientUUID": legacyClientUUID,
+		"deletedAt":                 nil,
+	}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	return &t, err
+}
+
 // UpdateTenantStatus transitions a tenant to a new lifecycle state.
 func (r *Repository) UpdateTenantStatus(ctx context.Context, uuid string, status models.TenantStatus) error {
 	update := bson.M{"status": string(status), "updatedAt": time.Now()}

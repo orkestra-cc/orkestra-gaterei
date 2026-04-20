@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +18,11 @@ import (
 	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
+
+// slogString is a terse wrapper for slog.String so the warn-mode log site
+// stays readable. Kept unexported — adopt slog.String directly if another
+// file in the package starts using it.
+func slogString(key, value string) slog.Attr { return slog.String(key, value) }
 
 // Context keys used by the auth middleware to carry identity and the
 // resolved current-org context into downstream handlers. Kept as plain
@@ -350,10 +357,29 @@ func IsImpersonating(ctx context.Context) bool {
 	return v
 }
 
+// tenantKindEnforcementMode returns "warn" when TENANT_KIND_ENFORCEMENT=warn,
+// otherwise "enforce". Read once per invocation rather than cached so an
+// operator flipping the env var on a hot-reloaded process takes effect on the
+// next request. Default is strict enforcement — warn-mode is an opt-in for
+// staged rollouts where operators want telemetry on mismatched kinds before
+// the gate starts returning 403.
+func tenantKindEnforcementMode() string {
+	if os.Getenv("TENANT_KIND_ENFORCEMENT") == "warn" {
+		return "warn"
+	}
+	return "enforce"
+}
+
 // RequireTenantKind rejects any request whose resolved tenant is not of the
 // expected kind. Use to gate Tier-1-only or Tier-2-only endpoints. Routes
 // without a resolved tenant (global routes) are also rejected — callers that
 // want tier-agnostic behavior simply don't use this middleware.
+//
+// Enforcement honours TENANT_KIND_ENFORCEMENT: "warn" logs mismatches and
+// passes through; anything else (default) returns 403. Missing-tenant is
+// always blocked regardless of mode — a route gated by kind cannot
+// meaningfully run without a tenant context, so the error still needs to
+// surface.
 func (m *AuthMiddleware) RequireTenantKind(expected string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -366,6 +392,16 @@ func (m *AuthMiddleware) RequireTenantKind(expected string) func(http.Handler) h
 				return
 			}
 			if kind != expected {
+				if tenantKindEnforcementMode() == "warn" {
+					slog.Default().Warn("tenant-kind mismatch (warn-mode, request allowed)",
+						slogString("expected", expected),
+						slogString("actual", kind),
+						slogString("path", r.URL.Path),
+						slogString("method", r.Method),
+					)
+					next.ServeHTTP(w, r)
+					return
+				}
 				m.sendErrorResponse(w, r, errors.AuthorizationError("wrong tenant tier for this route").
 					WithOperation("require_tenant_kind").
 					WithDetail("expected", expected).

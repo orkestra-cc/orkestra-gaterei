@@ -188,10 +188,14 @@ func (m *BillingModule) Capabilities() []capability.Capability {
 }
 
 func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Protected billing routes: require the billing permission and the
-	// "billing" feature on the tenant's plan.
+	// Protected billing routes: operator-only — FatturaPA and SDI are
+	// internal-tenant concerns, so wrap with RequireInternalTenant to refuse
+	// any external-tenant token. Rollout respects TENANT_KIND_ENFORCEMENT
+	// (warn|enforce) so operators can probe traffic before the gate starts
+	// returning 403.
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(ri.AuthMW.RequireInternalTenant())
 		r.Use(ri.AuthMW.RequireCapability("billing.access"))
 		r.Use(ri.AuthMW.RequirePermission("billing.invoice.read"))
 		api := humachi.New(r, ri.APIConfig)

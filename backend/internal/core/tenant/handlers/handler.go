@@ -6,15 +6,27 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/core/tenant/models"
+	"github.com/orkestra/backend/internal/core/tenant/repository"
 	"github.com/orkestra/backend/internal/core/tenant/services"
+	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type Handler struct {
 	svc *services.Service
+	// registry is used at request time to resolve the optional aggregator
+	// providers (subscriptions, payments). Looked up lazily because those
+	// addons init after core/tenant; capturing the typed interfaces at
+	// boot would freeze them as nil.
+	registry *module.ServiceRegistry
 }
 
-func New(svc *services.Service) *Handler { return &Handler{svc: svc} }
+// New wires a handler to the tenant service. The registry is optional;
+// when nil the aggregator endpoints degrade to empty results.
+func New(svc *services.Service, registry *module.ServiceRegistry) *Handler {
+	return &Handler{svc: svc, registry: registry}
+}
 
 // --- Request/response envelopes ---
 
@@ -123,6 +135,15 @@ func (h *Handler) RegisterScopedReadRoutes(api huma.API) {
 		Summary:     "List tenant members",
 		Tags:        []string{"Tenants"},
 	}, h.listMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-divisions",
+		Method:      http.MethodGet,
+		Path:        "/v1/tenants/{tenantId}/divisions",
+		Summary:     "List this tenant's divisions",
+		Description: "Closure-table lookup of direct children (depth=1). Internal tenants never have divisions and always return an empty list.",
+		Tags:        []string{"Tenants"},
+	}, h.listDivisions)
 }
 
 // RegisterScopedMutationRoutes registers per-tenant mutations. MFA required
@@ -167,6 +188,15 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 		Summary:     "Invite a user to the tenant",
 		Tags:        []string{"Tenants"},
 	}, h.createInvite)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-division",
+		Method:      http.MethodPost,
+		Path:        "/v1/tenants/{tenantId}/divisions",
+		Summary:     "Create a division under this external tenant",
+		Description: "Creates a sub-tenant (Kind=external, ParentTenantUUID=this). Refuses when the parent is internal.",
+		Tags:        []string{"Tenants"},
+	}, h.createDivision)
 }
 
 // --- Handler implementations ---
@@ -313,6 +343,14 @@ type adminTenantListItem struct {
 
 type adminTenantListInput struct {
 	IncludeDeleted bool `query:"includeDeleted"`
+	// Kind narrows the list to one tier. Empty returns both.
+	Kind string `query:"kind" enum:",internal,external"`
+	// ParentTenantUUID narrows to direct children of the given parent. Mutually
+	// exclusive with RootsOnly. Ignored when RootsOnly is true.
+	ParentTenantUUID string `query:"parentTenantUUID"`
+	// RootsOnly restricts to tenants that have no parent (used by the Clients
+	// root list to exclude divisions).
+	RootsOnly bool `query:"rootsOnly"`
 }
 
 type adminTenantListOutput struct {
@@ -428,10 +466,60 @@ func (h *Handler) RegisterAdminRoutes(api huma.API) {
 		Summary:     "Revoke a pending tenant invite (platform admin)",
 		Tags:        []string{"Tenants Admin"},
 	}, h.revokeInviteAdmin)
+
+	// --- Divisions + cross-module aggregators (Phase 2) ---
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-tenant-divisions-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/tenants/{tenantId}/divisions",
+		Summary:     "List direct sub-tenants (divisions) of an external tenant",
+		Description: "Returns tenants whose ParentTenantUUID equals the given tenant. Internal tenants never have divisions and always return an empty list.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.listDivisionsAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-tenant-division-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/tenants/{tenantId}/divisions",
+		Summary:     "Create a division under an external tenant (platform admin)",
+		Description: "Creates a Tier-2 tenant with Kind=external and ParentTenantUUID set. Refuses if the parent is internal.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.createDivisionAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-tenant-subscriptions-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/tenants/{tenantId}/subscriptions",
+		Summary:     "List a tenant's subscriptions (platform admin)",
+		Description: "Aggregator over the subscriptions module. Returns an empty list when the subscriptions addon is disabled.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.listTenantSubscriptionsAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-tenant-payments-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/tenants/{tenantId}/payments",
+		Summary:     "List a tenant's payment transactions (platform admin)",
+		Description: "Aggregator over the payments module. Returns an empty list when the payments addon is disabled.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.listTenantPaymentsAdmin)
 }
 
 func (h *Handler) listAllTenantsAdmin(ctx context.Context, in *adminTenantListInput) (*adminTenantListOutput, error) {
-	views, err := h.svc.ListAllTenants(ctx, in.IncludeDeleted)
+	filter := repository.TenantListFilter{IncludeDeleted: in.IncludeDeleted, RootsOnly: in.RootsOnly}
+	if in.Kind != "" {
+		kind := models.TenantKind(in.Kind)
+		if !kind.Valid() {
+			return nil, huma.Error400BadRequest("invalid kind: must be internal or external")
+		}
+		filter.Kind = kind
+	}
+	if !in.RootsOnly && in.ParentTenantUUID != "" {
+		p := in.ParentTenantUUID
+		filter.ParentTenantUUID = &p
+	}
+	views, err := h.svc.ListAllTenantsFiltered(ctx, filter)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list tenants", err)
 	}
@@ -459,4 +547,117 @@ func (h *Handler) revokeInviteAdmin(ctx context.Context, in *adminRevokeInviteIn
 		return nil, huma.Error400BadRequest("revoke failed: " + err.Error())
 	}
 	return &struct{}{}, nil
+}
+
+// --- Divisions (Phase 2) ---
+
+type divisionListOutput struct {
+	Body struct {
+		Divisions []models.Tenant `json:"divisions"`
+	}
+}
+
+type createDivisionInput struct {
+	TenantID string `path:"tenantId"`
+	Body     struct {
+		Name string `json:"name" validate:"required,min=1,max=120"`
+		Slug string `json:"slug,omitempty"`
+	}
+}
+
+// listDivisions serves the tenant-scoped list-divisions route. Auth gate is
+// tenant.read on the parent — same as list-members.
+func (h *Handler) listDivisions(ctx context.Context, in *tenantIDPath) (*divisionListOutput, error) {
+	rows, err := h.svc.ListDivisions(ctx, in.TenantID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list divisions", err)
+	}
+	out := &divisionListOutput{}
+	out.Body.Divisions = rows
+	return out, nil
+}
+
+// listDivisionsAdmin is the platform-admin variant — same handler body,
+// different auth group (system.tenants.admin). A tenant not found is
+// represented as an empty list rather than 404 so admin dashboards can
+// render cleanly when the parent id is a mis-type.
+func (h *Handler) listDivisionsAdmin(ctx context.Context, in *tenantIDPath) (*divisionListOutput, error) {
+	return h.listDivisions(ctx, in)
+}
+
+// createDivision is the tenant-scoped create path (tenant.read + MFA). The
+// caller must be an authenticated user; the new division is owned by them
+// and carries ParentTenantUUID=the current tenant.
+func (h *Handler) createDivision(ctx context.Context, in *createDivisionInput) (*tenantOutput, error) {
+	userUUID, ok := middleware.GetUserUUID(ctx)
+	if !ok || userUUID == "" {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	t, err := h.svc.CreateDivision(ctx, in.TenantID, userUUID, in.Body.Name, in.Body.Slug)
+	if err != nil {
+		return nil, huma.Error400BadRequest("division create failed: " + err.Error())
+	}
+	return &tenantOutput{Body: t}, nil
+}
+
+// createDivisionAdmin is the platform-admin variant. Same mechanics; the
+// admin acts as the initial owner of the new division until the client
+// transfers ownership.
+func (h *Handler) createDivisionAdmin(ctx context.Context, in *createDivisionInput) (*tenantOutput, error) {
+	return h.createDivision(ctx, in)
+}
+
+// --- Cross-module aggregators (Phase 2) ---
+
+type tenantSubscriptionsOutput struct {
+	Body struct {
+		Subscriptions []iface.TenantSubscription `json:"subscriptions"`
+	}
+}
+
+type tenantPaymentsOutput struct {
+	Body struct {
+		Payments []iface.TenantPayment `json:"payments"`
+	}
+}
+
+// listTenantSubscriptionsAdmin proxies to the subscriptions module via the
+// TenantSubscriptionProvider iface. When the addon is disabled (nil
+// registry lookup) the endpoint returns an empty list rather than 500 —
+// the admin dashboard can render an empty "Subscriptions" tab cleanly.
+func (h *Handler) listTenantSubscriptionsAdmin(ctx context.Context, in *tenantIDPath) (*tenantSubscriptionsOutput, error) {
+	out := &tenantSubscriptionsOutput{}
+	out.Body.Subscriptions = []iface.TenantSubscription{}
+	if h.registry == nil {
+		return out, nil
+	}
+	provider, ok := module.GetTyped[iface.TenantSubscriptionProvider](h.registry, module.ServiceTenantSubscriptionProvider)
+	if !ok || provider == nil {
+		return out, nil
+	}
+	rows, err := provider.ListByTenant(ctx, in.TenantID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list tenant subscriptions", err)
+	}
+	out.Body.Subscriptions = rows
+	return out, nil
+}
+
+// listTenantPaymentsAdmin mirrors listTenantSubscriptionsAdmin for payments.
+func (h *Handler) listTenantPaymentsAdmin(ctx context.Context, in *tenantIDPath) (*tenantPaymentsOutput, error) {
+	out := &tenantPaymentsOutput{}
+	out.Body.Payments = []iface.TenantPayment{}
+	if h.registry == nil {
+		return out, nil
+	}
+	provider, ok := module.GetTyped[iface.TenantPaymentProvider](h.registry, module.ServiceTenantPaymentProvider)
+	if !ok || provider == nil {
+		return out, nil
+	}
+	rows, err := provider.ListByTenant(ctx, in.TenantID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list tenant payments", err)
+	}
+	out.Body.Payments = rows
+	return out, nil
 }

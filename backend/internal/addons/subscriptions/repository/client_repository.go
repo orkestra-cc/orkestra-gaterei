@@ -24,6 +24,10 @@ type ClientRepository interface {
 	List(ctx context.Context, f ClientFilters) ([]models.Client, error)
 	Update(ctx context.Context, c *models.Client) error
 	SetStripeCustomerID(ctx context.Context, uuid, stripeCustomerID string) error
+	// SetOrgUUID back-stamps the paired external Tenant UUID on a legacy
+	// Client row as part of the ADR-0001 Phase 1 dual-write. Idempotent: a
+	// second call with the same orgUUID is a no-op at the data layer.
+	SetOrgUUID(ctx context.Context, uuid, orgUUID string) error
 	Delete(ctx context.Context, uuid string) error
 }
 
@@ -111,6 +115,16 @@ func (r *clientRepository) SetStripeCustomerID(ctx context.Context, uuid, stripe
 		"$set": bson.M{
 			"stripeCustomerID": stripeCustomerID,
 			"updatedAt":        time.Now().UTC(),
+		},
+	})
+	return err
+}
+
+func (r *clientRepository) SetOrgUUID(ctx context.Context, uuid, orgUUID string) error {
+	_, err := r.coll.UpdateOne(ctx, bson.M{"uuid": uuid}, bson.M{
+		"$set": bson.M{
+			"orgUUID":   orgUUID,
+			"updatedAt": time.Now().UTC(),
 		},
 	})
 	return err

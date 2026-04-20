@@ -45,6 +45,12 @@ func (m *Module) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"ownerUserUUID": 1}},
 			{Keys: map[string]int{"kind": 1}},
 			{Keys: map[string]int{"status": 1}},
+			{Keys: map[string]int{"parentTenantUUID": 1}, Sparse: true},
+			// Unique sparse index keyed on the metadata back-pointer from the
+			// subscriptions-client migration so lazy provisioning of paired
+			// tenants is idempotent: re-running the backfill cannot create
+			// two tenants for the same legacy SubscriptionClient.
+			{Keys: map[string]int{"metadata.legacyClientUUID": 1}, Unique: true, Sparse: true},
 		}},
 		{Name: repository.CollMemberships, Indexes: []module.IndexSpec{
 			{OrderedKeys: []module.IndexKey{
@@ -103,15 +109,21 @@ func (m *Module) Permissions() []iface.PermissionSpec {
 }
 
 func (m *Module) NavItems() []module.NavItemSpec {
+	// Two-tier split (ADR-0001 Phase 3): operator admins see two clearly
+	// separated sidebar groups so "our own companies" (internal) and
+	// "customers on the platform" (external clients) never mix. Both
+	// entries require the administrator role and the system.tenants.admin
+	// permission (enforced at the route layer).
 	return []module.NavItemSpec{
-		{Group: "System Administration", Name: "Tenant Management", Icon: "building", Path: "/admin/tenants", MinRole: "administrator", Active: true},
+		{Group: "Internal Operations", Name: "Internal Tenants", Icon: "building", Path: "/admin/internal/tenants", MinRole: "administrator", Active: true},
+		{Group: "Client Management", Name: "Clients", Icon: "users", Path: "/admin/clients", MinRole: "administrator", Active: true},
 	}
 }
 
 func (m *Module) Init(deps *module.Dependencies) error {
 	repo := repository.New(deps.DB)
 	m.svc = services.New(repo)
-	m.handler = handlers.New(m.svc)
+	m.handler = handlers.New(m.svc, deps.Services)
 	deps.Services.Register(module.ServiceTenantProvider, iface.TenantProvider(m.svc))
 	// Also publish the concrete service so addon modules (compliance) that
 	// need to drive post-init setters can resolve it without importing the

@@ -43,7 +43,14 @@ func NewSubscriptionHandler(
 }
 
 type CreateSubscriptionInput struct {
-	ClientUUID  string `json:"clientUUID"`
+	// ClientUUID is the legacy binding. Deprecated after ADR-0001 Phase 1 —
+	// still accepted so the existing admin UI keeps working during the
+	// migration window. Mutually exclusive with TenantUUID.
+	ClientUUID string `json:"clientUUID,omitempty"`
+	// TenantUUID is the forward-looking binding to a Tier-2 external tenant.
+	// When set, the subscription is created via CreateForTenantUUID — no
+	// Client row involved. Mutually exclusive with ClientUUID.
+	TenantUUID  string `json:"tenantUUID,omitempty"`
 	ServiceUUID string `json:"serviceUUID"`
 	TierCode    string `json:"tierCode"`
 }
@@ -59,6 +66,7 @@ type GetSubscriptionRequest struct {
 }
 type ListSubscriptionsRequest struct {
 	ClientUUID  string `query:"clientUUID"`
+	TenantUUID  string `query:"tenantUUID"`
 	ServiceUUID string `query:"serviceUUID"`
 	Status      string `query:"status" enum:"active,past_due,suspended,cancelled,expired"`
 }
@@ -82,7 +90,27 @@ type RetryChargeRequest struct {
 }
 
 func (h *SubscriptionHandler) Create(ctx context.Context, in *CreateSubscriptionRequest) (*SubscriptionResponse, error) {
-	sub, err := h.subs.Create(ctx, in.Body.ClientUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
+	hasTenant := in.Body.TenantUUID != ""
+	hasClient := in.Body.ClientUUID != ""
+	switch {
+	case hasTenant && hasClient:
+		return nil, huma.Error400BadRequest("provide either clientUUID or tenantUUID, not both")
+	case !hasTenant && !hasClient:
+		return nil, huma.Error400BadRequest("one of clientUUID or tenantUUID is required")
+	}
+	if in.Body.ServiceUUID == "" || in.Body.TierCode == "" {
+		return nil, huma.Error400BadRequest("serviceUUID and tierCode are required")
+	}
+
+	var (
+		sub *models.Subscription
+		err error
+	)
+	if hasTenant {
+		sub, err = h.subs.CreateForTenantUUID(ctx, in.Body.TenantUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
+	} else {
+		sub, err = h.subs.Create(ctx, in.Body.ClientUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +131,7 @@ func (h *SubscriptionHandler) Get(ctx context.Context, in *GetSubscriptionReques
 func (h *SubscriptionHandler) List(ctx context.Context, in *ListSubscriptionsRequest) (*ListSubscriptionsResponse, error) {
 	items, err := h.subs.List(ctx, repository.SubscriptionFilters{
 		ClientUUID:  in.ClientUUID,
+		TenantUUID:  in.TenantUUID,
 		ServiceUUID: in.ServiceUUID,
 		Status:      models.SubStatus(in.Status),
 	})

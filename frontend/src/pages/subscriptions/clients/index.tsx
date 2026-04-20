@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Badge, Button, Card, Form, Modal, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Form, Modal, Table } from 'react-bootstrap';
+import { Link } from 'react-router';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import PageHeader from 'components/common/PageHeader';
 import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
@@ -61,6 +63,17 @@ const ClientsListPage: React.FC = () => {
 
   return (
     <>
+      <Alert variant="warning" className="mb-3">
+        <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
+        <strong>Deprecated:</strong> the legacy SubscriptionClient records on this
+        page are being replaced by Tier-2 external tenants (ADR-0001). New
+        clients should be created from{' '}
+        <Link to="/admin/clients" className="alert-link">
+          Client Management
+        </Link>
+        . This page stays read-/write-functional for the Phase 1 migration
+        window so historical data remains editable.
+      </Alert>
       <PageHeader title="Clienti" description="Aziende e persone a cui vendi i servizi" className="mb-3">
         <Flex className="gap-2 mt-3">
           <IconButton icon="plus" variant="primary" onClick={openNew}>

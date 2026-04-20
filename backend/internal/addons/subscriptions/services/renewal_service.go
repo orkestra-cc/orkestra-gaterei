@@ -226,6 +226,11 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 		Metadata: map[string]string{
 			"subscriptionUUID": sub.UUID,
 			"invoiceUUID":      invoice.UUID,
+			// ADR-0001 Phase 1: carry both the legacy client id and the
+			// forward-looking tenant id so payments can dual-write on the
+			// Transaction row without a cross-module lookup.
+			"clientUUID": sub.ClientUUID,
+			"tenantUUID": sub.TenantUUID,
 		},
 	}
 	result, err := provider.ChargeSubscription(ctx, charge)

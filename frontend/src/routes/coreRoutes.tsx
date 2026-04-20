@@ -23,7 +23,12 @@ const UserManagement = lazy(() => import('pages/admin/users'));
 const ModuleManagement = lazy(() => import('pages/admin/modules'));
 const ModuleDetail = lazy(() => import('pages/admin/modules/detail'));
 const RoleManagement = lazy(() => import('pages/admin/roles'));
-const TenantManagement = lazy(() => import('pages/admin/tenants'));
+const InternalTenants = lazy(() => import('pages/admin/internal-tenants'));
+const InternalTenantDetail = lazy(
+  () => import('pages/admin/internal-tenants/detail'),
+);
+const ClientManagement = lazy(() => import('pages/admin/clients'));
+const ClientDetail = lazy(() => import('pages/admin/clients/detail'));
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
@@ -166,8 +171,16 @@ export function buildCoreRoutes(
                     </ProtectedRoute>
                   ),
                 },
+                // Two-tier split (ADR-0001 Phase 3): legacy /admin/tenants
+                // redirects to /admin/clients — most historical traffic here
+                // was client-leaning. Operators can deep-link to
+                // /admin/internal/tenants for the operator-side view.
                 {
                   path: 'tenants',
+                  element: <Navigate to="/admin/clients" replace />,
+                },
+                {
+                  path: 'internal/tenants',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
@@ -175,10 +188,61 @@ export function buildCoreRoutes(
                       ]}
                     >
                       <Suspense
-                        key="admin-tenants"
+                        key="admin-internal-tenants"
                         fallback={<FalconLoader />}
                       >
-                        <TenantManagement />
+                        <InternalTenants />
+                      </Suspense>
+                    </ProtectedRoute>
+                  ),
+                },
+                {
+                  path: 'internal/tenants/:tenantId',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[
+                        ['super_admin', 'administrator', 'developer'],
+                      ]}
+                    >
+                      <Suspense
+                        key="admin-internal-tenant-detail"
+                        fallback={<FalconLoader />}
+                      >
+                        <InternalTenantDetail />
+                      </Suspense>
+                    </ProtectedRoute>
+                  ),
+                },
+                {
+                  path: 'clients',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[
+                        ['super_admin', 'administrator', 'developer'],
+                      ]}
+                    >
+                      <Suspense
+                        key="admin-clients"
+                        fallback={<FalconLoader />}
+                      >
+                        <ClientManagement />
+                      </Suspense>
+                    </ProtectedRoute>
+                  ),
+                },
+                {
+                  path: 'clients/:clientId',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[
+                        ['super_admin', 'administrator', 'developer'],
+                      ]}
+                    >
+                      <Suspense
+                        key="admin-client-detail"
+                        fallback={<FalconLoader />}
+                      >
+                        <ClientDetail />
                       </Suspense>
                     </ProtectedRoute>
                   ),

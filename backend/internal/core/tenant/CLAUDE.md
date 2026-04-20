@@ -91,35 +91,47 @@ Block B gates every tenant mutation behind an MFA step-up. Each can transfer own
 
 ### Platform admin — `RequireSystemPermission("system.tenants.admin")`
 
-Gated globally by a system permission, not by per-org membership, so platform operators can manage every tenant without having to join each one. Powers the frontend `/admin/tenants` page.
+Gated globally by a system permission, not by per-org membership, so platform operators can manage every tenant without having to join each one. Powers the frontend `/admin/internal/tenants` (Tier-1) and `/admin/clients` (Tier-2) pages.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/v1/admin/orgs` | List every tenant. `?includeDeleted=true` to include soft-deleted rows. Response includes `memberCount` resolved via a single `$group` aggregation. |
-| GET | `/v1/admin/orgs/{orgId}` | Get any tenant |
-| PATCH | `/v1/admin/orgs/{orgId}` | Update any tenant (name, slug, settings) |
-| DELETE | `/v1/admin/orgs/{orgId}` | Soft-delete any tenant — bypasses the owner-only check |
-| PATCH | `/v1/admin/orgs/{orgId}/plan` | Change any tenant's plan + features |
-| GET | `/v1/admin/orgs/{orgId}/members` | List members |
-| DELETE | `/v1/admin/orgs/{orgId}/members/{userUUID}` | Remove a member |
-| GET | `/v1/admin/orgs/{orgId}/invites` | List invites. Defaults to pending-only; pass `?includeAccepted=true` to also see accepted rows. Raw tokens are scrubbed. |
-| POST | `/v1/admin/orgs/{orgId}/invites` | Create an invite. Raw token returned once, see Key invariants. |
-| DELETE | `/v1/admin/orgs/{orgId}/invites/{inviteId}` | Revoke a pending invite |
+| GET | `/v1/admin/tenants` | List every tenant. Query params: `?kind=internal\|external`, `?parentTenantUUID=<uuid>`, `?rootsOnly=true`, `?includeDeleted=true`. Response includes `memberCount` from a single `$group` aggregation. |
+| GET | `/v1/admin/tenants/{tenantId}` | Get any tenant |
+| PATCH | `/v1/admin/tenants/{tenantId}` | Update any tenant (name, slug, settings) |
+| DELETE | `/v1/admin/tenants/{tenantId}` | Soft-delete any tenant — bypasses the owner-only check |
+| POST | `/v1/admin/tenants/{tenantId}/purge` | Crypto-shred a tenant (irreversible; see purge handler docs) |
+| PATCH | `/v1/admin/tenants/{tenantId}/plan` | Change any tenant's plan + features |
+| GET | `/v1/admin/tenants/{tenantId}/members` | List members |
+| DELETE | `/v1/admin/tenants/{tenantId}/members/{userUUID}` | Remove a member |
+| GET | `/v1/admin/tenants/{tenantId}/invites` | List invites. Defaults to pending-only; pass `?includeAccepted=true` to also see accepted rows. Raw tokens are scrubbed. |
+| POST | `/v1/admin/tenants/{tenantId}/invites` | Create an invite. Raw token returned once, see Key invariants. |
+| DELETE | `/v1/admin/tenants/{tenantId}/invites/{inviteId}` | Revoke a pending invite |
+| GET | `/v1/admin/tenants/{tenantId}/divisions` | List direct children (depth=1) of an external tenant |
+| POST | `/v1/admin/tenants/{tenantId}/divisions` | Create a division (Kind=external, ParentTenantUUID=this). Refuses internal parents. |
+| GET | `/v1/admin/tenants/{tenantId}/subscriptions` | Aggregator — proxies to `iface.TenantSubscriptionProvider`. Returns `[]` when the subscriptions addon is disabled. |
+| GET | `/v1/admin/tenants/{tenantId}/payments` | Aggregator — proxies to `iface.TenantPaymentProvider`. Returns `[]` when the payments addon is disabled. |
+
+The tenant-scoped mutation group additionally exposes `POST /v1/tenants/{tenantId}/divisions` + `GET /v1/tenants/{tenantId}/divisions` for members with `tenant.read` on the parent.
 
 Route registration and handler implementations in `handlers/handler.go`. The permission itself (`system.tenants.admin`) is declared with `System: true` in `module.go::Permissions()`, so `super_admin` / `administrator` / `developer` inherit it automatically via authz's system-role seeding — no bindings required.
 
 ## Navigation
 
-`module.go::NavItems()` contributes a single entry:
+`module.go::NavItems()` contributes **two** sidebar entries (ADR-0001 Phase 3 split — operator side vs client side must never be conflated):
 
 ```
-Group:   System Administration
-Name:    Tenant Management
-Path:    /admin/tenants
+Group:   Internal Operations
+Name:    Internal Tenants
+Path:    /admin/internal/tenants
+MinRole: administrator
+
+Group:   Client Management
+Name:    Clients
+Path:    /admin/clients
 MinRole: administrator
 ```
 
-The frontend route is registered at `frontend/src/pages/admin/tenants/` and wired in `frontend/src/routes/index.tsx` behind `ProtectedRoute` with `super_admin | administrator | developer`.
+Frontend routes: `/admin/internal/tenants` (+ `/:tenantId`) renders `frontend/src/pages/admin/internal-tenants/`, `/admin/clients` (+ `/:clientId`) renders `frontend/src/pages/admin/clients/`. Both are gated by `ProtectedRoute` with `super_admin | administrator | developer`. The legacy `/admin/tenants` route 301-redirects to `/admin/clients` since most historical traffic there was client-leaning.
 
 ## Service contract
 

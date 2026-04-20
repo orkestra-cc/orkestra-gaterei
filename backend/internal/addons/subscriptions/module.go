@@ -3,12 +3,15 @@ package subscriptions
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	pmtrepo "github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/handlers"
 	"github.com/orkestra/backend/internal/addons/subscriptions/jobs"
+	"github.com/orkestra/backend/internal/addons/subscriptions/migrations"
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
@@ -16,6 +19,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type SubscriptionsModule struct {
@@ -27,6 +31,13 @@ type SubscriptionsModule struct {
 
 	renewalJob *jobs.RenewalJob
 	logger     *slog.Logger
+
+	// Phase 1 backfill plumbing — captured in Init so Start can fire the
+	// migration without re-wiring the dependency graph.
+	db             *mongo.Database
+	subRepo        repository.SubscriptionRepository
+	clientRepo     repository.ClientRepository
+	tenantProvider iface.TenantProvider
 }
 
 func NewModule() *SubscriptionsModule { return &SubscriptionsModule{} }
@@ -49,6 +60,7 @@ func (m *SubscriptionsModule) ProvidedServices() []module.ServiceKey {
 		module.ServiceSubscriptionReconciler,
 		module.ServiceClientOwnership,
 		module.ServiceSubscriptionService,
+		module.ServiceTenantSubscriptionProvider,
 	}
 }
 
@@ -83,6 +95,10 @@ func (m *SubscriptionsModule) Collections() []module.CollectionSpec {
 		{Name: models.SubscriptionsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"clientUUID": 1, "status": 1}},
+			// Tenant-scoped lookups for the Phase 2 aggregator endpoint
+			// GET /v1/admin/tenants/{id}/subscriptions and for the entitlement
+			// syncer hot path after Phase 1's dual-write.
+			{Keys: map[string]int{"tenantUUID": 1, "status": 1}, Sparse: true},
 			{Keys: map[string]int{"nextBillingAt": 1, "status": 1}},
 			{Keys: map[string]int{"serviceUUID": 1}},
 		}},
@@ -94,6 +110,11 @@ func (m *SubscriptionsModule) Collections() []module.CollectionSpec {
 		}},
 		{Name: models.ActivityCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"subscriptionUUID": 1, "createdAt": -1}},
+		}},
+		// One-shot data migrations (Phase 1 backfill, etc). Completion rows
+		// keyed by migration name prevent re-runs on the next boot.
+		{Name: migrations.MigrationsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"name": 1}, Unique: true},
 		}},
 	}
 }
@@ -143,7 +164,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	entitlementSyncer := services.NewEntitlementSyncer(serviceRepo, tenantProvider, deps.Logger)
 
-	subscriptionSvc := services.NewSubscriptionService(subRepo, clientRepo, serviceRepo, activitySvc, entitlementSyncer, deps.Logger)
+	subscriptionSvc := services.NewSubscriptionService(subRepo, clientRepo, serviceRepo, activitySvc, entitlementSyncer, tenantProvider, deps.Logger)
 
 	notifier, _ := module.GetTyped[iface.NotificationSender](deps.Services, module.ServiceNotificationSender)
 
@@ -162,6 +183,14 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	interval := deps.GetConfigDuration("subscriptions", "renewalInterval", time.Hour)
 	m.renewalJob = jobs.NewRenewalJob(renewalSvc, interval, deps.Logger)
 
+	// Capture the collaborators the Phase 1 backfill migration will need if
+	// Start decides to run it. Held on the module so we don't rebuild the
+	// wiring graph inside the migration hook.
+	m.db = deps.DB
+	m.subRepo = subRepo
+	m.clientRepo = clientRepo
+	m.tenantProvider = tenantProvider
+
 	// Publish the reconciler so the payments module can call into us on webhooks.
 	deps.Services.Register(module.ServiceSubscriptionReconciler, reconciler)
 
@@ -173,6 +202,12 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	// can wire its audit sink via SetAuditSink. The interface is the
 	// ServiceRegistry's generic `any`; compliance type-asserts on retrieval.
 	deps.Services.Register(module.ServiceSubscriptionService, subscriptionSvc)
+
+	// Publish the tenant-scoped subscription read view so core/tenant's
+	// admin aggregator endpoint can list a tenant's subscriptions without
+	// importing this module. iface.TenantSubscriptionProvider is the
+	// contract — consumers resolve it via module.GetTyped.
+	deps.Services.Register(module.ServiceTenantSubscriptionProvider, iface.TenantSubscriptionProvider(services.NewTenantSubscriptionAdapter(subRepo)))
 
 	deps.Logger.Info("Subscriptions module initialized",
 		slog.Duration("renewalInterval", interval),
@@ -191,40 +226,53 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// Each permission bucket gets its own chi subgroup. Mutations (POST,
 	// PATCH, DELETE) live behind the `.manage` grants so view-level users
 	// cannot create clients, change pricing, cancel subscriptions, etc.
+	//
+	// Kind gates (Phase 2): every operator-admin bucket (catalog,
+	// subscriptions-admin, invoice.view, activity.view) requires an
+	// internal tenant on the request. The self-service subscribe path
+	// stays kind-agnostic — external tenants self-subscribing is its
+	// entire purpose.
 	ri.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 
-		// Services (catalog)
+		// Services (catalog) — operator admin only.
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.service.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterServiceReadRoutes(api, m.serviceHandler)
 		})
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.service.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterServiceWriteRoutes(api, m.serviceHandler)
 		})
 
-		// Clients
+		// Clients — operator admin only (these are the legacy CRM-style
+		// Client rows, distinct from Tier-2 Tenants).
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.client.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterClientReadRoutes(api, m.clientHandler)
 		})
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.client.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterClientWriteRoutes(api, m.clientHandler)
 		})
 
-		// Subscriptions
+		// Subscriptions — operator admin (not the external self-subscribe).
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.subscription.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSubscriptionReadRoutes(api, m.subscriptionHandler)
 		})
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.subscription.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSubscriptionWriteRoutes(api, m.subscriptionHandler)
@@ -232,21 +280,23 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 
 		// Self-service subscribe — RequireGlobal() so callers don't need a
 		// tenant-scoping header, then the handler enforces ownership via
-		// TenantProvider.ListUserMemberships. No permission grant is
-		// required; tenant owners are an implicit role here.
+		// TenantProvider.ListUserMemberships. Kind-agnostic by design: the
+		// endpoint exists for external tenants to subscribe themselves.
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSelfServiceRoutes(api, m.subscriptionHandler)
 		})
 
-		// Nested reads
+		// Nested reads — operator admin only.
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.invoice.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterInvoiceReadRoutes(api, m.subscriptionHandler)
 		})
 		gated.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireInternalTenant())
 			r.Use(ri.AuthMW.RequirePermission("subscriptions.activity.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterActivityReadRoutes(api, m.subscriptionHandler)
@@ -255,12 +305,65 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 }
 
 func (m *SubscriptionsModule) Start(_ context.Context) error {
+	// ADR-0001 Phase 1 backfill. Opt-in: operators set
+	// SUBSCRIPTIONS_RUN_BACKFILL=1 on the deploy they want to run it on.
+	// The migration records a completion row so subsequent boots skip the
+	// scan even if the env var is left set.
+	if os.Getenv("SUBSCRIPTIONS_RUN_BACKFILL") == "1" {
+		go m.runPhase1BackfillIfNeeded()
+	}
+
 	if m.renewalJob != nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		_ = cancel // cancelled via Stop()
 		go m.renewalJob.Start(ctx)
 	}
 	return nil
+}
+
+// runPhase1BackfillIfNeeded executes the dual-write backfill when no
+// completion row is present. Runs in its own goroutine so a long scan
+// does not block Start — the renewal job starts immediately alongside.
+// Missing collaborators (tenant provider, DB) cause an immediate bail.
+func (m *SubscriptionsModule) runPhase1BackfillIfNeeded() {
+	if m.db == nil || m.tenantProvider == nil {
+		m.logger.Warn("subscriptions: Phase 1 backfill requested but dependencies unavailable, skipping",
+			slog.Bool("hasDB", m.db != nil),
+			slog.Bool("hasTenantProvider", m.tenantProvider != nil),
+		)
+		return
+	}
+	ctx := context.Background()
+	already, err := migrations.AlreadyRun(ctx, m.db)
+	if err != nil {
+		m.logger.Warn("subscriptions: Phase 1 backfill completion probe failed, skipping",
+			slog.Any("error", err),
+		)
+		return
+	}
+	if already {
+		m.logger.Info("subscriptions: Phase 1 backfill already complete, skipping")
+		return
+	}
+	ownerUUID := os.Getenv("SUBSCRIPTIONS_BACKFILL_OWNER_UUID")
+	if ownerUUID == "" {
+		m.logger.Warn("subscriptions: Phase 1 backfill requires SUBSCRIPTIONS_BACKFILL_OWNER_UUID, skipping")
+		return
+	}
+	txRepo := pmtrepo.NewTransactionRepository(m.db)
+	if _, err := migrations.Run(ctx, migrations.BackfillDeps{
+		DB:                 m.db,
+		Subs:               m.subRepo,
+		Clients:            m.clientRepo,
+		Transactions:       txRepo,
+		TenantProvider:     m.tenantProvider,
+		MigrationOwnerUUID: ownerUUID,
+		Logger:             m.logger,
+	}); err != nil {
+		m.logger.Error("subscriptions: Phase 1 backfill failed",
+			slog.Any("error", err),
+		)
+	}
 }
 
 func (m *SubscriptionsModule) Stop(_ context.Context) error {

@@ -275,6 +275,73 @@ func (s *Service) CreateExternalTenant(ctx context.Context, ownerUUID, name, slu
 	return t, nil
 }
 
+// CreateDivision creates a sub-tenant under the given external parent. A
+// division is a Tier-2 tenant with Kind=external and ParentTenantUUID set
+// to parentUUID. Internal (operator) tenants cannot have divisions — the
+// division concept exists only for external clients that run multi-workspace
+// organisations. Status is `active` (operator-seeded, not self-serve) and
+// SignupChannel=seeded.
+//
+// Callers:
+//   - Platform admins via /v1/admin/tenants/{parentId}/divisions (system.tenants.admin)
+//   - Tenant members with tenant.update on the parent via
+//     /v1/tenants/{parentId}/divisions
+//
+// Slug uniqueness is global (same as the regular create path); callers that
+// hit a clash can retry with a distinct slug.
+func (s *Service) CreateDivision(ctx context.Context, parentUUID, ownerUUID, name, slug string) (*models.Tenant, error) {
+	if parentUUID == "" {
+		return nil, errors.New("tenant: CreateDivision requires parentUUID")
+	}
+	if ownerUUID == "" {
+		return nil, errors.New("tenant: CreateDivision requires ownerUUID")
+	}
+	parent, err := s.repo.GetTenantByUUID(ctx, parentUUID)
+	if err != nil {
+		return nil, fmt.Errorf("tenant: parent lookup: %w", err)
+	}
+	if parent.Kind != models.TenantKindExternal {
+		return nil, fmt.Errorf("tenant: divisions are only allowed under external parents (parent kind=%s)", parent.Kind)
+	}
+	input := models.CreateTenantInput{
+		Name:             name,
+		Slug:             slug,
+		Kind:             models.TenantKindExternal,
+		ParentTenantUUID: &parentUUID,
+	}
+	t, err := s.CreateTenant(ctx, ownerUUID, input)
+	if err != nil {
+		return nil, err
+	}
+	s.emitAudit(ctx, iface.AuditEvent{
+		TenantID:     t.UUID,
+		TenantKind:   string(t.Kind),
+		ActorUserID:  ownerUUID,
+		ActorType:    "user",
+		Action:       "tenant.division.created",
+		ResourceType: "tenant",
+		ResourceID:   t.UUID,
+		Metadata: map[string]any{
+			"parentTenantUUID": parentUUID,
+			"name":             t.Name,
+			"slug":             t.Slug,
+		},
+	})
+	return t, nil
+}
+
+// ListDivisions returns the direct children of the given tenant — rows
+// whose ParentTenantUUID equals parentUUID. The closure table supports
+// arbitrary-depth descendants but this iteration's UX shows depth=1 only.
+// Archived/purged rows are filtered server-side by the repo filter.
+func (s *Service) ListDivisions(ctx context.Context, parentUUID string) ([]models.Tenant, error) {
+	if parentUUID == "" {
+		return []models.Tenant{}, nil
+	}
+	parent := parentUUID
+	return s.repo.ListTenants(ctx, repository.TenantListFilter{ParentTenantUUID: &parent})
+}
+
 // MarkTenantActive flips a provisioning tenant to active once the onboarding
 // saga (KMS key, IdP defaults, trial subscription, welcome email) completes.
 func (s *Service) MarkTenantActive(ctx context.Context, tenantUUID string) error {
@@ -390,7 +457,13 @@ type TenantAdminView struct {
 // Used by the platform admin tenant management page — bypasses per-tenant
 // membership gates and is only callable via system.tenants.admin.
 func (s *Service) ListAllTenants(ctx context.Context, includeDeleted bool) ([]TenantAdminView, error) {
-	tenants, err := s.repo.ListAllTenants(ctx, includeDeleted)
+	return s.ListAllTenantsFiltered(ctx, repository.TenantListFilter{IncludeDeleted: includeDeleted})
+}
+
+// ListAllTenantsFiltered is the kind/parent-aware variant used by the Phase 3
+// split between the Internal Tenants and Clients admin pages.
+func (s *Service) ListAllTenantsFiltered(ctx context.Context, filter repository.TenantListFilter) ([]TenantAdminView, error) {
+	tenants, err := s.repo.ListTenants(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

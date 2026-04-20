@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, Col, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconProp } from '@fortawesome/fontawesome-svg-core';
@@ -74,10 +75,60 @@ const planAccent: Record<string, BadgeColor> = {
   enterprise: 'success',
 };
 
-const TenantManagementPage: React.FC = () => {
+/**
+ * Props for the reusable admin tenant page. The /admin/internal/tenants
+ * and /admin/clients pages pass distinct kind + labels so the same
+ * component renders as the operator-side or client-side console.
+ */
+export interface TenantAdminPageProps {
+  /** Tenant tier to show — 'internal' or 'external'. Undefined = both. */
+  kind?: 'internal' | 'external';
+  /** Exclude tenants that have a parent (show root-level only). */
+  rootsOnly?: boolean;
+  /** Page heading / stat-card labels. */
+  labels?: {
+    /** Heading shown in the table toolbar (replaces the legacy
+     * "Tenant Management" string). */
+    toolbarTitle?: string;
+    totalTitle?: string;
+    activeTitle?: string;
+    membersTitle?: string;
+    createLabel?: string;
+    createTitle?: string;
+    createSubmitLabel?: string;
+    emptyFootnote?: string;
+  };
+  /**
+   * When set, clicking a row navigates to `${detailPathPrefix}/${orgId}`
+   * instead of opening the in-page detail modal. Enables the Phase 4
+   * tabbed detail pages at /admin/clients/:id and
+   * /admin/internal/tenants/:id. Delete / purge modals still mount in
+   * page so destructive actions remain a two-step confirm.
+   */
+  detailPathPrefix?: string;
+}
+
+const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
+  kind,
+  rootsOnly,
+  labels,
+  detailPathPrefix,
+}) => {
+  const navigate = useNavigate();
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const queryArg = {
+    includeDeleted: includeDeleted || undefined,
+    kind,
+    rootsOnly: rootsOnly || undefined,
+  };
+  // Pass undefined when every filter is false so the RTK Query cache key
+  // matches the pre-split "no arg" variant and existing consumers keep
+  // their subscriptions.
+  const hasFilter = Boolean(
+    queryArg.includeDeleted || queryArg.kind || queryArg.rootsOnly,
+  );
   const { data, isLoading, error } = useListAllOrgsAdminQuery(
-    includeDeleted ? { includeDeleted: true } : undefined,
+    hasFilter ? queryArg : undefined,
   );
 
   const [selectedOrg, setSelectedOrg] = useState<AdminOrgListItem | null>(null);
@@ -107,6 +158,10 @@ const TenantManagementPage: React.FC = () => {
   }, [data]);
 
   const handleRowClick = (org: AdminOrgListItem) => {
+    if (detailPathPrefix) {
+      navigate(`${detailPathPrefix}/${org.id}`);
+      return;
+    }
     setSelectedOrg(org);
     setShowDetail(true);
   };
@@ -120,14 +175,14 @@ const TenantManagementPage: React.FC = () => {
       <Row className="g-3 mb-4">
         <Col md={6} xl={3}>
           <StatCard
-            title="Total tenants"
+            title={labels?.totalTitle ?? 'Total tenants'}
             value={stats.total}
             icon={faBuilding}
             accent="primary"
             footnote={
               stats.deleted > 0
                 ? `${stats.active} active · ${stats.deleted} soft-deleted`
-                : 'All tenants are active'
+                : (labels?.emptyFootnote ?? 'All tenants are active')
             }
           />
         </Col>
@@ -218,9 +273,17 @@ const TenantManagementPage: React.FC = () => {
         onRowClick={handleRowClick}
         onCreateClick={() => setShowCreate(true)}
         onDeleteClick={handleDelete}
+        title={labels?.toolbarTitle}
+        createLabel={labels?.createLabel}
       />
 
-      <CreateTenantModal show={showCreate} onHide={() => setShowCreate(false)} />
+      <CreateTenantModal
+        show={showCreate}
+        onHide={() => setShowCreate(false)}
+        kind={kind}
+        title={labels?.createTitle}
+        submitLabel={labels?.createSubmitLabel}
+      />
 
       <TenantDetailModal
         org={selectedOrg}

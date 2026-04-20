@@ -40,6 +40,66 @@ export interface CreateOrgInput {
   name: string;
   slug: string;
   plan?: string;
+  /**
+   * Tenant tier. Defaults to 'internal' on the backend when omitted. The
+   * two-tier admin UIs pass this explicitly so Internal Tenants and
+   * Clients can never be conflated even if the request is crafted by hand.
+   */
+  kind?: 'internal' | 'external';
+  /** Optional parent for external sub-tenants (divisions). */
+  parentTenantUUID?: string;
+}
+
+export interface CreateDivisionInput {
+  name: string;
+  slug?: string;
+}
+
+/**
+ * Flat read-only projection of a tenant's subscription, as served by
+ * GET /v1/admin/tenants/{id}/subscriptions. The full Subscription shape
+ * lives under the subscriptions module; this DTO is what the tenant
+ * aggregator returns.
+ */
+export interface TenantSubscription {
+  uuid: string;
+  tenantUUID: string;
+  clientUUID: string;
+  serviceUUID: string;
+  tierCode: string;
+  status: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  nextBillingAt: string;
+  createdAt: string;
+}
+
+/** Flat read-only projection of a tenant's payment transaction. */
+export interface TenantPayment {
+  uuid: string;
+  tenantUUID: string;
+  clientUUID: string;
+  subscriptionUUID: string;
+  invoiceUUID: string;
+  provider: string;
+  providerTxID: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  refundedCents: number;
+  chargedAt?: string | null;
+  refundedAt?: string | null;
+  createdAt: string;
+}
+
+export interface AdminOrgListQuery {
+  includeDeleted?: boolean;
+  /** Filter by tenant tier. Omit for "both". */
+  kind?: 'internal' | 'external';
+  /** Return only direct children of the given parent tenant. */
+  parentTenantUUID?: string;
+  /** Shorthand: exclude every tenant that has a parent (root-level only). */
+  rootsOnly?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -246,12 +306,19 @@ export const tenantApi = baseApi.injectEndpoints({
     }),
 
     // --- Platform admin tenant management (system.tenants.admin) ---
-    listAllOrgsAdmin: builder.query<{ tenants: AdminOrgListItem[] }, { includeDeleted?: boolean } | void>({
-      query: (arg) => ({
-        url: '/v1/admin/tenants',
-        method: 'GET',
-        params: arg && arg.includeDeleted ? { includeDeleted: true } : undefined,
-      }),
+    listAllOrgsAdmin: builder.query<{ tenants: AdminOrgListItem[] }, AdminOrgListQuery | void>({
+      query: (arg) => {
+        const params: Record<string, string | boolean> = {};
+        if (arg?.includeDeleted) params.includeDeleted = true;
+        if (arg?.kind) params.kind = arg.kind;
+        if (arg?.rootsOnly) params.rootsOnly = true;
+        if (arg?.parentTenantUUID) params.parentTenantUUID = arg.parentTenantUUID;
+        return {
+          url: '/v1/admin/tenants',
+          method: 'GET',
+          params: Object.keys(params).length > 0 ? params : undefined,
+        };
+      },
       providesTags: (result) =>
         result
           ? [
@@ -259,6 +326,46 @@ export const tenantApi = baseApi.injectEndpoints({
               ...result.tenants.map((o) => ({ type: 'AdminOrg' as const, id: o.id })),
             ]
           : [{ type: 'AdminOrg', id: 'LIST' }],
+    }),
+
+    // --- Phase 2 aggregators (divisions, subscriptions, payments per tenant) ---
+    listTenantDivisionsAdmin: builder.query<{ divisions: Org[] }, string>({
+      query: (tenantId) => ({
+        url: `/v1/admin/tenants/${tenantId}/divisions`,
+        method: 'GET',
+      }),
+      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:divisions` }],
+    }),
+
+    createTenantDivisionAdmin: builder.mutation<Org, { tenantId: string; body: CreateDivisionInput }>({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/tenants/${tenantId}/divisions`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'AdminOrg', id: `${tenantId}:divisions` },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
+    listTenantSubscriptionsAdmin: builder.query<
+      { subscriptions: TenantSubscription[] },
+      string
+    >({
+      query: (tenantId) => ({
+        url: `/v1/admin/tenants/${tenantId}/subscriptions`,
+        method: 'GET',
+      }),
+      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:subs` }],
+    }),
+
+    listTenantPaymentsAdmin: builder.query<{ payments: TenantPayment[] }, string>({
+      query: (tenantId) => ({
+        url: `/v1/admin/tenants/${tenantId}/payments`,
+        method: 'GET',
+      }),
+      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:payments` }],
     }),
 
     getOrgAdmin: builder.query<Org, string>({
@@ -378,4 +485,8 @@ export const {
   useListOrgInvitesAdminQuery,
   useCreateOrgInviteAdminMutation,
   useRevokeOrgInviteAdminMutation,
+  useListTenantDivisionsAdminQuery,
+  useCreateTenantDivisionAdminMutation,
+  useListTenantSubscriptionsAdminQuery,
+  useListTenantPaymentsAdminQuery,
 } = tenantApi;

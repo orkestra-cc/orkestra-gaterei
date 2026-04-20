@@ -168,8 +168,13 @@ const CapabilitySourceSubscription = "subscription"
 // Tier-2. Legacy rows still carry a ClientUUID that is *not* a valid
 // tenant identifier — GrantCapability would reject it. Callers treat an
 // empty return as "no tenant yet, skip sync" rather than forcing a grant
-// against the wrong aggregate. Phase 3 onboarding populates TenantUUID on
-// every row, after which entitlements flow universally.
+// against the wrong aggregate.
+//
+// ADR-0001 Phase 1 dual-write: every subscription created after the Phase 1
+// deploy populates TenantUUID via SubscriptionService.resolveTenantForClient;
+// the cold tail is filled in by the Phase 1 backfill migration. Once both
+// are in place, this function returns a valid UUID on every row and the
+// entitlement syncer fires universally.
 func tenantOfSubscription(sub *models.Subscription) string {
 	return sub.TenantUUID
 }

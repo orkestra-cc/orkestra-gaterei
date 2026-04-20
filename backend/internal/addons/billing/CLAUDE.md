@@ -16,6 +16,7 @@ The billing module handles **Italian electronic invoicing** (Fatturazione Elettr
 - **Primary Role**: Create, send, and receive electronic invoices compliant with FatturaPA format
 - **External Integration**: OpenAPI SDI for invoice transmission and notification retrieval
 - **Conditional Activation**: Module activates only when `OPENAPI_BILLING_BEARER_TOKEN` is configured
+- **Internal-tenant only** (ADR-0001 Phase 2): every protected route sits behind `RequireInternalTenant()`. FatturaPA/SDI is an operator-side concern; external-tenant tokens cannot hit these endpoints. The gate honours `TENANT_KIND_ENFORCEMENT=warn|enforce` for staged rollout.
 
 **IMPORTANT**: This module is disabled by default. Configure the OpenAPI SDI credentials to enable billing functionality.
 
