@@ -5,6 +5,7 @@ import NavbarTop from 'components/navbar/top/NavbarTop';
 import NavbarVertical from 'components/navbar/vertical/NavbarVertical';
 import Footer from 'components/footer/Footer';
 import ModalAuth from 'components/authentication/modal/ModalAuth';
+import ImpersonationBanner from 'components/tenant/ImpersonationBanner';
 
 import { useAppContext } from 'providers/AppProvider';
 import { useTenantBootstrap } from 'hooks/useTenantBootstrap';
@@ -46,6 +47,7 @@ const MainLayout: React.FC = () => {
       )}
       <div className={classNames('content', { 'pb-0': isKanban })}>
         <NavbarTop />
+        <ImpersonationBanner />
         {/*------ Main Routes ------*/}
         <Outlet />
         {!isKanban && <Footer />}

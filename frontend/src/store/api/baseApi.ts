@@ -64,16 +64,19 @@ const baseQueryWithRetry: BaseQueryFn<
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  // Inject X-Tenant-ID for every tenant-scoped request. The backend validates
-  // the header against the caller's JWT memberships and rejects mismatches.
+  // Inject X-Tenant-ID for every tenant-scoped request. Impersonation (set
+  // by AdminTenantSwitcher for system.tenants.admin holders) takes
+  // precedence over the user's own currentOrgId — the backend middleware
+  // honors the header only for admin callers and 403s everyone else.
   const state = api.getState() as RootState;
-  const currentOrgId = state.tenant?.currentOrgId;
-  if (currentOrgId) {
+  const effectiveTenantId =
+    state.tenant?.impersonatedTenantId ?? state.tenant?.currentOrgId;
+  if (effectiveTenantId) {
     const url = typeof args === 'string' ? args : args.url;
     if (!isTenantAgnostic(url)) {
       const merged: FetchArgs = typeof args === 'string'
-        ? { url: args, headers: { 'X-Tenant-ID': currentOrgId } }
-        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Tenant-ID': currentOrgId } };
+        ? { url: args, headers: { 'X-Tenant-ID': effectiveTenantId } }
+        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Tenant-ID': effectiveTenantId } };
       args = merged;
     }
   }

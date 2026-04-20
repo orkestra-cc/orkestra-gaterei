@@ -174,6 +174,9 @@ func main() {
 	authMW.SetAuthService(authService)
 	authMW.SetTenantProvider(module.MustGetTyped[iface.TenantProvider](svcRegistry, module.ServiceTenantProvider))
 	authMW.SetAuthzProvider(module.MustGetTyped[iface.AuthzProvider](svcRegistry, module.ServiceAuthzProvider))
+	if sink, ok := module.GetTyped[iface.AuditSink](svcRegistry, module.ServiceAuditSink); ok {
+		authMW.SetAuditSink(sink)
+	}
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 
 	// Router + middleware

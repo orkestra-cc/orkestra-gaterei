@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/orkestra/backend/internal/core/auth/models"
@@ -33,6 +34,11 @@ const (
 	// the current request is acting in. Populated from claims.ActingTenantKind
 	// or resolved from the matched membership. See ADR-0001.
 	ctxTenantKind = "tenantKind"
+	// ctxTenantImpersonated is set when the current tenant context was
+	// resolved via the operator-admin impersonation bypass rather than a
+	// real membership. Handlers that want to block self-destructive actions
+	// while impersonating (e.g. demote own user) read this flag.
+	ctxTenantImpersonated = "tenantImpersonated"
 )
 
 // TenantIDHeader is the HTTP header clients use to pick the current tenant
@@ -45,9 +51,17 @@ type AuthMiddleware struct {
 	authService  services.AuthService
 	tenant       iface.TenantProvider
 	authz        iface.AuthzProvider
+	auditSink    iface.AuditSink
 	errorManager *errors.Manager
 	cookieName   string
 	config       *config.Config
+
+	// impersonationDedupe throttles the admin.tenant.impersonate audit
+	// event to one emit per (actorUserUUID|targetTenantID) every
+	// impersonationDedupeTTL so a page that fires dozens of requests
+	// generates a single audit row. nil when auditSink is unset.
+	impersonationDedupe   sync.Map
+	impersonationDedupeTTL time.Duration
 }
 
 func NewAuthMiddleware(jwtService services.JWTService, errorManager *errors.Manager) *AuthMiddleware {
@@ -89,6 +103,17 @@ func (m *AuthMiddleware) SetTenantProvider(t iface.TenantProvider) {
 // Called from main.go after all modules initialize.
 func (m *AuthMiddleware) SetAuthzProvider(a iface.AuthzProvider) {
 	m.authz = a
+}
+
+// SetAuditSink wires the compliance audit sink for impersonation event
+// emission. Optional — if the compliance module is disabled the middleware
+// falls back to the structured request logger. Called from main.go after
+// InitAll.
+func (m *AuthMiddleware) SetAuditSink(sink iface.AuditSink) {
+	m.auditSink = sink
+	if m.impersonationDedupeTTL == 0 {
+		m.impersonationDedupeTTL = 60 * time.Second
+	}
 }
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -167,17 +192,100 @@ func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// If the client sent X-Tenant-ID but it doesn't match any membership,
-	// reject immediately so a stale header can't leak data from another
-	// tenant. Missing header is fine — downstream middleware decides.
+	// try the operator-admin impersonation bypass: holders of
+	// system.tenants.admin can act in any tenant. Falls through to 403 for
+	// non-admins so a stale header can't leak data from another tenant.
 	if h := r.Header.Get(TenantIDHeader); h != "" && !ok {
-		m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested tenant").
-			WithOperation("resolve_tenant").
-			WithDetail("tenantId", h).
-			Build())
-		return
+		impCtx, _, impersonated := m.tryImpersonationBypass(ctx, r, claims, h)
+		if !impersonated {
+			m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested tenant").
+				WithOperation("resolve_tenant").
+				WithDetail("tenantId", h).
+				Build())
+			return
+		}
+		ctx = impCtx
 	}
 
 	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
+// tryImpersonationBypass resolves a non-member X-Tenant-ID when the caller
+// holds system.tenants.admin. On success it returns an enriched context
+// stamping tenantID + looked-up kind + synthetic administrator roles + an
+// impersonation flag, and emits one de-duped admin.tenant.impersonate
+// audit event per (actor, tenant, TTL). On failure (no admin permission,
+// tenant lookup failed, required services not wired) it returns ok=false
+// so the caller can fall through to the existing 403 path.
+func (m *AuthMiddleware) tryImpersonationBypass(
+	ctx context.Context,
+	r *http.Request,
+	claims *models.JWTClaims,
+	requestedTenantID string,
+) (context.Context, string, bool) {
+	if m.authz == nil || m.tenant == nil {
+		return ctx, "", false
+	}
+	allowed, err := m.authz.HasPermission(ctx, claims.UserUUID, "", "system.tenants.admin")
+	if err != nil || !allowed {
+		return ctx, "", false
+	}
+	target, err := m.tenant.GetTenant(ctx, requestedTenantID)
+	if err != nil || target == nil {
+		return ctx, "", false
+	}
+
+	ctx = context.WithValue(ctx, ctxTenantID, target.UUID)
+	ctx = context.WithValue(ctx, ctxTenantRoles, []string{"administrator"})
+	if target.Kind != "" {
+		ctx = context.WithValue(ctx, ctxTenantKind, target.Kind)
+	}
+	ctx = context.WithValue(ctx, ctxTenantImpersonated, true)
+
+	m.recordImpersonationAudit(ctx, r, claims, target)
+	return ctx, target.Kind, true
+}
+
+// recordImpersonationAudit emits a dedupe'd audit event so a single page
+// load that fires many XHRs produces one audit row per minute. When the
+// compliance sink is not registered, the event is silently dropped — the
+// impersonation still works, it just isn't recorded.
+func (m *AuthMiddleware) recordImpersonationAudit(
+	ctx context.Context,
+	r *http.Request,
+	claims *models.JWTClaims,
+	target *iface.Tenant,
+) {
+	if m.auditSink == nil {
+		return
+	}
+	key := claims.UserUUID + "|" + target.UUID
+	now := time.Now()
+	if last, ok := m.impersonationDedupe.Load(key); ok {
+		if lastTime, ok := last.(time.Time); ok && now.Sub(lastTime) < m.impersonationDedupeTTL {
+			return
+		}
+	}
+	m.impersonationDedupe.Store(key, now)
+
+	m.auditSink.Emit(ctx, iface.AuditEvent{
+		TenantID:     target.UUID,
+		TenantKind:   target.Kind,
+		ActorUserID:  claims.UserUUID,
+		ActorEmail:   claims.Email,
+		ActorType:    "user",
+		Action:       "admin.tenant.impersonate",
+		ResourceType: "tenant",
+		ResourceID:   target.UUID,
+		Outcome:      "success",
+		IPAddress:    utils.GetClientIP(r),
+		UserAgent:    r.UserAgent(),
+		Metadata: map[string]any{
+			"targetTenantSlug": target.Slug,
+			"targetTenantName": target.Name,
+			"requestPath":      r.URL.Path,
+		},
+	})
 }
 
 // resolveCurrentTenant picks the current tenant for this request. Returns
@@ -231,6 +339,15 @@ func TenantKindFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// IsImpersonating returns true when the current tenant context was resolved
+// via the operator-admin impersonation bypass rather than a real membership.
+// Handlers that want to guard destructive self-targeted actions can read
+// this flag and refuse when set.
+func IsImpersonating(ctx context.Context) bool {
+	v, _ := ctx.Value(ctxTenantImpersonated).(bool)
+	return v
 }
 
 // RequireTenantKind rejects any request whose resolved tenant is not of the

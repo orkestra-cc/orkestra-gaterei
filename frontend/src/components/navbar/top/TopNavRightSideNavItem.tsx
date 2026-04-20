@@ -4,6 +4,7 @@ import ProfileDropdown from 'components/navbar/top/ProfileDropdown';
 import { Nav } from 'react-bootstrap';
 import NineDotMenu from './NineDotMenu';
 import OrgSwitcher from 'components/tenant/OrgSwitcher';
+import AdminTenantSwitcher from 'components/tenant/AdminTenantSwitcher';
 import ThemeControlDropdown from './ThemeControlDropdown';
 
 const TopNavRightSideNavItem = () => {
@@ -14,6 +15,7 @@ const TopNavRightSideNavItem = () => {
       as="ul"
     >
       <OrgSwitcher />
+      <AdminTenantSwitcher />
       <ThemeControlDropdown />
       <NotificationDropdown />
       <NineDotMenu />

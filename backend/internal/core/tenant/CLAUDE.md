@@ -178,7 +178,7 @@ Typical consumers:
 The system-wide invariants that govern tenant isolation live in [`../authz/CLAUDE.md`](../authz/CLAUDE.md#org-scoping-invariants-system-wide). Three of them are directly owned by this module:
 
 - **Invariant #1** — every addon `collection.Find/Update/Delete/Aggregate` must derive its filter from `shared/tenantrepo.Scope*`. Enforced at dev time by panic in the helper; CI-enforced in Phase 0 by the `tools/tenantscope` analyzer.
-- **Invariant #2** — `X-Org-ID` header must match a membership in the JWT. Already enforced in `shared/middleware/auth.go::resolveCurrentOrg`.
+- **Invariant #2** — `X-Tenant-ID` header must match a membership in the JWT. Already enforced in `shared/middleware/auth.go::resolveCurrentTenant`, with one exception: holders of `system.tenants.admin` bypass the check via `tryImpersonationBypass` (operator admins can act in any tenant). Every impersonation emits an `admin.tenant.impersonate` audit event through `iface.AuditSink`; handlers that want to refuse destructive self-targeted actions while impersonating can read `middleware.IsImpersonating(ctx)`.
 - **Invariant #6** — `tenant_orgs.ownerUserUUID` is immutable without a two-step owner-transfer flow. **Not yet enforced** — Phase 2 work. Until then, platform admins changing `ownerUserUUID` directly is a known gap.
 
 ## Related

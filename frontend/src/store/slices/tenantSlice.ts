@@ -35,14 +35,48 @@ interface TenantState {
   systemRole: string;
   loading: boolean;
   error: string | null;
+  /**
+   * Operator-admin impersonation target. When set, baseApi stamps this as
+   * X-Tenant-ID instead of currentOrgId, and the backend honors it only for
+   * callers holding system.tenants.admin. Cleared on logout.
+   */
+  impersonatedTenantId: string | null;
+  impersonatedTenantName: string | null;
 }
 
 const STORAGE_KEY = 'orkestra.currentOrgId';
+const IMPERSONATION_STORAGE_KEY = 'orkestra.impersonatedTenant';
 
 // currentOrgId starts null and is rehydrated from localStorage only after
 // memberships load, validated against the fresh list. This prevents a stale
 // localStorage value (e.g. after a backend DB wipe) from injecting
 // X-Tenant-ID on requests before we know what tenants the user actually has.
+// Rehydrate impersonation from sessionStorage only. Using sessionStorage
+// (not localStorage) ensures a fresh tab never inherits an impersonation
+// session — the admin must opt in explicitly each time.
+const rehydrateImpersonation = (): {
+  impersonatedTenantId: string | null;
+  impersonatedTenantName: string | null;
+} => {
+  if (typeof window === 'undefined') {
+    return { impersonatedTenantId: null, impersonatedTenantName: null };
+  }
+  try {
+    const raw = window.sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
+    if (!raw) return { impersonatedTenantId: null, impersonatedTenantName: null };
+    const parsed = JSON.parse(raw) as {
+      tenantId?: string;
+      tenantName?: string;
+    };
+    return {
+      impersonatedTenantId: parsed.tenantId || null,
+      impersonatedTenantName: parsed.tenantName || null
+    };
+  } catch {
+    return { impersonatedTenantId: null, impersonatedTenantName: null };
+  }
+};
+
 const initialState: TenantState = {
   memberships: [],
   currentOrgId: null,
@@ -50,7 +84,8 @@ const initialState: TenantState = {
   features: [],
   systemRole: '',
   loading: false,
-  error: null
+  error: null,
+  ...rehydrateImpersonation()
 };
 
 const tenantSlice = createSlice({
@@ -116,8 +151,51 @@ const tenantSlice = createSlice({
     resetTenantState: () => {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(STORAGE_KEY);
+        window.sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       }
-      return { ...initialState, currentOrgId: null };
+      return {
+        ...initialState,
+        currentOrgId: null,
+        impersonatedTenantId: null,
+        impersonatedTenantName: null
+      };
+    },
+
+    /**
+     * Begin impersonating a tenant the user is NOT a member of. Gated
+     * server-side by system.tenants.admin — the backend rejects the header
+     * for everyone else. Stored in sessionStorage so it clears when the
+     * tab closes.
+     */
+    startImpersonation: (
+      state,
+      action: PayloadAction<{ tenantId: string; tenantName: string }>
+    ) => {
+      state.impersonatedTenantId = action.payload.tenantId;
+      state.impersonatedTenantName = action.payload.tenantName;
+      // Permissions and features are scoped to the tenant — clear so
+      // downstream checks re-fetch for the impersonated target.
+      state.permissions = [];
+      state.features = [];
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(
+          IMPERSONATION_STORAGE_KEY,
+          JSON.stringify({
+            tenantId: action.payload.tenantId,
+            tenantName: action.payload.tenantName
+          })
+        );
+      }
+    },
+
+    stopImpersonation: (state) => {
+      state.impersonatedTenantId = null;
+      state.impersonatedTenantName = null;
+      state.permissions = [];
+      state.features = [];
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+      }
     }
   }
 });
@@ -129,7 +207,9 @@ export const {
   setFeatures,
   setLoading,
   setError,
-  resetTenantState
+  resetTenantState,
+  startImpersonation,
+  stopImpersonation
 } = tenantSlice.actions;
 
 // --- Selectors ---
@@ -145,6 +225,12 @@ export const selectCurrentMembership = (state: RootState): Membership | null => 
 export const selectPermissions = (state: RootState) => state.tenant.permissions;
 export const selectFeatures = (state: RootState) => state.tenant.features;
 export const selectSystemRole = (state: RootState) => state.tenant.systemRole;
+export const selectImpersonation = (state: RootState) => ({
+  tenantId: state.tenant.impersonatedTenantId,
+  tenantName: state.tenant.impersonatedTenantName
+});
+export const selectIsImpersonating = (state: RootState) =>
+  !!state.tenant.impersonatedTenantId;
 
 /** Returns true when the current user holds `permission` in the current org. */
 export const selectHasPermission =
