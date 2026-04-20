@@ -257,7 +257,8 @@ import {
   faRobot,
   faCreditCard,
   faRepeat,
-  faWallet
+  faWallet,
+  faClipboardList
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -521,5 +522,6 @@ library.add(
   faRobot,
   faCreditCard,
   faRepeat,
-  faWallet
+  faWallet,
+  faClipboardList
 );

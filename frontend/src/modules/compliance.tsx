@@ -1,0 +1,29 @@
+import { Suspense, lazy } from 'react';
+import type { ModuleManifest } from './types';
+import ProtectedRoute from 'components/authentication/ProtectedRoute';
+import FalconLoader from 'components/common/FalconLoader';
+
+// Compliance is a core-like addon — always enabled in the backend so SOC2
+// auditors see uninterrupted coverage. It therefore skips the usual
+// ModuleGate; the ProtectedRoute + the backend's `system.compliance.audit.read`
+// permission together are the access controls.
+const AuditEventsPage = lazy(() => import('pages/admin/audit-events'));
+
+export const complianceManifest: ModuleManifest = {
+  name: 'compliance',
+  routes: () => [
+    {
+      path: 'admin/audit-events',
+      element: (
+        <ProtectedRoute
+          requiredPermissions={[['super_admin', 'administrator', 'developer']]}
+        >
+          <Suspense key="admin-audit-events" fallback={<FalconLoader />}>
+            <AuditEventsPage />
+          </Suspense>
+        </ProtectedRoute>
+      ),
+    },
+  ],
+  injectApi: () => import('store/api/complianceApi'),
+};

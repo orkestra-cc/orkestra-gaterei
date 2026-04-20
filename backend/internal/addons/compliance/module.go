@@ -69,6 +69,19 @@ func (m *Module) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceAuditSink}
 }
 
+// NavItems surfaces the admin-only compliance pages in the sidebar. Both
+// entries are gated on administrator — the underlying APIs additionally
+// require the system.compliance.audit.read permission, which super_admin /
+// administrator / developer inherit via the system-role seed. The sub-items
+// live under the same "System Administration" group that already hosts
+// Tenant Management + Module Management so platform operators find them
+// alongside the other admin surfaces.
+func (m *Module) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{
+		{Group: "System Administration", Name: "Audit Events", Icon: "clipboard-list", Path: "/admin/audit-events", MinRole: "administrator", Active: true},
+	}
+}
+
 // Permissions contributes the system-level read gate used by the admin
 // handler. Marked System:true so super_admin / administrator / developer
 // inherit it automatically from authz role seeding.

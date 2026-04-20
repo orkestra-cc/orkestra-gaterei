@@ -21,6 +21,8 @@ const TENANT_AGNOSTIC_PATHS = [
   '/v1/notifications/preferences',
   '/v1/admin/modules',        // platform-level module admin, not per-tenant
   '/v1/admin/tenants',        // platform-level tenant admin, not per-tenant
+  '/v1/admin/audit-events',   // platform-level audit read, not per-tenant
+  '/v1/admin/compliance',     // platform-level compliance (SOC2 evidence, …)
   '/v1/setup',                // first-install wizard endpoints
 ];
 
@@ -217,6 +219,8 @@ export const baseApi = createApi({
     'PaymentTransaction',
     'PaymentMethodRec',
     'PaymentWebhookEvent',
+    // Compliance module
+    'AuditEvent',
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

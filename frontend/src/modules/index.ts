@@ -8,6 +8,7 @@ import { agentsManifest } from './agents';
 import { salesManifest } from './sales';
 import { subscriptionsManifest } from './subscriptions';
 import { paymentsManifest } from './payments';
+import { complianceManifest } from './compliance';
 
 /** All optional module manifests, keyed by backend module name */
 export const moduleCatalog: Record<string, ModuleManifest> = {
@@ -20,6 +21,7 @@ export const moduleCatalog: Record<string, ModuleManifest> = {
   sales: salesManifest,
   subscriptions: subscriptionsManifest,
   payments: paymentsManifest,
+  compliance: complianceManifest,
 };
 
 export type { ModuleManifest } from './types';
