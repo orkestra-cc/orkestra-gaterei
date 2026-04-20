@@ -12,6 +12,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -490,6 +491,11 @@ func (m *AuthMiddleware) RequireCapability(capabilityID string) func(http.Handle
 				return
 			}
 			if !allowed {
+				// Phase 5.3: count every 402 so operators can see
+				// which capabilities generate the most tenant
+				// friction. Label is the capability ID (bounded by
+				// the Capabilities() catalog cardinality).
+				metrics.Default().RecordCapabilityDenied(capabilityID)
 				m.sendCapabilityRequiredResponse(w, r, capabilityID, tenantID)
 				return
 			}

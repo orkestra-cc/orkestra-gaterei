@@ -16,6 +16,7 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -233,6 +234,25 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 		s.logger.Debug("cedar: agree", attrs...)
 	} else {
 		s.logger.Warn("cedar: divergence", attrs...)
+		// Phase 5.3: record the divergence as a Prometheus counter so
+		// operators can graph the trend and decide when to flip Cedar
+		// from shadow to enforce. outcome labels the disagreement
+		// shape — role-table allowed only, Cedar allowed only, or
+		// neither/both (the latter only fires on matched-policy drift).
+		suffix := permission
+		if idx := strings.LastIndex(permission, "."); idx >= 0 && idx < len(permission)-1 {
+			suffix = permission[idx+1:]
+		}
+		outcome := "neither"
+		switch {
+		case roleDecision && !decision.Allowed:
+			outcome = "role_only"
+		case !roleDecision && decision.Allowed:
+			outcome = "cedar_only"
+		case roleDecision && decision.Allowed:
+			outcome = "both"
+		}
+		metrics.Default().RecordCedarDivergence(suffix, decision.MatchedPolicy, outcome)
 	}
 }
 

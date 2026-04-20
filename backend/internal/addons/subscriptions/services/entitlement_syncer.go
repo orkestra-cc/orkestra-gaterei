@@ -8,6 +8,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/metrics"
 )
 
 // EntitlementSyncer keeps the tenant capability projection aligned with
@@ -94,7 +95,13 @@ func (s *EntitlementSyncer) OnActivate(ctx context.Context, sub *models.Subscrip
 				slog.String("capability", capID),
 				slog.String("error", err.Error()),
 			)
+			continue
 		}
+		// Phase 5.3: mark the projection as freshly applied so the
+		// projection-lag gauge resets. Labeled by tier so internal
+		// operator tenants and external client tenants show up as
+		// separate time series in dashboards.
+		metrics.Default().RecordEntitlementApply(s.tenantKindOf(ctx, tenantUUID))
 	}
 }
 
@@ -130,8 +137,25 @@ func (s *EntitlementSyncer) OnDeactivate(ctx context.Context, sub *models.Subscr
 				slog.String("capability", capID),
 				slog.String("error", err.Error()),
 			)
+			continue
 		}
+		metrics.Default().RecordEntitlementApply(s.tenantKindOf(ctx, tenantUUID))
 	}
+}
+
+// tenantKindOf resolves the current tenant's tier ("internal" | "external")
+// for metric labeling. Returns an empty string on lookup failure, which
+// RecordEntitlementApply ignores — callers must not block on telemetry
+// classification.
+func (s *EntitlementSyncer) tenantKindOf(ctx context.Context, tenantUUID string) string {
+	if s == nil || s.tenant == nil || tenantUUID == "" {
+		return ""
+	}
+	t, err := s.tenant.GetTenant(ctx, tenantUUID)
+	if err != nil || t == nil {
+		return ""
+	}
+	return t.Kind
 }
 
 // CapabilitySourceSubscription mirrors the tenant-side constant without

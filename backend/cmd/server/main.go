@@ -21,6 +21,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/metrics"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/remote"
@@ -244,6 +245,26 @@ func main() {
 	// Health, readiness, docs
 	registerHealthEndpoints(publicAPI, db, redisClient)
 	registerDocsEndpoints(router, publicAPI)
+
+	// Phase 5.3: Prometheus /metrics endpoint. Registered directly on the
+	// chi router (no auth) — deployments that need per-network ACLs
+	// should front it with a sidecar or the ingress config; the handler
+	// itself exposes no principal-identifying data (tenant.id is
+	// deliberately not a label; see ADR-0002).
+	//
+	// METRICS_ENABLED is respected but defaults to true because a
+	// scrape on a disabled handler just yields 404 — cheap enough to
+	// leave on in every environment.
+	if os.Getenv("METRICS_ENABLED") != "false" {
+		mc := metrics.Default()
+		if err := mc.Register(); err != nil {
+			logger.Warn("metrics: registry init failed; /metrics will serve an empty body",
+				slog.String("error", err.Error()))
+		}
+		stopLag := mc.Start(15 * time.Second)
+		defer stopLag()
+		router.Handle("/metrics", mc.Handler())
+	}
 
 	// HTTP server. The router is wrapped in otelhttp.NewHandler so every
 	// request spawns a span the tenant-baggage middleware can enrich
