@@ -125,7 +125,7 @@ backend module.go NavItems()
 The response carries **two shapes** for a transition window:
 
 - `groups[]` — legacy flat `label + children` (v1, still populated for any consumer that hasn't migrated).
-- `realms[]` — nested `realm.key → sections → items` (v2). Realm keys are `personal | platform | business | shared`, with canonical labels `My workspace | Operator | Clients | Tools` — this is what lets the sidebar visually separate operator/internal surfaces from client/external ones.
+- `realms[]` — nested `realm.key → sections → items` (v2). Realm keys are `personal | platform | business | shared`, with canonical labels `My workspace | Companies | Clients | Tools` — this is what lets the sidebar visually separate our own companies (internal tenants) from external clients.
 
 Each `NavItemSpec` a backend module declares carries `Realm`, `Section`, and `Tier` (`"internal" | "external" | ""`). `Tier="internal"` items are filtered out for callers acting in an external tenant and vice versa, so external Tier-2 admins never see operator-only routes in the menu even if their role would otherwise grant access.
 

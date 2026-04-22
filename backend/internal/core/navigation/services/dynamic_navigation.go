@@ -51,7 +51,7 @@ func realmLabel(key string) string {
 	case realmPersonal:
 		return "My workspace"
 	case realmPlatform:
-		return "Operator"
+		return "Companies"
 	case realmBusiness:
 		return "Clients"
 	case realmShared:
