@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../index';
 
 /**
@@ -231,10 +231,11 @@ export const selectCurrentMembership = (state: RootState): Membership | null => 
 export const selectPermissions = (state: RootState) => state.tenant.permissions;
 export const selectFeatures = (state: RootState) => state.tenant.features;
 export const selectSystemRole = (state: RootState) => state.tenant.systemRole;
-export const selectImpersonation = (state: RootState) => ({
-  tenantId: state.tenant.impersonatedTenantId,
-  tenantName: state.tenant.impersonatedTenantName
-});
+export const selectImpersonation = createSelector(
+  (state: RootState) => state.tenant.impersonatedTenantId,
+  (state: RootState) => state.tenant.impersonatedTenantName,
+  (tenantId, tenantName) => ({ tenantId, tenantName })
+);
 export const selectIsImpersonating = (state: RootState) =>
   !!state.tenant.impersonatedTenantId;
 
