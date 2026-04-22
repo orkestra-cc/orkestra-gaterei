@@ -113,18 +113,27 @@ Navigation is **backend-driven**. The React app does not define its own menu —
 
 ```
 backend module.go NavItems()
-  → backend navigation core module aggregates all enabled modules
-    → /v1/navigation returns RouteGroup[] filtered by user role
-      → frontend navigationApi (RTK Query) caches the response
-        → useRoleBasedNavigation hook exposes it to layouts
-          → sidebar renders only items the backend reported
+  → backend navigation core module aggregates all enabled modules,
+    filters by module-enabled + tenant kind (Tier) + system role (MinRole)
+    → /v1/navigation returns { groups[], realms[], tenantKind, userRole }
+      → frontend navigationApi (RTK Query) caches the response per role+tenantKind
+        → useRoleBasedNavigation hook exposes realms + legacy groups to layouts
+          → NavbarVertical renders realm → section → items, falls back
+            to flat groups[] when realms are empty
 ```
+
+The response carries **two shapes** for a transition window:
+
+- `groups[]` — legacy flat `label + children` (v1, still populated for any consumer that hasn't migrated).
+- `realms[]` — nested `realm.key → sections → items` (v2). Realm keys are `personal | platform | business | shared`, with canonical labels `My workspace | Operator | Clients | Tools` — this is what lets the sidebar visually separate operator/internal surfaces from client/external ones.
+
+Each `NavItemSpec` a backend module declares carries `Realm`, `Section`, and `Tier` (`"internal" | "external" | ""`). `Tier="internal"` items are filtered out for callers acting in an external tenant and vice versa, so external Tier-2 admins never see operator-only routes in the menu even if their role would otherwise grant access.
 
 This means:
 
-- **Adding a sidebar entry** → edit the backend module's `NavItems()`, not the frontend
-- **Disabling a module on the backend** → its sidebar entry disappears automatically, and `ModuleGate` redirects to 404 if the URL is accessed directly
-- **The frontend route is declared in the module manifest** → `src/modules/<name>.tsx` defines routes, registered via `src/modules/index.ts`
+- **Adding a sidebar entry** → edit the backend module's `NavItems()` — set `Realm`, `Section`, `Tier`, not the legacy `Group`. The frontend picks it up on the next `/v1/navigation` fetch.
+- **Disabling a module on the backend** → its sidebar entry disappears automatically, and `ModuleGate` redirects to 404 if the URL is accessed directly.
+- **The frontend route is declared in the module manifest** → `src/modules/<name>.tsx` defines routes, registered via `src/modules/index.ts`.
 
 ## How data fetching works
 

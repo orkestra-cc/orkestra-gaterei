@@ -24,9 +24,29 @@ export interface RouteGroup {
   children: NavItem[];
 }
 
+/** v2 section — a labelled sub-group of items inside a realm. */
+export interface NavSection {
+  label: string;
+  children: NavItem[];
+}
+
+/** v2 realm — top-level audience grouping. */
+export interface NavRealm {
+  /** Canonical key: "personal" | "platform" | "business" | "shared" | custom. */
+  key: string;
+  /** Display label (already canonicalized by the backend). */
+  label: string;
+  sections: NavSection[];
+}
+
 export interface NavigationResponse {
+  /** v1 flat groups (legacy — kept for back-compat). */
   groups: RouteGroup[];
+  /** v2 realm → section tree. Preferred. */
+  realms?: NavRealm[];
   userRole: string;
+  /** "internal" | "external" | "" — tier used to filter this response. */
+  tenantKind?: string;
   cacheKey: string;
   expiresIn: number;
 }

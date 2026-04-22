@@ -9,16 +9,20 @@ import { useMemo } from 'react';
 import { useGetNavigationQuery } from '../store/api/navigationApi';
 import { useAuth } from './auth/useAuthRTK';
 import { useAppSelector } from '../store/hooks';
-import type { RouteGroup, NavItem } from '../store/api/navigationApi';
+import type { RouteGroup, NavItem, NavRealm } from '../store/api/navigationApi';
 
 // Re-export types for convenience
-export type { RouteGroup, NavItem };
+export type { RouteGroup, NavItem, NavRealm };
 
 interface UseRoleBasedNavigationResult {
-  /** Filtered navigation groups from backend */
+  /** v1 flat groups from backend (legacy; still populated for back-compat). */
   filteredNavigation: RouteGroup[];
+  /** v2 realm → section tree. Empty array when the backend is pre-v2. */
+  realms: NavRealm[];
   /** Current user's role */
   userRole: string | null;
+  /** Tenant kind used to filter the menu ("internal" | "external" | ""). */
+  tenantKind: string;
   /** Whether user is authenticated */
   isAuthenticated: boolean;
   /** Whether navigation is loading */
@@ -69,7 +73,9 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
     if (!isAuthenticated || !navigationData) {
       return {
         filteredNavigation: [],
+        realms: [],
         userRole: null,
+        tenantKind: '',
         isAuthenticated,
         isLoading,
         isError,
@@ -80,7 +86,9 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
 
     return {
       filteredNavigation: navigationData.groups,
+      realms: navigationData.realms ?? [],
       userRole: navigationData.userRole,
+      tenantKind: navigationData.tenantKind ?? '',
       isAuthenticated,
       isLoading,
       isError,

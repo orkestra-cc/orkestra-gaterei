@@ -60,8 +60,8 @@ const NavbarVertical = () => {
     }
   } = useAppContext();
 
-  // Get navigation from backend API (pre-filtered by role)
-  const { filteredNavigation, isAuthenticated, isLoading, isError } =
+  // Get navigation from backend API (pre-filtered by role + tenant kind)
+  const { filteredNavigation, realms, isAuthenticated, isLoading, isError } =
     useRoleBasedNavigation();
 
   const HTMLClassList = document.getElementsByTagName('html')[0].classList;
@@ -104,6 +104,16 @@ const NavbarVertical = () => {
     </Nav.Item>
   );
 
+  // Sub-label for a realm's sections. Less prominent than NavbarLabel —
+  // no divider, smaller, so the realm header stays visually dominant.
+  const NavbarSectionLabel = ({ label }: NavbarLabelProps) => (
+    <Nav.Item as="li">
+      <div className="px-3 pt-3 pb-1 text-uppercase text-500 small fw-semibold">
+        {label}
+      </div>
+    </Nav.Item>
+  );
+
   // Don't render navigation if user is not authenticated
   if (!isAuthenticated) {
     return null;
@@ -142,18 +152,35 @@ const NavbarVertical = () => {
           </div>
         )}
 
-        {/* Loaded navigation */}
+        {/* Loaded navigation — prefer v2 realms shape; fall back to v1 flat groups. */}
         {!isLoading && !isError && (
           <div className="navbar-vertical-content scrollbar">
             <Nav className="flex-column" as="ul">
-              {filteredNavigation.map(route => (
-                <Fragment key={route.label}>
-                  {!route.labelDisable && (
-                    <NavbarLabel label={capitalize(route.label)} />
-                  )}
-                  <NavbarVerticalMenu routes={route.children} />
-                </Fragment>
-              ))}
+              {realms.length > 0
+                ? realms.map(realm => (
+                    <Fragment key={realm.key}>
+                      <NavbarLabel label={capitalize(realm.label)} />
+                      {realm.sections.map(section => (
+                        <Fragment key={`${realm.key}::${section.label}`}>
+                          {section.label &&
+                            section.label !== realm.label && (
+                              <NavbarSectionLabel
+                                label={capitalize(section.label)}
+                              />
+                            )}
+                          <NavbarVerticalMenu routes={section.children} />
+                        </Fragment>
+                      ))}
+                    </Fragment>
+                  ))
+                : filteredNavigation.map(route => (
+                    <Fragment key={route.label}>
+                      {!route.labelDisable && (
+                        <NavbarLabel label={capitalize(route.label)} />
+                      )}
+                      <NavbarVerticalMenu routes={route.children} />
+                    </Fragment>
+                  ))}
             </Nav>
 
             <>
