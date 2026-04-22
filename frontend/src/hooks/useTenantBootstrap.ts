@@ -33,6 +33,12 @@ export function useTenantBootstrap() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const currentOrgId = useAppSelector(selectCurrentOrgId);
+  // Gate on the access token being in Redux, not just isAuthenticated. These
+  // queries are tenant-scoped and racing them against the /v1/auth/session
+  // cookie rotation trips the backend's family-replay guard. See
+  // useModuleApi.ts for the full rationale.
+  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
+  const gate = isAuthenticated && hasAccessToken;
 
   // Use stored orgId as an optimistic hint so we can fire all three
   // queries in parallel instead of waiting for memberships to resolve
@@ -43,15 +49,15 @@ export function useTenantBootstrap() {
   const optimisticOrgId = currentOrgId || storedOrgId;
 
   const { data: membershipsData } = useListMyOrgsQuery(undefined, {
-    skip: !isAuthenticated
+    skip: !gate
   });
 
   const { data: effective } = useGetEffectivePermissionsQuery(optimisticOrgId as string, {
-    skip: !isAuthenticated || !optimisticOrgId
+    skip: !gate || !optimisticOrgId
   });
 
   const { data: org } = useGetOrgQuery(optimisticOrgId as string, {
-    skip: !isAuthenticated || !optimisticOrgId
+    skip: !gate || !optimisticOrgId
   });
 
   useEffect(() => {

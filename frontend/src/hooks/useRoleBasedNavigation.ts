@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { useGetNavigationQuery } from '../store/api/navigationApi';
 import { useAuth } from './auth/useAuthRTK';
+import { useAppSelector } from '../store/hooks';
 import type { RouteGroup, NavItem } from '../store/api/navigationApi';
 
 // Re-export types for convenience
@@ -48,6 +49,10 @@ interface UseRoleBasedNavigationResult {
  */
 export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
   const { isAuthenticated } = useAuth();
+  // Same rationale as useModuleApi.ts: gate on access token being in
+  // Redux, not just isAuthenticated. Prevents a race with /v1/auth/session
+  // cookie rotation that trips the backend's family-replay guard.
+  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
 
   // Fetch navigation from backend (skip if not authenticated)
   const {
@@ -57,7 +62,7 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
     error,
     refetch,
   } = useGetNavigationQuery(undefined, {
-    skip: !isAuthenticated,
+    skip: !isAuthenticated || !hasAccessToken,
   });
 
   const result = useMemo((): UseRoleBasedNavigationResult => {
