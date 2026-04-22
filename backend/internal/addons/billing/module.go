@@ -81,16 +81,17 @@ func (m *BillingModule) Collections() []module.CollectionSpec {
 
 func (m *BillingModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
-		Group: "Administration", Name: "Fatturazione", Icon: "file-invoice", Path: "/billing",
+		Realm: "business", Section: "Revenue", Tier: "internal",
+		Name: "Invoicing", Icon: "file-invoice", Path: "/billing",
 		Active: true,
 		Children: []module.NavItemSpec{
 			{Name: "Dashboard", Icon: "chart-pie", Path: "/billing/dashboard", Active: true},
-			{Name: "Fatture Emesse", Icon: "paper-plane", Path: "/billing/invoices/issued", Active: true},
-			{Name: "Fatture Ricevute", Icon: "inbox", Path: "/billing/invoices/received", Active: true},
-			{Name: "Clienti", Icon: "users", Path: "/billing/customers", Active: true},
-			{Name: "Fornitori", Icon: "truck", Path: "/billing/suppliers", Active: true},
-			{Name: "Notifiche SDI", Icon: "bell", Path: "/billing/notifications", Active: true},
-			{Name: "Aziende Emittenti", Icon: "building", Path: "/billing/companies", Active: true},
+			{Name: "Invoices Issued", Icon: "paper-plane", Path: "/billing/invoices/issued", Active: true},
+			{Name: "Invoices Received", Icon: "inbox", Path: "/billing/invoices/received", Active: true},
+			{Name: "Customers", Icon: "users", Path: "/billing/customers", Active: true},
+			{Name: "Suppliers", Icon: "truck", Path: "/billing/suppliers", Active: true},
+			{Name: "SDI Notifications", Icon: "bell", Path: "/billing/notifications", Active: true},
+			{Name: "Issuing Companies", Icon: "building", Path: "/billing/companies", Active: true},
 		},
 	}}
 }

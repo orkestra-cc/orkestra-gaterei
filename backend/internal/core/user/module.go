@@ -37,11 +37,11 @@ func (m *UserModule) Collections() []module.CollectionSpec {
 
 func (m *UserModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "Operators", Name: "Dashboard", Icon: "chart-pie", Path: "/user/dashboard", Active: true},
-		{Group: "Operators", Name: "Profile", Icon: "user", Path: "/user/profile", Active: true},
-		{Group: "Operators", Name: "Calendar", Icon: "calendar-alt", Path: "/user/calendar", Active: true},
-		{Group: "System Administration", Name: "User Management", Icon: "users-cog", Path: "/admin/users", Active: true},
-		{Group: "System Administration", Name: "Module Management", Icon: "puzzle-piece", Path: "/admin/modules", Active: true},
+		{Realm: "personal", Section: "My workspace", Name: "Dashboard", Icon: "chart-pie", Path: "/user/dashboard", Active: true},
+		{Realm: "personal", Section: "My workspace", Name: "Profile", Icon: "user", Path: "/user/profile", Active: true},
+		{Realm: "personal", Section: "My workspace", Name: "Calendar", Icon: "calendar-alt", Path: "/user/calendar", Active: true},
+		{Realm: "platform", Section: "Admin", Tier: "internal", Name: "User Management", Icon: "users-cog", Path: "/admin/users", Active: true},
+		{Realm: "platform", Section: "Admin", Tier: "internal", Name: "Module Management", Icon: "puzzle-piece", Path: "/admin/modules", Active: true},
 	}
 }
 

@@ -50,11 +50,11 @@ func (m *CompanyModule) Collections() []module.CollectionSpec {
 
 func (m *CompanyModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "Administration", Name: "Aziende", Icon: "building", Path: "/company",
+		{Realm: "shared", Section: "Tools", Name: "Company Registry", Icon: "building", Path: "/company",
 			Active: true,
 			Children: []module.NavItemSpec{
-				{Name: "Ricerca CF/P.IVA", Icon: "search", Path: "/company/lookup", Active: true},
-				{Name: "Ricerca Avanzata", Icon: "search-plus", Path: "/company/search", Active: true},
+				{Name: "Tax ID Lookup", Icon: "search", Path: "/company/lookup", Active: true},
+				{Name: "Advanced Search", Icon: "search-plus", Path: "/company/search", Active: true},
 			},
 		},
 	}

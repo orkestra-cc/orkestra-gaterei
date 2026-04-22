@@ -90,11 +90,12 @@ func (m *PaymentsModule) Collections() []module.CollectionSpec {
 
 func (m *PaymentsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
-		Group: "Administration", Name: "Pagamenti", Icon: "credit-card", Path: "/payments", Active: true,
+		Realm: "business", Section: "Revenue", Tier: "internal",
+		Name: "Payments", Icon: "credit-card", Path: "/payments", Active: true,
 		Children: []module.NavItemSpec{
-			{Name: "Transazioni", Icon: "exchange-alt", Path: "/payments/transactions", Active: true},
-			{Name: "Metodi di Pagamento", Icon: "wallet", Path: "/payments/methods", Active: true},
-			{Name: "Webhook", Icon: "bell", Path: "/payments/webhooks", Active: true},
+			{Name: "Transactions", Icon: "exchange-alt", Path: "/payments/transactions", Active: true},
+			{Name: "Payment Methods", Icon: "wallet", Path: "/payments/methods", Active: true},
+			{Name: "Webhooks", Icon: "bell", Path: "/payments/webhooks", Active: true},
 		},
 	}}
 }

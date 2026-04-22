@@ -76,7 +76,7 @@ func (m *Module) RequiredServices() []module.ServiceKey {
 // switcher before configuring IdP / SCIM here.
 func (m *Module) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "Administration", Name: "Identity (IdP + SCIM)", Icon: "id-card", Path: "/identity", MinRole: "administrator", Active: true},
+		{Realm: "platform", Section: "Infrastructure", Tier: "internal", Name: "Identity (IdP + SCIM)", Icon: "id-card", Path: "/identity", MinRole: "administrator", Active: true},
 	}
 }
 

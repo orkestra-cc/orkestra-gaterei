@@ -57,7 +57,8 @@ func (m *SalesModule) Collections() []module.CollectionSpec {
 
 func (m *SalesModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
-		Group: "Sales Intelligence", Name: "Sales", Icon: "chart-line", Path: "/sales",
+		Realm: "business", Section: "Sales Intelligence", Tier: "internal",
+		Name: "Sales", Icon: "chart-line", Path: "/sales",
 		Active: true,
 		Children: []module.NavItemSpec{
 			{Name: "Prospect Analysis", Icon: "search", Path: "/sales/prospect", Active: true},

@@ -48,9 +48,9 @@ func (m *RAGModule) Collections() []module.CollectionSpec {
 
 func (m *RAGModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "AI", Name: "Documents", Icon: "file-alt", Path: "/graph/documents", Active: true},
-		{Group: "AI", Name: "Relationships", Icon: "project-diagram", Path: "/graph/relationships", Active: true},
-		{Group: "AI", Name: "RAG Query", Icon: "search", Path: "/graph/rag", Active: true},
+		{Realm: "shared", Section: "Tools", Name: "Knowledge Base", Icon: "file-alt", Path: "/graph/documents", Active: true},
+		{Realm: "shared", Section: "Tools", Name: "Relationships", Icon: "project-diagram", Path: "/graph/relationships", Active: true},
+		{Realm: "shared", Section: "Tools", Name: "RAG Query", Icon: "search", Path: "/graph/rag", Active: true},
 	}
 }
 

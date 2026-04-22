@@ -121,11 +121,12 @@ func (m *SubscriptionsModule) Collections() []module.CollectionSpec {
 
 func (m *SubscriptionsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{{
-		Group: "Administration", Name: "Sottoscrizioni", Icon: "repeat", Path: "/subscriptions", Active: true,
+		Realm: "business", Section: "Revenue", Tier: "internal",
+		Name: "Subscriptions", Icon: "repeat", Path: "/subscriptions", Active: true,
 		Children: []module.NavItemSpec{
-			{Name: "Servizi", Icon: "layer-group", Path: "/subscriptions/services", Active: true},
-			{Name: "Clienti", Icon: "users", Path: "/subscriptions/clients", Active: true},
-			{Name: "Sottoscrizioni", Icon: "list", Path: "/subscriptions/subscriptions", Active: true},
+			{Name: "Services", Icon: "layer-group", Path: "/subscriptions/services", Active: true},
+			{Name: "Customers", Icon: "users", Path: "/subscriptions/clients", Active: true},
+			{Name: "All Subscriptions", Icon: "list", Path: "/subscriptions/subscriptions", Active: true},
 		},
 	}}
 }

@@ -96,8 +96,8 @@ func (m *AgentsModule) Collections() []module.CollectionSpec {
 
 func (m *AgentsModule) NavItems() []module.NavItemSpec {
 	return []module.NavItemSpec{
-		{Group: "AI", Name: "Personal Agent", Icon: "robot", Path: "/ai/personal-agent", Active: true},
-		{Group: "AI", Name: "AI Agents", Icon: "users-cog", Path: "/ai/agents", Active: true},
+		{Realm: "personal", Section: "My workspace", Name: "Personal Agent", Icon: "robot", Path: "/ai/personal-agent", Active: true},
+		{Realm: "shared", Section: "Tools", Name: "AI Agents", Icon: "users-cog", Path: "/ai/agents", Active: true},
 	}
 }
 
