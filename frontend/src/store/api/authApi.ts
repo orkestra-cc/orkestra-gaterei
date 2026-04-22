@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi';
+import { setAccessToken } from '../slices/authSlice';
 
 // Backend OAuth types matching the Go models
 export type OAuthProvider = 'google' | 'apple' | 'discord' | 'github';
@@ -126,7 +127,45 @@ export const authApi = baseApi.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
-      invalidatesTags: ['Auth', 'User', 'Navigation'],
+      // Intentionally does NOT invalidate 'Auth'. Invalidating 'Auth' would
+      // trigger useGetSessionQuery to immediately refetch /v1/auth/session,
+      // which rotates the refresh cookie a SECOND time (login already set a
+      // fresh one). That post-login rotation races the cookie application
+      // in the browser and trips the family-replay guard. The login response
+      // body already contains accessToken + user, so we dispatch them
+      // directly from the login callback in useAuthRTK — no session refetch
+      // is needed to establish the authenticated state. We still invalidate
+      // User + Navigation so role-dependent queries refetch.
+      invalidatesTags: ['User', 'Navigation'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const result = await queryFulfilled;
+          if (result.data?.accessToken && result.data?.expiresIn) {
+            dispatch(
+              setAccessToken({
+                accessToken: result.data.accessToken,
+                expiresIn: result.data.expiresIn,
+              })
+            );
+          }
+          // Seed the session cache with the login response so subsequent
+          // useGetSessionQuery subscribers see authenticated state without
+          // another round-trip (which would rotate the cookie again).
+          if (result.data?.user) {
+            dispatch(
+              authApi.util.upsertQueryData('getSession', undefined, {
+                accessToken: result.data.accessToken,
+                tokenType: result.data.tokenType,
+                expiresIn: result.data.expiresIn,
+                user: result.data.user,
+                success: true,
+              } as SessionResponse)
+            );
+          }
+        } catch {
+          // login failed — nothing to seed, error surfaces via mutation result
+        }
+      },
     }),
 
     // Self-service registration with email/password
@@ -233,7 +272,7 @@ export const authApi = baseApi.injectEndpoints({
     // Get session after OAuth callback - retrieves access token using refresh token from cookie
     getSession: builder.query<SessionResponse | null, void>({
       providesTags: ['Auth'],
-      queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
+      queryFn: async (_arg, api, _extraOptions, baseQuery) => {
         const result = await baseQuery('v1/auth/session');
 
         // Handle 401/403 as expected unauthenticated state, not an error
@@ -251,6 +290,26 @@ export const authApi = baseApi.injectEndpoints({
         if (sessionData && sessionData.user && sessionData.oauthProviders) {
           // Add OAuth providers to user data for consistency
           sessionData.user.oauthProviders = sessionData.oauthProviders;
+        }
+
+        // Dispatch setAccessToken BEFORE returning so dependent queries
+        // (useListMyOrgsQuery, useGetNavigationQuery, etc.) that unskip
+        // the moment isAuthenticated flips true include the Authorization
+        // header in their very first request. Doing it here — rather than
+        // in a useEffect in useAuthRTK that runs after render — avoids a
+        // page-load race: without the token in Redux, those queries fire
+        // with no auth header, the backend's inline refresh-cookie
+        // rotation races across the concurrent middleware invocations, and
+        // the CAS-loss branch trips the family-replay guard. That revokes
+        // the entire session and bounces the user to /login on every
+        // page refresh.
+        if (sessionData && sessionData.accessToken) {
+          api.dispatch(
+            setAccessToken({
+              accessToken: sessionData.accessToken,
+              expiresIn: sessionData.expiresIn,
+            })
+          );
         }
 
         return { data: sessionData };
