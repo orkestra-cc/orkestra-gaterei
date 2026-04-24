@@ -147,6 +147,7 @@ const (
 	AuthSessionsCollection   = "auth_sessions"
 	SecurityEventsCollection = "auth_security_events"
 	MFAFactorsCollection     = "auth_mfa_factors"
+	DeviceTrustCollection    = "auth_device_trust"
 )
 
 // Indexes for collections

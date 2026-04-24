@@ -31,6 +31,7 @@ type MFAHandler struct {
 	users        iface.UserProvider
 	tokens       LoginTokenIssuer
 	webauthn     services.WebAuthnService // optional — populated when WebAuthn is configured
+	deviceTrust  services.DeviceTrustService // optional — Section C item #3
 	cookieName   string
 	cookieDomain string
 	cookieSecure bool
@@ -67,6 +68,13 @@ func NewMFAHandler(
 // state. Optional — nil keeps the legacy TOTP-only response shape.
 func (h *MFAHandler) SetWebAuthn(wa services.WebAuthnService) {
 	h.webauthn = wa
+}
+
+// SetDeviceTrust wires the "remember this device" service so the
+// login-verify endpoint can honor a trustDevice=true request body.
+// Optional — nil leaves the handler's trust-granting path inert.
+func (h *MFAHandler) SetDeviceTrust(dt services.DeviceTrustService) {
+	h.deviceTrust = dt
 }
 
 // --- Enrollment ---
@@ -367,6 +375,7 @@ type MFALoginVerifyRequest struct {
 		ChallengeID string `json:"challengeId" doc:"Challenge ID returned by /v1/auth/login or an OAuth flow"`
 		Code        string `json:"code" doc:"6-digit TOTP code or backup code"`
 		UseBackup   bool   `json:"useBackup,omitempty" doc:"Set true to consume a backup code instead of TOTP"`
+		TrustDevice bool   `json:"trustDevice,omitempty" doc:"When true, grant this device a 30-day trust so subsequent logins can skip the MFA prompt"`
 	}
 }
 
@@ -427,6 +436,21 @@ func (h *MFAHandler) LoginVerify(ctx context.Context, req *MFALoginVerifyRequest
 	tokens, err := h.tokens.IssueLoginTokens(ctx, user, ch.DeviceID, ch.Platform, ch.IPAddress, amr, time.Now().Unix())
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to mint login tokens")
+	}
+
+	// Section C item #3: if the user opted into "remember this device",
+	// persist a 30-day trust grant so the next login from the same
+	// (deviceID, fingerprint) can skip the MFA prompt. Best-effort —
+	// a grant failure must not turn a successful login into an error.
+	if req.Body.TrustDevice && h.deviceTrust != nil && ch.DeviceID != "" {
+		_ = h.deviceTrust.MarkTrusted(ctx, services.MarkTrustedInput{
+			UserUUID:    ch.UserUUID,
+			DeviceID:    ch.DeviceID,
+			Fingerprint: ch.Fingerprint,
+			Platform:    ch.Platform,
+			IPAddress:   ch.IPAddress,
+			GrantedAMR:  "otp",
+		})
 	}
 
 	resp := &MFALoginVerifyResponse{}

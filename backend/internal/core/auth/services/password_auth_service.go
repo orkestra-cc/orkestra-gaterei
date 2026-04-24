@@ -66,6 +66,7 @@ type PasswordAuthConfig struct {
 	MFAChallengeService      MFAChallengeService             // required: mints login-continuation challenges
 	FirstAdminClaimer        FirstAdminClaimer               // required: atomic first-admin claim
 	RiskAssessment           RiskAssessmentService           // nil → session gets zero-score; mandatory in prod
+	DeviceTrust              DeviceTrustService              // nil → never skips MFA; Section C item #3
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string
@@ -89,6 +90,7 @@ type PasswordAuthService struct {
 	mfaChallengeService      MFAChallengeService
 	firstAdminClaimer        FirstAdminClaimer
 	riskAssessment           RiskAssessmentService
+	deviceTrust              DeviceTrustService
 	notifier                 iface.NotificationSender
 	rateLimiter              *sharederrors.RateLimiter
 	frontendURL              string
@@ -139,6 +141,7 @@ func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 		mfaChallengeService:      cfg.MFAChallengeService,
 		firstAdminClaimer:        cfg.FirstAdminClaimer,
 		riskAssessment:           cfg.RiskAssessment,
+		deviceTrust:              cfg.DeviceTrust,
 		notifier:                 cfg.Notifier,
 		rateLimiter:              cfg.RateLimiter,
 		frontendURL:              cfg.FrontendURL,
@@ -310,6 +313,17 @@ type LoginInput struct {
 	IP       string
 	DeviceID string
 	Platform string
+	// Fingerprint is the client-computed device fingerprint. Consumed
+	// by the device-trust check (Section C item #3) so a returning
+	// user on the same device + fingerprint can skip the MFA prompt.
+	// Optional — web today doesn't compute a stable fingerprint, so
+	// callers pass empty and device_trust reads only deviceID. Mobile
+	// paths thread the real value from DeviceInfo.Fingerprint.
+	Fingerprint string
+	// UserAgent is recorded alongside a new trust grant so the
+	// self-service "trusted devices" list can render something
+	// human-readable. Purely informational.
+	UserAgent string
 }
 
 // Login authenticates a user by email/password and returns a token pair.
@@ -451,6 +465,30 @@ func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModel
 		hasWebAuthn = s.webauthnAvailability.HasWebAuthnCredentials(ctx, user.UUID)
 	}
 	if hasTOTP || hasWebAuthn {
+		// Device trust (Section C item #3): if the user has a live
+		// "remember this device" grant for (deviceID, fingerprint),
+		// skip the MFA prompt entirely and mint a full token pair.
+		// The new token's amr carries the prior factor forward plus
+		// a "device_trust" annotation so RequireMFA passes but
+		// RequireStepUp (which needs a fresh LastOTPAt) still
+		// prompts for catastrophic actions. LastOTPAt stays at 0.
+		if s.deviceTrust != nil && in.DeviceID != "" {
+			trusted, doc, err := s.deviceTrust.IsTrusted(ctx, user.UUID, in.DeviceID, in.Fingerprint)
+			if err == nil && trusted && doc != nil {
+				amr := append([]string(nil), sourceAMR...)
+				if doc.GrantedAMR != "" {
+					amr = append(amr, doc.GrantedAMR)
+				}
+				amr = append(amr, authModels.DeviceTrustAMR)
+				return s.issueTokens(ctx, user, in, amr, 0)
+			}
+			if err != nil && s.logger != nil {
+				s.logger.Warn("device_trust: lookup failed during login, falling through to MFA prompt",
+					slog.String("user_uuid", user.UUID),
+					slog.String("device_id", in.DeviceID),
+					slog.String("error", err.Error()))
+			}
+		}
 		if s.mfaChallengeService == nil {
 			return nil, fmt.Errorf("mfa challenge service not wired")
 		}
@@ -718,6 +756,18 @@ func (s *PasswordAuthService) ChangePassword(ctx context.Context, userUUID, curr
 	}
 	if err := s.userService.UpdatePasswordHash(ctx, user.UUID, hash); err != nil {
 		return err
+	}
+	// Section C item #3: password change invalidates every active
+	// "remember this device" grant for the user. A stolen password
+	// must not piggyback on a trust row the legitimate owner created
+	// before the breach. Best-effort — revoke failure doesn't roll
+	// the password update back.
+	if s.deviceTrust != nil {
+		if err := s.deviceTrust.RevokeAllByUser(ctx, user.UUID, authModels.DeviceTrustRevokedOnPasswordChange); err != nil && s.logger != nil {
+			s.logger.Warn("device_trust: revoke on password change failed",
+				slog.String("user_uuid", user.UUID),
+				slog.String("error", err.Error()))
+		}
 	}
 	s.emitAudit(ctx, iface.AuditEvent{
 		ActorUserID:  user.UUID,

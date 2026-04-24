@@ -67,15 +67,26 @@ type MFAService interface {
 
 	RemoveFactor(ctx context.Context, userUUID, actorUUID string) error
 	Status(ctx context.Context, userUUID string) (*MFAStatusSnapshot, error)
+	// SetDeviceTrust wires the "remember this device" service so
+	// factor removal (and the admin-reset variant on top of it)
+	// can revoke every trust grant the user holds. Optional — nil
+	// leaves the revoke step inert. Section C item #3.
+	SetDeviceTrust(dt DeviceTrustService)
 }
 
 type mfaService struct {
-	factors    repository.MFAFactorRepository
-	challenges MFAChallengeService
-	passwords  PasswordService // reused for argon2id hashing of backup codes
-	issuer     string
-	logger     *slog.Logger
+	factors     repository.MFAFactorRepository
+	challenges  MFAChallengeService
+	passwords   PasswordService // reused for argon2id hashing of backup codes
+	deviceTrust DeviceTrustService // optional — see SetDeviceTrust
+	issuer      string
+	logger      *slog.Logger
 }
+
+// SetDeviceTrust wires the optional device-trust service. Called
+// post-construction from module.go so the construction graph stays
+// free of a cross-service dependency.
+func (s *mfaService) SetDeviceTrust(dt DeviceTrustService) { s.deviceTrust = dt }
 
 // NewMFAService builds the service. `issuer` ends up as the label prefix in
 // the TOTP provisioning URI — authenticator apps show it above the 6-digit
@@ -275,6 +286,23 @@ func (s *mfaService) RemoveFactor(ctx context.Context, userUUID, actorUUID strin
 	}
 	if err := s.factors.Delete(ctx, factor.UUID); err != nil {
 		return err
+	}
+	// Section C item #3: removing the MFA factor also invalidates every
+	// "remember this device" grant the user holds. A trust row carries
+	// an amr annotation that claims the factor was verified — once the
+	// factor is gone, that annotation is a lie. User-initiated removal
+	// and admin reset both flow through here; the revoke reason
+	// distinguishes them (actorUUID != userUUID indicates admin).
+	if s.deviceTrust != nil {
+		reason := models.DeviceTrustRevokedOnMFARemove
+		if actorUUID != "" && actorUUID != userUUID {
+			reason = models.DeviceTrustRevokedOnAdminReset
+		}
+		if err := s.deviceTrust.RevokeAllByUser(ctx, userUUID, reason); err != nil {
+			s.logger.Warn("device_trust: revoke on factor removal failed",
+				slog.String("user_uuid", userUUID),
+				slog.String("error", err.Error()))
+		}
 	}
 	s.logger.Info("mfa factor removed",
 		slog.String("userUUID", userUUID),

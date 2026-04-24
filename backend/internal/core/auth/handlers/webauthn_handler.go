@@ -26,6 +26,7 @@ type WebAuthnHandler struct {
 	jwt          services.JWTService
 	users        iface.UserProvider
 	tokens       LoginTokenIssuer
+	deviceTrust  services.DeviceTrustService // optional — Section C item #3
 	cookieName   string
 	cookieDomain string
 	cookieSecure bool
@@ -56,6 +57,14 @@ func NewWebAuthnHandler(
 		cookieDomain: cookieDomain,
 		cookieSecure: cookieSecure,
 	}
+}
+
+// SetDeviceTrust wires the device-trust service so the login-finish
+// endpoint can grant "remember this device" on a passkey-completed
+// login. Optional — nil leaves the handler's trust-granting path
+// inert. Section C item #3 of the 2026-04-24 auth roadmap.
+func (h *WebAuthnHandler) SetDeviceTrust(dt services.DeviceTrustService) {
+	h.deviceTrust = dt
 }
 
 // --- enroll ---
@@ -327,6 +336,7 @@ type webAuthnLoginFinishRequest struct {
 		LoginChallengeID    string          `json:"loginChallengeId"`
 		WebAuthnChallengeID string          `json:"webauthnChallengeId"`
 		AssertionResponse   json.RawMessage `json:"assertionResponse"`
+		TrustDevice         bool            `json:"trustDevice,omitempty" doc:"When true, grant this device a 30-day trust so subsequent logins can skip the MFA prompt"`
 	}
 }
 
@@ -382,6 +392,21 @@ func (h *WebAuthnHandler) LoginFinish(ctx context.Context, req *webAuthnLoginFin
 	tokens, err := h.tokens.IssueLoginTokens(ctx, user, loginCh.DeviceID, loginCh.Platform, loginCh.IPAddress, amr, time.Now().Unix())
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to mint login tokens")
+	}
+
+	// Section C item #3: if the user opted into "remember this device",
+	// persist a 30-day trust grant tagged as webauthn-issued so the
+	// next login can skip the passkey prompt. Best-effort — a grant
+	// failure must not turn a successful login into an error.
+	if req.Body.TrustDevice && h.deviceTrust != nil && loginCh.DeviceID != "" {
+		_ = h.deviceTrust.MarkTrusted(ctx, services.MarkTrustedInput{
+			UserUUID:    loginCh.UserUUID,
+			DeviceID:    loginCh.DeviceID,
+			Fingerprint: loginCh.Fingerprint,
+			Platform:    loginCh.Platform,
+			IPAddress:   loginCh.IPAddress,
+			GrantedAMR:  "webauthn",
+		})
 	}
 
 	resp := &webAuthnLoginFinishResponse{}

@@ -23,10 +23,11 @@ import (
 
 type AuthModule struct {
 	module.BaseModule
-	authHandler     *handlers.AuthHandler
-	passwordHandler *handlers.PasswordAuthHandler
-	mfaHandler      *handlers.MFAHandler
-	webauthnHandler *handlers.WebAuthnHandler // optional — nil when WebAuthn isn't configured
+	authHandler        *handlers.AuthHandler
+	passwordHandler    *handlers.PasswordAuthHandler
+	mfaHandler         *handlers.MFAHandler
+	webauthnHandler    *handlers.WebAuthnHandler    // optional — nil when WebAuthn isn't configured
+	deviceTrustHandler *handlers.DeviceTrustHandler // Section C item #3
 }
 
 func NewModule() *AuthModule { return &AuthModule{} }
@@ -122,6 +123,17 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"userUuid": 1, "type": 1}, Unique: true},
 		}},
+		// Device trust grants (Section C item #3): "remember this
+		// device for 30 days" rows that let a returning user skip the
+		// MFA prompt on login. ExpireAt reaps rows when trustedUntil
+		// passes; (userUuid, deviceId) non-unique because we keep
+		// revoked history for audit — the repo enforces one ACTIVE
+		// row per pair on insert.
+		{Name: models.DeviceTrustCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1, "deviceId": 1}},
+			{Keys: map[string]int{"trustedUntil": 1}, ExpireAt: true},
+		}},
 	}
 }
 
@@ -142,6 +154,12 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	authSessionRepo := repository.NewAuthSessionRepository(deps.DB)
 	emailTokenRepo := repository.NewEmailTokenRepository(deps.DB)
 	mfaFactorRepo := repository.NewMFAFactorRepository(deps.DB)
+	deviceTrustRepo := repository.NewDeviceTrustRepository(deps.DB)
+	// Device-trust service (Section C item #3). Duration is env-
+	// overridable via AUTH_DEVICE_TRUST_DURATION (Go duration string,
+	// e.g. "168h" for 7 days). Unset falls back to 30 days.
+	deviceTrustDuration := parseDurationEnv("AUTH_DEVICE_TRUST_DURATION", models.DeviceTrustDuration)
+	deviceTrustSvc := services.NewDeviceTrustService(deviceTrustRepo, deviceTrustDuration, logger)
 
 	// OAuth provider factory + live config resolver.
 	//
@@ -262,6 +280,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		MFAChallengeService:      mfaChallengeSvc,
 		FirstAdminClaimer:        firstAdminClaimer,
 		RiskAssessment:           riskAssessmentSvc,
+		DeviceTrust:              deviceTrustSvc,
 		Notifier:                 notifier,
 		RateLimiter:              rateLimiter,
 		FrontendURL:              cfg.Server.FrontendURL,
@@ -284,6 +303,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// storage so we don't ship a second hasher.
 	mfaIssuer := getEnvOrDefault("APP_NAME", "Orkestra")
 	mfaSvc := services.NewMFAService(mfaFactorRepo, mfaChallengeSvc, passwordSvc, mfaIssuer, logger)
+	mfaSvc.SetDeviceTrust(deviceTrustSvc)
 
 	m.mfaHandler = handlers.NewMFAHandler(
 		mfaSvc,
@@ -295,6 +315,12 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Domain,
 		cfg.Auth.Cookie.Secure,
 	)
+	m.mfaHandler.SetDeviceTrust(deviceTrustSvc)
+
+	// Device-trust self-service endpoints (Section C item #3): list +
+	// revoke the caller's active "remember this device 30d" grants.
+	// Granting happens on the MFA login-verify endpoints above.
+	m.deviceTrustHandler = handlers.NewDeviceTrustHandler(deviceTrustSvc)
 
 	// WebAuthn — only enabled when the deployment has declared an RP via
 	// env vars. Skipping the wiring is the documented "passkeys disabled"
@@ -326,6 +352,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 				cfg.Auth.Cookie.Domain,
 				cfg.Auth.Cookie.Secure,
 			)
+			m.webauthnHandler.SetDeviceTrust(deviceTrustSvc)
 			deps.Services.Register(module.ServiceWebAuthn, webauthnSvc)
 			passwordAuthSvc.SetWebAuthnAvailability(webauthnAvailabilityChecker{svc: webauthnSvc})
 			authService.SetWebAuthnAvailability(webauthnAvailabilityChecker{svc: webauthnSvc})
@@ -380,7 +407,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 			// becomes a no-op until the collection is initialized.
 			logger.Warn("auth: security event service init failed; DSR will skip the collection", slog.String("error", err.Error()))
 		}
-		reg.Register(services.NewPIIProducer(refreshTokenRepo, authSessionRepo, emailTokenRepo, mfaFactorRepo, securityEvents))
+		reg.Register(services.NewPIIProducer(refreshTokenRepo, authSessionRepo, emailTokenRepo, mfaFactorRepo, securityEvents, deviceTrustRepo))
 	}
 
 	return nil
@@ -399,6 +426,26 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// parseDurationEnv reads key as a Go duration string (e.g. "168h",
+// "30m"). Falls back to fallback on unset, empty, or malformed input.
+// Logs a warning on malformed input so ops can spot the typo instead
+// of silently running with the default.
+func parseDurationEnv(key string, fallback time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		slog.Default().Warn("auth: malformed duration env var, using default",
+			slog.String("key", key),
+			slog.String("value", raw),
+			slog.String("default", fallback.String()))
+		return fallback
+	}
+	return d
 }
 
 // resolveWebAuthnRP derives the WebAuthn Relying Party ID and origin list
@@ -521,6 +568,20 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.webauthnHandler.RegisterStepUpRoutes(api)
+		})
+	}
+
+	// Device-trust self-service (Section C item #3):
+	//   GET    /v1/auth/me/devices/trust          — list active grants
+	//   DELETE /v1/auth/me/devices/trust/{id}     — revoke one
+	//   DELETE /v1/auth/me/devices/trust          — revoke all
+	// All three are protected self-service: RequireGlobal() gates on
+	// authenticated session, no org context needed.
+	if m.deviceTrustHandler != nil {
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.deviceTrustHandler.RegisterRoutes(api)
 		})
 	}
 }

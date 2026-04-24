@@ -20,11 +20,12 @@ import (
 // fingerprints, timestamps, user agents, backup-code counts) is
 // included.
 type piiProducer struct {
-	refresh  repository.RefreshTokenRepository
-	sessions repository.AuthSessionRepository
-	emails   repository.EmailTokenRepository
-	mfa      repository.MFAFactorRepository
-	events   SecurityEventService
+	refresh     repository.RefreshTokenRepository
+	sessions    repository.AuthSessionRepository
+	emails      repository.EmailTokenRepository
+	mfa         repository.MFAFactorRepository
+	events      SecurityEventService
+	deviceTrust repository.DeviceTrustRepository
 }
 
 // NewPIIProducer builds the auth PII producer.
@@ -34,8 +35,16 @@ func NewPIIProducer(
 	emails repository.EmailTokenRepository,
 	mfa repository.MFAFactorRepository,
 	events SecurityEventService,
+	deviceTrust repository.DeviceTrustRepository,
 ) iface.PIIProducer {
-	return &piiProducer{refresh: refresh, sessions: sessions, emails: emails, mfa: mfa, events: events}
+	return &piiProducer{
+		refresh:     refresh,
+		sessions:    sessions,
+		emails:      emails,
+		mfa:         mfa,
+		events:      events,
+		deviceTrust: deviceTrust,
+	}
 }
 
 // Subject is the stable bundle-key identifier for this producer.
@@ -106,6 +115,13 @@ func (p *piiProducer) ExportPersonalData(ctx context.Context, userUUID string) (
 		}
 	}
 
+	if p.deviceTrust != nil {
+		grants, err := p.deviceTrust.ListActiveByUser(ctx, userUUID)
+		if err == nil && len(grants) > 0 {
+			out["deviceTrust"] = scrubDeviceTrust(grants)
+		}
+	}
+
 	if len(out) == 0 {
 		return nil, nil
 	}
@@ -172,6 +188,16 @@ func (p *piiProducer) PurgePersonalData(ctx context.Context, userUUID string) (i
 			collections = append(collections, authModels.SecurityEventsCollection)
 		}
 	}
+	if p.deviceTrust != nil {
+		n, err := p.deviceTrust.DeleteAllByUser(ctx, userUUID)
+		if err != nil {
+			return iface.PurgeResult{}, err
+		}
+		if n > 0 {
+			rows += n
+			collections = append(collections, authModels.DeviceTrustCollection)
+		}
+	}
 
 	return iface.PurgeResult{RowsDeleted: int(rows), Collections: collections}, nil
 }
@@ -218,6 +244,24 @@ func scrubSecurityEvents(events []*authModels.SecurityEvent) []map[string]any {
 			"ipAddress": e.IPAddress,
 			"riskScore": e.RiskScore,
 			"timestamp": e.Timestamp,
+		})
+	}
+	return out
+}
+
+func scrubDeviceTrust(grants []*authModels.DeviceTrustDoc) []map[string]any {
+	out := make([]map[string]any, 0, len(grants))
+	for _, g := range grants {
+		out = append(out, map[string]any{
+			"deviceId":     g.DeviceID,
+			"deviceName":   g.DeviceName,
+			"platform":     g.Platform,
+			"ipAddress":    g.IPAddress,
+			"userAgent":    g.UserAgent,
+			"trustedAt":    g.TrustedAt,
+			"trustedUntil": g.TrustedUntil,
+			"lastUsedAt":   g.LastUsedAt,
+			"grantedAmr":   g.GrantedAMR,
 		})
 	}
 	return out
