@@ -185,6 +185,78 @@ func TestShadowEvaluate_TenantStatusFlowsFromLookup(t *testing.T) {
 	}
 }
 
+// TestRiskLevelForScore_MatchesAuthLadder asserts the local bucket ladder
+// matches the one in auth/services.RiskLevelForScore. The two packages
+// are independent (authz sits below auth), so drift is only catchable
+// by test. If a future commit tunes the thresholds in auth/services,
+// update this table to match — or the Cedar principal.risk_level
+// attribute will silently drift from the source of truth.
+func TestRiskLevelForScore_MatchesAuthLadder(t *testing.T) {
+	cases := map[float64]string{
+		0.0:  "low",
+		0.29: "low",
+		0.3:  "medium",
+		0.49: "medium",
+		0.5:  "high",
+		0.69: "high",
+		0.7:  "critical",
+		1.0:  "critical",
+	}
+	for in, want := range cases {
+		if got := riskLevelForScore(in); got != want {
+			t.Errorf("riskLevelForScore(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestShadowEvaluate_RiskLookupStampsCedarPrincipal verifies the C2
+// wiring: when SetSessionRiskLookup is called, shadowEvaluate reads the
+// current sid from context and stamps the score on the Cedar principal.
+// Cedar still allows this request (platform.administrator.all permits
+// tenant.update on an internal tenant) — the test just proves the
+// plumbing fires without breaking existing policies.
+func TestShadowEvaluate_RiskLookupStampsCedarPrincipal(t *testing.T) {
+	var gotSID string
+	svc, _ := newTestService(t, nil)
+	svc.withUserRole("administrator")
+	svc.SetSessionRiskLookup(func(_ context.Context, sid string) (float64, error) {
+		gotSID = sid
+		return 0.42, nil
+	})
+	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx = middleware.WithSessionID(ctx, "sess-1")
+	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
+	if !ok {
+		t.Fatalf("evaluation should succeed: errors=%+v", decision.Errors)
+	}
+	if !decision.Allowed {
+		t.Fatalf("administrator on active internal tenant should be allowed: %+v", decision)
+	}
+	if gotSID != "sess-1" {
+		t.Errorf("lookup was not called with the expected sid, got %q", gotSID)
+	}
+}
+
+// TestShadowEvaluate_RiskLookupErrorDoesNotAbort: a failing lookup must
+// not block the authorization decision. The score defaults to 0 and
+// the request is evaluated without risk attributes.
+func TestShadowEvaluate_RiskLookupErrorDoesNotAbort(t *testing.T) {
+	svc, _ := newTestService(t, nil)
+	svc.withUserRole("administrator")
+	svc.SetSessionRiskLookup(func(_ context.Context, _ string) (float64, error) {
+		return 0, errors.New("boom")
+	})
+	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx = middleware.WithSessionID(ctx, "sess-1")
+	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
+	if !ok {
+		t.Fatalf("evaluation should succeed despite lookup error: errors=%+v", decision.Errors)
+	}
+	if !decision.Allowed {
+		t.Fatalf("administrator should still pass: %+v", decision)
+	}
+}
+
 // TestShadowEvaluate_TenantStatusFallsBackToActive: when the lookup is
 // unwired (nil) or returns an empty status, the evaluator falls back to
 // "active" so legacy code paths and tests keep their previous outcome.

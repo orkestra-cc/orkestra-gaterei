@@ -17,6 +17,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/services"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/iface"
+	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
@@ -343,6 +344,30 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServicePasswordService, passwordSvc)
 	deps.Services.Register(module.ServicePasswordAuthService, passwordAuthSvc)
 	deps.Services.Register(module.ServiceSessionRevocation, sessionRevocationSvc)
+
+	// Session-risk lookup: resolves the most recent risk score for a sid
+	// against the auth_sessions collection. Consumed post-InitAll by the
+	// HTTP middleware's RequireLowRisk gate and the Cedar shadow
+	// evaluator's principal.risk_score attribute. Registered as a plain
+	// function (not an interface) so consumers on either side of the
+	// auth/authz split bind to the same concrete closure without
+	// importing auth's types. A nil error with score==0 is legitimate
+	// (session absent, terminated, or scorer not yet populated) —
+	// callers treat it as zero risk and fail open.
+	var sessionRiskLookup authMiddleware.SessionRiskLookup = func(ctx context.Context, sessionID string) (float64, error) {
+		if sessionID == "" {
+			return 0, nil
+		}
+		session, err := authSessionRepo.GetByUUID(ctx, sessionID)
+		if err != nil {
+			return 0, err
+		}
+		if session == nil {
+			return 0, nil
+		}
+		return session.RiskScore, nil
+	}
+	deps.Services.Register(module.ServiceSessionRiskLookup, sessionRiskLookup)
 
 	// Register the auth PII producer with the DSR registry pre-created in
 	// main.go. Registers even when the registry is absent so the main

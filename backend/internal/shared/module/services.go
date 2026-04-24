@@ -34,6 +34,14 @@ const (
 	// the access-token TTL. Value: auth/services.SessionRevocationService.
 	ServiceSessionRevocation ServiceKey = "auth.session_revocation"
 
+	// ServiceSessionRiskLookup resolves a session's most recent risk score
+	// (0.0–1.0). Section C item #2 of the 2026-04-24 auth roadmap. Wired
+	// by the auth module from the auth_sessions collection; consumed
+	// post-InitAll by both the HTTP middleware's RequireLowRisk gate and
+	// the Cedar shadow evaluator's principal.risk_score attribute.
+	// Value: func(ctx context.Context, sessionID string) (float64, error)
+	ServiceSessionRiskLookup ServiceKey = "auth.session_risk_lookup"
+
 	// ServiceWebAuthn is the W3C WebAuthn ceremony orchestrator (registration
 	// + assertion). Registered by the auth module when the deployment has
 	// configured an RP via WEBAUTHN_RP_ID + WEBAUTHN_RP_ORIGINS. Consumers
@@ -49,6 +57,11 @@ const (
 	// slim, the concrete service carries post-init setters.
 	ServiceTenantService  ServiceKey = "tenant.service"
 	ServiceAuthzProvider  ServiceKey = "authz.provider"
+	// ServiceAuthzService is the concrete *authz/services.Service registered
+	// alongside the AuthzProvider interface. main.go resolves it post-
+	// InitAll to wire late dependencies (e.g. SetSessionRiskLookup) that
+	// are only available after peer modules have finished their Init.
+	ServiceAuthzService   ServiceKey = "authz.service"
 
 	// ServiceCapabilityRegistry is the boot-time catalog of Capability
 	// declarations collected from every module's Capabilities() method.

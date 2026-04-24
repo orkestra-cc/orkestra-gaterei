@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/orkestra/backend/internal/core/auth/services"
+	authzServices "github.com/orkestra/backend/internal/core/authz/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
@@ -180,6 +182,21 @@ func main() {
 	if rev, ok := module.GetTyped[services.SessionRevocationService](svcRegistry, module.ServiceSessionRevocation); ok {
 		authMW.SetSessionRevocation(rev)
 	}
+	// Session-risk lookup: populated by the auth module once its
+	// auth_sessions repo is constructed. Hand to both the HTTP
+	// middleware (RequireLowRisk gate) and the authz Cedar shadow
+	// evaluator (principal.risk_score attribute) so the same score
+	// backs both enforcement surfaces. Missing lookup falls back to
+	// zero risk on the Cedar principal and a pass-through on the gate.
+	if lookup, ok := module.GetTyped[authMiddleware.SessionRiskLookup](svcRegistry, module.ServiceSessionRiskLookup); ok {
+		authMW.SetSessionRiskLookup(lookup)
+		if authzSvc, ok := module.GetTyped[*authzServices.Service](svcRegistry, module.ServiceAuthzService); ok && authzSvc != nil {
+			// The authz service takes its own SessionRiskLookup type —
+			// same signature, declared locally to avoid a cross-package
+			// alias. Adapt via a thin wrapper.
+			authzSvc.SetSessionRiskLookup(authzServices.SessionRiskLookup(lookup))
+		}
+	}
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 
 	// Router + middleware
@@ -242,6 +259,12 @@ func main() {
 	protectedRouter.Group(func(r chi.Router) {
 		r.Use(authMW.RequireSystemPermission("system.modules.admin"))
 		r.Use(authMW.RequireMFA())
+		// Section C item #2: also gate admin-module writes on low session
+		// risk. A stolen MFA-stepped token from a high-risk session (new
+		// device + new IP + rapid IP change) still can't flip module
+		// enablement or write secrets. Threshold is env-tunable so ops
+		// can widen the gate during staged rollouts.
+		r.Use(authMW.RequireLowRisk(riskStepUpThreshold()))
 		adminAPI := humachi.New(r, apiConfig)
 		module.RegisterAdminModuleMutationRoutes(adminAPI, moduleAdminHandler)
 	})
@@ -345,4 +368,23 @@ func main() {
 	}
 
 	logger.Info("Server stopped")
+}
+
+// riskStepUpThreshold parses AUTH_RISK_STEP_UP_THRESHOLD as a float in
+// [0, 1] and falls back to 0.5 on unset / malformed values. 0.5 is the
+// "high" bucket boundary from auth/services.RiskLevelForScore — any
+// single strong signal (new_device_fingerprint + new_ip + rapid_ip)
+// pushes a login over this line. Operators can tighten to 0.3 (medium)
+// for paranoid deployments or loosen toward 0.7 (critical) to keep the
+// gate limited to near-certain attack signatures.
+func riskStepUpThreshold() float64 {
+	raw := os.Getenv("AUTH_RISK_STEP_UP_THRESHOLD")
+	if raw == "" {
+		return 0.5
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 || v > 1 {
+		return 0.5
+	}
+	return v
 }

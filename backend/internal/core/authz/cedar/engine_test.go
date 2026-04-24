@@ -402,6 +402,36 @@ func TestPrincipalMFAAttributesDoNotBreakExistingPolicies(t *testing.T) {
 	}
 }
 
+// TestPrincipalRiskAttributesStamped: risk_score stamps as Long
+// (multiplied by 100 since Cedar has no floats) and risk_level stamps
+// as String when non-empty. Neither affects existing policies, which
+// don't reference the attributes yet.
+func TestPrincipalRiskAttributesStamped(t *testing.T) {
+	e := newTestEngine(t, "development")
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	cases := []struct {
+		name  string
+		p     Principal
+		allow bool
+	}{
+		{"score_zero_level_empty", Principal{UserUUID: "u", SystemRole: "super_admin"}, true},
+		{"score_below_threshold", Principal{UserUUID: "u", SystemRole: "super_admin", RiskScore: 0.2, RiskLevel: "low"}, true},
+		{"score_critical", Principal{UserUUID: "u", SystemRole: "super_admin", RiskScore: 0.95, RiskLevel: "critical", MFAEnrolled: true}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := e.IsAuthorized(tc.p, "tenant.read", r)
+			if d.Allowed != tc.allow {
+				t.Fatalf("want allow=%v, got %+v", tc.allow, d)
+			}
+			if len(d.Errors) > 0 {
+				t.Fatalf("risk attributes must not produce Cedar errors: %+v", d.Errors)
+			}
+		})
+	}
+}
+
 // TestInactiveTenantStatusFlowsThrough: sanity checks that the resource's
 // TenantStatus really drives tenant_scope.cedar now that the shadow
 // evaluator threads the real value instead of hardcoding "active". Cedar

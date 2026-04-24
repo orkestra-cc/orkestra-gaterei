@@ -80,6 +80,17 @@ type Principal struct {
 	// by the session's JWT. Stamped as principal.amr when non-empty so
 	// policies can distinguish OAuth-only tokens from pwd+otp step-ups.
 	AMR []string
+	// RiskScore is the most recent risk assessment for the acting session,
+	// in [0.0, 1.0]. Stamped as principal.risk_score (Long 0–100, multiplied
+	// by 100 because Cedar has no floats). Always stamped so policies can
+	// compare without a `has` guard. Section C item #2 of the 2026-04-24
+	// auth roadmap.
+	RiskScore float64
+	// RiskLevel is the bucketed risk category for the same score
+	// ("low" / "medium" / "high" / "critical"). Stamped as
+	// principal.risk_level when non-empty so policies that prefer the
+	// categorical form can write `principal.risk_level == "critical"`.
+	RiskLevel string
 }
 
 // Request bundles the inputs of an authorization evaluation. Callers that
@@ -245,6 +256,17 @@ func (e *Engine) Evaluate(req Request) Decision {
 			as = append(as, types.String(m))
 		}
 		principalAttrs["amr"] = types.NewSet(as...)
+	}
+	// risk_score is stamped unconditionally so policies can compare to a
+	// Long literal without a `has` guard. Multiplied by 100 because Cedar
+	// has no float type. A zero-score stamp corresponds to the
+	// risk-scorer's "no baseline" default (first login, scorer unwired).
+	// risk_level is stamped when non-empty — consumers that prefer the
+	// bucket form use this attribute, those that want sharper thresholds
+	// compare risk_score directly.
+	principalAttrs["risk_score"] = types.Long(int64(p.RiskScore * 100))
+	if p.RiskLevel != "" {
+		principalAttrs["risk_level"] = types.String(p.RiskLevel)
 	}
 	entities[principal] = types.Entity{
 		UID:        principal,

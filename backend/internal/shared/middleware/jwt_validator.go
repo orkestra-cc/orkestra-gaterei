@@ -429,6 +429,16 @@ func (v *JWTValidator) RequireExternalTenant() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return next }
 }
 
+// RequireLowRisk on the JWTValidator is a pass-through. The AI sidecar
+// has no access to the monolith's auth_sessions collection, so it
+// cannot independently score the session. The monolith gates high-risk
+// calls at its public boundary; any request that reaches the sidecar
+// has already passed that gate. Implemented to satisfy the
+// module.RoleMiddleware interface.
+func (v *JWTValidator) RequireLowRisk(threshold float64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return next }
+}
+
 func extractBearer(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if h == "" {

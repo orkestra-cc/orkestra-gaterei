@@ -114,6 +114,11 @@ type Service struct {
 	startMFAGrace      MFAGraceStarter
 	lookupCaps         TenantCapabilityLookup
 	lookupTenantStatus TenantStatusLookup
+	// lookupSessionRisk is wired post-InitAll via SetSessionRiskLookup
+	// because the auth module (which owns the auth_sessions repo) does
+	// not finish its own Init until after authz. Nil falls back to
+	// zero risk on the Cedar principal — no divergence, no ABAC effect.
+	lookupSessionRisk  SessionRiskLookup
 	production         bool // when true, developer role is restricted to read-only
 
 	// cedarEngine is the Cedar evaluator. nil when Cedar is disabled
@@ -165,6 +170,16 @@ type TenantCapabilityLookup func(ctx context.Context, tenantUUID string) ([]stri
 // authz stays free of a direct tenant-module import; authz/module.go
 // wires it from iface.TenantProvider.GetTenant.
 type TenantStatusLookup func(ctx context.Context, tenantUUID string) (string, error)
+
+// SessionRiskLookup returns the most recent risk score for a session
+// UUID, in [0.0, 1.0]. Stamped onto the Cedar principal as
+// risk_score + risk_level so ABAC policies can reason about session
+// risk alongside role and capability. Wired post-InitAll by main.go —
+// authz.Init runs before the auth module has constructed its
+// auth_sessions repo, so the setter pattern mirrors how the tenant
+// module wires the OwnerRoleBinder into authz. Section C item #2 of
+// the 2026-04-24 auth roadmap.
+type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, error)
 
 type Config struct {
 	Repo               *repository.Repository
@@ -250,6 +265,33 @@ func roleElevatesPrivilege(roleName string) bool {
 		return true
 	}
 	return false
+}
+
+// SetSessionRiskLookup wires the sid → risk-score resolver. Called
+// post-InitAll from main.go after the auth module has constructed its
+// auth_sessions repository. Safe to call before the first request —
+// the authz module's Init finishes well before any handler binds. A
+// nil lookup falls back to zero risk on the Cedar principal, same as
+// not wiring the setter at all.
+func (s *Service) SetSessionRiskLookup(lookup SessionRiskLookup) {
+	s.lookupSessionRisk = lookup
+}
+
+// riskLevelForScore mirrors auth/services.RiskLevelForScore without
+// importing the auth package (authz sits below auth in the module
+// dependency order). The two ladders must stay in sync — if one
+// changes, update both. Guarded by a unit test (see service_test.go).
+func riskLevelForScore(score float64) string {
+	switch {
+	case score >= 0.7:
+		return "critical"
+	case score >= 0.5:
+		return "high"
+	case score >= 0.3:
+		return "medium"
+	default:
+		return "low"
+	}
 }
 
 // --- Provider interface ---
@@ -340,6 +382,24 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 	amr, _ := middleware.GetAMR(ctx)
 	mfaEnrolled := middleware.IsMFAEnrolled(ctx)
 	clientIP, _ := middleware.GetClientIP(ctx)
+	// Risk signals: pull the session's most recent score via the lookup
+	// callback (wired post-InitAll) and derive the level locally. Score
+	// is in [0.0, 1.0]; the engine multiplies by 100 when stamping the
+	// Long attribute. A lookup error degrades gracefully to zero risk.
+	var riskScore float64
+	var riskLevel string
+	if s.lookupSessionRisk != nil {
+		if sid, ok := middleware.GetSessionID(ctx); ok {
+			if score, err := s.lookupSessionRisk(ctx, sid); err == nil {
+				riskScore = score
+				riskLevel = riskLevelForScore(score)
+			} else if s.logger != nil {
+				s.logger.Debug("cedar: session risk lookup failed",
+					slog.String("sid", sid),
+					slog.String("error", err.Error()))
+			}
+		}
+	}
 	principal := cedar.Principal{
 		UserUUID:     userUUID,
 		SystemRole:   systemRole,
@@ -347,6 +407,8 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 		Capabilities: capabilities,
 		MFAEnrolled:  mfaEnrolled,
 		AMR:          amr,
+		RiskScore:    riskScore,
+		RiskLevel:    riskLevel,
 	}
 	resource := cedar.Resource{
 		TenantUUID:   tenantID,

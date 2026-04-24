@@ -59,16 +59,24 @@ const (
 // member of, otherwise the request is rejected with 403.
 const TenantIDHeader = "X-Tenant-ID"
 
+// SessionRiskLookup resolves the most recent risk score for a session
+// UUID. Implementations typically read auth_sessions by sid. A nil
+// error with score == 0 is legitimate (session absent or scorer not
+// yet wired) — callers treat it as zero risk and pass the request
+// through.
+type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, error)
+
 type AuthMiddleware struct {
-	jwtService       services.JWTService
-	authService      services.AuthService
-	tenant           iface.TenantProvider
-	authz            iface.AuthzProvider
-	auditSink        iface.AuditSink
+	jwtService        services.JWTService
+	authService       services.AuthService
+	tenant            iface.TenantProvider
+	authz             iface.AuthzProvider
+	auditSink         iface.AuditSink
 	sessionRevocation services.SessionRevocationService
-	errorManager     *errors.Manager
-	cookieName       string
-	config           *config.Config
+	sessionRiskLookup SessionRiskLookup
+	errorManager      *errors.Manager
+	cookieName        string
+	config            *config.Config
 
 	// impersonationDedupe throttles the admin.tenant.impersonate audit
 	// event to one emit per (actorUserUUID|targetTenantID) every
@@ -137,6 +145,14 @@ func (m *AuthMiddleware) SetAuditSink(sink iface.AuditSink) {
 // TTL. Optional — when unset, revocation falls back to access-token TTL.
 func (m *AuthMiddleware) SetSessionRevocation(s services.SessionRevocationService) {
 	m.sessionRevocation = s
+}
+
+// SetSessionRiskLookup wires the per-sid risk-score resolver consumed
+// by RequireLowRisk. Typically bound post-InitAll in main.go so the
+// lookup can read the same auth_sessions collection the scorer writes.
+// Optional — when unset, RequireLowRisk is a pass-through.
+func (m *AuthMiddleware) SetSessionRiskLookup(lookup SessionRiskLookup) {
+	m.sessionRiskLookup = lookup
 }
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -683,6 +699,20 @@ func WithAMR(ctx context.Context, amr []string) context.Context {
 	return context.WithValue(ctx, ctxClaims, &next)
 }
 
+// WithSessionID stamps a session UUID onto the request's JWT claims so
+// tests can exercise sid-gated signals (session revocation, risk
+// lookup, Cedar principal.risk_score) without booting the middleware
+// chain. Production code paths populate sid at token issuance.
+func WithSessionID(ctx context.Context, sid string) context.Context {
+	existing, _ := ctx.Value(ctxClaims).(*models.JWTClaims)
+	var next models.JWTClaims
+	if existing != nil {
+		next = *existing
+	}
+	next.SessionID = sid
+	return context.WithValue(ctx, ctxClaims, &next)
+}
+
 // --- RoleMiddleware implementation ---
 
 func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler) http.Handler {
@@ -871,6 +901,72 @@ func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RequireLowRisk blocks the request when the current session's risk
+// score meets or exceeds threshold. Reuses the step_up_required 401
+// envelope so the frontend's existing MFA step-up modal can resolve
+// the block transparently. Fails open in three cases: (1) no JWT
+// claims on the context, (2) lookup callback not wired, (3) lookup
+// errors — a degraded risk signal must never lock privileged actions
+// out. Blocking decisions emit a Warn log so operators can alert on
+// risk-driven denials.
+func (m *AuthMiddleware) RequireLowRisk(threshold float64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := r.Context().Value(ctxClaims).(*models.JWTClaims)
+			if !ok || claims == nil || claims.SessionID == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if m.sessionRiskLookup == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			score, err := m.sessionRiskLookup(r.Context(), claims.SessionID)
+			if err != nil {
+				slog.Default().Warn("risk: session-risk lookup failed; passing through",
+					slogString("sid", claims.SessionID),
+					slogString("error", err.Error()))
+				next.ServeHTTP(w, r)
+				return
+			}
+			if score >= threshold {
+				slog.Default().Warn("risk: blocking action, session score exceeds threshold",
+					slogString("sid", claims.SessionID),
+					slogString("path", r.URL.Path),
+					slogString("method", r.Method))
+				m.sendRiskStepUp(w, r, threshold, score)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// sendRiskStepUp emits the same code="step_up_required" 401 envelope
+// RequireStepUp uses, annotated with the observed risk score and
+// threshold. The frontend's step-up modal branches on `code` alone, so
+// reusing the string means risk-driven and freshness-driven step-ups
+// share the UI path.
+func (m *AuthMiddleware) sendRiskStepUp(w http.ResponseWriter, r *http.Request, threshold, score float64) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "step-up authentication required",
+		"detail": "this action requires a fresh second-factor verification due to elevated session risk",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "step-up required — high risk session",
+			"location": "require_low_risk",
+			"value":    "HIGH_RISK_SESSION",
+		}},
+		"code":          "step_up_required",
+		"riskScore":     score,
+		"riskThreshold": threshold,
+	})
 }
 
 // sendStepUpRequired emits the structured 401 the frontend looks for to

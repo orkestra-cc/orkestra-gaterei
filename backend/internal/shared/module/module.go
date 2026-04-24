@@ -308,6 +308,18 @@ type RoleMiddleware interface {
 	// to drive the user through /v1/auth/mfa/verify and retry.
 	RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler
 
+	// RequireLowRisk blocks the request when the current session's most
+	// recent risk score meets or exceeds threshold. Reuses the
+	// code="step_up_required" response envelope so the frontend's
+	// step-up modal completes the action transparently. Fails open on
+	// lookup errors or when the scorer is unwired — a degraded risk
+	// signal must not lock privileged actions out. Apply after
+	// RequireMFA on routes that already demand a second factor; the
+	// combination means a stolen token from a high-risk session still
+	// can't perform the action even if the token itself is MFA-stepped.
+	// Section C item #2 of the 2026-04-24 auth roadmap.
+	RequireLowRisk(threshold float64) func(http.Handler) http.Handler
+
 	// RequireInternalTenant rejects requests whose resolved tenant is not
 	// internal (Tier-1 operator). Use on operator-only routes: billing /
 	// FatturaPA, subscription-admin, payments-admin. Warn-mode (set via

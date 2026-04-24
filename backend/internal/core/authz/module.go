@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -49,7 +50,7 @@ func (m *Module) RequiredServices() []module.ServiceKey {
 }
 
 func (m *Module) ProvidedServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceAuthzProvider}
+	return []module.ServiceKey{module.ServiceAuthzProvider, module.ServiceAuthzService}
 }
 
 func (m *Module) NavItems() []module.NavItemSpec {
@@ -180,6 +181,11 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	m.handler = handlers.New(m.svc)
 
 	deps.Services.Register(module.ServiceAuthzProvider, iface.AuthzProvider(m.svc))
+	// Also register the concrete service so main.go can wire post-InitAll
+	// setters that the interface deliberately doesn't expose (e.g.
+	// SetSessionRiskLookup which depends on the auth module's
+	// auth_sessions repo — auth inits after authz).
+	deps.Services.Register(module.ServiceAuthzService, m.svc)
 
 	// Wire the OwnerRoleBinder so the tenant module can grant the
 	// org_owner authz binding inside CreateTenant. Both modules are
@@ -227,6 +233,14 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 	ri.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.AuthMW.RequirePermission("authz.role.read"))
 		r.Use(ri.AuthMW.RequireMFA())
+		// Section C item #2: also reject binding writes when the session's
+		// risk score exceeds the configured threshold. MFA alone can be
+		// satisfied by a stolen stepped-up token; the risk gate catches
+		// the case where that token's session also shows up in the
+		// risk scorer (new device / rapid IP change). Fails open when
+		// the lookup isn't wired, so tests and minimal deploys don't
+		// need the scorer plumbed.
+		r.Use(ri.AuthMW.RequireLowRisk(parseRiskStepUpThreshold(os.Getenv("AUTH_RISK_STEP_UP_THRESHOLD"))))
 		api := humachi.New(r, ri.APIConfig)
 		m.handler.RegisterScopedMutationRoutes(api)
 	})
@@ -235,6 +249,21 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 // Service returns the authz service — exposed so the registry can trigger
 // RegisterPermissions and SeedSystemRoles after all modules init.
 func (m *Module) Service() *services.Service { return m.svc }
+
+// parseRiskStepUpThreshold parses AUTH_RISK_STEP_UP_THRESHOLD as a float in
+// [0, 1] and falls back to 0.5 on unset / malformed values. Mirrors the
+// helper in cmd/server/main.go — duplicated rather than shared because
+// the authz module can't import cmd/server. Keep the two in lock-step.
+func parseRiskStepUpThreshold(raw string) float64 {
+	if raw == "" {
+		return 0.5
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 || v > 1 {
+		return 0.5
+	}
+	return v
+}
 
 // parseCedarEnforceActions splits the comma-separated CEDAR_ENFORCE_ACTIONS
 // env var into a list of permission keys, trimming whitespace and dropping
