@@ -45,7 +45,7 @@ Declared in `module.go:53-74`. Collection name constants live in `models/collect
 | `auth_sessions` | `uuid` unique | — |
 | `auth_security_events` | (none declared) | — |
 | `auth_email_tokens` | `uuid` unique, `tokenHash` unique, `userUuid`, `expiresAt` **TTL 24h** | Yes (`module.go:71`) |
-| `auth_mfa_factors` | `uuid` unique, compound `(userUuid, type)` unique | — |
+| `auth_mfa_factors` | `uuid` unique, compound `(userUuid, type)` unique | — — one row per (user, factor type). The `webauthn` row carries an embedded `webauthnCredentials[]` array (zero-or-many passkeys per user) |
 
 Only email tokens currently have a TTL — refresh tokens, sessions, and MFA factor rows are rotated/invalidated explicitly in the service layer.
 
@@ -161,12 +161,20 @@ Registered from two handlers — `auth_handler.go` for OAuth/session/refresh, `p
 | POST | `/v1/auth/me/mfa/remove` | `RequireGlobal()` + `RequireStepUp(5m)` | Remove own factor — step-up middleware demands a <5min MFA proof; request body is empty |
 | POST | `/v1/auth/mfa/verify` | `RequireGlobal()` | Verify TOTP or backup code; mint a stepped-up access token with `amr:["pwd","otp"]` + `last_otp_at=now` |
 | POST | `/v1/admin/users/{userId}/mfa/reset` | `RequireSystemPermission("system.users.mfa_reset")` + `RequireStepUp(5m)` | Admin: delete target user's MFA factor and restart their enrollment grace |
+| POST | `/v1/auth/mfa/webauthn/register/begin` | `RequireGlobal()` | Begin enrolling a passkey — returns `{challengeId, publicKey}` (W3C `PublicKeyCredentialCreationOptions`) |
+| POST | `/v1/auth/mfa/webauthn/register/finish` | `RequireGlobal()` | Finish enrolling a passkey — body `{challengeId, name, attestationResponse}`, returns the public credential metadata |
+| GET | `/v1/auth/me/mfa/webauthn/credentials` | `RequireGlobal()` | List the user's enrolled passkeys (id, name, transports, createdAt, lastUsedAt) |
+| DELETE | `/v1/auth/me/mfa/webauthn/credentials/{credentialId}` | `RequireGlobal()` + `RequireStepUp(5m)` | Remove one passkey by base64url-encoded credential id |
+| POST | `/v1/auth/mfa/webauthn/verify/begin` | `RequireGlobal()` | Begin a step-up assertion using a passkey |
+| POST | `/v1/auth/mfa/webauthn/verify/finish` | `RequireGlobal()` | Finish a step-up assertion; mints a stepped-up access token with `amr:[..., "otp", "webauthn"]` + `last_otp_at=now` |
 
 And a public endpoint that completes a login after a partial response:
 
 | Method | Path | Gate | Purpose |
 |---|---|---|---|
 | POST | `/v1/auth/mfa/login/verify` | none (uses `challengeId`) | Complete a login by validating TOTP/backup; mints full token pair with `amr:[source,otp]` |
+| POST | `/v1/auth/mfa/webauthn/login/begin` | none (uses `loginChallengeId`) | Begin a passkey assertion to satisfy a paused login |
+| POST | `/v1/auth/mfa/webauthn/login/finish` | none (uses both challenge ids) | Finish a passkey assertion; mints full token pair with `amr:[source, otp, webauthn]` |
 
 `change-password` and the self-service MFA routes are deliberately global (no org context) because they're user-level flows.
 
@@ -183,6 +191,7 @@ And a public endpoint that completes a login after a partial response:
 - `RoleMiddleware.RequireStepUp(maxAge)` is a stricter variant applied to catastrophic / irreversible actions (currently `POST /v1/auth/me/mfa/remove` and `POST /v1/admin/users/{id}/mfa/reset`). It checks both that `amr` contains an MFA marker AND that `last_otp_at` is within `maxAge` of now — a session-long MFA proof is not enough. Returns 401 with `code="step_up_required"` + `maxAgeSeconds`; the web frontend's global `StepUpModal` pauses the request, drives the user through `/mfa/verify`, and replays.
 - **Session revocation list** — Redis-backed set at `auth:revoked:session:<sid>` checked on every authenticated request by both `AuthMiddleware` (monolith) and `JWTValidator` (sidecar). Populated on logout + change-password; payload is the reason string for operator debugging. Entries auto-expire after the access-token TTL + 1min buffer. Fails open on Redis errors — a degraded Redis must not lock every user out. Logout invalidates the current sid only; `allDevices=true` still relies on refresh-token revocation (per-user-generation counter is a follow-up).
 - **Grace countdown on `/v1/auth/me/mfa`** — response now carries `requiresMfa` + `graceExpiresAt` computed from the user record + JWT memberships, so the frontend banner/countdown can render without relying on the one-shot login response.
+- **WebAuthn / passkeys** — second-factor enrollment under `services/webauthn_service.go` + `handlers/webauthn_handler.go`. Library: `github.com/go-webauthn/webauthn`. Configuration: `WEBAUTHN_RP_ID` (eTLD+1 host, no scheme/port) + `WEBAUTHN_RP_ORIGINS` (comma-separated full URLs). Both env vars are optional — if either is missing the module derives them from `FRONTEND_URL` (eg. `http://localhost:8080` → `rpId=localhost`, `origins=[http://localhost:8080]`); if neither resolves, WebAuthn is disabled and the endpoints don't mount. Credentials live as an embedded `webauthnCredentials[]` array on the same `auth_mfa_factors` row (one row per user with `type=webauthn`); the (userUuid,type) unique index naturally allows a user to enroll both TOTP and passkeys. Login/step-up via passkey sets `amr=[..., "otp", "webauthn"]` so existing step-up middleware accepts the proof. The partial login response carries `webauthnAvailable: bool` so the verify page can offer the passkey button alongside the code field.
 
 ## Service contract
 
@@ -211,7 +220,7 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - Org membership, invite lifecycle, plan entitlements → **tenant** module
 - Permission evaluation, role bindings, system role seeding → **authz** module
 - Rendering and sending emails → **notification** module (auth just passes `TemplatedNotificationRequest`)
-- WebAuthn — reserved in `MFAFactorType`; not implemented.
+- WebAuthn passwordless (discoverable / usernameless) login — the current flow requires password login first, then offers passkey as the second factor. Full passwordless would need a discoverable credential entry point and a `BeginDiscoverableLogin` wiring; not built yet.
 - OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term.
 
 ## Rules

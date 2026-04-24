@@ -1,12 +1,16 @@
 package auth
 
 import (
+	"context"
 	"log/slog"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	gowebauthn "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/orkestra/backend/internal/core/auth/handlers"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
@@ -21,6 +25,7 @@ type AuthModule struct {
 	authHandler     *handlers.AuthHandler
 	passwordHandler *handlers.PasswordAuthHandler
 	mfaHandler      *handlers.MFAHandler
+	webauthnHandler *handlers.WebAuthnHandler // optional — nil when WebAuthn isn't configured
 }
 
 func NewModule() *AuthModule { return &AuthModule{} }
@@ -282,6 +287,48 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Secure,
 	)
 
+	// WebAuthn — only enabled when the deployment has declared an RP via
+	// env vars. Skipping the wiring is the documented "passkeys disabled"
+	// path; the frontend hides the passkeys UI based on /v1/auth/me/mfa
+	// returning webauthnCredentials=0 and the endpoints simply 404 when
+	// not registered.
+	rpID, rpOrigins := resolveWebAuthnRP(cfg.Server.FrontendURL)
+	if rpID != "" && len(rpOrigins) > 0 {
+		wa, err := gowebauthn.New(&gowebauthn.Config{
+			RPDisplayName: mfaIssuer,
+			RPID:          rpID,
+			RPOrigins:     rpOrigins,
+		})
+		if err != nil {
+			logger.Warn("webauthn disabled — config invalid",
+				slog.String("rpId", rpID),
+				slog.String("error", err.Error()),
+			)
+		} else {
+			webauthnSvc := services.NewWebAuthnService(wa, mfaFactorRepo, mfaChallengeSvc, logger)
+			m.mfaHandler.SetWebAuthn(webauthnSvc)
+			m.webauthnHandler = handlers.NewWebAuthnHandler(
+				webauthnSvc,
+				mfaChallengeSvc,
+				jwtService,
+				userService,
+				passwordAuthSvc,
+				cfg.Auth.Cookie.Name,
+				cfg.Auth.Cookie.Domain,
+				cfg.Auth.Cookie.Secure,
+			)
+			deps.Services.Register(module.ServiceWebAuthn, webauthnSvc)
+			passwordAuthSvc.SetWebAuthnAvailability(webauthnAvailabilityChecker{svc: webauthnSvc})
+			authService.SetWebAuthnAvailability(webauthnAvailabilityChecker{svc: webauthnSvc})
+			logger.Info("webauthn enabled",
+				slog.String("rpId", rpID),
+				slog.Int("rpOrigins", len(rpOrigins)),
+			)
+		}
+	} else {
+		logger.Info("webauthn disabled — WEBAUTHN_RP_ID/WEBAUTHN_RP_ORIGINS not set")
+	}
+
 	// Register services for main.go middleware setup
 	deps.Services.Register(module.ServiceAuthService, authService)
 	deps.Services.Register(module.ServiceJWTService, jwtService)
@@ -319,6 +366,58 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// resolveWebAuthnRP derives the WebAuthn Relying Party ID and origin list
+// from env vars, falling back to the deployment's frontend URL when only
+// one or the other is set. RP ID must be the eTLD+1 host (no scheme, no
+// port, no path) per the W3C spec; origins are the full URL the browser
+// sees in the address bar. Returning empty values disables WebAuthn at
+// boot — the caller logs and skips wiring.
+func resolveWebAuthnRP(frontendURL string) (string, []string) {
+	rpID := strings.TrimSpace(os.Getenv("WEBAUTHN_RP_ID"))
+	originsCSV := strings.TrimSpace(os.Getenv("WEBAUTHN_RP_ORIGINS"))
+
+	var origins []string
+	if originsCSV != "" {
+		for _, o := range strings.Split(originsCSV, ",") {
+			if v := strings.TrimSpace(o); v != "" {
+				origins = append(origins, v)
+			}
+		}
+	}
+
+	// Fallback: if either side is missing, parse the frontend URL.
+	// FRONTEND_URL is already required for OAuth redirects so it's a safe
+	// default for dev (http://localhost:8080 → rpID=localhost).
+	if (rpID == "" || len(origins) == 0) && frontendURL != "" {
+		if u, err := url.Parse(frontendURL); err == nil && u.Host != "" {
+			if rpID == "" {
+				rpID = u.Hostname() // strips port — rpID must not include it
+			}
+			if len(origins) == 0 {
+				// scheme + host (with port if present) — what the browser sends
+				origins = []string{u.Scheme + "://" + u.Host}
+			}
+		}
+	}
+	return rpID, origins
+}
+
+// webauthnAvailabilityChecker adapts the WebAuthnService to the smaller
+// HasWebAuthnCredentials interface that the password / OAuth login services
+// consume. The narrow shape keeps service-to-service coupling minimal —
+// the login services don't need to know about register/verify ceremonies.
+type webauthnAvailabilityChecker struct {
+	svc services.WebAuthnService
+}
+
+func (c webauthnAvailabilityChecker) HasWebAuthnCredentials(ctx context.Context, userUUID string) bool {
+	if c.svc == nil {
+		return false
+	}
+	ok, _ := c.svc.HasCredentials(ctx, userUUID)
+	return ok
 }
 
 func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
@@ -366,6 +465,29 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterAdminRoutes(api)
+		})
+	}
+
+	// WebAuthn endpoints split into three halves, mirroring the TOTP layout:
+	//   - public: /v1/auth/mfa/webauthn/login/{begin,finish} complete a
+	//     paused password/OAuth login that the partial response flagged with
+	//     webauthnAvailable=true.
+	//   - protected (no step-up): register/verify/list — RequireGlobal()
+	//     so the caller is authenticated with a primary factor.
+	//   - protected (step-up): DELETE credentials — pulling a passkey is
+	//     irreversible so demand a <5min OTP/WebAuthn proof first.
+	if m.webauthnHandler != nil {
+		m.webauthnHandler.RegisterPublicRoutes(ri.PublicAPI)
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.webauthnHandler.RegisterProtectedRoutes(api)
+		})
+		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
+			api := humachi.New(r, ri.APIConfig)
+			m.webauthnHandler.RegisterStepUpRoutes(api)
 		})
 	}
 }

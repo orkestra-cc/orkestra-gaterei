@@ -15,6 +15,9 @@ export interface MfaStatusResponse {
   // Deadline by which a user whose role requires MFA must enroll. Absent
   // before the grace clock starts (first privileged login).
   graceExpiresAt?: string | null;
+  // Number of enrolled passkeys. Drives the passkeys card in settings —
+  // the per-credential metadata lives at /v1/auth/me/mfa/webauthn/credentials.
+  webauthnCredentials: number;
 }
 
 export interface MfaEnrollBeginResponse {
@@ -62,3 +65,89 @@ export interface MfaLoginVerifyResponse {
   deviceId?: string;
   user: BackendUser;
 }
+
+// --- WebAuthn ---
+//
+// PublicKey objects are passed through unmodified between backend and
+// browser. Treat them as opaque JSON — the browser's
+// PublicKeyCredentialCreationOptions / PublicKeyCredentialRequestOptions
+// schema is enforced by the W3C library on both sides.
+
+export interface WebAuthnRegisterBeginResponse {
+  challengeId: string;
+  publicKey: PublicKeyCredentialCreationOptionsJSON;
+}
+
+export interface WebAuthnRegisterFinishInput {
+  challengeId: string;
+  name: string;
+  attestationResponse: PublicKeyCredentialJSON;
+}
+
+export interface WebAuthnRegisterFinishResponse {
+  success: boolean;
+  credential: WebAuthnCredentialPublic;
+}
+
+export interface WebAuthnVerifyBeginResponse {
+  challengeId: string;
+  publicKey: PublicKeyCredentialRequestOptionsJSON;
+}
+
+export interface WebAuthnVerifyFinishInput {
+  challengeId: string;
+  assertionResponse: PublicKeyCredentialJSON;
+}
+
+export interface WebAuthnVerifyFinishResponse {
+  success: boolean;
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+}
+
+export interface WebAuthnLoginBeginInput {
+  loginChallengeId: string;
+}
+
+export interface WebAuthnLoginBeginResponse {
+  challengeId: string;
+  publicKey: PublicKeyCredentialRequestOptionsJSON;
+}
+
+export interface WebAuthnLoginFinishInput {
+  loginChallengeId: string;
+  webauthnChallengeId: string;
+  assertionResponse: PublicKeyCredentialJSON;
+}
+
+export interface WebAuthnLoginFinishResponse {
+  success: boolean;
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+  sessionId: string;
+  deviceId?: string;
+  user: BackendUser;
+}
+
+export interface WebAuthnCredentialPublic {
+  credentialId: string; // base64url
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  transports?: string[];
+  backupState?: boolean;
+  cloneWarning?: boolean;
+}
+
+export interface WebAuthnCredentialsListResponse {
+  credentials: WebAuthnCredentialPublic[];
+}
+
+// Loose JSON envelopes for the W3C credential shapes. The browser's actual
+// types live on PublicKeyCredential / AuthenticatorAttestationResponse,
+// which the helpers in store/api/webauthnCodec convert to this JSON form.
+export type PublicKeyCredentialCreationOptionsJSON = Record<string, unknown>;
+export type PublicKeyCredentialRequestOptionsJSON = Record<string, unknown>;
+export type PublicKeyCredentialJSON = Record<string, unknown>;

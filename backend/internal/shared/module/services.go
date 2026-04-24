@@ -34,6 +34,14 @@ const (
 	// the access-token TTL. Value: auth/services.SessionRevocationService.
 	ServiceSessionRevocation ServiceKey = "auth.session_revocation"
 
+	// ServiceWebAuthn is the W3C WebAuthn ceremony orchestrator (registration
+	// + assertion). Registered by the auth module when the deployment has
+	// configured an RP via WEBAUTHN_RP_ID + WEBAUTHN_RP_ORIGINS. Consumers
+	// resolve it to expose passkey enrollment / verification UX. Missing
+	// registration means the deployment chose to disable passkeys entirely.
+	// Value: auth/services.WebAuthnService.
+	ServiceWebAuthn ServiceKey = "auth.webauthn"
+
 	ServiceTenantProvider ServiceKey = "tenant.provider"
 	// ServiceTenantService is the concrete *tenant/services.Service registered
 	// alongside the TenantProvider interface. Compliance consumes it to wire

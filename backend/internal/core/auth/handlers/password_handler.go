@@ -99,9 +99,12 @@ type PasswordLoginResponse struct {
 		ExpiresIn   int64       `json:"expiresIn,omitempty"`
 		User        interface{} `json:"user,omitempty"`
 		// MFA fields: when RequiresMFA is true, AccessToken is empty and the
-		// client must call POST /v1/auth/mfa/login/verify with MFAToken.
+		// client must call POST /v1/auth/mfa/login/verify (TOTP/backup code)
+		// or POST /v1/auth/mfa/webauthn/login/{begin,finish} (passkey) with
+		// MFAToken. WebAuthnAvailable lets the UI offer the passkey button.
 		RequiresMFA           bool        `json:"requiresMfa,omitempty"`
 		MFAToken              string      `json:"mfaToken,omitempty"`
+		WebAuthnAvailable     bool        `json:"webauthnAvailable,omitempty"`
 		MFAEnrollmentRequired bool        `json:"mfaEnrollmentRequired,omitempty"`
 		MFAGraceExpiresAt     interface{} `json:"mfaGraceExpiresAt,omitempty"`
 	}
@@ -126,6 +129,7 @@ func (h *PasswordAuthHandler) Login(ctx context.Context, req *PasswordLoginReque
 	if tokens.RequiresMFA {
 		resp.Body.RequiresMFA = true
 		resp.Body.MFAToken = tokens.MFAToken
+		resp.Body.WebAuthnAvailable = tokens.WebAuthnAvailable
 		resp.Body.User = tokens.User
 		return resp, nil
 	}

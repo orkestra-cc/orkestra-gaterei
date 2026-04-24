@@ -102,6 +102,25 @@ type PasswordAuthService struct {
 	// auditSink is wired post-construction via SetAuditSink by the compliance
 	// module. Nil when compliance is disabled — emit* helpers tolerate that.
 	auditSink iface.AuditSink
+	// webauthnAvailability is the narrow checker the login flow consumes
+	// to populate the partial response's WebAuthnAvailable field. Wired
+	// post-construction because WebAuthn is built later in the same Init.
+	// Nil when WebAuthn is disabled — completeLogin then reports false.
+	webauthnAvailability HasWebAuthnCredentials
+}
+
+// HasWebAuthnCredentials is the narrow contract login flows need from the
+// WebAuthn service: a fast yes/no on whether the user has any passkey
+// enrolled. Decoupled from WebAuthnService so password/OAuth services don't
+// transitively pull the entire ceremony surface into their dependency graph.
+type HasWebAuthnCredentials interface {
+	HasWebAuthnCredentials(ctx context.Context, userUUID string) bool
+}
+
+// SetWebAuthnAvailability wires the optional checker. Safe to call before
+// the first login since both are fully constructed during module Init.
+func (s *PasswordAuthService) SetWebAuthnAvailability(c HasWebAuthnCredentials) {
+	s.webauthnAvailability = c
 }
 
 // NewPasswordAuthService builds a new password auth service.
@@ -411,36 +430,43 @@ func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModel
 		return s.issueTokens(ctx, user, in, sourceAMR, 0)
 	}
 
-	// Privileged user: check enrollment.
+	// Privileged user: check enrollment. We treat "has TOTP" OR "has at
+	// least one passkey" as enrolled — either factor satisfies the partial
+	// response. WebAuthnAvailable on the response tells the UI whether to
+	// offer the passkey button alongside the code field.
+	hasTOTP := false
 	if s.mfaFactorRepo != nil {
 		factor, err := s.mfaFactorRepo.FindByUserAndType(ctx, user.UUID, authModels.MFAFactorTOTP)
 		if err == nil && factor != nil {
-			// Factor enrolled — partial response; client must complete MFA.
-			if s.mfaChallengeService == nil {
-				return nil, fmt.Errorf("mfa challenge service not wired")
-			}
-			ch, err := s.mfaChallengeService.BeginLogin(ctx, LoginChallengeInput{
-				UserUUID:  user.UUID,
-				SourceAMR: sourceAMR,
-				DeviceID:  in.DeviceID,
-				Platform:  in.Platform,
-				IPAddress: in.IP,
-			})
-			if err != nil {
-				return nil, err
-			}
-			return &authModels.TokenResponse{
-				RequiresMFA: true,
-				MFAToken:    ch.ID,
-				User:        user.ToResponse(),
-			}, nil
-		}
-		// FindByUserAndType returned ErrMFAFactorNotFound or another error.
-		// Treat not-found as "no factor" and fall through to grace logic;
-		// any other error is surfaced.
-		if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			hasTOTP = true
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
 			return nil, err
 		}
+	}
+	hasWebAuthn := false
+	if s.webauthnAvailability != nil {
+		hasWebAuthn = s.webauthnAvailability.HasWebAuthnCredentials(ctx, user.UUID)
+	}
+	if hasTOTP || hasWebAuthn {
+		if s.mfaChallengeService == nil {
+			return nil, fmt.Errorf("mfa challenge service not wired")
+		}
+		ch, err := s.mfaChallengeService.BeginLogin(ctx, LoginChallengeInput{
+			UserUUID:  user.UUID,
+			SourceAMR: sourceAMR,
+			DeviceID:  in.DeviceID,
+			Platform:  in.Platform,
+			IPAddress: in.IP,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &authModels.TokenResponse{
+			RequiresMFA:       true,
+			MFAToken:          ch.ID,
+			WebAuthnAvailable: hasWebAuthn,
+			User:              user.ToResponse(),
+		}, nil
 	}
 
 	// Privileged, no factor → grace logic.

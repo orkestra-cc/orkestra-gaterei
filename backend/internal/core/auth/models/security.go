@@ -102,6 +102,11 @@ type TokenResponse struct {
 	// MFAToken via POST /v1/auth/mfa/login/verify.
 	RequiresMFA bool   `json:"requiresMfa,omitempty"`
 	MFAToken    string `json:"mfaToken,omitempty"`
+	// WebAuthnAvailable hints to the client whether a passkey path exists
+	// alongside the TOTP code prompt. The frontend uses it to decide whether
+	// to render the "Use a passkey instead" button on /mfa/verify. Set only
+	// when RequiresMFA=true and the user has at least one enrolled credential.
+	WebAuthnAvailable bool `json:"webauthnAvailable,omitempty"`
 	// MFAEnrollmentRequired indicates a privileged user logged in without
 	// an enrolled factor. The token is issued (so they can enroll) but the
 	// client should redirect to the enrollment flow.

@@ -120,7 +120,12 @@ export const useAuth = () => {
       // can hydrate session state. Return early so the useAuthRTK consumer
       // can decide what to do (EmailPasswordForm handles the nav itself).
       if (result.requiresMfa) {
-        return { success: true, requiresMfa: true, mfaToken: result.mfaToken };
+        return {
+          success: true,
+          requiresMfa: true,
+          mfaToken: result.mfaToken,
+          webauthnAvailable: result.webauthnAvailable ?? false,
+        };
       }
 
       // Sync successful login with Redux state

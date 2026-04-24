@@ -3,30 +3,49 @@ import { Alert, Button, Card, Form } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthCardLayout from 'layouts/AuthCardLayout';
 import { useAppDispatch } from 'store/hooks';
-import { useLoginVerifyMfaMutation } from 'store/api/mfaApi';
+import {
+  useLoginVerifyMfaMutation,
+  useWebAuthnLoginBeginMutation,
+  useWebAuthnLoginFinishMutation,
+} from 'store/api/mfaApi';
+import {
+  browserSupportsWebAuthn,
+  decodeRequestOptions,
+  encodeAssertion,
+} from 'store/api/webauthnCodec';
 import { login as loginAction } from 'store/slices/authSlice';
 
 interface LocationState {
   challengeId?: string;
   email?: string;
+  webauthnAvailable?: boolean;
 }
 
 /**
  * Completes a login that paused on the MFA challenge. The caller arrives
- * here from EmailPasswordForm with `state.challengeId` set; we POST the
- * user's TOTP or backup code and — on success — hydrate the auth slice
- * exactly like a direct login would.
+ * here from EmailPasswordForm with `state.challengeId` set; we either:
+ *   - POST a TOTP / backup code to /v1/auth/mfa/login/verify, or
+ *   - run the WebAuthn assertion ceremony when state.webauthnAvailable
+ *     and the user picks "Use a passkey".
+ *
+ * Both branches dispatch loginAction with the same BackendUser shape so
+ * downstream consumers don't care which factor satisfied the partial.
  */
 const LoginMfaVerify = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const location = useLocation();
   const state = (location.state ?? {}) as LocationState;
+  const passkeyOffered = !!state.webauthnAvailable && browserSupportsWebAuthn();
 
   const [code, setCode] = useState('');
   const [useBackup, setUseBackup] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+
   const [verify, { isLoading }] = useLoginVerifyMfaMutation();
+  const [waBegin] = useWebAuthnLoginBeginMutation();
+  const [waFinish] = useWebAuthnLoginFinishMutation();
 
   // Without a challenge id we cannot complete the flow — bounce back.
   useEffect(() => {
@@ -64,6 +83,38 @@ const LoginMfaVerify = () => {
     }
   };
 
+  const handlePasskey = async () => {
+    setLocalError(null);
+    if (!state.challengeId) return;
+    setPasskeyBusy(true);
+    try {
+      const beginRes = await waBegin({ loginChallengeId: state.challengeId }).unwrap();
+      const opts = decodeRequestOptions(beginRes.publicKey);
+      const cred = (await navigator.credentials.get({ publicKey: opts })) as PublicKeyCredential | null;
+      if (!cred) {
+        setPasskeyBusy(false);
+        return;
+      }
+      const finishRes = await waFinish({
+        loginChallengeId: state.challengeId,
+        webauthnChallengeId: beginRes.challengeId,
+        assertionResponse: encodeAssertion(cred),
+      }).unwrap();
+      dispatch(loginAction({ userData: finishRes.user }));
+      navigate('/dashboard/analytics');
+    } catch (err: unknown) {
+      const anyErr = err as { name?: string; status?: number; data?: { detail?: string } };
+      if (anyErr?.name === 'NotAllowedError') {
+        setLocalError('The passkey prompt was cancelled or timed out.');
+      } else if (anyErr?.status === 401) {
+        setLocalError('Passkey verification failed. Try again or use your authenticator app.');
+      } else {
+        setLocalError(anyErr?.data?.detail ?? 'Could not complete passkey sign-in.');
+      }
+      setPasskeyBusy(false);
+    }
+  };
+
   return (
     <AuthCardLayout>
       <Card>
@@ -81,6 +132,15 @@ const LoginMfaVerify = () => {
           <Alert variant="danger" className="mb-3" onClose={() => setLocalError(null)} dismissible>
             {localError}
           </Alert>
+        )}
+
+        {passkeyOffered && (
+          <div className="d-grid mb-3">
+            <Button variant="outline-primary" size="lg" disabled={passkeyBusy} onClick={handlePasskey}>
+              {passkeyBusy ? 'Waiting for passkey…' : 'Use a passkey'}
+            </Button>
+            <div className="text-center text-muted fs-10 mt-2">or</div>
+          </div>
         )}
 
         <Form onSubmit={handleSubmit} noValidate>

@@ -63,6 +63,9 @@ export interface PasswordLoginResponse {
   // complete the flow — no session cookies are set until then.
   requiresMfa?: boolean;
   mfaToken?: string;
+  // True when the user has at least one enrolled passkey alongside (or
+  // instead of) TOTP. Drives the "Use a passkey" button on /mfa/verify.
+  webauthnAvailable?: boolean;
   // Populated when the account's role requires MFA but none is enrolled.
   // The caller receives a full token (grace window) but must enroll before
   // mfaGraceExpiresAt.

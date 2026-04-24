@@ -8,6 +8,17 @@ import type {
   MfaVerifyResponse,
   MfaLoginVerifyInput,
   MfaLoginVerifyResponse,
+  WebAuthnRegisterBeginResponse,
+  WebAuthnRegisterFinishInput,
+  WebAuthnRegisterFinishResponse,
+  WebAuthnVerifyBeginResponse,
+  WebAuthnVerifyFinishInput,
+  WebAuthnVerifyFinishResponse,
+  WebAuthnLoginBeginInput,
+  WebAuthnLoginBeginResponse,
+  WebAuthnLoginFinishInput,
+  WebAuthnLoginFinishResponse,
+  WebAuthnCredentialsListResponse,
 } from 'types/mfa';
 import { setAccessToken } from '../slices/authSlice';
 
@@ -125,6 +136,106 @@ export const mfaApi = baseApi.injectEndpoints({
         }
       },
     }),
+
+    // --- WebAuthn ---
+    //
+    // Each ceremony is two-step (Begin → browser API call → Finish). The
+    // begin endpoints return the W3C JSON the browser needs; the finish
+    // endpoints accept the encoded credential JSON returned by the API.
+
+    webAuthnRegisterBegin: builder.mutation<WebAuthnRegisterBeginResponse, void>({
+      query: () => ({
+        url: 'v1/auth/mfa/webauthn/register/begin',
+        method: 'POST',
+      }),
+      transformResponse: (res: unknown) => unwrap<WebAuthnRegisterBeginResponse>(res),
+    }),
+    webAuthnRegisterFinish: builder.mutation<WebAuthnRegisterFinishResponse, WebAuthnRegisterFinishInput>({
+      query: (body) => ({
+        url: 'v1/auth/mfa/webauthn/register/finish',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['MFA'],
+      transformResponse: (res: unknown) => unwrap<WebAuthnRegisterFinishResponse>(res),
+    }),
+
+    webAuthnList: builder.query<WebAuthnCredentialsListResponse, void>({
+      query: () => 'v1/auth/me/mfa/webauthn/credentials',
+      providesTags: ['MFA'],
+      transformResponse: (res: unknown) => unwrap<WebAuthnCredentialsListResponse>(res),
+    }),
+
+    // Step-up gated server-side; if the caller hasn't recently re-verified
+    // the global StepUpModal will intercept the 401 and replay this DELETE.
+    webAuthnRemove: builder.mutation<{ success: boolean }, { credentialId: string }>({
+      query: ({ credentialId }) => ({
+        url: `v1/auth/me/mfa/webauthn/credentials/${encodeURIComponent(credentialId)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['MFA'],
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+    }),
+
+    webAuthnVerifyBegin: builder.mutation<WebAuthnVerifyBeginResponse, void>({
+      query: () => ({
+        url: 'v1/auth/mfa/webauthn/verify/begin',
+        method: 'POST',
+      }),
+      transformResponse: (res: unknown) => unwrap<WebAuthnVerifyBeginResponse>(res),
+    }),
+    webAuthnVerifyFinish: builder.mutation<WebAuthnVerifyFinishResponse, WebAuthnVerifyFinishInput>({
+      query: (body) => ({
+        url: 'v1/auth/mfa/webauthn/verify/finish',
+        method: 'POST',
+        body,
+      }),
+      transformResponse: (res: unknown) => unwrap<WebAuthnVerifyFinishResponse>(res),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.accessToken && data?.expiresIn) {
+            dispatch(setAccessToken({
+              accessToken: data.accessToken,
+              expiresIn: data.expiresIn,
+            }));
+          }
+        } catch {
+          // handled by the mutation consumer
+        }
+      },
+    }),
+
+    webAuthnLoginBegin: builder.mutation<WebAuthnLoginBeginResponse, WebAuthnLoginBeginInput>({
+      query: (body) => ({
+        url: 'v1/auth/mfa/webauthn/login/begin',
+        method: 'POST',
+        body,
+      }),
+      transformResponse: (res: unknown) => unwrap<WebAuthnLoginBeginResponse>(res),
+    }),
+    webAuthnLoginFinish: builder.mutation<WebAuthnLoginFinishResponse, WebAuthnLoginFinishInput>({
+      query: (body) => ({
+        url: 'v1/auth/mfa/webauthn/login/finish',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['User', 'Navigation'],
+      transformResponse: (res: unknown) => unwrap<WebAuthnLoginFinishResponse>(res),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.accessToken && data?.expiresIn) {
+            dispatch(setAccessToken({
+              accessToken: data.accessToken,
+              expiresIn: data.expiresIn,
+            }));
+          }
+        } catch {
+          // handled by the mutation consumer
+        }
+      },
+    }),
   }),
   overrideExisting: false,
 });
@@ -137,4 +248,12 @@ export const {
   useRemoveMfaMutation,
   useLoginVerifyMfaMutation,
   useAdminResetUserMfaMutation,
+  useWebAuthnRegisterBeginMutation,
+  useWebAuthnRegisterFinishMutation,
+  useWebAuthnListQuery,
+  useWebAuthnRemoveMutation,
+  useWebAuthnVerifyBeginMutation,
+  useWebAuthnVerifyFinishMutation,
+  useWebAuthnLoginBeginMutation,
+  useWebAuthnLoginFinishMutation,
 } = mfaApi;

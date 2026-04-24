@@ -30,6 +30,7 @@ type MFAHandler struct {
 	jwt          services.JWTService
 	users        iface.UserProvider
 	tokens       LoginTokenIssuer
+	webauthn     services.WebAuthnService // optional — populated when WebAuthn is configured
 	cookieName   string
 	cookieDomain string
 	cookieSecure bool
@@ -59,6 +60,13 @@ func NewMFAHandler(
 		cookieDomain: cookieDomain,
 		cookieSecure: cookieSecure,
 	}
+}
+
+// SetWebAuthn lets the wiring layer attach the WebAuthn service after
+// construction so MFAStatus can report passkey count alongside TOTP
+// state. Optional — nil keeps the legacy TOTP-only response shape.
+func (h *MFAHandler) SetWebAuthn(wa services.WebAuthnService) {
+	h.webauthn = wa
 }
 
 // --- Enrollment ---
@@ -137,6 +145,11 @@ type MFAStatusResponse struct {
 		// record's MFAGraceStartedAt so it survives page reloads (unlike the
 		// one-shot field in the login response).
 		GraceExpiresAt *time.Time `json:"graceExpiresAt,omitempty"`
+		// WebAuthnCredentials is the count of enrolled passkeys; the
+		// settings UI uses this to decide whether to render the passkeys
+		// card and to compose the per-credential management list (the
+		// per-credential metadata lives at /v1/auth/me/mfa/webauthn/credentials).
+		WebAuthnCredentials int `json:"webauthnCredentials"`
 	}
 }
 
@@ -169,6 +182,21 @@ func (h *MFAHandler) Status(ctx context.Context, _ *struct{}) (*MFAStatusRespons
 			resp.Body.RequiresMFA = true
 			if deadline := services.GraceExpiresAt(user); !deadline.IsZero() {
 				resp.Body.GraceExpiresAt = &deadline
+			}
+		}
+	}
+
+	// Best-effort WebAuthn credential count. Same defensive pattern as the
+	// role check above — a service-layer failure must not blank the TOTP
+	// status the user has already.
+	if h.webauthn != nil {
+		if creds, err := h.webauthn.ListCredentials(ctx, userUUID); err == nil {
+			resp.Body.WebAuthnCredentials = len(creds)
+			// Promote status to "enrolled" if a passkey is present even when
+			// no TOTP factor exists — avoids the banner showing "not_required"
+			// for a user who has only registered passkeys.
+			if len(creds) > 0 && resp.Body.Status == string(authModels.MFAStatusNotRequired) {
+				resp.Body.Status = string(authModels.MFAStatusEnrolled)
 			}
 		}
 	}

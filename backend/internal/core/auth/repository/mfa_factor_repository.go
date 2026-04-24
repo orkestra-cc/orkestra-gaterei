@@ -5,9 +5,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // ErrMFAFactorNotFound signals that no matching factor exists for the user.
@@ -32,6 +34,22 @@ type MFAFactorRepository interface {
 	// Used by the GDPR DSR right-to-erasure pipeline — the rows contain
 	// encrypted TOTP secrets and hashed backup codes tied to userUUID.
 	DeleteAllByUser(ctx context.Context, userUUID string) (int64, error)
+
+	// AppendWebAuthnCredential upserts the user's webauthn factor row and
+	// pushes the new credential into its embedded list. Implementation is
+	// idempotent on the (userUuid, type=webauthn) document, so the first
+	// caller creates the row, subsequent callers extend it.
+	AppendWebAuthnCredential(ctx context.Context, userUUID string, cred models.WebAuthnCredential) error
+	// UpdateWebAuthnCredential atomically updates a single embedded
+	// credential's sign counter, last-used timestamp, and clone-warning
+	// flag, matched by credentialId. Returns (true, nil) on a successful
+	// write; (false, nil) when no document matched (already removed).
+	UpdateWebAuthnCredential(ctx context.Context, userUUID string, credentialID []byte, signCount uint32, when time.Time, cloneWarning bool) (bool, error)
+	// RemoveWebAuthnCredential pulls one credential by ID from the user's
+	// webauthn factor row. When the resulting list is empty the row is
+	// deleted so MFAStatus reverts to not-enrolled. Returns (true, nil)
+	// when a credential was removed.
+	RemoveWebAuthnCredential(ctx context.Context, userUUID string, credentialID []byte) (bool, error)
 }
 
 type mfaFactorRepository struct {
@@ -123,4 +141,81 @@ func (r *mfaFactorRepository) DeleteAllByUser(ctx context.Context, userUUID stri
 		return 0, err
 	}
 	return res.DeletedCount, nil
+}
+
+// AppendWebAuthnCredential upserts the (userUuid, webauthn) row and pushes
+// a credential. The upsert keeps creation idempotent — the first call mints
+// the row with CreatedAt=now, subsequent calls only $push. SetOnInsert is
+// what makes the upsert distinguishable from the $push update path.
+func (r *mfaFactorRepository) AppendWebAuthnCredential(ctx context.Context, userUUID string, cred models.WebAuthnCredential) error {
+	if cred.CreatedAt.IsZero() {
+		cred.CreatedAt = time.Now()
+	}
+	now := time.Now()
+	filter := bson.M{"userUuid": userUUID, "type": models.MFAFactorWebAuthn}
+	update := bson.M{
+		"$push": bson.M{"webauthnCredentials": cred},
+		"$setOnInsert": bson.M{
+			"uuid":       uuid.NewString(),
+			"userUuid":   userUUID,
+			"type":       models.MFAFactorWebAuthn,
+			"createdAt":  now,
+			"verifiedAt": now,
+		},
+	}
+	opts := options.Update().SetUpsert(true)
+	_, err := r.coll.UpdateOne(ctx, filter, update, opts)
+	return err
+}
+
+// UpdateWebAuthnCredential bumps a credential's sign counter, last-used
+// time, and clone-warning flag in place. Positional operator $ targets the
+// matched array element (the credentialId predicate filters by raw bytes).
+func (r *mfaFactorRepository) UpdateWebAuthnCredential(ctx context.Context, userUUID string, credentialID []byte, signCount uint32, when time.Time, cloneWarning bool) (bool, error) {
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{
+			"userUuid":                          userUUID,
+			"type":                              models.MFAFactorWebAuthn,
+			"webauthnCredentials.credentialId":  credentialID,
+		},
+		bson.M{"$set": bson.M{
+			"webauthnCredentials.$.signCount":    signCount,
+			"webauthnCredentials.$.lastUsedAt":   when,
+			"webauthnCredentials.$.cloneWarning": cloneWarning,
+			"lastUsedAt":                         when,
+		}},
+	)
+	if err != nil {
+		return false, err
+	}
+	return res.ModifiedCount > 0, nil
+}
+
+// RemoveWebAuthnCredential pulls a credential by ID. When the resulting
+// list is empty the row is deleted so subsequent Status calls return
+// not-enrolled — keeping an empty webauthn row would lie to the policy
+// check at login time.
+func (r *mfaFactorRepository) RemoveWebAuthnCredential(ctx context.Context, userUUID string, credentialID []byte) (bool, error) {
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{"userUuid": userUUID, "type": models.MFAFactorWebAuthn},
+		bson.M{"$pull": bson.M{"webauthnCredentials": bson.M{"credentialId": credentialID}}},
+	)
+	if err != nil {
+		return false, err
+	}
+	if res.ModifiedCount == 0 {
+		return false, nil
+	}
+
+	// If the array is now empty, drop the row so the user reverts to
+	// not-enrolled. We do this in a follow-up read+delete because Mongo
+	// has no atomic "pull and delete-if-empty" — the worst-case race here
+	// is leaving an empty row briefly, which still reports correctly via
+	// the credential count check at the service layer.
+	var doc models.MFAFactorDoc
+	err = r.coll.FindOne(ctx, bson.M{"userUuid": userUUID, "type": models.MFAFactorWebAuthn}).Decode(&doc)
+	if err == nil && len(doc.WebAuthnCredentials) == 0 {
+		_, _ = r.coll.DeleteOne(ctx, bson.M{"uuid": doc.UUID})
+	}
+	return true, nil
 }

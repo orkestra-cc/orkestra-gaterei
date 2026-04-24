@@ -72,14 +72,37 @@ func (p *piiProducer) ExportPersonalData(ctx context.Context, userUUID string) (
 	if p.mfa != nil {
 		// Report factor presence and type without exposing the encrypted
 		// secret. The user already knows they've enrolled; the secret is
-		// only useful server-side.
-		if factor, err := p.mfa.FindByUserAndType(ctx, userUUID, authModels.MFAFactorTOTP); err == nil && factor != nil {
-			out["mfaFactors"] = []map[string]any{{
-				"type":                 string(factor.Type),
-				"createdAt":            factor.CreatedAt,
-				"lastUsedAt":           factor.LastUsedAt,
-				"backupCodesRemaining": len(factor.BackupCodesHashed),
-			}}
+		// only useful server-side. WebAuthn credentials are reported as
+		// per-credential metadata so the user can recognise their devices
+		// in the export — public keys and counters carry no PII risk.
+		factors := []map[string]any{}
+		if totp, err := p.mfa.FindByUserAndType(ctx, userUUID, authModels.MFAFactorTOTP); err == nil && totp != nil {
+			factors = append(factors, map[string]any{
+				"type":                 string(totp.Type),
+				"createdAt":            totp.CreatedAt,
+				"lastUsedAt":           totp.LastUsedAt,
+				"backupCodesRemaining": len(totp.BackupCodesHashed),
+			})
+		}
+		if wa, err := p.mfa.FindByUserAndType(ctx, userUUID, authModels.MFAFactorWebAuthn); err == nil && wa != nil {
+			creds := make([]map[string]any, 0, len(wa.WebAuthnCredentials))
+			for _, c := range wa.WebAuthnCredentials {
+				creds = append(creds, map[string]any{
+					"name":       c.Name,
+					"createdAt":  c.CreatedAt,
+					"lastUsedAt": c.LastUsedAt,
+					"transports": c.Transports,
+				})
+			}
+			factors = append(factors, map[string]any{
+				"type":        string(wa.Type),
+				"createdAt":   wa.CreatedAt,
+				"lastUsedAt":  wa.LastUsedAt,
+				"credentials": creds,
+			})
+		}
+		if len(factors) > 0 {
+			out["mfaFactors"] = factors
 		}
 	}
 

@@ -73,6 +73,12 @@ type AuthService interface {
 	MigrateAllUsersToUUID(ctx context.Context) (int, error)
 	ConvertOAuthLinksToNewFormat(ctx context.Context, userUUID string) error
 
+	// SetWebAuthnAvailability wires the optional passkey-availability checker
+	// post-construction. The OAuth login branch consumes it to populate the
+	// partial response's WebAuthnAvailable hint. Mirrors the same setter on
+	// PasswordAuthService — both login paths must surface the field uniformly.
+	SetWebAuthnAvailability(c HasWebAuthnCredentials)
+
 	// Enhanced OAuth callback handling with account linking
 	HandleOAuthCallbackWithLinking(ctx context.Context, provider models.OAuthProvider, userInfo map[string]interface{}, oauthTokens *models.OAuthProviderTokens, securityCtx *models.SecurityContext, deviceInfo *models.DeviceInfo) (*models.TokenResponse, error)
 }
@@ -102,6 +108,17 @@ type authService struct {
 	mfaFactorRepo       repository.MFAFactorRepository
 	mfaChallengeService MFAChallengeService
 	firstAdminClaimer   FirstAdminClaimer
+	// webauthnAvailability is wired post-construction so the OAuth login
+	// branch can flag passkey availability on the partial response. Nil
+	// when WebAuthn is disabled — falls back to TOTP-only behavior.
+	webauthnAvailability HasWebAuthnCredentials
+}
+
+// SetWebAuthnAvailability wires the optional checker. Mirrors the same
+// setter on PasswordAuthService so both login paths surface
+// WebAuthnAvailable identically.
+func (s *authService) SetWebAuthnAvailability(c HasWebAuthnCredentials) {
+	s.webauthnAvailability = c
 }
 
 // NewAuthService creates a new auth service
@@ -994,8 +1011,18 @@ func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.
 		return nil, false, nil
 	}
 
+	hasTOTP := false
 	factor, err := s.mfaFactorRepo.FindByUserAndType(ctx, user.UUID, models.MFAFactorTOTP)
 	if err == nil && factor != nil {
+		hasTOTP = true
+	} else if err != nil && !errors.Is(err, repository.ErrMFAFactorNotFound) {
+		return nil, true, err
+	}
+	hasWebAuthn := false
+	if s.webauthnAvailability != nil {
+		hasWebAuthn = s.webauthnAvailability.HasWebAuthnCredentials(ctx, user.UUID)
+	}
+	if hasTOTP || hasWebAuthn {
 		in := LoginChallengeInput{
 			UserUUID:  user.UUID,
 			SourceAMR: []string{"oauth"},
@@ -1013,13 +1040,11 @@ func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.
 			return nil, true, err
 		}
 		return &models.TokenResponse{
-			RequiresMFA: true,
-			MFAToken:    ch.ID,
-			User:        user.ToResponse(),
+			RequiresMFA:       true,
+			MFAToken:          ch.ID,
+			WebAuthnAvailable: hasWebAuthn,
+			User:              user.ToResponse(),
 		}, true, nil
-	}
-	if err != nil && !errors.Is(err, repository.ErrMFAFactorNotFound) {
-		return nil, true, err
 	}
 
 	// Privileged user without a factor → grace window.

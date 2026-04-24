@@ -29,7 +29,11 @@ const EmailPasswordForm = () => {
       // and send the user to the verify page with the challenge id.
       if (result.requiresMfa && result.mfaToken) {
         navigate('/mfa/verify', {
-          state: { challengeId: result.mfaToken, email },
+          state: {
+            challengeId: result.mfaToken,
+            email,
+            webauthnAvailable: result.webauthnAvailable ?? false,
+          },
         });
         return;
       }
