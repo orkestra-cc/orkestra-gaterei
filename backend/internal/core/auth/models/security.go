@@ -43,6 +43,12 @@ type SecurityContext struct {
 	// LastOTPAt is the unix timestamp of the last successful OTP step.
 	// Drives step-up auth freshness checks (Block D).
 	LastOTPAt int64 `json:"lastOtpAt,omitempty" bson:"-"`
+	// Fingerprint is the device fingerprint for the current request.
+	// Populated by the login/refresh path so the risk scorer can detect
+	// new_device_fingerprint without a separate parameter on every
+	// service method. Not persisted — the fingerprint lives on
+	// AuthSessionDoc.DeviceInfo.Fingerprint once the session is created.
+	Fingerprint string `json:"fingerprint,omitempty" bson:"-"`
 }
 
 // RiskAssessment contains detailed risk analysis results

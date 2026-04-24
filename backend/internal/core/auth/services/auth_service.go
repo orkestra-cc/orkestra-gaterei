@@ -95,6 +95,11 @@ type AuthConfig struct {
 	MFAFactorRepo       repository.MFAFactorRepository // nil disables MFA gating (tests/minimal)
 	MFAChallengeService MFAChallengeService            // required alongside MFAFactorRepo
 	FirstAdminClaimer   FirstAdminClaimer              // race-proofs first-user super_admin on OAuth signup
+	// RiskAssessment scores login + refresh attempts against the user's
+	// session history. Nil falls back to a zero-score stub so tests and
+	// minimal deploys don't need the full scorer plumbed. Section C item
+	// #1 of the 2026-04-24 auth roadmap.
+	RiskAssessment RiskAssessmentService
 }
 
 type authService struct {
@@ -108,6 +113,7 @@ type authService struct {
 	mfaFactorRepo       repository.MFAFactorRepository
 	mfaChallengeService MFAChallengeService
 	firstAdminClaimer   FirstAdminClaimer
+	riskAssessment      RiskAssessmentService
 	// webauthnAvailability is wired post-construction so the OAuth login
 	// branch can flag passkey availability on the partial response. Nil
 	// when WebAuthn is disabled — falls back to TOTP-only behavior.
@@ -134,6 +140,7 @@ func NewAuthService(config *AuthConfig) (AuthService, error) {
 		mfaFactorRepo:       config.MFAFactorRepo,
 		mfaChallengeService: config.MFAChallengeService,
 		firstAdminClaimer:   config.FirstAdminClaimer,
+		riskAssessment:      config.RiskAssessment,
 	}, nil
 }
 
@@ -644,12 +651,18 @@ func (s *authService) ValidateTokenWithRiskAssessment(ctx context.Context, token
 }
 
 func (s *authService) AssessLoginRisk(ctx context.Context, userUUID string, securityCtx *models.SecurityContext) (*models.RiskAssessment, error) {
-	return &models.RiskAssessment{
-		Score:      0.0,
-		Level:      "low",
-		Factors:    []models.RiskFactor{},
-		AssessedAt: time.Now(),
-	}, nil
+	if s.riskAssessment == nil {
+		// Degenerate deployments (tests, setup-time first admin) run
+		// without a scorer wired. Returning a zero assessment keeps the
+		// surface consistent without forcing every caller to nil-check.
+		return &models.RiskAssessment{
+			Score:      0.0,
+			Level:      RiskLevelLow,
+			Factors:    []models.RiskFactor{},
+			AssessedAt: time.Now(),
+		}, nil
+	}
+	return s.riskAssessment.AssessLoginRisk(ctx, userUUID, securityCtx)
 }
 
 func (s *authService) RecordSecurityEvent(ctx context.Context, event *models.SecurityEvent) error {

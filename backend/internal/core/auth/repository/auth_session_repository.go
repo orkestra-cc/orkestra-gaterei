@@ -48,6 +48,19 @@ type AuthSessionRepository interface {
 	// Security monitoring
 	GetRecentSecurityEvents(ctx context.Context, userUUID string, eventType string, since time.Time) ([]*models.SecurityEventLog, error)
 	GetSuspiciousSessions(ctx context.Context, userUUID string) ([]*models.AuthSessionDoc, error)
+
+	// Risk signal lookups — Section C item #1 of the 2026-04-24 auth roadmap.
+	// Each method is bounded by a `since` cutoff so the counts stay cheap
+	// regardless of account age. Callers pass time.Now().Add(-180*24h) for a
+	// rolling 6-month baseline; tests can pass time.Time{} to count across
+	// the entire collection.
+	CountSessionsByUserAndFingerprint(ctx context.Context, userUUID, fingerprint string, since time.Time) (int64, error)
+	CountSessionsByUserAndIP(ctx context.Context, userUUID, ip string, since time.Time) (int64, error)
+	// GetMostRecentSessionByUser returns the latest session regardless of
+	// active state (including terminated ones) so the risk scorer can
+	// detect a rapid IP change across back-to-back logins even when the
+	// prior session was already revoked.
+	GetMostRecentSessionByUser(ctx context.Context, userUUID string) (*models.AuthSessionDoc, error)
 }
 
 type SessionStats struct {
@@ -700,4 +713,69 @@ func (r *authSessionRepository) GetSuspiciousSessions(ctx context.Context, userU
 	}
 
 	return sessions, nil
+}
+
+// CountSessionsByUserAndFingerprint returns how many sessions the user
+// has previously opened from the given device fingerprint, optionally
+// bounded by a cutoff. Zero means "this fingerprint is new to the user"
+// — the signal the risk scorer turns into new_device_fingerprint.
+func (r *authSessionRepository) CountSessionsByUserAndFingerprint(ctx context.Context, userUUID, fingerprint string, since time.Time) (int64, error) {
+	if userUUID == "" || fingerprint == "" {
+		return 0, nil
+	}
+	filter := bson.M{
+		"userUuid":               userUUID,
+		"deviceInfo.fingerprint": fingerprint,
+	}
+	if !since.IsZero() {
+		filter["createdAt"] = bson.M{"$gte": since}
+	}
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count sessions by fingerprint: %w", err)
+	}
+	return count, nil
+}
+
+// CountSessionsByUserAndIP returns how many sessions the user has opened
+// from the given IP address, optionally bounded by a cutoff. Zero means
+// "this IP is new to the user" — the signal the risk scorer turns into
+// new_ip.
+func (r *authSessionRepository) CountSessionsByUserAndIP(ctx context.Context, userUUID, ip string, since time.Time) (int64, error) {
+	if userUUID == "" || ip == "" {
+		return 0, nil
+	}
+	filter := bson.M{
+		"userUuid":  userUUID,
+		"ipAddress": ip,
+	}
+	if !since.IsZero() {
+		filter["createdAt"] = bson.M{"$gte": since}
+	}
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count sessions by ip: %w", err)
+	}
+	return count, nil
+}
+
+// GetMostRecentSessionByUser returns the single latest session for the
+// user, sorted by createdAt descending. Includes terminated sessions so
+// the rapid_ip_change factor can compare against the prior login even
+// when it's already been revoked. Returns (nil, nil) when the user has
+// no session history (first-ever login).
+func (r *authSessionRepository) GetMostRecentSessionByUser(ctx context.Context, userUUID string) (*models.AuthSessionDoc, error) {
+	if userUUID == "" {
+		return nil, nil
+	}
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	var result models.AuthSessionDoc
+	err := r.collection.FindOne(ctx, bson.M{"userUuid": userUUID}, opts).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find most recent session: %w", err)
+	}
+	return &result, nil
 }

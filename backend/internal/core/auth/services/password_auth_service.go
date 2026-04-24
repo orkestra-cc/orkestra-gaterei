@@ -65,6 +65,7 @@ type PasswordAuthConfig struct {
 	MFAFactorRepo            repository.MFAFactorRepository  // required: decides partial vs full response
 	MFAChallengeService      MFAChallengeService             // required: mints login-continuation challenges
 	FirstAdminClaimer        FirstAdminClaimer               // required: atomic first-admin claim
+	RiskAssessment           RiskAssessmentService           // nil → session gets zero-score; mandatory in prod
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string
@@ -87,6 +88,7 @@ type PasswordAuthService struct {
 	mfaFactorRepo            repository.MFAFactorRepository
 	mfaChallengeService      MFAChallengeService
 	firstAdminClaimer        FirstAdminClaimer
+	riskAssessment           RiskAssessmentService
 	notifier                 iface.NotificationSender
 	rateLimiter              *sharederrors.RateLimiter
 	frontendURL              string
@@ -136,6 +138,7 @@ func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 		mfaFactorRepo:            cfg.MFAFactorRepo,
 		mfaChallengeService:      cfg.MFAChallengeService,
 		firstAdminClaimer:        cfg.FirstAdminClaimer,
+		riskAssessment:           cfg.RiskAssessment,
 		notifier:                 cfg.Notifier,
 		rateLimiter:              cfg.RateLimiter,
 		frontendURL:              cfg.FrontendURL,
@@ -885,6 +888,37 @@ func (s *PasswordAuthService) createSessionDoc(ctx context.Context, user *userMo
 		return nil
 	}
 	now := time.Now()
+	// Compute login risk against the user's session history BEFORE
+	// inserting the new row — otherwise the just-created session would
+	// count as its own "prior" and the counts come back ≥1 for every
+	// factor. Score/trust fall back to the pre-C1 defaults
+	// (0.1 / "medium") when the scorer isn't wired.
+	riskScore := 0.1
+	trustLevel := "medium"
+	if s.riskAssessment != nil {
+		assessment, err := s.riskAssessment.AssessLoginRisk(ctx, user.UUID, &authModels.SecurityContext{
+			IPAddress: ip,
+			Timestamp: now,
+			// Fingerprint is not computed for password logins today; the
+			// refresh token records the literal "password-login" placeholder.
+			// Mobile/OAuth paths thread a real fingerprint in their own
+			// SecurityContext when that path wires AssessLoginRisk.
+		})
+		if err != nil && s.logger != nil {
+			s.logger.Warn("risk: assess login risk failed, using default score",
+				slog.String("user_uuid", user.UUID),
+				slog.String("error", err.Error()))
+		} else if assessment != nil {
+			riskScore = assessment.Score
+			// Session trustLevel mirrors the inverse semantic: a high
+			// risk login lands on an "untrusted" session; a low risk
+			// login keeps the prior "medium" default. A future C3
+			// (device trust) promotes to "trusted" on an enrolled device.
+			if riskScore >= 0.5 {
+				trustLevel = "untrusted"
+			}
+		}
+	}
 	doc := &authModels.AuthSessionDoc{
 		UUID:         sessionID,
 		UserUUID:     user.UUID,
@@ -899,9 +933,12 @@ func (s *PasswordAuthService) createSessionDoc(ctx context.Context, user *userMo
 			DeviceID: deviceID,
 			Platform: platform,
 		},
-		IPAddress:  ip,
-		RiskScore:  0.1,
-		TrustLevel: "medium",
+		IPAddress: ip,
+		RiskScore: riskScore,
+		// RiskFactors on SecurityEventLog would be the ideal home, but
+		// the session-level trustLevel + score is what downstream
+		// middleware (C2 RequireLowRisk) reads today.
+		TrustLevel: trustLevel,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}

@@ -195,6 +195,12 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// partial response), so build it before either consumer.
 	mfaChallengeSvc := services.NewMFAChallengeService(redisStore)
 
+	// Section C item #1: login-risk scorer. Reads session history through
+	// the auth_sessions repo to compute new_device/new_ip/rapid_ip_change
+	// factors. Shared by the OAuth and password login paths so both surface
+	// a consistent score on the SessionDoc.RiskScore field.
+	riskAssessmentSvc := services.NewRiskAssessmentService(authSessionRepo, logger)
+
 	authService, err := services.NewAuthService(&services.AuthConfig{
 		AuthRepo:            authRepo,
 		UserService:         userService,
@@ -206,6 +212,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		MFAFactorRepo:       mfaFactorRepo,
 		MFAChallengeService: mfaChallengeSvc,
 		FirstAdminClaimer:   firstAdminClaimer,
+		RiskAssessment:      riskAssessmentSvc,
 	})
 	if err != nil {
 		return err
@@ -253,6 +260,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		MFAFactorRepo:            mfaFactorRepo,
 		MFAChallengeService:      mfaChallengeSvc,
 		FirstAdminClaimer:        firstAdminClaimer,
+		RiskAssessment:           riskAssessmentSvc,
 		Notifier:                 notifier,
 		RateLimiter:              rateLimiter,
 		FrontendURL:              cfg.Server.FrontendURL,
