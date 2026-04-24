@@ -98,10 +98,9 @@ permission.cedar.unreferenced:authz.binding.delete
 permission.cedar.unreferenced:authz.role.create
 permission.cedar.unreferenced:authz.role.delete
 permission.cedar.unreferenced:authz.role.update
-permission.cedar.unreferenced:billing.customer.manage
-permission.cedar.unreferenced:billing.invoice.create
-permission.cedar.unreferenced:billing.invoice.delete
-permission.cedar.unreferenced:billing.invoice.send
+# billing.*, payments.*, subscriptions.* are now Cedar-covered via the
+# org_billing role policy in tenant_roles.cedar (action_module dispatch).
+# Kept in this comment for diff history; do NOT re-add to the baseline.
 permission.cedar.unreferenced:company.lookup.enrich
 permission.cedar.unreferenced:documents.generate
 permission.cedar.unreferenced:documents.template.manage
@@ -109,17 +108,12 @@ permission.cedar.unreferenced:graph.admin
 permission.cedar.unreferenced:graph.query.write
 permission.cedar.unreferenced:notification.template.manage
 permission.cedar.unreferenced:notification.test
-permission.cedar.unreferenced:payments.method.manage
-permission.cedar.unreferenced:payments.transaction.refund
 permission.cedar.unreferenced:rag.admin
 permission.cedar.unreferenced:rag.document.delete
 permission.cedar.unreferenced:rag.document.ingest
 permission.cedar.unreferenced:rag.query
 permission.cedar.unreferenced:sales.admin
 permission.cedar.unreferenced:sales.job.run
-permission.cedar.unreferenced:subscriptions.client.manage
-permission.cedar.unreferenced:subscriptions.service.manage
-permission.cedar.unreferenced:subscriptions.subscription.manage
 permission.cedar.unreferenced:tenant.delete
 permission.cedar.unreferenced:tenant.member.invite
 permission.cedar.unreferenced:tenant.member.remove

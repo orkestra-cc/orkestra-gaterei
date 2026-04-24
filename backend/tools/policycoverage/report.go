@@ -55,19 +55,23 @@ type Report struct {
 // Action::"name" literals the Cedar policies reference, plus the broader
 // coverage view that also accepts indirect coverage via
 // `context.action_suffix == "X"` clauses (a permission `foo.bar.read` is
-// suffix-covered when some policy mentions `"read"`).
+// suffix-covered when some policy mentions `"read"`) and
+// `context.action_module == "Y"` clauses (a permission `foo.bar.read` is
+// module-covered when some policy mentions `"foo"`).
 //
-// CedarSuffixes lists the suffix literals extracted from `context.action_suffix`
-// equality checks. CoveredPermissions lists declared permissions that are
-// directly named or suffix-covered. UncoveredPermissions lists declared
-// permissions that have neither — these become `permission.cedar.unreferenced`
-// diagnostics (ERROR severity, baseline-able while the catalog catches up).
+// CedarSuffixes and CedarModules list the literals extracted from the
+// two context-equality forms. CoveredPermissions lists declared permissions
+// that are directly named, suffix-covered, or module-covered.
+// UncoveredPermissions lists declared permissions that have none — these
+// become `permission.cedar.unreferenced` diagnostics (ERROR severity,
+// baseline-able while the catalog catches up).
 //
 // MatchedPermissions / UnmatchedCedar remain for the older overlap report
 // (Cedar action literal ↔ declared permission) which is informational only.
 type CedarReconciliation struct {
 	CedarActions         []string `json:"cedarActions"`
 	CedarSuffixes        []string `json:"cedarSuffixes"`
+	CedarModules         []string `json:"cedarModules"`
 	MatchedPermissions   []string `json:"matchedPermissions"`
 	UnmatchedCedar       []string `json:"unmatchedCedar"`
 	CoveredPermissions   []string `json:"coveredPermissions"`
@@ -177,7 +181,7 @@ func Reconcile(f *Findings, baseline map[string]bool) *Report {
 	// suffix. Permissions with neither become `permission.cedar.unreferenced`
 	// errors so a new endpoint cannot ship without the policy author also
 	// thinking about Cedar coverage. The baseline carries pre-existing gaps.
-	r.Cedar = buildCedarReconciliation(f.CedarActions, f.CedarSuffixes, declaredPermSet)
+	r.Cedar = buildCedarReconciliation(f.CedarActions, f.CedarSuffixes, f.CedarModules, declaredPermSet)
 	for _, key := range r.Cedar.UncoveredPermissions {
 		owner := ""
 		if d, ok := declaredPermSet[key]; ok {
@@ -211,10 +215,11 @@ func (r *Report) add(baseline map[string]bool, d Diagnostic) {
 // baseline. The CLI uses this to decide the exit code.
 func (r *Report) HasErrors() bool { return r.Summary[SeverityError] > 0 }
 
-func buildCedarReconciliation(cedarActions, cedarSuffixes []string, decl map[string]Declaration) CedarReconciliation {
+func buildCedarReconciliation(cedarActions, cedarSuffixes, cedarModules []string, decl map[string]Declaration) CedarReconciliation {
 	rec := CedarReconciliation{
 		CedarActions:  append([]string(nil), cedarActions...),
 		CedarSuffixes: append([]string(nil), cedarSuffixes...),
+		CedarModules:  append([]string(nil), cedarModules...),
 	}
 	for _, a := range cedarActions {
 		if _, ok := decl[a]; ok {
@@ -231,8 +236,12 @@ func buildCedarReconciliation(cedarActions, cedarSuffixes []string, decl map[str
 	for _, s := range cedarSuffixes {
 		suffixSet[s] = struct{}{}
 	}
+	moduleSet := make(map[string]struct{}, len(cedarModules))
+	for _, m := range cedarModules {
+		moduleSet[m] = struct{}{}
+	}
 	for _, key := range sortedKeys(decl) {
-		if permissionCovered(key, actionSet, suffixSet) {
+		if permissionCovered(key, actionSet, suffixSet, moduleSet) {
 			rec.CoveredPermissions = append(rec.CoveredPermissions, key)
 		} else {
 			rec.UncoveredPermissions = append(rec.UncoveredPermissions, key)
@@ -244,12 +253,18 @@ func buildCedarReconciliation(cedarActions, cedarSuffixes []string, decl map[str
 }
 
 // permissionCovered reports whether a permission key is reachable by some
-// Cedar policy: either named directly as an `Action::"key"` literal, or
-// matched by a `context.action_suffix == "X"` clause where X equals the
-// permission's last dot-separated component. A permission with no dots is
-// treated as its own suffix (matches keys like `rag.query` where the whole
-// key is the verb).
-func permissionCovered(key string, actions, suffixes map[string]struct{}) bool {
+// Cedar policy. Three paths (any one suffices):
+//
+//   - Direct:  named as `Action::"key"` in some .cedar file.
+//   - Suffix:  the last dot-separated component matches a
+//     `context.action_suffix == "X"` clause. Keys without dots are treated
+//     as their own suffix (matches keys like `rag.query`).
+//   - Module:  the first dot-separated component matches a
+//     `context.action_module == "Y"` clause. This lets a single policy
+//     cover every permission under one module prefix (e.g. org_billing
+//     covering billing.*/payments.*/subscriptions.*). Keys without dots
+//     have no module and never match this path.
+func permissionCovered(key string, actions, suffixes, modules map[string]struct{}) bool {
 	if _, ok := actions[key]; ok {
 		return true
 	}
@@ -257,8 +272,15 @@ func permissionCovered(key string, actions, suffixes map[string]struct{}) bool {
 	if i := strings.LastIndex(key, "."); i >= 0 {
 		suffix = key[i+1:]
 	}
-	_, ok := suffixes[suffix]
-	return ok
+	if _, ok := suffixes[suffix]; ok {
+		return true
+	}
+	if i := strings.Index(key, "."); i > 0 {
+		if _, ok := modules[key[:i]]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func toSet(decls []Declaration) map[string]Declaration {
@@ -308,14 +330,14 @@ func WriteMarkdown(w io.Writer, r *Report, findings *Findings) error {
 	writeSeveritySection(&b, "Informational", SeverityInfo, r.Diagnostics)
 
 	b.WriteString("## Cedar policy coverage\n\n")
-	fmt.Fprintf(&b, "Cedar policies reference **%d action literal(s)** and **%d action_suffix value(s)**. ",
-		len(r.Cedar.CedarActions), len(r.Cedar.CedarSuffixes))
+	fmt.Fprintf(&b, "Cedar policies reference **%d action literal(s)**, **%d action_suffix value(s)**, and **%d action_module value(s)**. ",
+		len(r.Cedar.CedarActions), len(r.Cedar.CedarSuffixes), len(r.Cedar.CedarModules))
 	fmt.Fprintf(&b, "Of %d declared permissions: **%d covered**, **%d uncovered**.\n\n",
 		len(r.Cedar.CoveredPermissions)+len(r.Cedar.UncoveredPermissions),
 		len(r.Cedar.CoveredPermissions),
 		len(r.Cedar.UncoveredPermissions),
 	)
-	b.WriteString("A permission is *covered* when its full key appears as an `Action::\"key\"` literal in some `.cedar` file, OR its suffix (the part after the last `.`) appears in a `context.action_suffix == \"X\"` clause. Uncovered permissions become `permission.cedar.unreferenced` errors above (baseline-able).\n\n")
+	b.WriteString("A permission is *covered* when its full key appears as an `Action::\"key\"` literal, its suffix (part after the last `.`) matches a `context.action_suffix == \"X\"` clause, or its module (part before the first `.`) matches a `context.action_module == \"Y\"` clause. Uncovered permissions become `permission.cedar.unreferenced` errors above (baseline-able).\n\n")
 	if len(r.Cedar.CedarSuffixes) > 0 {
 		b.WriteString("Suffix values found: ")
 		for i, s := range r.Cedar.CedarSuffixes {
@@ -323,6 +345,16 @@ func WriteMarkdown(w io.Writer, r *Report, findings *Findings) error {
 				b.WriteString(", ")
 			}
 			fmt.Fprintf(&b, "`%s`", s)
+		}
+		b.WriteString(".\n\n")
+	}
+	if len(r.Cedar.CedarModules) > 0 {
+		b.WriteString("Module values found: ")
+		for i, m := range r.Cedar.CedarModules {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(&b, "`%s`", m)
 		}
 		b.WriteString(".\n\n")
 	}

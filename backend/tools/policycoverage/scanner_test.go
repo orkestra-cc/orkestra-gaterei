@@ -236,6 +236,7 @@ func TestReconcile_CedarBaselineSuppresses(t *testing.T) {
 func TestPermissionCovered(t *testing.T) {
 	actions := map[string]struct{}{"system.users.admin": {}}
 	suffixes := map[string]struct{}{"read": {}, "self": {}}
+	modules := map[string]struct{}{"billing": {}, "payments": {}}
 	cases := []struct {
 		key      string
 		expected bool
@@ -244,12 +245,15 @@ func TestPermissionCovered(t *testing.T) {
 		{"system.users.admin", true, "named directly as Action literal"},
 		{"foo.bar.read", true, "suffix matches"},
 		{"foo.bar.self", true, "suffix matches"},
-		{"foo.bar.delete", false, "no matching action or suffix"},
+		{"foo.bar.delete", false, "no matching action, suffix, or module"},
 		{"singleword", false, "no dot — falls back to suffix=key, but 'singleword' not in suffixes"},
-		{"x.y.z.self", true, "last segment after final dot matches"},
+		{"x.y.z.self", true, "last segment after final dot matches suffix"},
+		{"billing.invoice.create", true, "module 'billing' matches despite suffix 'create' being uncovered"},
+		{"payments.transaction.refund", true, "module 'payments' matches"},
+		{"unrelated.module.create", false, "module 'unrelated' not in modules set"},
 	}
 	for _, c := range cases {
-		got := permissionCovered(c.key, actions, suffixes)
+		got := permissionCovered(c.key, actions, suffixes, modules)
 		if got != c.expected {
 			t.Errorf("permissionCovered(%q) = %v, want %v (%s)", c.key, got, c.expected, c.reason)
 		}
@@ -261,6 +265,8 @@ func TestScanCedarRegexes(t *testing.T) {
 		Action::"system.users.admin"
 		permit when context.action_suffix == "read"
 		permit when "self" == context.action_suffix
+		permit when context.action_module == "billing"
+		permit when "payments" == context.action_module
 		Action::"system.tenants.admin"
 	`
 	actions := cedarActionRE.FindAllStringSubmatch(src, -1)
@@ -271,16 +277,31 @@ func TestScanCedarRegexes(t *testing.T) {
 	if len(suffixes) != 2 {
 		t.Fatalf("expected 2 suffix matches, got %d: %+v", len(suffixes), suffixes)
 	}
-	got := map[string]bool{}
+	gotSuffix := map[string]bool{}
 	for _, m := range suffixes {
 		lit := m[1]
 		if lit == "" {
 			lit = m[2]
 		}
-		got[lit] = true
+		gotSuffix[lit] = true
 	}
-	if !got["read"] || !got["self"] {
-		t.Errorf("expected to find both 'read' and 'self', got: %+v", got)
+	if !gotSuffix["read"] || !gotSuffix["self"] {
+		t.Errorf("expected to find both 'read' and 'self' suffixes, got: %+v", gotSuffix)
+	}
+	modules := cedarModuleRE.FindAllStringSubmatch(src, -1)
+	if len(modules) != 2 {
+		t.Fatalf("expected 2 module matches, got %d: %+v", len(modules), modules)
+	}
+	gotModule := map[string]bool{}
+	for _, m := range modules {
+		lit := m[1]
+		if lit == "" {
+			lit = m[2]
+		}
+		gotModule[lit] = true
+	}
+	if !gotModule["billing"] || !gotModule["payments"] {
+		t.Errorf("expected to find both 'billing' and 'payments' modules, got: %+v", gotModule)
 	}
 }
 

@@ -1,14 +1,111 @@
-// tenant_roles.cedar — placeholder for the tenant-level role catalog.
+// tenant_roles.cedar — tenant-scoped role permits.
 //
-// Phase 2 introduces proper tenant-scoped roles (org_owner, org_admin,
-// org_member, org_viewer, org_billing). Until then, tenant-level grants
-// flow through the Mongo role table that authz.Service reads. This file
-// encodes only the minimal shape so policy unit tests have something to
-// exercise — refine in Phase 2.
+// Two generations of permits live here. The "legacy tenant role" permits
+// (manager, operator, guest, administrator-as-tenant-role) date from
+// before the org-role split (Section B item #3 of the auth roadmap,
+// 2026-04-24). The "org role" permits (org_owner, org_admin, org_member,
+// org_billing, org_viewer) are the post-split tenant-scoped role catalog.
+// Both groups are kept active simultaneously: existing dev-tenant
+// memberships still carry the legacy role names in
+// TenantMembership.Roles, and ripping the legacy permits would dirty
+// shadow-mode divergence telemetry without user-visible benefit. A
+// follow-up cleanup commit can remove the legacy block once memberships
+// are migrated to org_* names.
 //
 // Principal attribute used here: tenant_roles — a Set<String> listing
 // the role names the user holds in the acting tenant. The Cedar engine
 // layer populates it from iface.TenantMembership.Roles.
+
+// ----- Org-role permits (post-split) ---------------------------------
+
+// org_owner — every action on this tenant. The org-side mirror of the
+// platform "administrator" shortcut, but bounded to one tenant. Tier
+// scoping is enforced separately by tenant_scope.cedar's forbid rules:
+// even an org_owner cannot trigger a system.* action against an external
+// tenant.
+@id("tenant_roles.org_owner.all_in_tenant")
+permit (
+    principal,
+    action,
+    resource
+) when {
+    principal has tenant_roles &&
+    principal.tenant_roles.contains("org_owner") &&
+    resource is Orkestra::Tenant
+};
+
+// org_admin — every action except deletes. Mirrors the manager pattern
+// (read + create + update without removal authority).
+@id("tenant_roles.org_admin.all_except_delete")
+permit (
+    principal,
+    action,
+    resource
+) when {
+    principal has tenant_roles &&
+    principal.tenant_roles.contains("org_admin") &&
+    resource is Orkestra::Tenant &&
+    context has action_suffix &&
+    context.action_suffix != "delete"
+};
+
+// org_member — read across the tenant plus self/own scopes for
+// personal resources. Suffix list mirrors the Go-side org_member
+// predicate in services.SeedSystemRoles.
+@id("tenant_roles.org_member.read_self_own")
+permit (
+    principal,
+    action,
+    resource
+) when {
+    principal has tenant_roles &&
+    principal.tenant_roles.contains("org_member") &&
+    resource is Orkestra::Tenant &&
+    context has action_suffix &&
+    (context.action_suffix == "read" ||
+     context.action_suffix == "view" ||
+     context.action_suffix == "self" ||
+     context.action_suffix == "own")
+};
+
+// org_billing — every action whose action_module is one of the three
+// finance-surface modules. action_module is the substring before the
+// first "." in the permission key (e.g. "billing.invoice.read" →
+// "billing"), stamped on the request context by the engine.
+@id("tenant_roles.org_billing.finance_modules")
+permit (
+    principal,
+    action,
+    resource
+) when {
+    principal has tenant_roles &&
+    principal.tenant_roles.contains("org_billing") &&
+    resource is Orkestra::Tenant &&
+    context has action_module &&
+    (context.action_module == "billing" ||
+     context.action_module == "payments" ||
+     context.action_module == "subscriptions")
+};
+
+// org_viewer — read-only across the tenant.
+@id("tenant_roles.org_viewer.read_only")
+permit (
+    principal,
+    action,
+    resource
+) when {
+    principal has tenant_roles &&
+    principal.tenant_roles.contains("org_viewer") &&
+    resource is Orkestra::Tenant &&
+    context has action_suffix &&
+    (context.action_suffix == "read" || context.action_suffix == "view")
+};
+
+// ----- Legacy tenant-role permits (pre-split, deprecated) ------------
+//
+// Kept active until existing memberships are migrated from
+// "administrator"/"manager"/"operator"/"guest" to org_* names. After
+// that, this block can be removed without behavior change.
 
 // A tenant member with the "manager" role gets read + create + update
 // actions on their tenant. Delete and admin actions are not granted.

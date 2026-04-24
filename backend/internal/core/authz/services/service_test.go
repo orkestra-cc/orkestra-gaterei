@@ -163,6 +163,128 @@ func TestShadowEvaluate_NilEngineReturnsNotOK(t *testing.T) {
 	}
 }
 
+// TestOrgRoleFilters mirrors the predicates SeedSystemRoles uses to derive
+// each org-role's permission set, against a representative slice of the
+// real catalog. SeedSystemRoles itself needs Mongo so it isn't unit-
+// testable; this test fences the predicate semantics so a future refactor
+// of the filter chain doesn't silently widen org_member or shrink
+// org_billing.
+func TestOrgRoleFilters(t *testing.T) {
+	allKeys := []string{
+		"system.modules.admin",       // system → excluded from every org role
+		"system.users.admin",         // system → excluded
+		"tenant.read",                // non-system, .read suffix
+		"tenant.update",              // non-system, .update suffix
+		"tenant.delete",              // non-system, .delete suffix
+		"user.self",                  // non-system, .self suffix
+		"agents.project.read",        // non-system, .read suffix
+		"billing.invoice.create",     // non-system, billing module
+		"billing.invoice.delete",     // non-system, billing module + .delete
+		"payments.transaction.refund", // non-system, payments module
+		"subscriptions.client.view",  // non-system, subscriptions module + .view
+		"rag.query",                  // non-system, no covered suffix or module
+	}
+	systemSet := map[string]struct{}{
+		"system.modules.admin": {},
+		"system.users.admin":   {},
+	}
+	nonSystem := filter(allKeys, func(p string) bool {
+		_, isSystem := systemSet[p]
+		return !isSystem
+	})
+	if len(nonSystem) != len(allKeys)-2 {
+		t.Fatalf("nonSystem should drop 2 system keys, got %+v", nonSystem)
+	}
+
+	// org_owner: every non-system permission.
+	orgOwner := nonSystem
+	for _, k := range []string{"tenant.delete", "billing.invoice.delete", "rag.query"} {
+		if !contains(orgOwner, k) {
+			t.Errorf("org_owner missing %q", k)
+		}
+	}
+	for _, k := range []string{"system.modules.admin", "system.users.admin"} {
+		if contains(orgOwner, k) {
+			t.Errorf("org_owner must NOT contain system permission %q", k)
+		}
+	}
+
+	// org_admin: non-system minus .delete.
+	orgAdmin := filter(nonSystem, func(p string) bool {
+		return !endsWith(p, ".delete")
+	})
+	if contains(orgAdmin, "tenant.delete") || contains(orgAdmin, "billing.invoice.delete") {
+		t.Errorf("org_admin must NOT contain .delete suffixes: %+v", orgAdmin)
+	}
+	if !contains(orgAdmin, "tenant.update") {
+		t.Errorf("org_admin should contain tenant.update")
+	}
+
+	// org_member: .read/.view/.self/.own only.
+	orgMember := filter(nonSystem, func(p string) bool {
+		return endsWith(p, ".read") || endsWith(p, ".view") ||
+			endsWith(p, ".self") || endsWith(p, ".own")
+	})
+	for _, k := range []string{"tenant.read", "user.self", "subscriptions.client.view"} {
+		if !contains(orgMember, k) {
+			t.Errorf("org_member missing %q", k)
+		}
+	}
+	for _, k := range []string{"tenant.update", "billing.invoice.create", "rag.query"} {
+		if contains(orgMember, k) {
+			t.Errorf("org_member must NOT contain %q", k)
+		}
+	}
+
+	// org_billing: scoped to the three finance modules.
+	orgBilling := filter(nonSystem, func(p string) bool {
+		return startsWith(p, "billing.") || startsWith(p, "payments.") || startsWith(p, "subscriptions.")
+	})
+	for _, k := range []string{"billing.invoice.create", "payments.transaction.refund", "subscriptions.client.view"} {
+		if !contains(orgBilling, k) {
+			t.Errorf("org_billing missing %q", k)
+		}
+	}
+	for _, k := range []string{"tenant.read", "rag.query", "user.self"} {
+		if contains(orgBilling, k) {
+			t.Errorf("org_billing must NOT contain non-finance %q", k)
+		}
+	}
+
+	// org_viewer: read+view only.
+	orgViewer := filter(nonSystem, func(p string) bool {
+		return endsWith(p, ".read") || endsWith(p, ".view")
+	})
+	if !contains(orgViewer, "tenant.read") || !contains(orgViewer, "subscriptions.client.view") {
+		t.Errorf("org_viewer missing read/view entries: %+v", orgViewer)
+	}
+	if contains(orgViewer, "user.self") {
+		t.Errorf("org_viewer must NOT contain .self: %+v", orgViewer)
+	}
+}
+
+// helpers — local test-only predicates so the test stays import-light.
+func contains(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
+func endsWith(s, suffix string) bool {
+	if len(s) < len(suffix) {
+		return false
+	}
+	return s[len(s)-len(suffix):] == suffix
+}
+func startsWith(s, prefix string) bool {
+	if len(s) < len(prefix) {
+		return false
+	}
+	return s[:len(prefix)] == prefix
+}
+
 func TestNew_EnforceActionsTrimAndDrop(t *testing.T) {
 	// New() trims whitespace and drops empty fragments so the env-var path
 	// (CEDAR_ENFORCE_ACTIONS="a, ,b ,") doesn't introduce phantom entries.

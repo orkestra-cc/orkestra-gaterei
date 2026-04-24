@@ -20,11 +20,11 @@ func newTestEngine(t *testing.T, env string) *Engine {
 func TestPolicyLoadingNonEmpty(t *testing.T) {
 	e := newTestEngine(t, "development")
 	// platform.cedar has 4 policies, tenant_scope.cedar has 5,
-	// tenant_roles.cedar has 4, capability_grants.cedar has 1.
-	// Sanity check the count is in the expected range so silent
+	// tenant_roles.cedar has 9 (4 legacy + 5 org_*), capability_grants.cedar
+	// has 1. Sanity check the count is in the expected range so silent
 	// drop-outs don't go unnoticed.
-	if got := e.PolicyCount(); got < 11 {
-		t.Fatalf("policy count too low: got %d, want >= 11", got)
+	if got := e.PolicyCount(); got < 16 {
+		t.Fatalf("policy count too low: got %d, want >= 16", got)
 	}
 }
 
@@ -239,6 +239,115 @@ func TestCapabilityGrantPermitsEntitled(t *testing.T) {
 	})
 	if !d.Allowed {
 		t.Fatalf("entitled capability must be allowed: %+v", d)
+	}
+}
+
+// ----- Org-role permits (Section B item #3, 2026-04-24) -----
+
+// TestOrgOwnerAllInTenant: org_owner permits any action on the tenant —
+// the org-side mirror of administrator-as-tenant-role. No system role
+// needed; the binding alone is sufficient.
+func TestOrgOwnerAllInTenant(t *testing.T) {
+	e := newTestEngine(t, "development")
+	p := Principal{UserUUID: "u1", TenantRoles: []string{"org_owner"}}
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	for _, action := range []string{"tenant.read", "tenant.update", "tenant.delete", "billing.invoice.create"} {
+		if d := e.IsAuthorized(p, action, r); !d.Allowed {
+			t.Errorf("org_owner should be allowed for %s: %+v", action, d)
+		}
+	}
+}
+
+// TestOrgOwnerStillBlockedByTierForbid: even an org_owner cannot trigger
+// system.* actions against an external tenant — tier-aware forbid wins.
+func TestOrgOwnerStillBlockedByTierForbid(t *testing.T) {
+	e := newTestEngine(t, "development")
+	d := e.IsAuthorized(
+		Principal{UserUUID: "u1", TenantRoles: []string{"org_owner"}},
+		"system.modules.admin",
+		Resource{TenantUUID: "t-ext", TenantKind: "external", TenantStatus: "active"},
+	)
+	if d.Allowed {
+		t.Fatalf("tier-aware forbid must beat org_owner permit on external tenant: %+v", d)
+	}
+}
+
+// TestOrgAdminBlocksDelete: org_admin permits read/create/update but
+// never .delete actions.
+func TestOrgAdminBlocksDelete(t *testing.T) {
+	e := newTestEngine(t, "development")
+	p := Principal{UserUUID: "u1", TenantRoles: []string{"org_admin"}}
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	if d := e.IsAuthorized(p, "tenant.update", r); !d.Allowed {
+		t.Errorf("org_admin should update: %+v", d)
+	}
+	if d := e.IsAuthorized(p, "billing.invoice.create", r); !d.Allowed {
+		t.Errorf("org_admin should create: %+v", d)
+	}
+	if d := e.IsAuthorized(p, "billing.invoice.delete", r); d.Allowed {
+		t.Errorf("org_admin must NOT delete: %+v", d)
+	}
+}
+
+// TestOrgMemberReadAndSelf: org_member covers read/view/self/own suffixes
+// and rejects everything else.
+func TestOrgMemberReadAndSelf(t *testing.T) {
+	e := newTestEngine(t, "development")
+	p := Principal{UserUUID: "u1", TenantRoles: []string{"org_member"}}
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	for _, action := range []string{"tenant.read", "user.self", "billing.invoice.read"} {
+		if d := e.IsAuthorized(p, action, r); !d.Allowed {
+			t.Errorf("org_member should be allowed for %s: %+v", action, d)
+		}
+	}
+	for _, action := range []string{"tenant.update", "billing.invoice.create", "billing.invoice.delete"} {
+		if d := e.IsAuthorized(p, action, r); d.Allowed {
+			t.Errorf("org_member must NOT be allowed for %s: %+v", action, d)
+		}
+	}
+}
+
+// TestOrgBillingScopedToFinanceModules: org_billing permits any action
+// under billing.*, payments.*, subscriptions.* (via the new action_module
+// context field) and denies actions under any other module.
+func TestOrgBillingScopedToFinanceModules(t *testing.T) {
+	e := newTestEngine(t, "development")
+	p := Principal{UserUUID: "u1", TenantRoles: []string{"org_billing"}}
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	for _, action := range []string{
+		"billing.invoice.create", "billing.invoice.delete", "billing.invoice.send",
+		"payments.transaction.refund", "payments.method.manage",
+		"subscriptions.client.manage", "subscriptions.subscription.view",
+	} {
+		if d := e.IsAuthorized(p, action, r); !d.Allowed {
+			t.Errorf("org_billing should be allowed for finance action %s: %+v", action, d)
+		}
+	}
+	for _, action := range []string{"tenant.read", "agents.query", "rag.query", "user.self"} {
+		if d := e.IsAuthorized(p, action, r); d.Allowed {
+			t.Errorf("org_billing must NOT touch non-finance action %s: %+v", action, d)
+		}
+	}
+}
+
+// TestOrgViewerReadOnly: org_viewer covers read+view suffixes only.
+func TestOrgViewerReadOnly(t *testing.T) {
+	e := newTestEngine(t, "development")
+	p := Principal{UserUUID: "u1", TenantRoles: []string{"org_viewer"}}
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	if d := e.IsAuthorized(p, "tenant.read", r); !d.Allowed {
+		t.Errorf("org_viewer should read: %+v", d)
+	}
+	if d := e.IsAuthorized(p, "billing.invoice.read", r); !d.Allowed {
+		t.Errorf("org_viewer should view billing read action: %+v", d)
+	}
+	if d := e.IsAuthorized(p, "tenant.update", r); d.Allowed {
+		t.Errorf("org_viewer must NOT update: %+v", d)
 	}
 }
 

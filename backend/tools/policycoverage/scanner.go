@@ -83,6 +83,7 @@ type Findings struct {
 	Dynamic              []Usage // non-literal first argument — flagged so the audit is complete
 	CedarActions         []string
 	CedarSuffixes        []string // suffix literals referenced by context.action_suffix == "X" clauses
+	CedarModules         []string // module literals referenced by context.action_module == "X" clauses
 	Packages             int
 }
 
@@ -142,12 +143,13 @@ func Scan(patterns []string, cedarDir string) (*Findings, error) {
 	})
 
 	if cedarDir != "" {
-		actions, suffixes, err := scanCedar(cedarDir)
+		actions, suffixes, modules, err := scanCedar(cedarDir)
 		if err != nil {
 			return findings, fmt.Errorf("policycoverage: scan cedar: %w", err)
 		}
 		findings.CedarActions = actions
 		findings.CedarSuffixes = suffixes
+		findings.CedarModules = modules
 	}
 	return findings, nil
 }
@@ -304,23 +306,31 @@ var cedarActionRE = regexp.MustCompile(`Action::"([a-zA-Z0-9._-]+)"`)
 // literal exists. Whitespace tolerance matches what the formatter emits.
 var cedarSuffixRE = regexp.MustCompile(`(?:context\.action_suffix\s*==\s*"([a-zA-Z0-9_-]+)"|"([a-zA-Z0-9_-]+)"\s*==\s*context\.action_suffix)`)
 
+// cedarModuleRE mirrors cedarSuffixRE for the `context.action_module == "X"`
+// clause. Module coverage lets a single policy cover every permission under
+// one module prefix (billing.*, payments.*, subscriptions.*) without
+// enumerating each action — used by the org_billing role policy.
+var cedarModuleRE = regexp.MustCompile(`(?:context\.action_module\s*==\s*"([a-zA-Z0-9_-]+)"|"([a-zA-Z0-9_-]+)"\s*==\s*context\.action_module)`)
+
 // scanCedar reads every .cedar file in dir and returns the union of
-// Action::"name" literals and context.action_suffix == "X" suffix literals
-// across all files. Both are deduplicated and sorted for stable output.
-func scanCedar(dir string) ([]string, []string, error) {
+// Action::"name" literals, context.action_suffix == "X" suffix literals,
+// and context.action_module == "X" module literals across all files. All
+// three are deduplicated and sorted for stable output.
+func scanCedar(dir string) ([]string, []string, []string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	actions := map[string]struct{}{}
 	suffixes := map[string]struct{}{}
+	modules := map[string]struct{}{}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".cedar") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		src := string(data)
 		for _, m := range cedarActionRE.FindAllStringSubmatch(src, -1) {
@@ -336,16 +346,25 @@ func scanCedar(dir string) ([]string, []string, error) {
 				suffixes[lit] = struct{}{}
 			}
 		}
+		for _, m := range cedarModuleRE.FindAllStringSubmatch(src, -1) {
+			lit := m[1]
+			if lit == "" {
+				lit = m[2]
+			}
+			if lit != "" {
+				modules[lit] = struct{}{}
+			}
+		}
 	}
-	actionsOut := make([]string, 0, len(actions))
-	for k := range actions {
-		actionsOut = append(actionsOut, k)
+	return sortedSet(actions), sortedSet(suffixes), sortedSet(modules), nil
+}
+
+// sortedSet returns the keys of a set-shaped map as a sorted slice.
+func sortedSet(m map[string]struct{}) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
 	}
-	sort.Strings(actionsOut)
-	suffixesOut := make([]string, 0, len(suffixes))
-	for k := range suffixes {
-		suffixesOut = append(suffixesOut, k)
-	}
-	sort.Strings(suffixesOut)
-	return actionsOut, suffixesOut, nil
+	sort.Strings(out)
+	return out
 }

@@ -226,17 +226,25 @@ func (e *Engine) Evaluate(req Request) Decision {
 		}
 	}
 
-	// Context: env + derived action suffix. The suffix is the substring
-	// after the last "." — e.g. "tenant.member.invite" → "invite".
-	// RequiredCapability (when non-empty) stamps a requires_capability
-	// key so capability_grants.cedar can gate the request.
+	// Context: env + derived action suffix + derived action module. The
+	// suffix is the substring after the last "." — e.g. "tenant.member.invite"
+	// → "invite". The module is the substring before the first "." — same
+	// example → "tenant". module dispatch lets per-module org roles
+	// (org_billing) match every action under their module without
+	// enumerating each one. RequiredCapability (when non-empty) stamps a
+	// requires_capability key so capability_grants.cedar can gate the request.
 	suffix := action
 	if idx := strings.LastIndex(action, "."); idx >= 0 && idx < len(action)-1 {
 		suffix = action[idx+1:]
 	}
+	module := action
+	if idx := strings.Index(action, "."); idx > 0 {
+		module = action[:idx]
+	}
 	ctxRec := cedar.RecordMap{
 		"env":           types.String(e.env),
 		"action_suffix": types.String(suffix),
+		"action_module": types.String(module),
 		"action_key":    types.String(action),
 	}
 	if req.RequiredCapability != "" {

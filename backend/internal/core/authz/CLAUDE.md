@@ -107,18 +107,32 @@ Consumers:
 - **The authz module itself** — calls `RegisterPermissions` from the registry post-init hook.
 - **Lazy heal** — `ensureSeeded` also calls `RegisterPermissions` + the internal `SeedSystemRoles` when the catalog is empty at query time.
 
-## System roles
+## System and org roles
 
-Seeded by `services/service.go::SeedSystemRoles`. Permissions are computed from the catalog at seed time:
+Seeded by `services/service.go::SeedSystemRoles`. All 11 are stored as global rows (`tenantId=""`, `IsSystem=true`); the platform-vs-tenant distinction comes from how each role is granted, not how it's stored. Permissions are computed from the catalog at seed time:
+
+**Platform-level (granted via global bindings — `binding.tenantId == ""`):**
 
 | Role | Permissions | Notes |
 |---|---|---|
 | `super_admin` | `["*"]` (wildcard) | Overrides every check in `HasPermission`; the only holder of `*` by design. |
-| `administrator` | `allKeys` (every registered permission) | Full org permissions. Cannot elevate peers to administrator (future cascade rule). |
-| `developer` | `allKeys` (same set as administrator) | Conceptually the mid-tier technical role; permission-set distinction from `administrator` is **not yet enforced** — only the name differs. |
+| `administrator` | `allKeys` (every registered permission) | Full platform permissions. Cannot elevate peers to administrator (future cascade rule). |
+| `developer` | `allKeys` in dev/staging; `.read`/`.view`/`.self` in production | Environment-gated (D9). Permission-set distinction from `administrator` outside production is **not yet enforced** — only the name differs. |
 | `manager` | `allKeys` filtered to exclude `.delete` and `.admin` suffixes | Read + create + update across the catalog. |
 | `operator` | `allKeys` filtered to suffix `.read` or `.self` | Read everything plus self-service. |
 | `guest` | `allKeys` filtered to suffix `.read` | Read-only. |
+
+**Tenant-level (granted via tenant-scoped bindings — `binding.tenantId != ""`):**
+
+| Role | Permissions | Notes |
+|---|---|---|
+| `org_owner` | every non-system permission (`!System`) | Full tenant control. Cannot manage modules, other tenants, or platform users. |
+| `org_admin` | `org_owner` set minus `.delete` suffixes | Manages tenant resources but cannot remove them. |
+| `org_member` | non-system filtered to `.read`/`.view`/`.self`/`.own` | Read across the tenant plus self/own scopes. |
+| `org_billing` | non-system filtered to `billing.*` / `payments.*` / `subscriptions.*` | Finance-surface only. Cedar dispatches via `context.action_module`. |
+| `org_viewer` | non-system filtered to `.read`/`.view` | Read-only across the tenant. |
+
+The `binding.tenantId` discipline (system roles only via global bindings, org roles only via tenant bindings) is enforced by `CreateBinding`'s separation rule (commit C of the org-role split, 2026-04-24).
 
 Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEffectivePermissions`):
 

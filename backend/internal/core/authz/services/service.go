@@ -490,15 +490,30 @@ func (s *Service) RegisterPermissions(ctx context.Context, specs []iface.Permiss
 //
 // Hierarchy (most to least privileged):
 //
-//	super_admin   — wildcard, full power, can assign every other role
-//	administrator — all org permissions, cannot elevate peers to admin
-//	developer     — all org permissions, cannot touch admin/super_admin
-//	manager       — read/create/update, no delete, no admin
-//	operator      — read + self-service
-//	guest         — read-only
+//	Platform-level (system roles, granted via global bindings):
+//	  super_admin   — wildcard, full power, can assign every other role
+//	  administrator — all permissions, cannot elevate peers to admin
+//	  developer     — all permissions in dev/staging; .read/.view/.self in prod
+//	  manager       — read/create/update, no delete, no admin
+//	  operator      — read + self-service
+//	  guest         — read-only
+//
+//	Tenant-level (org roles, granted via tenant-scoped bindings):
+//	  org_owner   — every non-system permission within the tenant
+//	  org_admin   — same as org_owner minus .delete suffixes
+//	  org_member  — .read/.view/.self/.own across the tenant
+//	  org_billing — billing/payments/subscriptions surface only
+//	  org_viewer  — .read/.view across the tenant
+//
+// Both groups are seeded as IsSystem=true rows in the global catalog —
+// the org-scoped semantics come from the binding's tenantId, not the
+// role's. CreateBinding's separation rule keeps the two groups disjoint:
+// system roles only via global bindings, org roles only via tenant
+// bindings.
 //
 // The cascade distinction between administrator and developer is enforced
-// at role-assignment time (future work), not baked into the permission set.
+// at role-assignment time (commit C of the org-role split, 2026-04-24),
+// not baked into the permission set.
 func (s *Service) SeedSystemRoles(ctx context.Context) error {
 	allKeys, err := s.repo.ListAllPermissionKeys(ctx)
 	if err != nil {
@@ -541,6 +556,45 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 		developerDescription = "Technical power user — PRODUCTION: read-only access (read/view/self suffixes only). Full access restored automatically in dev/staging."
 	}
 
+	// Org-scoped roles (Section B item #3 of the auth roadmap, 2026-04-24).
+	// These are stored as global system rows (tenantId="", IsSystem=true)
+	// so the catalog stays at a flat 11 roles, but they are intended to be
+	// granted through tenant-scoped bindings (binding.tenantId != "") to
+	// give a user power inside one tenant without elevating them at the
+	// platform level. Crucially, every org-role permission set excludes
+	// anything tagged System=true — a tenant owner cannot manage modules,
+	// other tenants, or platform users no matter what binding they hold.
+	// CreateBinding's separation rule (commit C) enforces the inverse:
+	// system roles cannot be granted through a tenant-scoped binding.
+	s.mu.RLock()
+	nonSystem := filter(allKeys, func(p string) bool {
+		_, isSystem := s.systemPermissionSet[p]
+		return !isSystem
+	})
+	s.mu.RUnlock()
+
+	orgOwner := nonSystem
+	orgAdmin := filter(nonSystem, func(p string) bool {
+		return !strings.HasSuffix(p, ".delete")
+	})
+	orgMember := filter(nonSystem, func(p string) bool {
+		return strings.HasSuffix(p, ".read") ||
+			strings.HasSuffix(p, ".view") ||
+			strings.HasSuffix(p, ".self") ||
+			strings.HasSuffix(p, ".own")
+	})
+	// org_billing scopes to the three finance-surface modules. Module
+	// prefix matches the catalog naming convention (billing.invoice.read,
+	// payments.transaction.refund, subscriptions.client.manage, …).
+	orgBilling := filter(nonSystem, func(p string) bool {
+		return strings.HasPrefix(p, "billing.") ||
+			strings.HasPrefix(p, "payments.") ||
+			strings.HasPrefix(p, "subscriptions.")
+	})
+	orgViewer := filter(nonSystem, func(p string) bool {
+		return strings.HasSuffix(p, ".read") || strings.HasSuffix(p, ".view")
+	})
+
 	roles := []models.Role{
 		{UUID: uuid.NewString(), Name: "super_admin", Description: "Full power — wildcard permission, can assign every role.", Permissions: []string{"*"}, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "administrator", Description: "Organization administrator — all permissions. Cannot elevate peers to administrator or super_admin.", Permissions: allKeys, IsSystem: true, IsActive: true},
@@ -548,6 +602,11 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 		{UUID: uuid.NewString(), Name: "manager", Description: "Read/write, no admin, no delete.", Permissions: manager, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "operator", Description: "Read-only + self-service.", Permissions: operator, IsSystem: true, IsActive: true},
 		{UUID: uuid.NewString(), Name: "guest", Description: "Read-only access.", Permissions: guest, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "org_owner", Description: "Tenant owner — every non-system permission within this tenant. Cannot manage modules, other tenants, or platform users.", Permissions: orgOwner, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "org_admin", Description: "Tenant admin — every non-system permission except deletes. Cannot remove tenant resources.", Permissions: orgAdmin, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "org_member", Description: "Tenant member — read across the tenant plus self/own scopes for personal resources.", Permissions: orgMember, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "org_billing", Description: "Tenant billing — billing, payments, and subscriptions surface only.", Permissions: orgBilling, IsSystem: true, IsActive: true},
+		{UUID: uuid.NewString(), Name: "org_viewer", Description: "Tenant viewer — read-only access to every read/view permission.", Permissions: orgViewer, IsSystem: true, IsActive: true},
 	}
 
 	for i := range roles {
