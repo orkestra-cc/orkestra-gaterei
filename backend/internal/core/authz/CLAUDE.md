@@ -116,7 +116,7 @@ Seeded by `services/service.go::SeedSystemRoles`. All 11 are stored as global ro
 | Role | Permissions | Notes |
 |---|---|---|
 | `super_admin` | `["*"]` (wildcard) | Overrides every check in `HasPermission`; the only holder of `*` by design. |
-| `administrator` | `allKeys` (every registered permission) | Full platform permissions. Cannot elevate peers to administrator (future cascade rule). |
+| `administrator` | `allKeys` (every registered permission) | Full platform permissions. Cannot elevate peers to administrator (cascade rule blocks granting roles whose perms exceed caller's). |
 | `developer` | `allKeys` in dev/staging; `.read`/`.view`/`.self` in production | Environment-gated (D9). Permission-set distinction from `administrator` outside production is **not yet enforced** — only the name differs. |
 | `manager` | `allKeys` filtered to exclude `.delete` and `.admin` suffixes | Read + create + update across the catalog. |
 | `operator` | `allKeys` filtered to suffix `.read` or `.self` | Read everything plus self-service. |
@@ -132,7 +132,16 @@ Seeded by `services/service.go::SeedSystemRoles`. All 11 are stored as global ro
 | `org_billing` | non-system filtered to `billing.*` / `payments.*` / `subscriptions.*` | Finance-surface only. Cedar dispatches via `context.action_module`. |
 | `org_viewer` | non-system filtered to `.read`/`.view` | Read-only across the tenant. |
 
-The `binding.tenantId` discipline (system roles only via global bindings, org roles only via tenant bindings) is enforced by `CreateBinding`'s separation rule (commit C of the org-role split, 2026-04-24).
+The `binding.tenantId` discipline (system roles only via global bindings, org roles only via tenant bindings) is enforced by `CreateBinding`'s separation rule.
+
+### Binding-creation rules (enforced by `CreateBinding`)
+
+Two rejections fire before any insert. Both apply to manual grants from authenticated users; the platform-issued sentinel granter `"system"` (used by the `OwnerRoleBinder` hook in `tenant.CreateTenant`) bypasses the cascade rule but still respects the separation rule.
+
+1. **System / tenant separation** — platform system roles (`super_admin`, `administrator`, `developer`, `manager`, `operator`, `guest`) require `binding.tenantID == ""`; everything else (`org_*`, custom) requires `binding.tenantID != ""`. Returns `ErrSystemRoleNotGrantableInTenant` or `ErrTenantRoleNotGrantableGlobally`.
+2. **Cascade** — caller's effective permissions in the binding's tenant scope must be a superset of the role's permission set. Wildcard `"*"` (held only by `super_admin`) is treated as a universal cover; a role asking for `"*"` requires the caller to also hold `"*"`. Returns `ErrInsufficientPermissionsToGrant`.
+
+A missing `grantedBy` returns `ErrGranterRequired` rather than silently waiving the cascade. Handlers populate `grantedBy` from `middleware.GetUserUUID(ctx)`; the route gates ensure that field is always set in production.
 
 Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEffectivePermissions`):
 
@@ -147,7 +156,8 @@ Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEff
 - **Role seeding preserves UUIDs.** `SeedSystemRoles` (`services/service.go::SeedSystemRoles`) calls `GetRoleByName` before upsert and copies the existing UUID into the new row, so bindings pointing at the old document keep working across boots and across lazy-heal runs.
 - **Effective-permission cache: 60s in Redis**, keyed on `authz:cache:<userUUID>:<orgID>`. Cache is invalidated on binding create/delete and on role update/delete via `flushCache` / `cacheInvalidate`.
 - **Lazy-heal uses an in-memory spec cache.** `RegisterPermissions` stores the full `[]PermissionSpec` under the service's mutex as `cachedPermSpecs`. `ensureSeeded` reuses it to rebuild the catalog if the DB is dropped at runtime. If you touch `RegisterPermissions`, make sure the cache is still populated — otherwise the first admin who drops the DB in dev will get an empty `/admin/roles` and no automatic recovery.
-- **`CreateBinding` does not currently enforce a cascade rule.** An administrator can grant any role to any user, including another administrator. Client-side role-management UI filters the picker, but the server accepts it. Cascade enforcement ("you can only assign roles strictly below your own level") is planned but not yet implemented — see the out-of-scope note below.
+- **`CreateBinding` enforces a cascade rule** — caller's effective permissions in the binding's tenant scope must be a superset of the role's permission set, otherwise the call returns `ErrInsufficientPermissionsToGrant` (commit C of the org-role split, 2026-04-24). Wildcard `*` (super_admin) bypasses; the literal sentinel granter `"system"` bypasses for platform-issued auto-grants like the `OwnerRoleBinder` hook in `tenant.CreateTenant`.
+- **`CreateBinding` enforces system / tenant separation** — platform system roles (the 6 named in `platformSystemRoleNames`) require `binding.tenantID == ""` (`ErrSystemRoleNotGrantableInTenant`); everything else (`org_*`, custom roles) requires `binding.tenantID != ""` (`ErrTenantRoleNotGrantableGlobally`).
 - **`CreateBinding` eagerly starts the target's MFA enrollment grace clock** when the granted role is `super_admin`, `administrator`, `org_owner`, or `org_admin`. Implemented via the `MFAGraceStarter` callback (see `Config.StartMFAGrace`) so the service stays free of a direct user-module import. The callback is idempotent — repeated grants don't reset an already-running clock. This list must stay in sync with `auth/services/mfa_policy.go::RoleRequiresMFA`; if they drift a user could be gated at login without ever having had their grace window started.
 - **Binding expiration is advisory, not TTL.** The `expiresAt` index exists, but it's not declared as a TTL index. Expired bindings are filtered out by `ListActiveBindingsForUser` but they stay in the collection. A background reaper is future work.
 - **`DeleteRole` cascades bindings.** The service calls `DeleteBindingsByRoleUUID` before the role delete so nothing is left pointing at a nonexistent role. System roles refuse to delete regardless (via the repository's `isSystem=false` filter).
@@ -171,7 +181,6 @@ Permission-evaluation rules (`services/service.go:31-44`, implemented in `GetEff
 
 ## What's planned but not done
 
-- **Assignment cascade rule** — administrator can't elevate peers to administrator; developer can't manage administrators or super_admin. Today this is UI-only, server enforcement pending.
 - **Permission domain tags** — tagging each permission as `system` / `technical` / `business` so the developer role can be seeded as "all system+technical permissions, read-only on business".
 - **TTL on `authz_bindings.expiresAt`** — flip the plain index to a TTL index so expired contractor grants auto-reap.
 - **Audit trail for role CRUD and binding CRUD** — part of future SOC2 work.
@@ -184,9 +193,9 @@ These invariants apply across **every** module, not just authz. They are the enf
 |---|---|---|---|
 | 1 | Every non-global data read/write carries `ctxOrgID` | `tenantrepo.Scope()` helper exists; panics in dev when missing | **planned (Phase 0)**: CI linter `tools/tenantscope` flags raw `collection.Find/UpdateOne/...` in `internal/addons/**` when filter doesn't come from `tenantrepo.Scope*`. **Phase 4**: every addon repo migrated to use it. |
 | 2 | `X-Tenant-ID` must match a membership carried in the JWT | ✅ `shared/middleware/auth.go::resolveCurrentTenant`, with one exception: holders of `system.tenants.admin` bypass the membership check (`tryImpersonationBypass`) so operator admins can act in any tenant. Every impersonation emits an `admin.tenant.impersonate` audit event and sets `ctxTenantImpersonated=true` in context. | Keep. |
-| 3 | System roles (`super_admin`/`administrator`/`developer`/`manager`/`operator`/`guest`) are **platform-level**; org roles (`org_owner`/`org_admin`/`org_member`/`org_viewer`/`org_billing`) are **tenant-level**. Never mix. | Partial — system roles exist (`User.Role`); org role catalog not yet seeded | **planned (Phase 2)**: seed 5 default org roles on org creation; cannot grant system roles via org bindings. |
+| 3 | System roles (`super_admin`/`administrator`/`developer`/`manager`/`operator`/`guest`) are **platform-level**; org roles (`org_owner`/`org_admin`/`org_member`/`org_viewer`/`org_billing`) are **tenant-level**. Never mix. | ✅ org roles seeded globally (commit A 2026-04-24); `CreateBinding` enforces system-role-needs-global / tenant-role-needs-tenant separation (commit C 2026-04-24). | Keep. |
 | 4 | Permission checks always run in a resolved org context unless the route uses `RequireGlobal()` or `RequireSystemPermission()` | ✅ middleware chain | Keep. |
-| 5 | A user cannot grant a role whose permissions they themselves lack | ❌ — administrator can grant any role to anyone | **planned (Phase 2)**: cascade rule inside `CreateBinding`. Bindings with permissions beyond caller's effective set return 403. |
+| 5 | A user cannot grant a role whose permissions they themselves lack | ✅ `CreateBinding` cascade rule (commit C 2026-04-24) returns `ErrInsufficientPermissionsToGrant`. Wildcard `*` (super_admin) bypasses; the literal sentinel granter `"system"` bypasses for platform-issued auto-grants. | Keep. |
 | 6 | Org owner is immutable without a transfer flow (`ownerUserUUID` cannot be directly reassigned) | ❌ — no transfer flow today | **planned (Phase 2)**: two-step `POST /v1/orgs/{id}/transfer-ownership` (initiate → accept); both parties emailed; audit logged. |
 | 7 | All secrets AES-256-GCM encrypted at rest | ✅ `shared/module/config_service.go` | Keep. Phase 5 extends to per-org secrets via `(module, env, orgId)` key. |
 | 8 | All mutations audited to an append-only, tamper-evident log | ❌ — only session events logged in `auth_sessions.securityEvents` | **planned (Phase 3)**: `audit_events` collection (hash-chained, insert-only role) → Loki (90d observability) → S3 Object Lock EU (7y WORM) dual-sink. SOC2 requirement. |

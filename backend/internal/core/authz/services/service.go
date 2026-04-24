@@ -30,6 +30,65 @@ var ErrSystemRoleImmutable = errors.New("authz: system role name/description/per
 // has been disabled. Operators should re-enable the role before granting.
 var ErrRoleInactive = errors.New("authz: role is disabled")
 
+// ErrSystemRoleNotGrantableInTenant is returned when CreateBinding is asked
+// to grant a platform-level system role (super_admin, administrator,
+// developer, manager, operator, guest) with a non-empty tenantID. The system
+// vs tenant tier separation requires global bindings (tenantID="") for
+// system roles. Section B item #3 commit C of the auth roadmap, 2026-04-24.
+var ErrSystemRoleNotGrantableInTenant = errors.New("authz: system roles must be granted via global bindings (tenantID=\"\"), not tenant-scoped bindings")
+
+// ErrTenantRoleNotGrantableGlobally is returned when CreateBinding is asked
+// to grant an org_* role (or any custom role) with an empty tenantID. The
+// inverse of the rule above: tenant-scope roles must always carry a
+// concrete tenant in their binding.
+var ErrTenantRoleNotGrantableGlobally = errors.New("authz: tenant-scope roles must be granted via tenant-scoped bindings, not globally")
+
+// ErrInsufficientPermissionsToGrant is returned when the cascade rule
+// rejects a binding: the granter's effective permission set is not a
+// superset of the role's permission set, so the grant would let the
+// recipient do things the granter themselves cannot. Bypass: the literal
+// granter "system" (used by the OwnerRoleBinder hook for platform-issued
+// auto-grants) skips this check.
+var ErrInsufficientPermissionsToGrant = errors.New("authz: caller cannot grant a role with permissions they do not themselves hold")
+
+// ErrGranterRequired is returned when CreateBinding is called without a
+// granter UUID and without the literal "system" sentinel. Without a known
+// granter the cascade rule cannot be evaluated; refuse rather than
+// silently waive the check.
+var ErrGranterRequired = errors.New("authz: granter is required")
+
+// granterSystem is the sentinel value handlers pass when a binding is
+// platform-issued rather than user-initiated (e.g. the OwnerRoleBinder
+// hook in tenant.CreateTenant). System grants bypass the cascade check
+// because the platform is the trust root; the system/tenant separation
+// rule still applies.
+const granterSystem = "system"
+
+// platformSystemRoleNames is the set of role names that may only ever be
+// granted via global bindings (binding.tenantID == ""). Mirrors the slice
+// in SeedSystemRoles. Adding a new platform role requires updating both
+// this set and the seed list.
+var platformSystemRoleNames = map[string]struct{}{
+	"super_admin":   {},
+	"administrator": {},
+	"developer":     {},
+	"manager":       {},
+	"operator":      {},
+	"guest":         {},
+}
+
+// isPlatformSystemRole reports whether the role is one of the 6 platform
+// system roles. Uses the role name rather than IsSystem because org_*
+// roles also carry IsSystem=true (they're seeded as built-in catalog rows
+// even though they're tenant-scoped in semantics).
+func isPlatformSystemRole(role *models.Role) bool {
+	if role == nil {
+		return false
+	}
+	_, ok := platformSystemRoleNames[role.Name]
+	return ok
+}
+
 // Service owns authorization lifecycle and implements iface.AuthzProvider.
 //
 // Permission evaluation rules (in order):
@@ -791,6 +850,27 @@ func (s *Service) CreateBinding(ctx context.Context, tenantID, grantedBy string,
 	if !role.IsActive {
 		return nil, ErrRoleInactive
 	}
+	// Separation rule: system roles only via global bindings, tenant-scope
+	// roles only via tenant-scoped bindings. Applies always, even to the
+	// "system" sentinel granter — a platform-issued auto-grant must still
+	// respect the tier discipline.
+	if err := validateBindingScope(role, tenantID); err != nil {
+		return nil, err
+	}
+	// Cascade rule: caller cannot grant a role whose permissions exceed
+	// their own. Bypassed for the platform-issued "system" granter.
+	if grantedBy == "" {
+		return nil, ErrGranterRequired
+	}
+	if grantedBy != granterSystem {
+		granterPerms, err := s.GetEffectivePermissions(ctx, grantedBy, tenantID)
+		if err != nil {
+			return nil, fmt.Errorf("authz: resolve granter perms: %w", err)
+		}
+		if err := validateBindingCascade(role, granterPerms); err != nil {
+			return nil, err
+		}
+	}
 	b := &models.Binding{
 		UUID:      uuid.NewString(),
 		UserUUID:  input.UserUUID,
@@ -891,6 +971,54 @@ func (s *Service) cacheInvalidate(ctx context.Context, userUUID string) {
 }
 
 // --- helpers ---
+
+// validateBindingScope enforces the system/tenant separation rule:
+// platform system roles need global bindings; everything else (org_*,
+// custom roles) needs tenant-scoped bindings. Returns nil when (role,
+// tenantID) form a legitimate pair. Pure function; safe to call without
+// the repo. See ErrSystemRoleNotGrantableInTenant /
+// ErrTenantRoleNotGrantableGlobally.
+func validateBindingScope(role *models.Role, tenantID string) error {
+	platformRole := isPlatformSystemRole(role)
+	if platformRole && tenantID != "" {
+		return ErrSystemRoleNotGrantableInTenant
+	}
+	if !platformRole && tenantID == "" {
+		return ErrTenantRoleNotGrantableGlobally
+	}
+	return nil
+}
+
+// validateBindingCascade enforces the cascade rule: every permission the
+// granted role would confer must already be present in the granter's
+// effective set. Granter holding the wildcard "*" bypasses (super_admin
+// can grant anything). A role asking for "*" requires the granter to also
+// hold "*". Pure function; the wrapper in CreateBinding fetches granter
+// perms via GetEffectivePermissions before calling this.
+func validateBindingCascade(role *models.Role, granterPerms []string) error {
+	granterSet := make(map[string]struct{}, len(granterPerms))
+	granterWildcard := false
+	for _, p := range granterPerms {
+		if p == "*" {
+			granterWildcard = true
+		}
+		granterSet[p] = struct{}{}
+	}
+	if granterWildcard {
+		return nil
+	}
+	for _, p := range role.Permissions {
+		if p == "*" {
+			// Granter lacks wildcard; refusing super_admin grants from a
+			// non-super_admin caller is the whole point of the cascade.
+			return ErrInsufficientPermissionsToGrant
+		}
+		if _, ok := granterSet[p]; !ok {
+			return ErrInsufficientPermissionsToGrant
+		}
+	}
+	return nil
+}
 
 func filter(in []string, pred func(string) bool) []string {
 	out := make([]string, 0, len(in))

@@ -3,10 +3,12 @@ package services
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 
 	"github.com/orkestra/backend/internal/core/authz/cedar"
+	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
@@ -160,6 +162,92 @@ func TestShadowEvaluate_NilEngineReturnsNotOK(t *testing.T) {
 	_, ok := svc.shadowEvaluate(context.Background(), "u", "t", "any.perm", true)
 	if ok {
 		t.Errorf("nil cedarEngine should return ok=false")
+	}
+}
+
+// ===== Binding cascade + system/tenant separation (commit C) =====
+
+func TestValidateBindingScope_PlatformRoleNeedsGlobal(t *testing.T) {
+	role := &models.Role{Name: "administrator", IsSystem: true}
+	if err := validateBindingScope(role, ""); err != nil {
+		t.Errorf("administrator with empty tenantID should pass, got %v", err)
+	}
+	if err := validateBindingScope(role, "tenant-1"); !errors.Is(err, ErrSystemRoleNotGrantableInTenant) {
+		t.Errorf("administrator with tenantID should reject with ErrSystemRoleNotGrantableInTenant, got %v", err)
+	}
+}
+
+func TestValidateBindingScope_OrgRoleNeedsTenant(t *testing.T) {
+	role := &models.Role{Name: "org_owner", IsSystem: true}
+	if err := validateBindingScope(role, "tenant-1"); err != nil {
+		t.Errorf("org_owner with tenantID should pass, got %v", err)
+	}
+	if err := validateBindingScope(role, ""); !errors.Is(err, ErrTenantRoleNotGrantableGlobally) {
+		t.Errorf("org_owner without tenantID should reject with ErrTenantRoleNotGrantableGlobally, got %v", err)
+	}
+}
+
+func TestValidateBindingScope_CustomRoleNeedsTenant(t *testing.T) {
+	// Custom roles (IsSystem=false, arbitrary name) follow the org-role
+	// branch: they always need a tenant scope.
+	role := &models.Role{Name: "team-lead", IsSystem: false}
+	if err := validateBindingScope(role, "tenant-1"); err != nil {
+		t.Errorf("custom role with tenantID should pass, got %v", err)
+	}
+	if err := validateBindingScope(role, ""); !errors.Is(err, ErrTenantRoleNotGrantableGlobally) {
+		t.Errorf("custom role without tenantID should reject, got %v", err)
+	}
+}
+
+func TestValidateBindingScope_AllPlatformRoleNames(t *testing.T) {
+	// Smoke test that every platform role name is recognized — drift here
+	// would let an org_admin grant administrator via the wrong scope.
+	for _, name := range []string{"super_admin", "administrator", "developer", "manager", "operator", "guest"} {
+		role := &models.Role{Name: name, IsSystem: true}
+		if err := validateBindingScope(role, "tenant-1"); !errors.Is(err, ErrSystemRoleNotGrantableInTenant) {
+			t.Errorf("platform role %q with tenantID should reject, got %v", name, err)
+		}
+	}
+}
+
+func TestValidateBindingCascade_GranterHoldsAllPerms(t *testing.T) {
+	role := &models.Role{Permissions: []string{"tenant.read", "tenant.update"}}
+	granter := []string{"tenant.read", "tenant.update", "tenant.delete"}
+	if err := validateBindingCascade(role, granter); err != nil {
+		t.Errorf("expected pass, granter is a strict superset, got %v", err)
+	}
+}
+
+func TestValidateBindingCascade_GranterMissingOnePerm(t *testing.T) {
+	role := &models.Role{Permissions: []string{"tenant.read", "tenant.delete"}}
+	granter := []string{"tenant.read"} // missing tenant.delete
+	if err := validateBindingCascade(role, granter); !errors.Is(err, ErrInsufficientPermissionsToGrant) {
+		t.Errorf("expected ErrInsufficientPermissionsToGrant, got %v", err)
+	}
+}
+
+func TestValidateBindingCascade_GranterWildcardCoversEverything(t *testing.T) {
+	role := &models.Role{Permissions: []string{"any.weird.perm", "another.one"}}
+	granter := []string{"*"}
+	if err := validateBindingCascade(role, granter); err != nil {
+		t.Errorf("super_admin granter (*) should grant anything, got %v", err)
+	}
+}
+
+func TestValidateBindingCascade_GranterCannotGrantWildcard(t *testing.T) {
+	// Even an administrator (allKeys, no wildcard) cannot promote someone
+	// to super_admin (which has wildcard).
+	role := &models.Role{Permissions: []string{"*"}}
+	granter := []string{"tenant.read", "tenant.update", "tenant.delete"} // no "*"
+	if err := validateBindingCascade(role, granter); !errors.Is(err, ErrInsufficientPermissionsToGrant) {
+		t.Errorf("non-wildcard granter must not grant wildcard role, got %v", err)
+	}
+}
+
+func TestValidateBindingCascade_EmptyRoleAlwaysPasses(t *testing.T) {
+	role := &models.Role{Permissions: nil}
+	if err := validateBindingCascade(role, nil); err != nil {
+		t.Errorf("empty role on empty granter should pass (vacuously true), got %v", err)
 	}
 }
 
