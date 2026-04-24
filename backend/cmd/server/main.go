@@ -177,6 +177,9 @@ func main() {
 	if sink, ok := module.GetTyped[iface.AuditSink](svcRegistry, module.ServiceAuditSink); ok {
 		authMW.SetAuditSink(sink)
 	}
+	if rev, ok := module.GetTyped[services.SessionRevocationService](svcRegistry, module.ServiceSessionRevocation); ok {
+		authMW.SetSessionRevocation(rev)
+	}
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 
 	// Router + middleware

@@ -298,6 +298,16 @@ type RoleMiddleware interface {
 	// retry against /v1/auth/mfa/verify.
 	RequireMFA() func(http.Handler) http.Handler
 
+	// RequireStepUp blocks the request unless the caller completed a second
+	// factor within maxAge of now. Stronger than RequireMFA, which is
+	// satisfied for the lifetime of the access token — step-up demands a
+	// *fresh* MFA proof for operations whose abuse is catastrophic or
+	// irreversible (admin resetting another user's MFA, tenant deletion,
+	// bulk PII export, role-ownership transfer). Returns 401 with
+	// code="step_up_required" and a maxAge hint; the client is expected
+	// to drive the user through /v1/auth/mfa/verify and retry.
+	RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler
+
 	// RequireInternalTenant rejects requests whose resolved tenant is not
 	// internal (Tier-1 operator). Use on operator-only routes: billing /
 	// FatturaPA, subscription-admin, payments-admin. Warn-mode (set via

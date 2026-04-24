@@ -53,10 +53,21 @@ export interface LoginCredentials {
 
 export interface PasswordLoginResponse {
   success: boolean;
-  accessToken: string;
-  tokenType: string;
-  expiresIn: number;
-  user: BackendUser;
+  // accessToken/tokenType/expiresIn are absent on MFA partial responses.
+  accessToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+  user?: BackendUser;
+  // Populated only when the account has an enrolled second factor. The
+  // caller must POST challengeId+code to /v1/auth/mfa/login/verify to
+  // complete the flow — no session cookies are set until then.
+  requiresMfa?: boolean;
+  mfaToken?: string;
+  // Populated when the account's role requires MFA but none is enrolled.
+  // The caller receives a full token (grace window) but must enroll before
+  // mfaGraceExpiresAt.
+  mfaEnrollmentRequired?: boolean;
+  mfaGraceExpiresAt?: string | null;
 }
 
 export interface RegisterInput {
@@ -141,6 +152,11 @@ export const authApi = baseApi.injectEndpoints({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const result = await queryFulfilled;
+          // MFA partial response: no tokens minted, caller routes to
+          // /mfa/verify with the challenge id. Don't seed auth state.
+          if (result.data?.requiresMfa) {
+            return;
+          }
           if (result.data?.accessToken && result.data?.expiresIn) {
             dispatch(
               setAccessToken({
@@ -152,12 +168,12 @@ export const authApi = baseApi.injectEndpoints({
           // Seed the session cache with the login response so subsequent
           // useGetSessionQuery subscribers see authenticated state without
           // another round-trip (which would rotate the cookie again).
-          if (result.data?.user) {
+          if (result.data?.user && result.data?.accessToken) {
             dispatch(
               authApi.util.upsertQueryData('getSession', undefined, {
                 accessToken: result.data.accessToken,
-                tokenType: result.data.tokenType,
-                expiresIn: result.data.expiresIn,
+                tokenType: result.data.tokenType ?? 'Bearer',
+                expiresIn: result.data.expiresIn ?? 0,
                 user: result.data.user,
                 success: true,
               } as SessionResponse)
@@ -233,9 +249,6 @@ export const authApi = baseApi.injectEndpoints({
       invalidatesTags: ['Auth', 'User', 'Navigation'],
       onQueryStarted: async (_, { dispatch, queryFulfilled }) => {
         try {
-          // Clear access token immediately
-          localStorage.removeItem('access_token');
-
           // Wait for logout to complete
           await queryFulfilled;
 

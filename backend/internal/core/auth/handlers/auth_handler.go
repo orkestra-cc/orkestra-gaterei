@@ -30,7 +30,16 @@ type AuthHandler struct {
 	oauthStateService services.OAuthStateService
 	oauthProviderRepo repository.OAuthProviderRepository
 	jwtService        services.JWTService
+	sessionRevocation services.SessionRevocationService
 	config            *config.Config
+}
+
+// SetSessionRevocation wires the revoked-session store so logout can
+// invalidate the current session's sid instantly instead of waiting for
+// the access-token TTL. Optional — nil falls back to refresh-token
+// invalidation only (the pre-revocation behavior).
+func (h *AuthHandler) SetSessionRevocation(s services.SessionRevocationService) {
+	h.sessionRevocation = s
 }
 
 // NewAuthHandler creates a new auth handler
@@ -52,6 +61,13 @@ func NewAuthHandler(
 		jwtService:        jwtService,
 		config:            config,
 	}
+}
+
+// currentSessionID returns the JWT sid claim from the request context, or
+// "" when the caller is unauthenticated or carrying a pre-sid token.
+func currentSessionID(ctx context.Context) string {
+	sid, _ := middleware.GetSessionID(ctx)
+	return sid
 }
 
 // resolveProvider fetches the current config for an OAuth provider from the
@@ -1493,6 +1509,21 @@ func (h *AuthHandler) LogoutHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Revoke the current access token's sid so the caller cannot keep using
+	// it for the remainder of its TTL. Refresh-token invalidation above only
+	// prevents new tokens from being minted — without this call, a stolen
+	// bearer still works until its exp ticks over. Best-effort: Redis errors
+	// log but do not fail the logout response.
+	if h.sessionRevocation != nil {
+		if sid := currentSessionID(ctx); sid != "" {
+			if err := h.sessionRevocation.Revoke(ctx, sid, "logout"); err != nil {
+				logger.Warn("logout: failed to revoke session id",
+					slog.String("sid", sid),
+					slog.String("error", err.Error()))
+			}
+		}
+	}
+
 	// Clear the refresh token cookie
 	cookieDomain := h.config.Auth.Cookie.Domain
 	isSecure := h.config.Auth.Cookie.Secure
@@ -1533,6 +1564,12 @@ func (h *AuthHandler) Logout(ctx context.Context, req *LogoutRequest) (*LogoutRe
 			if err != nil {
 				return nil, huma.Error500InternalServerError("Failed to logout", err)
 			}
+		}
+	}
+
+	if h.sessionRevocation != nil {
+		if sid := currentSessionID(ctx); sid != "" {
+			_ = h.sessionRevocation.Revoke(ctx, sid, "logout")
 		}
 	}
 

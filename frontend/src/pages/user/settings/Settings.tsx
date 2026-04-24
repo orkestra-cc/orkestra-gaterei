@@ -9,6 +9,7 @@ import EducationSettings from './EducationSettings';
 import AccountSettings from './AccountSettings';
 import BillingSettings from './BillingSettings';
 import ChangePassword from './ChangePassword';
+import MfaSettings from './mfa/MfaSettings';
 import DangerZone from './DangerZone';
 
 const Settings: React.FC = () => {
@@ -32,6 +33,7 @@ const Settings: React.FC = () => {
             <AccountSettings />
             <BillingSettings />
             <ChangePassword />
+            <MfaSettings />
             <DangerZone />
           </div>
         </Col>

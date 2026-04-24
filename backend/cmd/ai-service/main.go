@@ -116,6 +116,11 @@ func main() {
 		log.Fatalf("Failed to create JWT validator: %v", err)
 	}
 
+	// Share the monolith's revoked-session set so a logout or admin-kill
+	// invalidates tokens here too. Both binaries point at the same Redis
+	// instance and agree on the auth:revoked:session:<sid> key namespace.
+	jwtValidator.SetSessionRevocation(&sidecarSessionRevocationChecker{client: redisAdapter})
+
 	// Router + middleware
 	router := chi.NewRouter()
 	setupAIMiddleware(router, cfg)
@@ -214,6 +219,32 @@ func main() {
 	}
 
 	logger.Info("AI Service stopped")
+}
+
+// sidecarSessionRevocationChecker is a tiny middleware.SessionRevocationChecker
+// for the sidecar. It talks to the same Redis as the monolith and agrees on
+// the "auth:revoked:session:<sid>" key, so a logout or admin-kill on the
+// monolith invalidates sidecar traffic too. Fails open on Redis errors to
+// avoid coupling availability — same stance as the monolith's service.
+type sidecarSessionRevocationChecker struct {
+	client *database.RedisClientAdapter
+}
+
+func (c *sidecarSessionRevocationChecker) IsRevoked(ctx context.Context, sid string) (bool, error) {
+	if sid == "" || c == nil || c.client == nil {
+		return false, nil
+	}
+	_, err := c.client.Get(ctx, "auth:revoked:session:"+sid)
+	if err == nil {
+		return true, nil
+	}
+	// go-redis returns redis.Nil for missing keys; treat anything else as a
+	// transient error and fail open. The monolith's service logs the error;
+	// we rely on that surface rather than duplicating it here.
+	if strings.Contains(err.Error(), "redis: nil") {
+		return false, nil
+	}
+	return false, nil
 }
 
 // setupAIMiddleware configures global middleware for the AI service.

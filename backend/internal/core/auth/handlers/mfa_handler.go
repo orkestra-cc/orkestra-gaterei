@@ -124,9 +124,19 @@ func (h *MFAHandler) EnrollConfirm(ctx context.Context, req *MFAEnrollConfirmReq
 
 type MFAStatusResponse struct {
 	Body struct {
-		Status               string `json:"status"`
-		Type                 string `json:"type,omitempty"`
-		BackupCodesRemaining int    `json:"backupCodesRemaining"`
+		Status               string     `json:"status"`
+		Type                 string     `json:"type,omitempty"`
+		BackupCodesRemaining int        `json:"backupCodesRemaining"`
+		// RequiresMFA is true when the caller's role (system or org-scoped)
+		// obligates enrollment. False means the banner/countdown should be
+		// hidden regardless of enrollment status.
+		RequiresMFA bool `json:"requiresMfa"`
+		// GraceExpiresAt is the deadline by which a user whose role requires
+		// MFA must enroll. Present only when the grace clock has started —
+		// absent before the first privileged login. Populated from the user
+		// record's MFAGraceStartedAt so it survives page reloads (unlike the
+		// one-shot field in the login response).
+		GraceExpiresAt *time.Time `json:"graceExpiresAt,omitempty"`
 	}
 }
 
@@ -143,15 +153,32 @@ func (h *MFAHandler) Status(ctx context.Context, _ *struct{}) (*MFAStatusRespons
 	resp.Body.Status = string(snap.Status)
 	resp.Body.Type = string(snap.Type)
 	resp.Body.BackupCodesRemaining = snap.BackupCodesRemaining
+
+	// Role-based MFA requirement + grace deadline. Best-effort: the user
+	// lookup and policy check can each fail independently (bad claims,
+	// deleted user). Absent fields default to "not required / no deadline",
+	// which is the correct fallback — don't pester users with a banner
+	// when the backend can't confirm they actually need MFA.
+	user, err := h.users.GetUserByID(ctx, userUUID)
+	if err == nil && user != nil {
+		var memberships []authModels.OrgMembership
+		if claims, ok := ctx.Value("claims").(*authModels.JWTClaims); ok && claims != nil {
+			memberships = claims.Memberships
+		}
+		if services.RoleRequiresMFA(user, memberships) {
+			resp.Body.RequiresMFA = true
+			if deadline := services.GraceExpiresAt(user); !deadline.IsZero() {
+				resp.Body.GraceExpiresAt = &deadline
+			}
+		}
+	}
 	return resp, nil
 }
 
 // --- Remove ---
 
 type MFARemoveRequest struct {
-	Body struct {
-		Code string `json:"code" doc:"Live TOTP code — confirms the removal is intentional"`
-	}
+	Body struct{}
 }
 
 type MFARemoveResponse struct {
@@ -165,10 +192,8 @@ func (h *MFAHandler) Remove(ctx context.Context, req *MFARemoveRequest) (*MFARem
 	if userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
-	// Block D will replace this in-handler check with RequireStepUp middleware.
-	if err := h.mfa.Verify(ctx, userUUID, req.Body.Code); err != nil {
-		return nil, mapMFAError(err)
-	}
+	// Freshness of the step-up is enforced by RequireStepUp middleware;
+	// the handler only performs the removal.
 	if err := h.mfa.RemoveFactor(ctx, userUUID, userUUID); err != nil {
 		return nil, mapMFAError(err)
 	}
@@ -463,15 +488,6 @@ func (h *MFAHandler) RegisterProtectedRoutes(api huma.API) {
 	}, h.Status)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "mfa-remove",
-		Method:      http.MethodPost,
-		Path:        "/v1/auth/me/mfa/remove",
-		Summary:     "Remove the current user's MFA factor",
-		Tags:        []string{"Authentication", "MFA"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, h.Remove)
-
-	huma.Register(api, huma.Operation{
 		OperationID: "mfa-verify",
 		Method:      http.MethodPost,
 		Path:        "/v1/auth/mfa/verify",
@@ -481,9 +497,23 @@ func (h *MFAHandler) RegisterProtectedRoutes(api huma.API) {
 	}, h.Verify)
 }
 
+// RegisterStepUpRoutes mounts endpoints that demand a *fresh* MFA proof.
+// The caller wires RequireStepUp(5m) around this API instance — see
+// auth/module.go.
+func (h *MFAHandler) RegisterStepUpRoutes(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "mfa-remove",
+		Method:      http.MethodPost,
+		Path:        "/v1/auth/me/mfa/remove",
+		Summary:     "Remove the current user's MFA factor (requires fresh step-up)",
+		Tags:        []string{"Authentication", "MFA"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.Remove)
+}
+
 // RegisterAdminRoutes mounts the admin-scoped reset endpoint. The caller
-// must chain RequireSystemPermission + RequireMFA around this API instance
-// before invocation — see auth/module.go for the wiring.
+// must chain RequireSystemPermission + RequireStepUp around this API
+// instance before invocation — see auth/module.go for the wiring.
 func (h *MFAHandler) RegisterAdminRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "mfa-admin-reset",

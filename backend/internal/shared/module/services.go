@@ -28,6 +28,12 @@ const (
 	ServicePasswordService     ServiceKey = "auth.password"
 	ServicePasswordAuthService ServiceKey = "auth.password_auth"
 
+	// ServiceSessionRevocation is the Redis-backed revoked-session set. Every
+	// authenticated request checks it before running the handler, so an
+	// admin-kill or logout-all takes effect instantly instead of waiting for
+	// the access-token TTL. Value: auth/services.SessionRevocationService.
+	ServiceSessionRevocation ServiceKey = "auth.session_revocation"
+
 	ServiceTenantProvider ServiceKey = "tenant.provider"
 	// ServiceTenantService is the concrete *tenant/services.Service registered
 	// alongside the TenantProvider interface. Compliance consumes it to wire

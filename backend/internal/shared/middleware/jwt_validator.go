@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
@@ -24,10 +25,19 @@ import (
 // It satisfies module.RoleMiddleware so it can be dropped in wherever the
 // main monolith uses AuthMiddleware.
 type JWTValidator struct {
-	publicKey      *rsa.PublicKey
-	expectedIssuer string
-	tenant         iface.TenantProvider
-	authz          iface.AuthzProvider
+	publicKey         *rsa.PublicKey
+	expectedIssuer    string
+	tenant            iface.TenantProvider
+	authz             iface.AuthzProvider
+	sessionRevocation SessionRevocationChecker
+}
+
+// SessionRevocationChecker is the narrow contract the middleware needs to
+// verify that the caller's JWT sid has not been revoked. Deliberately
+// minimal so both the monolith's full SessionRevocationService and any
+// lightweight sidecar-local implementation can satisfy it.
+type SessionRevocationChecker interface {
+	IsRevoked(ctx context.Context, sid string) (bool, error)
 }
 
 // NewJWTValidator creates a JWTValidator from a PEM-encoded RSA public key file.
@@ -72,6 +82,13 @@ func (v *JWTValidator) SetTenantProvider(t iface.TenantProvider) { v.tenant = t 
 // SetAuthzProvider wires the authz provider for permission evaluation.
 func (v *JWTValidator) SetAuthzProvider(a iface.AuthzProvider) { v.authz = a }
 
+// SetSessionRevocation wires the revoked-session checker. Optional: the
+// sidecar trusts the monolith's upstream revocation check when unset, but
+// wiring it provides defense in depth for requests that skip the
+// monolith (e.g. RAG streaming that goes directly from the frontend to
+// the sidecar).
+func (v *JWTValidator) SetSessionRevocation(s SessionRevocationChecker) { v.sessionRevocation = s }
+
 // RequireAuth validates the Bearer token and populates the request context
 // with user identity plus the resolved current org (X-Org-ID header).
 func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
@@ -115,6 +132,14 @@ func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 
 		claims := parseClaims(mapClaims)
 
+		if v.sessionRevocation != nil && claims.SessionID != "" {
+			if revoked, _ := v.sessionRevocation.IsRevoked(r.Context(), claims.SessionID); revoked {
+				w.Header().Set("WWW-Authenticate", `Bearer error="session_revoked"`)
+				writeErr(w, http.StatusUnauthorized, "session revoked")
+				return
+			}
+		}
+
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
 		ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
@@ -148,6 +173,8 @@ func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
 		DefaultTenantID:  getStr(m, "dtid"),
 		ActingTenantID:   getStr(m, "acting_tenant_id"),
 		ActingTenantKind: getStr(m, "acting_tenant_kind"),
+		SessionID:        getStr(m, "sid"),
+		DeviceID:         getStr(m, "did"),
 	}
 	if mbrs, ok := m["mbr"].([]interface{}); ok {
 		for _, raw := range mbrs {
@@ -342,6 +369,48 @@ func (v *JWTValidator) RequireMFA() func(http.Handler) http.Handler {
 				"detail": "this action requires a second authentication factor",
 				"code":   "mfa_required",
 			})
+		})
+	}
+}
+
+// RequireStepUp mirrors AuthMiddleware.RequireStepUp for the AI sidecar.
+// The sidecar has no step-up-sensitive endpoints today (AI chat / RAG
+// query are gated by capability + permission, not freshness), but the
+// interface must be satisfied so sidecar modules compile against the
+// same RoleMiddleware contract.
+func (v *JWTValidator) RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler {
+	if maxAge <= 0 {
+		maxAge = 5 * time.Minute
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := r.Context().Value(ctxClaims).(*authModels.JWTClaims)
+			if !ok || claims == nil {
+				writeErr(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			fresh := false
+			for _, a := range claims.AMR {
+				if a == "otp" || a == "webauthn" || a == "mfa" {
+					fresh = true
+					break
+				}
+			}
+			if !fresh || claims.LastOTPAt == 0 ||
+				time.Since(time.Unix(claims.LastOTPAt, 0)) > maxAge {
+				w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status":        http.StatusUnauthorized,
+					"title":         "step-up authentication required",
+					"detail":        "this action requires a fresh second-factor verification",
+					"code":          "step_up_required",
+					"maxAgeSeconds": int(maxAge.Seconds()),
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

@@ -13,10 +13,11 @@ import (
 
 // PasswordAuthHandler wraps the PasswordAuthService with HTTP bindings.
 type PasswordAuthHandler struct {
-	svc         *services.PasswordAuthService
-	cookieName  string
-	cookieDomain string
-	cookieSecure bool
+	svc               *services.PasswordAuthService
+	cookieName        string
+	cookieDomain      string
+	cookieSecure      bool
+	sessionRevocation services.SessionRevocationService
 }
 
 func NewPasswordAuthHandler(svc *services.PasswordAuthService, cookieName, cookieDomain string, cookieSecure bool) *PasswordAuthHandler {
@@ -29,6 +30,13 @@ func NewPasswordAuthHandler(svc *services.PasswordAuthService, cookieName, cooki
 		cookieDomain: cookieDomain,
 		cookieSecure: cookieSecure,
 	}
+}
+
+// SetSessionRevocation wires the revoked-session store so change-password
+// can invalidate the current session's access token in addition to the
+// refresh-token wipe the service already performs.
+func (h *PasswordAuthHandler) SetSessionRevocation(s services.SessionRevocationService) {
+	h.sessionRevocation = s
 }
 
 // --- Register ---
@@ -231,6 +239,14 @@ func (h *PasswordAuthHandler) ChangePassword(ctx context.Context, req *ChangePas
 	}
 	if err := h.svc.ChangePassword(ctx, userUUID, req.Body.CurrentPassword, req.Body.NewPassword); err != nil {
 		return nil, mapPasswordError(err)
+	}
+	// Refresh tokens are already invalidated inside ChangePassword; revoke
+	// the current access token's sid too so the old bearer stops working
+	// immediately instead of staying valid until its 15-minute TTL.
+	if h.sessionRevocation != nil {
+		if sid := currentSessionID(ctx); sid != "" {
+			_ = h.sessionRevocation.Revoke(ctx, sid, "password_change")
+		}
 	}
 	resp := &ForgotPasswordResponse{}
 	resp.Body.Success = true

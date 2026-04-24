@@ -158,9 +158,9 @@ Registered from two handlers — `auth_handler.go` for OAuth/session/refresh, `p
 | POST | `/v1/auth/mfa/enroll/begin` | `RequireGlobal()` | Start TOTP enrollment — returns `{challengeId, secret, provisioningUri}` |
 | POST | `/v1/auth/mfa/enroll/confirm` | `RequireGlobal()` | Confirm enrollment with a TOTP code, receive 10 one-shot backup codes |
 | GET | `/v1/auth/me/mfa` | `RequireGlobal()` | Return `{status, type, backupCodesRemaining}` |
-| POST | `/v1/auth/me/mfa/remove` | `RequireGlobal()` | Remove own factor — requires a live TOTP code (upgrades to `RequireStepUp` in Block D) |
+| POST | `/v1/auth/me/mfa/remove` | `RequireGlobal()` + `RequireStepUp(5m)` | Remove own factor — step-up middleware demands a <5min MFA proof; request body is empty |
 | POST | `/v1/auth/mfa/verify` | `RequireGlobal()` | Verify TOTP or backup code; mint a stepped-up access token with `amr:["pwd","otp"]` + `last_otp_at=now` |
-| POST | `/v1/admin/users/{userId}/mfa/reset` | `RequireSystemPermission("system.users.mfa_reset")` + `RequireMFA()` | Admin: delete target user's MFA factor and restart their enrollment grace |
+| POST | `/v1/admin/users/{userId}/mfa/reset` | `RequireSystemPermission("system.users.mfa_reset")` + `RequireStepUp(5m)` | Admin: delete target user's MFA factor and restart their enrollment grace |
 
 And a public endpoint that completes a login after a partial response:
 
@@ -180,6 +180,9 @@ And a public endpoint that completes a login after a partial response:
 - **TOTP replay guard** — `MFAFactorDoc.LastUsedStep` advances via an atomic `AdvanceLastUsedStep` CAS in the repo (`$or: lastUsedStep < step OR $exists:false`). A captured code cannot be used twice within its 30-second window, whether by the same caller or a concurrent one.
 - `JWTClaims.AMR` (RFC 8176) and `JWTClaims.LastOTPAt` are emitted `omitempty` so pre-Block-A tokens still validate. Password login sets `amr:["pwd"]`, OAuth `amr:["oauth"]`, MFA verify sets `amr:[source,"otp"]` + `last_otp_at=now`.
 - `RoleMiddleware.RequireMFA()` is applied to the routes whose abuse MFA exists to prevent: authz role + binding mutations (create/update/delete-role, create/delete-binding), tenant scoped mutations (update/delete-org, update-plan, remove-member, create-invite), and module config writes (`update-module`, `update-module-environment`, `set-active-environment`). Read paths stay open.
+- `RoleMiddleware.RequireStepUp(maxAge)` is a stricter variant applied to catastrophic / irreversible actions (currently `POST /v1/auth/me/mfa/remove` and `POST /v1/admin/users/{id}/mfa/reset`). It checks both that `amr` contains an MFA marker AND that `last_otp_at` is within `maxAge` of now — a session-long MFA proof is not enough. Returns 401 with `code="step_up_required"` + `maxAgeSeconds`; the web frontend's global `StepUpModal` pauses the request, drives the user through `/mfa/verify`, and replays.
+- **Session revocation list** — Redis-backed set at `auth:revoked:session:<sid>` checked on every authenticated request by both `AuthMiddleware` (monolith) and `JWTValidator` (sidecar). Populated on logout + change-password; payload is the reason string for operator debugging. Entries auto-expire after the access-token TTL + 1min buffer. Fails open on Redis errors — a degraded Redis must not lock every user out. Logout invalidates the current sid only; `allDevices=true` still relies on refresh-token revocation (per-user-generation counter is a follow-up).
+- **Grace countdown on `/v1/auth/me/mfa`** — response now carries `requiresMfa` + `graceExpiresAt` computed from the user record + JWT memberships, so the frontend banner/countdown can render without relying on the one-shot login response.
 
 ## Service contract
 
@@ -208,8 +211,6 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - Org membership, invite lifecycle, plan entitlements → **tenant** module
 - Permission evaluation, role bindings, system role seeding → **authz** module
 - Rendering and sending emails → **notification** module (auth just passes `TemplatedNotificationRequest`)
-- Step-up middleware (`RequireStepUp(maxAge)`) that rejects stale MFA proofs — Block D. Until then, `RequireMFA` only checks `amr` presence, not freshness, and the self-service MFA remove endpoint enforces via an in-handler live-code check.
-- Redis session revocation list — Block D. Once landed, every authenticated request checks `auth:revoked:session:<sid>` before hitting the handler; today only family revocation catches stolen refresh tokens, not stolen access tokens.
 - WebAuthn — reserved in `MFAFactorType`; not implemented.
 - OAuth token refresh against the provider — only the user's Orkestra session is refreshed; provider access tokens are not persisted long-term.
 

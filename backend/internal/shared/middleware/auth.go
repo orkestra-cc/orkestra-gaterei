@@ -54,14 +54,15 @@ const (
 const TenantIDHeader = "X-Tenant-ID"
 
 type AuthMiddleware struct {
-	jwtService   services.JWTService
-	authService  services.AuthService
-	tenant       iface.TenantProvider
-	authz        iface.AuthzProvider
-	auditSink    iface.AuditSink
-	errorManager *errors.Manager
-	cookieName   string
-	config       *config.Config
+	jwtService       services.JWTService
+	authService      services.AuthService
+	tenant           iface.TenantProvider
+	authz            iface.AuthzProvider
+	auditSink        iface.AuditSink
+	sessionRevocation services.SessionRevocationService
+	errorManager     *errors.Manager
+	cookieName       string
+	config           *config.Config
 
 	// impersonationDedupe throttles the admin.tenant.impersonate audit
 	// event to one emit per (actorUserUUID|targetTenantID) every
@@ -123,6 +124,15 @@ func (m *AuthMiddleware) SetAuditSink(sink iface.AuditSink) {
 	}
 }
 
+// SetSessionRevocation wires the Redis-backed revoked-session checker.
+// When set, every authenticated request verifies the token's sid claim is
+// not present in the revocation set before running the handler, so logout
+// and admin-kill take effect instantly rather than after the access-token
+// TTL. Optional — when unset, revocation falls back to access-token TTL.
+func (m *AuthMiddleware) SetSessionRevocation(s services.SessionRevocationService) {
+	m.sessionRevocation = s
+}
+
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := m.extractBearerToken(r)
@@ -130,6 +140,10 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		if token != "" {
 			claims, err := m.jwtService.ValidateAccessToken(token)
 			if err == nil {
+				if m.isSessionRevoked(r, claims) {
+					m.sendSessionRevoked(w, r)
+					return
+				}
 				m.setUserContext(w, r, claims, next)
 				return
 			}
@@ -162,6 +176,10 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 
 					claims, err := m.jwtService.ValidateAccessToken(tokenResponse.AccessToken)
 					if err == nil {
+						if m.isSessionRevoked(r, claims) {
+							m.sendSessionRevoked(w, r)
+							return
+						}
 						m.setUserContext(w, r, claims, next)
 						return
 					}
@@ -172,6 +190,40 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 			WithOperation("require_auth").
 			Build())
+	})
+}
+
+// isSessionRevoked returns true when the revocation checker is wired and
+// reports the token's sid as revoked. Errors are treated as "not revoked"
+// by the service (fail-open on Redis outage) — see
+// SessionRevocationService's type comment.
+func (m *AuthMiddleware) isSessionRevoked(r *http.Request, claims *models.JWTClaims) bool {
+	if m.sessionRevocation == nil || claims == nil || claims.SessionID == "" {
+		return false
+	}
+	revoked, _ := m.sessionRevocation.IsRevoked(r.Context(), claims.SessionID)
+	return revoked
+}
+
+// sendSessionRevoked emits the structured 401 that tells the client to
+// drop its access token and re-authenticate. The `session_revoked` code
+// is distinct from the generic `authentication required` path so the
+// frontend can choose a cleaner UX than the token-expired toast.
+func (m *AuthMiddleware) sendSessionRevoked(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer error="session_revoked"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "session revoked",
+		"detail": "this session has been revoked; please sign in again",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "session revoked",
+			"location": "require_auth",
+			"value":    "SESSION_REVOKED",
+		}},
+		"code": "session_revoked",
 	})
 }
 
@@ -525,6 +577,19 @@ func GetTenantID(ctx context.Context) (string, bool) {
 	return tenantID, true
 }
 
+// GetSessionID extracts the JWT sid claim (session identifier) from the
+// request context. Used by the logout handler to revoke the current
+// session and by any handler that needs to correlate requests against a
+// specific session. Returns ok=false when the context has no claims
+// (unauthenticated routes) or the claims predate sid stamping.
+func GetSessionID(ctx context.Context) (string, bool) {
+	claims, ok := ctx.Value(ctxClaims).(*models.JWTClaims)
+	if !ok || claims == nil || claims.SessionID == "" {
+		return "", false
+	}
+	return claims.SessionID, true
+}
+
 // GetTenantRoles extracts the user's roles in the current tenant.
 func GetTenantRoles(ctx context.Context) ([]string, bool) {
 	roles, ok := ctx.Value(ctxTenantRoles).([]string)
@@ -693,6 +758,60 @@ func (m *AuthMiddleware) RequireMFA() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RequireStepUp blocks the request unless a second factor was completed
+// within maxAge of now. Used for catastrophic / irreversible operations
+// where a session-long MFA proof (what RequireMFA accepts) would leave
+// too wide a window between authentication and action. Returns 401 with
+// code="step_up_required" and the maxAge in seconds; the client is
+// expected to prompt the user, call /v1/auth/mfa/verify to obtain a
+// refreshed access token, and retry.
+func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler {
+	if maxAge <= 0 {
+		maxAge = 5 * time.Minute
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := r.Context().Value(ctxClaims).(*models.JWTClaims)
+			if !ok || claims == nil {
+				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
+					WithOperation("require_step_up").Build())
+				return
+			}
+			if !amrSatisfiesMFA(claims.AMR) || claims.LastOTPAt == 0 {
+				m.sendStepUpRequired(w, r, maxAge)
+				return
+			}
+			if time.Since(time.Unix(claims.LastOTPAt, 0)) > maxAge {
+				m.sendStepUpRequired(w, r, maxAge)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// sendStepUpRequired emits the structured 401 the frontend looks for to
+// drive a re-MFA prompt. Mirrors sendMFARequired's shape so clients can
+// reuse most of the handler, branching only on the "code" field.
+func (m *AuthMiddleware) sendStepUpRequired(w http.ResponseWriter, r *http.Request, maxAge time.Duration) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":       http.StatusUnauthorized,
+		"title":        "step-up authentication required",
+		"detail":       "this action requires a fresh second-factor verification",
+		"type":         "about:blank",
+		"errors": []map[string]any{{
+			"message":  "step-up required",
+			"location": "require_step_up",
+			"value":    "STEP_UP_REQUIRED",
+		}},
+		"code":         "step_up_required",
+		"maxAgeSeconds": int(maxAge.Seconds()),
+	})
 }
 
 // amrSatisfiesMFA checks whether any second-factor method is recorded on the

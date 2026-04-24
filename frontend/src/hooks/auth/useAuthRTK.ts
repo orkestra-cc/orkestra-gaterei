@@ -116,8 +116,15 @@ export const useAuth = () => {
     try {
       const result = await loginMutation(credentials).unwrap();
 
+      // MFA partial response: caller must route to /mfa/verify before we
+      // can hydrate session state. Return early so the useAuthRTK consumer
+      // can decide what to do (EmailPasswordForm handles the nav itself).
+      if (result.requiresMfa) {
+        return { success: true, requiresMfa: true, mfaToken: result.mfaToken };
+      }
+
       // Sync successful login with Redux state
-      dispatch(setUserFromApiResponse(result.user));
+      dispatch(setUserFromApiResponse(result.user ?? null));
 
       toast.success('Login successful!', {
         toastId: 'login-success',
@@ -156,7 +163,6 @@ export const useAuth = () => {
       console.error('Logout failed:', error);
 
       // Even if logout fails server-side, clear client state
-      localStorage.removeItem('access_token');
       dispatch(logoutAction());
 
       // Re-enable session queries even if logout failed

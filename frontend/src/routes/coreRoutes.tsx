@@ -17,6 +17,7 @@ import ForgotPassword from 'components/authentication/ForgotPassword';
 import ResetPassword from 'components/authentication/ResetPassword';
 import VerifyEmailPage from 'components/authentication/VerifyEmailPage';
 import SocialAuthCallback from 'components/authentication/SocialAuthCallback';
+import LoginMfaVerify from 'components/authentication/LoginMfaVerify';
 
 const SetupWizard = lazy(() => import('pages/setup/SetupWizard'));
 const UserManagement = lazy(() => import('pages/admin/users'));
@@ -77,6 +78,7 @@ export function buildCoreRoutes(
           ),
         },
         { path: 'login', element: <Login /> },
+        { path: 'mfa/verify', element: <LoginMfaVerify /> },
         { path: 'register', element: <Register /> },
         { path: 'forgot-password', element: <ForgotPassword /> },
         { path: 'reset-password', element: <ResetPassword /> },

@@ -2,6 +2,7 @@ import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError 
 import { toast } from 'react-toastify';
 import type { RootState } from '../index';
 import { setAccessToken, clearAccessToken } from '../slices/authSlice';
+import { requestStepUp } from '../stepUp';
 
 // Navigation helper - will be set by the auth provider
 let navigateToLogin: ((location?: string) => void) | null = null;
@@ -144,6 +145,44 @@ const baseQueryWithRetry: BaseQueryFn<
     const isSessionEndpoint = requestUrl.includes('v1/auth/session');
     const isAuthCheck = requestUrl.includes('v1/auth/me') || requestUrl.includes('v1/auth/session');
 
+    // Server-side session revocation (logout, admin-kill, password change)
+    // sets `code: "session_revoked"` on the 401 body. Skip the silent-refresh
+    // retry in that case — a new access token minted from the same refresh
+    // cookie would carry the same revoked sid and just fail again. Clear
+    // local state and bounce the user to /login with a specific message.
+    const errorData = (result.error as { data?: { code?: string } }).data;
+    if (errorData?.code === 'session_revoked') {
+      api.dispatch(clearAccessToken());
+      if (!isAuthCheck) {
+        toast.error('Your session has been revoked. Please sign in again.', {
+          toastId: 'session-revoked',
+          autoClose: 5000,
+        });
+      }
+      if (navigateToLogin) {
+        navigateToLogin(window.location.pathname);
+      }
+      return result;
+    }
+
+    // Step-up MFA required. Pause the original request, open the global
+    // StepUpModal via requestStepUp(), and replay once the user completes
+    // /v1/auth/mfa/verify — the mutation dispatches a refreshed access
+    // token into Redux so the replay carries fresh AMR + last_otp_at.
+    // Auth endpoints themselves are excluded so we don't recurse on
+    // /mfa/verify's own 401s.
+    if (
+      result.error.status === 401 &&
+      errorData?.code === 'step_up_required' &&
+      !isAuthEndpoint(requestUrl)
+    ) {
+      const verified = await requestStepUp();
+      if (verified) {
+        return await baseQuery(args, api, extraOptions);
+      }
+      return result;
+    }
+
     // On a fresh install the session endpoint legitimately returns 401
     // because no user exists yet. The SetupGate should be steering the
     // browser to /setup, not /login. Suppress the forced login redirect
@@ -285,6 +324,8 @@ export const baseApi = createApi({
     'ModuleHealth',
     // First-install onboarding
     'Setup',
+    // MFA factors + backup codes
+    'MFA',
     // Tenant + authz tags
     'Org',
     'Membership',

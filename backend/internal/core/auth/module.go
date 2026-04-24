@@ -42,6 +42,7 @@ func (m *AuthModule) ProvidedServices() []module.ServiceKey {
 		module.ServiceJWTService,
 		module.ServicePasswordService,
 		module.ServicePasswordAuthService,
+		module.ServiceSessionRevocation,
 	}
 }
 
@@ -205,6 +206,16 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		return err
 	}
 
+	// Session revocation list (Block D): Redis-backed set of revoked `sid`
+	// claims checked on every authenticated request. Populated on logout,
+	// password reset, and admin kill-session so a stolen access token stops
+	// working instantly instead of staying valid until its TTL expires.
+	sessionRevocationSvc := services.NewSessionRevocationService(
+		deps.RedisAdapter,
+		cfg.Auth.JWT.AccessTokenExpiry,
+		logger,
+	)
+
 	// Auth handler
 	m.authHandler = handlers.NewAuthHandler(
 		authService,
@@ -215,6 +226,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		jwtService,
 		cfg,
 	)
+	m.authHandler.SetSessionRevocation(sessionRevocationSvc)
 
 	// Password auth service — depends on notification module (optional).
 	passwordSvc := services.NewPasswordService(logger, true)
@@ -251,6 +263,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Domain,
 		cfg.Auth.Cookie.Secure,
 	)
+	m.passwordHandler.SetSessionRevocation(sessionRevocationSvc)
 
 	// MFA orchestrator — issuer drives the TOTP provisioning URI label.
 	// Borrows the password service's argon2id hasher for backup-code
@@ -274,6 +287,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServiceJWTService, jwtService)
 	deps.Services.Register(module.ServicePasswordService, passwordSvc)
 	deps.Services.Register(module.ServicePasswordAuthService, passwordAuthSvc)
+	deps.Services.Register(module.ServiceSessionRevocation, sessionRevocationSvc)
 
 	// Register the auth PII producer with the DSR registry pre-created in
 	// main.go. Registers even when the registry is absent so the main
@@ -324,13 +338,16 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		})
 	}
 
-	// MFA endpoints split into three halves:
+	// MFA endpoints split into four halves:
 	//   - public: /v1/auth/mfa/login/verify completes an in-flight login
-	//     (the caller has a challengeId, not yet a bearer token)
-	//   - protected: enroll/remove/status/verify — require RequireGlobal()
+	//     (the caller has a challengeId, not yet a bearer token).
+	//   - protected (no step-up): enroll/status/verify — RequireGlobal()
 	//     so the caller is already authenticated with a primary factor.
-	//   - admin: POST /v1/admin/users/{id}/mfa/reset — system permission
-	//     plus RequireMFA so the acting admin has completed their own OTP.
+	//   - protected (step-up): /v1/auth/me/mfa/remove — dropping your own
+	//     second factor is catastrophic, so demand a <5min OTP proof.
+	//   - admin (step-up): /v1/admin/users/{id}/mfa/reset — resetting
+	//     another user's MFA lets the admin enroll their own device, so
+	//     step-up here gates the same move.
 	if m.mfaHandler != nil {
 		m.mfaHandler.RegisterPublicRoutes(ri.PublicAPI)
 		ri.ProtectedRouter.Group(func(r chi.Router) {
@@ -339,8 +356,14 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 			m.mfaHandler.RegisterProtectedRoutes(api)
 		})
 		ri.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.AuthMW.RequireGlobal())
+			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
+			api := humachi.New(r, ri.APIConfig)
+			m.mfaHandler.RegisterStepUpRoutes(api)
+		})
+		ri.ProtectedRouter.Group(func(r chi.Router) {
 			r.Use(ri.AuthMW.RequireSystemPermission("system.users.mfa_reset"))
-			r.Use(ri.AuthMW.RequireMFA())
+			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterAdminRoutes(api)
 		})

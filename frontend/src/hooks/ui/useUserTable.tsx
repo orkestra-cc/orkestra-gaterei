@@ -5,6 +5,7 @@ import useAdvanceTable from './useAdvanceTable';
 import Avatar from 'components/common/Avatar';
 import Flex from 'components/common/Flex';
 import SubtleBadge from 'components/common/SubtleBadge';
+import AdminResetMfaModal from 'pages/admin/users/AdminResetMfaModal';
 import { Badge, Dropdown, Modal, Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -79,6 +80,7 @@ const UserActivationModal: React.FC<UserActivationModalProps> = ({
 const useUserTable = (options?: any) => {
   const [showModal, setShowModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [mfaResetUser, setMfaResetUser] = useState<User | null>(null);
   const [updateUser, { isLoading: isUpdating }] = useUpdateUserMutation();
 
   // Fetch users from backend API
@@ -350,6 +352,9 @@ const useUserTable = (options?: any) => {
                 >
                   {original.isActive ? 'Deactivate' : 'Activate'}
                 </Dropdown.Item>
+                <Dropdown.Item onClick={() => setMfaResetUser(original)}>
+                  Reset MFA
+                </Dropdown.Item>
                 <Dropdown.Item className="text-danger">
                   Delete User
                 </Dropdown.Item>
@@ -372,13 +377,20 @@ const useUserTable = (options?: any) => {
   return {
     ...table,
     ActivationModal: () => (
-      <UserActivationModal
-        show={showModal}
-        onHide={handleCloseModal}
-        user={selectedUser}
-        onConfirm={handleConfirmToggle}
-        isLoading={isUpdating}
-      />
+      <>
+        <UserActivationModal
+          show={showModal}
+          onHide={handleCloseModal}
+          user={selectedUser}
+          onConfirm={handleConfirmToggle}
+          isLoading={isUpdating}
+        />
+        <AdminResetMfaModal
+          show={mfaResetUser !== null}
+          user={mfaResetUser}
+          onHide={() => setMfaResetUser(null)}
+        />
+      </>
     )
   };
 };

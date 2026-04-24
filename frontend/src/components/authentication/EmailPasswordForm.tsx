@@ -24,11 +24,21 @@ const EmailPasswordForm = () => {
 
     try {
       const result = await login({ email, password }).unwrap();
-      dispatch(loginAction({ userData: result.user }));
 
-      if (result.accessToken) {
-        localStorage.setItem('access_token', result.accessToken);
+      // Account has an enrolled second factor — hold the credentials flow
+      // and send the user to the verify page with the challenge id.
+      if (result.requiresMfa && result.mfaToken) {
+        navigate('/mfa/verify', {
+          state: { challengeId: result.mfaToken, email },
+        });
+        return;
       }
+
+      if (!result.user) {
+        setLocalError('Unable to sign in. Please try again.');
+        return;
+      }
+      dispatch(loginAction({ userData: result.user }));
 
       navigate('/dashboard/analytics');
     } catch (err: unknown) {

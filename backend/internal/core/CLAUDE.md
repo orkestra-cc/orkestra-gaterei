@@ -77,6 +77,7 @@ Constants live in `backend/internal/shared/module/services.go:13-32`. This is th
 | `ServiceJWTService` | auth | `*services.JWTService` | consumed by middleware + dev module |
 | `ServicePasswordService` | auth | `*services.PasswordService` | argon2id hashing |
 | `ServicePasswordAuthService` | auth | `*services.PasswordAuthService` | consumed by setup wizard |
+| `ServiceSessionRevocation` | auth | `services.SessionRevocationService` | Redis-backed revoked-session set; consumed by middleware on every auth'd request |
 | `ServiceOAuthProviderFactory` | auth | `*services.OAuthProviderFactory` | |
 | `ServiceOAuthStateService` | auth | `*services.OAuthStateService` | |
 | `ServiceOAuthProviderRepo` | auth | `*repository.OAuthProviderRepository` | |

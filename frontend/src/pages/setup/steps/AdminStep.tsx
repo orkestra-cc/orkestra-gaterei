@@ -49,15 +49,8 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
     try {
       const result = await createAdmin({ email: email.trim(), password, fullName: fullName.trim() }).unwrap();
 
-      // Mirror the normal login flow: stash user in the auth slice and the
-      // access token in both localStorage (for legacy reads) and Redux (used
-      // by baseApi's prepareHeaders to send the Bearer token on subsequent
-      // requests).
       dispatch(loginAction({ userData: result.user }));
       dispatch(setAccessToken({ accessToken: result.accessToken, expiresIn: result.expiresIn }));
-      if (result.accessToken) {
-        localStorage.setItem('access_token', result.accessToken);
-      }
 
       onNext(fullName.trim());
     } catch (err: unknown) {
