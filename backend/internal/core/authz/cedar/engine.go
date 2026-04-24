@@ -63,6 +63,16 @@ type Principal struct {
 	// forbid-unless-entitled rule can reject capability-gated actions when
 	// the tenant is unentitled. Empty when no capability context applies.
 	Capabilities []string
+	// MFAEnrolled reports whether the active session carries a verified
+	// second factor (AMR contains otp / webauthn / mfa — same definition
+	// used by RequireMFA middleware). Always stamped as principal.mfa_enrolled
+	// so ABAC policies can write `principal.mfa_enrolled == false` without
+	// a `has` guard first.
+	MFAEnrolled bool
+	// AMR is the list of RFC 8176 authentication method references carried
+	// by the session's JWT. Stamped as principal.amr when non-empty so
+	// policies can distinguish OAuth-only tokens from pwd+otp step-ups.
+	AMR []string
 }
 
 // Request bundles the inputs of an authorization evaluation. Callers that
@@ -205,6 +215,18 @@ func (e *Engine) Evaluate(req Request) Decision {
 			cs = append(cs, types.String(cap))
 		}
 		principalAttrs["capabilities"] = types.NewSet(cs...)
+	}
+	// mfa_enrolled is stamped unconditionally. Policies that want to gate
+	// on MFA can reference it directly without a presence guard. AMR stays
+	// conditional — a service-to-service call with no session has nothing
+	// meaningful to project.
+	principalAttrs["mfa_enrolled"] = types.Boolean(p.MFAEnrolled)
+	if len(p.AMR) > 0 {
+		as := make([]types.Value, 0, len(p.AMR))
+		for _, m := range p.AMR {
+			as = append(as, types.String(m))
+		}
+		principalAttrs["amr"] = types.NewSet(as...)
 	}
 	entities[principal] = types.Entity{
 		UID:        principal,

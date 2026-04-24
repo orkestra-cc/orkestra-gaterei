@@ -104,13 +104,23 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	// Optional TenantProvider handle: used by the Cedar shadow-mode
 	// evaluator to stamp Principal.Capabilities so capability_grants.cedar
 	// has something to reason about when a caller opts into capability
-	// enforcement. The lookup is nil-safe — when the tenant module is not
-	// yet registered (boot ordering) the Cedar principal simply has an
-	// empty capability set and the defense-in-depth rule is inert.
+	// enforcement, and to stamp Resource.TenantStatus so tenant_scope.cedar's
+	// inactive-tenant forbid rule sees the real lifecycle state.
+	// The lookups are nil-safe — when the tenant module is not yet
+	// registered (boot ordering) the Cedar principal simply has an empty
+	// capability set and the resource falls back to status="active".
 	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	var lookupCaps services.TenantCapabilityLookup
+	var lookupTenantStatus services.TenantStatusLookup
 	if tenantProvider != nil {
 		lookupCaps = tenantProvider.ListCapabilityIDs
+		lookupTenantStatus = func(ctx context.Context, tenantUUID string) (string, error) {
+			t, err := tenantProvider.GetTenant(ctx, tenantUUID)
+			if err != nil {
+				return "", err
+			}
+			return t.Status, nil
+		}
 	}
 
 	// The evaluator needs to know each user's system role to honor the
@@ -143,12 +153,13 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	}
 
 	m.svc = services.New(services.Config{
-		Repo:          repo,
-		Redis:         deps.RedisAdapter,
-		Logger:        deps.Logger,
-		LookupUser:    lookup,
-		LookupCaps:    lookupCaps,
-		StartMFAGrace: startMFAGrace,
+		Repo:               repo,
+		Redis:              deps.RedisAdapter,
+		Logger:             deps.Logger,
+		LookupUser:         lookup,
+		LookupCaps:         lookupCaps,
+		LookupTenantStatus: lookupTenantStatus,
+		StartMFAGrace:      startMFAGrace,
 		// Production flag restricts the developer system role to read-only
 		// semantics (D9): dev/staging developers debug freely; prod
 		// developers cannot mutate data or read secrets even if their

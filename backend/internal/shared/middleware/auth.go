@@ -612,6 +612,31 @@ func GetMemberships(ctx context.Context) ([]models.TenantMembership, bool) {
 	return mbrs, ok
 }
 
+// GetAMR returns the authentication-method-references slice (RFC 8176)
+// from the current request's JWT claims. Used by the authz module to
+// stamp the Cedar principal with MFA context. Returns ok=false when no
+// claims are on the context (unauthenticated routes, service-to-service
+// calls without a session).
+func GetAMR(ctx context.Context) ([]string, bool) {
+	claims, ok := ctx.Value(ctxClaims).(*models.JWTClaims)
+	if !ok || claims == nil {
+		return nil, false
+	}
+	return claims.AMR, true
+}
+
+// IsMFAEnrolled reports whether the active session was completed with a
+// verified second factor. One source of truth for both RequireMFA
+// middleware and Cedar's principal.mfa_enrolled attribute — drift here
+// would let policies gate on a signal that never fires.
+func IsMFAEnrolled(ctx context.Context) bool {
+	amr, ok := GetAMR(ctx)
+	if !ok {
+		return false
+	}
+	return amrSatisfiesMFA(amr)
+}
+
 // --- RoleMiddleware implementation ---
 
 func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler) http.Handler {

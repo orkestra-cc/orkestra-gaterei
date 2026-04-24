@@ -351,6 +351,76 @@ func TestOrgViewerReadOnly(t *testing.T) {
 	}
 }
 
+// ----- ABAC attribute plumbing (Section B item #4, Commit A) -----
+
+// TestPrincipalMFAAttributesDoNotBreakExistingPolicies: adding the
+// mfa_enrolled + amr attributes must not change the outcome of any
+// existing policy. The two signals exist only for new ABAC rules; legacy
+// permits and forbids ignore them. Verifies by evaluating a representative
+// slice with and without the attrs populated.
+func TestPrincipalMFAAttributesDoNotBreakExistingPolicies(t *testing.T) {
+	e := newTestEngine(t, "development")
+	r := Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"}
+
+	cases := []struct {
+		name  string
+		p     Principal
+		act   string
+		allow bool
+	}{
+		{"super_admin_wildcard", Principal{UserUUID: "u", SystemRole: "super_admin"}, "tenant.read", true},
+		{"org_owner_tenant_update", Principal{UserUUID: "u", TenantRoles: []string{"org_owner"}}, "tenant.update", true},
+		{"org_viewer_denies_write", Principal{UserUUID: "u", TenantRoles: []string{"org_viewer"}}, "tenant.update", false},
+		{"unknown_principal_denied", Principal{UserUUID: "u"}, "tenant.read", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+"_no_mfa", func(t *testing.T) {
+			d := e.IsAuthorized(tc.p, tc.act, r)
+			if d.Allowed != tc.allow {
+				t.Fatalf("without MFA attrs: want allow=%v, got %+v", tc.allow, d)
+			}
+		})
+		t.Run(tc.name+"_with_mfa", func(t *testing.T) {
+			p := tc.p
+			p.MFAEnrolled = true
+			p.AMR = []string{"pwd", "otp"}
+			d := e.IsAuthorized(p, tc.act, r)
+			if d.Allowed != tc.allow {
+				t.Fatalf("with MFA attrs: want allow=%v, got %+v", tc.allow, d)
+			}
+			if len(d.Errors) > 0 {
+				t.Fatalf("MFA attrs must not produce Cedar errors: %+v", d.Errors)
+			}
+		})
+	}
+}
+
+// TestInactiveTenantStatusFlowsThrough: sanity checks that the resource's
+// TenantStatus really drives tenant_scope.cedar now that the shadow
+// evaluator threads the real value instead of hardcoding "active". Cedar
+// engine tests have always been able to set status directly; this is a
+// redundant assertion in the engine layer. The service-layer test in
+// services/service_test.go covers the lookup wiring.
+func TestInactiveTenantStatusFlowsThrough(t *testing.T) {
+	e := newTestEngine(t, "development")
+	suspended := e.IsAuthorized(
+		Principal{UserUUID: "u", SystemRole: "administrator"},
+		"tenant.update",
+		Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "suspended"},
+	)
+	if suspended.Allowed {
+		t.Errorf("suspended tenant must reject update: %+v", suspended)
+	}
+	active := e.IsAuthorized(
+		Principal{UserUUID: "u", SystemRole: "administrator"},
+		"tenant.update",
+		Resource{TenantUUID: "t1", TenantKind: "internal", TenantStatus: "active"},
+	)
+	if !active.Allowed {
+		t.Errorf("active tenant must permit update: %+v", active)
+	}
+}
+
 // TestCapabilityGrantForbidsWhenWrongCapabilityHeld: holding a different
 // capability than the one the request requires still trips forbid.
 func TestCapabilityGrantForbidsWhenWrongCapabilityHeld(t *testing.T) {

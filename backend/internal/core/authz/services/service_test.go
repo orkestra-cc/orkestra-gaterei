@@ -157,6 +157,47 @@ func TestShadowEvaluate_SuperAdminExternalTenantBlockedByTierForbid(t *testing.T
 	}
 }
 
+// TestShadowEvaluate_TenantStatusFlowsFromLookup proves the Commit A
+// plumbing: the LookupTenantStatus callback really drives Cedar's
+// resource.status and therefore tenant_scope.inactive_tenant_denies_mutations
+// now fires in shadow mode. Before this commit the shadow evaluator
+// hardcoded "active" which silenced that forbid across every request.
+func TestShadowEvaluate_TenantStatusFlowsFromLookup(t *testing.T) {
+	svc, _ := newTestService(t, nil)
+	svc.withUserRole("administrator")
+	svc.lookupTenantStatus = func(_ context.Context, _ string) (string, error) {
+		return "suspended", nil
+	}
+	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
+	if !ok {
+		t.Fatalf("evaluation should succeed, errors: %+v", decision.Errors)
+	}
+	if decision.Allowed {
+		t.Fatalf("suspended tenant must reject tenant.update: %+v", decision)
+	}
+	if decision.MatchedPolicy != "tenant_scope.inactive_tenant_denies_mutations" {
+		t.Errorf("expected inactive-tenant forbid to match, got %q", decision.MatchedPolicy)
+	}
+}
+
+// TestShadowEvaluate_TenantStatusFallsBackToActive: when the lookup is
+// unwired (nil) or returns an empty status, the evaluator falls back to
+// "active" so legacy code paths and tests keep their previous outcome.
+func TestShadowEvaluate_TenantStatusFallsBackToActive(t *testing.T) {
+	svc, _ := newTestService(t, nil)
+	svc.withUserRole("administrator")
+	// Lookup deliberately left nil.
+	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
+	if !ok {
+		t.Fatalf("evaluation should succeed, errors: %+v", decision.Errors)
+	}
+	if !decision.Allowed {
+		t.Fatalf("active fallback must permit administrator update: %+v", decision)
+	}
+}
+
 func TestShadowEvaluate_NilEngineReturnsNotOK(t *testing.T) {
 	svc := &Service{logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))}
 	_, ok := svc.shadowEvaluate(context.Background(), "u", "t", "any.perm", true)

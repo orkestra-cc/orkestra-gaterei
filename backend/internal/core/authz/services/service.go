@@ -107,13 +107,14 @@ func isPlatformSystemRole(role *models.Role) bool {
 // Results are cached in Redis for 60 seconds per (userUUID, orgID) key and
 // invalidated when bindings or roles change.
 type Service struct {
-	repo          *repository.Repository
-	redis         *database.RedisClientAdapter
-	logger        *slog.Logger
-	userRoles     UserSystemRoleLookup
-	startMFAGrace MFAGraceStarter
-	lookupCaps    TenantCapabilityLookup
-	production    bool // when true, developer role is restricted to read-only
+	repo               *repository.Repository
+	redis              *database.RedisClientAdapter
+	logger             *slog.Logger
+	userRoles          UserSystemRoleLookup
+	startMFAGrace      MFAGraceStarter
+	lookupCaps         TenantCapabilityLookup
+	lookupTenantStatus TenantStatusLookup
+	production         bool // when true, developer role is restricted to read-only
 
 	// cedarEngine is the Cedar evaluator. nil when Cedar is disabled
 	// (boot-time construction failure, or explicitly turned off for tests).
@@ -156,13 +157,23 @@ type MFAGraceStarter func(ctx context.Context, userUUID string) error
 // package importing the tenant module.
 type TenantCapabilityLookup func(ctx context.Context, tenantUUID string) ([]string, error)
 
+// TenantStatusLookup returns the tenant's lifecycle status ("active" |
+// "suspended" | "archived" | "purged"). Threaded into Cedar's Resource
+// so tenant_scope.cedar's inactive-tenant forbid rule has a real value
+// to match on — previously the shadow evaluator hardcoded "active",
+// which silenced that rule across every request. Kept as a callback so
+// authz stays free of a direct tenant-module import; authz/module.go
+// wires it from iface.TenantProvider.GetTenant.
+type TenantStatusLookup func(ctx context.Context, tenantUUID string) (string, error)
+
 type Config struct {
-	Repo           *repository.Repository
-	Redis          *database.RedisClientAdapter
-	Logger         *slog.Logger
-	LookupUser     UserSystemRoleLookup
-	LookupCaps     TenantCapabilityLookup
-	StartMFAGrace  MFAGraceStarter
+	Repo               *repository.Repository
+	Redis              *database.RedisClientAdapter
+	Logger             *slog.Logger
+	LookupUser         UserSystemRoleLookup
+	LookupCaps         TenantCapabilityLookup
+	LookupTenantStatus TenantStatusLookup
+	StartMFAGrace      MFAGraceStarter
 	// Production gates sensitive role seeding decisions. When true, the
 	// `developer` system role is seeded with a read-only permission set
 	// (decision D9 in the Org-scoped RBAC plan). In dev and staging it
@@ -195,6 +206,7 @@ func New(cfg Config) *Service {
 		userRoles:           cfg.LookupUser,
 		startMFAGrace:       cfg.StartMFAGrace,
 		lookupCaps:          cfg.LookupCaps,
+		lookupTenantStatus:  cfg.LookupTenantStatus,
 		production:          cfg.Production,
 		enforcedActions:     enforced,
 		systemPermissionSet: make(map[string]struct{}),
@@ -311,16 +323,34 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 			capabilities = caps
 		}
 	}
+	// Tenant status drives tenant_scope.cedar's inactive-tenant forbid rule.
+	// Fall back to "active" when the lookup isn't wired or the tenant isn't
+	// found — global routes and test harnesses both depend on that default
+	// so an absent signal doesn't flip previously-passing requests to deny.
+	tenantStatus := "active"
+	if s.lookupTenantStatus != nil && tenantID != "" {
+		if st, err := s.lookupTenantStatus(ctx, tenantID); err == nil && st != "" {
+			tenantStatus = st
+		}
+	}
+	// MFA signals come from the JWT claims via middleware helpers so authz
+	// doesn't need to import auth/models. On routes without a resolved
+	// session (service-to-service, AI sidecar internal endpoints) both
+	// helpers return zero values and the engine stamps mfa_enrolled=false.
+	amr, _ := middleware.GetAMR(ctx)
+	mfaEnrolled := middleware.IsMFAEnrolled(ctx)
 	principal := cedar.Principal{
 		UserUUID:     userUUID,
 		SystemRole:   systemRole,
 		TenantRoles:  tenantRoles,
 		Capabilities: capabilities,
+		MFAEnrolled:  mfaEnrolled,
+		AMR:          amr,
 	}
 	resource := cedar.Resource{
 		TenantUUID:   tenantID,
 		TenantKind:   tenantKind,
-		TenantStatus: "active",
+		TenantStatus: tenantStatus,
 	}
 	decision = s.cedarEngine.IsAuthorized(principal, permission, resource)
 	attrs := []any{
