@@ -10,15 +10,21 @@
 # Categories that may fail CI:
 #   permission.used.undeclared     — route requires a permission not in any Permissions() catalog
 #   permission.declared.unused     — Permissions() catalog entry never referenced by a Require* call
+#   permission.cedar.unreferenced  — permission has no Cedar coverage (no Action::"key" literal AND
+#                                    no context.action_suffix == "<suffix>" clause matching its tail)
 #   capability.used.undeclared     — route requires a capability not in any Capabilities() catalog
 #
 # Warn/info categories (never fail CI today):
 #   capability.declared.unused     — published capability not yet consumed by a RequireCapability
 #   gate.dynamic_key               — Require* called with a non-literal first argument
 #
-# To reconcile an entry: either remove the declaration from the owning module's
-# Permissions()/Capabilities(), or wire a route that actually uses the key.
-# Then delete the corresponding line from this file.
+# To reconcile a permission.cedar.unreferenced entry: either add the action to a
+# .cedar policy (preferred — direct enumeration tightens the future enforce-mode
+# blast radius) or add a context.action_suffix clause covering its suffix.
+#
+# To reconcile other entries: either remove the declaration from the owning
+# module's Permissions()/Capabilities(), or wire a route that actually uses
+# the key. Then delete the corresponding line from this file.
 #
 # DO NOT add new entries by hand. If a diagnostic is legitimate (e.g. a
 # permission published ahead of the feature that will consume it), reconcile
@@ -72,3 +78,52 @@ permission.declared.unused:user.delete
 permission.declared.unused:user.read
 permission.declared.unused:user.self
 permission.declared.unused:user.update
+
+# -- permission.cedar.unreferenced --
+# These permissions exist in the catalog but are not named by any .cedar
+# policy and their suffix is not covered by any context.action_suffix == "X"
+# clause. Today the role-table path is authoritative (Phase 1 shadow mode),
+# so these are not security gaps — but Cedar enforce-mode (Phase 2 exit)
+# will need policy coverage for each. To retire an entry: either add an
+# Action::"<key>" literal in the relevant policy file, or extend a
+# context.action_suffix clause to cover the suffix (e.g. add "manage" to
+# tenant_roles.cedar's manager permit).
+permission.cedar.unreferenced:agents.admin
+permission.cedar.unreferenced:agents.personal
+permission.cedar.unreferenced:agents.project.manage
+permission.cedar.unreferenced:agents.query
+permission.cedar.unreferenced:aimodels.admin
+permission.cedar.unreferenced:authz.binding.create
+permission.cedar.unreferenced:authz.binding.delete
+permission.cedar.unreferenced:authz.role.create
+permission.cedar.unreferenced:authz.role.delete
+permission.cedar.unreferenced:authz.role.update
+permission.cedar.unreferenced:billing.customer.manage
+permission.cedar.unreferenced:billing.invoice.create
+permission.cedar.unreferenced:billing.invoice.delete
+permission.cedar.unreferenced:billing.invoice.send
+permission.cedar.unreferenced:company.lookup.enrich
+permission.cedar.unreferenced:documents.generate
+permission.cedar.unreferenced:documents.template.manage
+permission.cedar.unreferenced:graph.admin
+permission.cedar.unreferenced:graph.query.write
+permission.cedar.unreferenced:notification.template.manage
+permission.cedar.unreferenced:notification.test
+permission.cedar.unreferenced:payments.method.manage
+permission.cedar.unreferenced:payments.transaction.refund
+permission.cedar.unreferenced:rag.admin
+permission.cedar.unreferenced:rag.document.delete
+permission.cedar.unreferenced:rag.document.ingest
+permission.cedar.unreferenced:rag.query
+permission.cedar.unreferenced:sales.admin
+permission.cedar.unreferenced:sales.job.run
+permission.cedar.unreferenced:subscriptions.client.manage
+permission.cedar.unreferenced:subscriptions.service.manage
+permission.cedar.unreferenced:subscriptions.subscription.manage
+permission.cedar.unreferenced:tenant.delete
+permission.cedar.unreferenced:tenant.member.invite
+permission.cedar.unreferenced:tenant.member.remove
+permission.cedar.unreferenced:tenant.plan.update
+permission.cedar.unreferenced:tenant.update
+permission.cedar.unreferenced:user.delete
+permission.cedar.unreferenced:user.update

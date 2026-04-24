@@ -82,6 +82,7 @@ type Findings struct {
 	UsedCapabilities     []Usage
 	Dynamic              []Usage // non-literal first argument — flagged so the audit is complete
 	CedarActions         []string
+	CedarSuffixes        []string // suffix literals referenced by context.action_suffix == "X" clauses
 	Packages             int
 }
 
@@ -141,11 +142,12 @@ func Scan(patterns []string, cedarDir string) (*Findings, error) {
 	})
 
 	if cedarDir != "" {
-		actions, err := scanCedar(cedarDir)
+		actions, suffixes, err := scanCedar(cedarDir)
 		if err != nil {
 			return findings, fmt.Errorf("policycoverage: scan cedar: %w", err)
 		}
 		findings.CedarActions = actions
+		findings.CedarSuffixes = suffixes
 	}
 	return findings, nil
 }
@@ -295,28 +297,55 @@ func stringLit(e ast.Expr) (string, bool) {
 // matches the subset we actually use.
 var cedarActionRE = regexp.MustCompile(`Action::"([a-zA-Z0-9._-]+)"`)
 
-func scanCedar(dir string) ([]string, error) {
+// cedarSuffixRE matches `context.action_suffix == "X"` (and the symmetric
+// `"X" == context.action_suffix`) clauses. These are the indirect coverage
+// path: a permission `foo.bar.read` is Cedar-reachable when some policy
+// includes `context.action_suffix == "read"` even if no `Action::"foo.bar.read"`
+// literal exists. Whitespace tolerance matches what the formatter emits.
+var cedarSuffixRE = regexp.MustCompile(`(?:context\.action_suffix\s*==\s*"([a-zA-Z0-9_-]+)"|"([a-zA-Z0-9_-]+)"\s*==\s*context\.action_suffix)`)
+
+// scanCedar reads every .cedar file in dir and returns the union of
+// Action::"name" literals and context.action_suffix == "X" suffix literals
+// across all files. Both are deduplicated and sorted for stable output.
+func scanCedar(dir string) ([]string, []string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	seen := map[string]struct{}{}
+	actions := map[string]struct{}{}
+	suffixes := map[string]struct{}{}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".cedar") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		for _, m := range cedarActionRE.FindAllStringSubmatch(string(data), -1) {
-			seen[m[1]] = struct{}{}
+		src := string(data)
+		for _, m := range cedarActionRE.FindAllStringSubmatch(src, -1) {
+			actions[m[1]] = struct{}{}
+		}
+		for _, m := range cedarSuffixRE.FindAllStringSubmatch(src, -1) {
+			// Either capture group 1 or 2 is set depending on operand order.
+			lit := m[1]
+			if lit == "" {
+				lit = m[2]
+			}
+			if lit != "" {
+				suffixes[lit] = struct{}{}
+			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
+	actionsOut := make([]string, 0, len(actions))
+	for k := range actions {
+		actionsOut = append(actionsOut, k)
 	}
-	sort.Strings(out)
-	return out, nil
+	sort.Strings(actionsOut)
+	suffixesOut := make([]string, 0, len(suffixes))
+	for k := range suffixes {
+		suffixesOut = append(suffixesOut, k)
+	}
+	sort.Strings(suffixesOut)
+	return actionsOut, suffixesOut, nil
 }

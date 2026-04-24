@@ -154,13 +154,16 @@ func TestReconcile_CedarReconciliation(t *testing.T) {
 	f := &Findings{
 		DeclaredPermissions: []Declaration{
 			{Key: "system.users.admin", Owner: "authz"},
-			{Key: "fake.other", Owner: "fake"},
+			{Key: "fake.other.read", Owner: "fake"},
 		},
 		UsedPermissions: []Usage{
 			{Key: "system.users.admin", Caller: CallerRequireSystemPermission, Pos: Position{File: "b.go", Line: 1}},
-			{Key: "fake.other", Caller: CallerRequirePermission, Pos: Position{File: "b.go", Line: 2}},
+			{Key: "fake.other.read", Caller: CallerRequirePermission, Pos: Position{File: "b.go", Line: 2}},
 		},
-		CedarActions: []string{"system.users.admin", "system.tenants.admin"},
+		// system.users.admin matches an action literal directly.
+		// fake.other.read matches via the "read" suffix.
+		CedarActions:  []string{"system.users.admin", "system.tenants.admin"},
+		CedarSuffixes: []string{"read"},
 	}
 	report := Reconcile(f, nil)
 	if report.HasErrors() {
@@ -171,6 +174,113 @@ func TestReconcile_CedarReconciliation(t *testing.T) {
 	}
 	if len(report.Cedar.UnmatchedCedar) != 1 || report.Cedar.UnmatchedCedar[0] != "system.tenants.admin" {
 		t.Errorf("unexpected unmatched: %+v", report.Cedar.UnmatchedCedar)
+	}
+	if len(report.Cedar.CoveredPermissions) != 2 {
+		t.Errorf("expected both permissions covered, got %+v", report.Cedar.CoveredPermissions)
+	}
+	if len(report.Cedar.UncoveredPermissions) != 0 {
+		t.Errorf("expected no uncovered, got %+v", report.Cedar.UncoveredPermissions)
+	}
+}
+
+func TestReconcile_FlagsCedarUnreferencedPermissions(t *testing.T) {
+	f := &Findings{
+		DeclaredPermissions: []Declaration{
+			{Key: "fake.thing.read", Owner: "fake", Pos: Position{File: "a.go", Line: 1}},
+			{Key: "fake.thing.weird_action", Owner: "fake", Pos: Position{File: "a.go", Line: 2}},
+		},
+		UsedPermissions: []Usage{
+			{Key: "fake.thing.read", Caller: CallerRequirePermission, Pos: Position{File: "b.go", Line: 1}},
+			{Key: "fake.thing.weird_action", Caller: CallerRequirePermission, Pos: Position{File: "b.go", Line: 2}},
+		},
+		// Only "read" suffix is covered. weird_action has no matching policy.
+		CedarSuffixes: []string{"read"},
+	}
+	report := Reconcile(f, nil)
+	if !report.HasErrors() {
+		t.Errorf("expected an error for the uncovered permission")
+	}
+	var found bool
+	for _, d := range report.Diagnostics {
+		if d.Category == "permission.cedar.unreferenced" && d.Key == "fake.thing.weird_action" {
+			if d.Severity != SeverityError {
+				t.Errorf("expected ERROR severity, got %s", d.Severity)
+			}
+			found = true
+		}
+		if d.Category == "permission.cedar.unreferenced" && d.Key == "fake.thing.read" {
+			t.Errorf("fake.thing.read should be covered by the 'read' suffix, got diagnostic: %+v", d)
+		}
+	}
+	if !found {
+		t.Errorf("missing permission.cedar.unreferenced diagnostic for fake.thing.weird_action")
+	}
+}
+
+func TestReconcile_CedarBaselineSuppresses(t *testing.T) {
+	f := &Findings{
+		DeclaredPermissions: []Declaration{
+			{Key: "fake.thing.weird_action", Owner: "fake", Pos: Position{File: "a.go", Line: 1}},
+		},
+		UsedPermissions: []Usage{
+			{Key: "fake.thing.weird_action", Caller: CallerRequirePermission, Pos: Position{File: "b.go", Line: 1}},
+		},
+	}
+	baseline := map[string]bool{"permission.cedar.unreferenced:fake.thing.weird_action": true}
+	report := Reconcile(f, baseline)
+	if report.HasErrors() {
+		t.Errorf("baseline should suppress error, got: %+v", report.Diagnostics)
+	}
+}
+
+func TestPermissionCovered(t *testing.T) {
+	actions := map[string]struct{}{"system.users.admin": {}}
+	suffixes := map[string]struct{}{"read": {}, "self": {}}
+	cases := []struct {
+		key      string
+		expected bool
+		reason   string
+	}{
+		{"system.users.admin", true, "named directly as Action literal"},
+		{"foo.bar.read", true, "suffix matches"},
+		{"foo.bar.self", true, "suffix matches"},
+		{"foo.bar.delete", false, "no matching action or suffix"},
+		{"singleword", false, "no dot — falls back to suffix=key, but 'singleword' not in suffixes"},
+		{"x.y.z.self", true, "last segment after final dot matches"},
+	}
+	for _, c := range cases {
+		got := permissionCovered(c.key, actions, suffixes)
+		if got != c.expected {
+			t.Errorf("permissionCovered(%q) = %v, want %v (%s)", c.key, got, c.expected, c.reason)
+		}
+	}
+}
+
+func TestScanCedarRegexes(t *testing.T) {
+	src := `
+		Action::"system.users.admin"
+		permit when context.action_suffix == "read"
+		permit when "self" == context.action_suffix
+		Action::"system.tenants.admin"
+	`
+	actions := cedarActionRE.FindAllStringSubmatch(src, -1)
+	if len(actions) != 2 {
+		t.Errorf("expected 2 action matches, got %d: %+v", len(actions), actions)
+	}
+	suffixes := cedarSuffixRE.FindAllStringSubmatch(src, -1)
+	if len(suffixes) != 2 {
+		t.Fatalf("expected 2 suffix matches, got %d: %+v", len(suffixes), suffixes)
+	}
+	got := map[string]bool{}
+	for _, m := range suffixes {
+		lit := m[1]
+		if lit == "" {
+			lit = m[2]
+		}
+		got[lit] = true
+	}
+	if !got["read"] || !got["self"] {
+		t.Errorf("expected to find both 'read' and 'self', got: %+v", got)
 	}
 }
 

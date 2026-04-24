@@ -198,7 +198,7 @@ Current catalog status (snapshot as of this doc update — the live catalog is i
 | `<mod>.<resource>.manage` | 8 | `billing.customer.manage`, `documents.template.manage` | ⚠️ semantically "create+update+delete" — leave as-is for v1; split into `.update` + `.delete` only when `.own` scope introduces asymmetry |
 | `<mod>.<resource>.<action>.own` | 0 | — | planned (Phase 4) for per-module self-service (`billing.invoice.read.own`) |
 
-**When adding a new permission:** declare it in the owning module's `Permissions()` only. Never write directly to `authz_permissions`. Include `System: true` only for platform-level operations that system roles inherit without a binding.
+**When adding a new permission:** declare it in the owning module's `Permissions()` only. Never write directly to `authz_permissions`. Include `System: true` only for platform-level operations that system roles inherit without a binding. Then ensure Cedar coverage — either name it as `Action::"<key>"` in a `cedar/policies/*.cedar` file, or use a suffix already covered by `context.action_suffix == "X"` (today: `read`, `view`, `self`); otherwise the `policycoverage` CI gate will fail with `permission.cedar.unreferenced`.
 
 ## Related
 
