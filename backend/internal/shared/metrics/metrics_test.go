@@ -114,6 +114,7 @@ func TestCollector_HandlerExposesFamilies(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 	c.RecordCedarDivergence("read", "platform.developer.nonprod", "role_only")
+	c.RecordCedarEnforced("admin", "cedar_override_deny")
 	c.RecordCapabilityDenied("agents.access")
 	c.RecordEntitlementApply("internal")
 
@@ -128,12 +129,37 @@ func TestCollector_HandlerExposesFamilies(t *testing.T) {
 	s := string(body)
 	for _, want := range []string{
 		"orkestra_cedar_shadow_divergence_total",
+		"orkestra_cedar_enforced_total",
 		"orkestra_capability_denied_total",
 		"orkestra_entitlement_projection_lag_seconds",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("expected metric family %q in exposition body", want)
 		}
+	}
+}
+
+// TestCollector_CedarEnforcedLabels freezes the label schema for the
+// enforce counter (Section B item #1, 2026-04-24). Same cardinality
+// discipline as the divergence counter.
+func TestCollector_CedarEnforcedLabels(t *testing.T) {
+	c := NewCollector()
+	if err := c.Register(); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	c.RecordCedarEnforced("admin", "agree_allow")
+	c.RecordCedarEnforced("admin", "agree_allow")
+	c.RecordCedarEnforced("admin", "cedar_override_deny")
+	c.RecordCedarEnforced("admin", "fallback_role")
+
+	if got := testutil.ToFloat64(c.cedarEnforced.WithLabelValues("admin", "agree_allow")); got != 2 {
+		t.Errorf("enforced counter for (admin, agree_allow) = %v, want 2", got)
+	}
+	if got := testutil.ToFloat64(c.cedarEnforced.WithLabelValues("admin", "cedar_override_deny")); got != 1 {
+		t.Errorf("enforced counter for (admin, cedar_override_deny) = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(c.cedarEnforced.WithLabelValues("admin", "fallback_role")); got != 1 {
+		t.Errorf("enforced counter for (admin, fallback_role) = %v, want 1", got)
 	}
 }
 

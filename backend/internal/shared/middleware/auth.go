@@ -400,6 +400,16 @@ func TenantKindFromContext(ctx context.Context) string {
 	return ""
 }
 
+// WithTenantKind returns ctx with the tier stamped under the same key the
+// auth middleware writes during request resolution. Exposed for tests that
+// need to exercise tier-aware logic (Cedar tenant_scope.cedar forbids,
+// tenant-kind gates) without booting the middleware chain. Production
+// code paths should never call this — the kind comes from the resolved
+// tenant in resolveCurrentTenant.
+func WithTenantKind(ctx context.Context, kind string) context.Context {
+	return context.WithValue(ctx, ctxTenantKind, kind)
+}
+
 // IsImpersonating returns true when the current tenant context was resolved
 // via the operator-admin impersonation bypass rather than a real membership.
 // Handlers that want to guard destructive self-targeted actions can read

@@ -6,6 +6,7 @@ package authz
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -153,6 +154,14 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		// Environment is fed to the Cedar shadow-mode engine so
 		// platform.cedar can branch on prod vs non-prod developer rules.
 		Environment: deps.Config.GetEnvironment(),
+		// EnforceActions opts a per-permission allowlist out of shadow
+		// mode and into Cedar-authoritative mode (Section B item #1 of
+		// the auth roadmap, 2026-04-24). Comma-separated env var so
+		// operators can roll back without a deploy. Empty = pure shadow
+		// mode (today's default). Recommended starter list:
+		// "system.modules.admin,system.tenants.admin,system.users.admin,system.users.mfa_reset"
+		// — those four are already explicitly named in tenant_scope.cedar.
+		EnforceActions: parseCedarEnforceActions(os.Getenv("CEDAR_ENFORCE_ACTIONS")),
 	})
 	m.handler = handlers.New(m.svc)
 
@@ -188,3 +197,21 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 // Service returns the authz service — exposed so the registry can trigger
 // RegisterPermissions and SeedSystemRoles after all modules init.
 func (m *Module) Service() *services.Service { return m.svc }
+
+// parseCedarEnforceActions splits the comma-separated CEDAR_ENFORCE_ACTIONS
+// env var into a list of permission keys, trimming whitespace and dropping
+// empty fragments. Kept package-private — the env-var → []string conversion
+// is wiring boilerplate the service shouldn't know about.
+func parseCedarEnforceActions(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}

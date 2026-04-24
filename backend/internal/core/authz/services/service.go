@@ -56,12 +56,23 @@ type Service struct {
 	lookupCaps    TenantCapabilityLookup
 	production    bool // when true, developer role is restricted to read-only
 
-	// cedarEngine is the Phase 1 shadow-mode Cedar evaluator. nil when
-	// Cedar is disabled (boot-time construction failure, or explicitly
-	// turned off for tests). When set, every HasPermission call also
-	// evaluates Cedar and emits a structured telemetry log. Enforcement
-	// remains on the role table until shadow-mode divergence is triaged.
+	// cedarEngine is the Cedar evaluator. nil when Cedar is disabled
+	// (boot-time construction failure, or explicitly turned off for tests).
+	// When set, every HasPermission call also evaluates Cedar and emits a
+	// structured telemetry log. For most actions the role-table verdict
+	// remains authoritative; for actions listed in enforcedActions Cedar's
+	// verdict overrides (Section B item #1 of the auth roadmap, 2026-04-24).
 	cedarEngine *cedar.Engine
+
+	// enforcedActions is the set of permission keys for which Cedar's
+	// verdict overrides the role table. Empty (the default) keeps the
+	// system in pure shadow mode. Populated from Config.EnforceActions
+	// which the module reads from the CEDAR_ENFORCE_ACTIONS env var.
+	// On a Cedar-side failure (engine nil after this point is impossible,
+	// but evaluation panic / errors), HasPermission falls back to the
+	// role-table verdict and records a "fallback_role" outcome on the
+	// orkestra_cedar_enforced_total counter.
+	enforcedActions map[string]struct{}
 
 	mu                  sync.RWMutex
 	systemPermissionSet map[string]struct{}    // keys declared with System=true
@@ -103,9 +114,21 @@ type Config struct {
 	// "production") fed to the Cedar engine so policies can branch on
 	// env. Empty defaults to "development" inside cedar.New.
 	Environment string
+	// EnforceActions is the per-permission allowlist of actions for which
+	// Cedar's verdict overrides the role table. Empty keeps shadow mode
+	// for every action. Wire this from CEDAR_ENFORCE_ACTIONS at the
+	// module boundary; Service does not read env vars directly so tests
+	// can construct it deterministically.
+	EnforceActions []string
 }
 
 func New(cfg Config) *Service {
+	enforced := make(map[string]struct{}, len(cfg.EnforceActions))
+	for _, a := range cfg.EnforceActions {
+		if a = strings.TrimSpace(a); a != "" {
+			enforced[a] = struct{}{}
+		}
+	}
 	s := &Service{
 		repo:                cfg.Repo,
 		redis:               cfg.Redis,
@@ -114,18 +137,28 @@ func New(cfg Config) *Service {
 		startMFAGrace:       cfg.StartMFAGrace,
 		lookupCaps:          cfg.LookupCaps,
 		production:          cfg.Production,
+		enforcedActions:     enforced,
 		systemPermissionSet: make(map[string]struct{}),
 		allPermissionSet:    make(map[string]struct{}),
 	}
 	// Cedar shadow-mode engine. Failure to load the policies is a loud
 	// slog.Error but does not block construction — shadow mode is
 	// observability-only and must never turn a deployable binary into a
-	// broken one.
+	// broken one. When enforce mode is active for some actions, the
+	// engine load is still best-effort: a Cedar that fails to load just
+	// means the enforce branch in HasPermission can't fire and every
+	// action falls back to the role-table verdict (logged loud per call).
 	if eng, err := cedar.New(cfg.Environment); err == nil {
 		s.cedarEngine = eng
 		if cfg.Logger != nil {
-			cfg.Logger.Info("cedar: shadow mode enabled",
+			mode := "shadow"
+			if len(enforced) > 0 {
+				mode = "enforce"
+			}
+			cfg.Logger.Info("cedar: engine loaded",
+				slog.String("mode", mode),
 				slog.Int("policies", eng.PolicyCount()),
+				slog.Int("enforced_actions", len(enforced)),
 				slog.String("env", cfg.Environment))
 		}
 	} else if cfg.Logger != nil {
@@ -162,28 +195,41 @@ func (s *Service) HasPermission(ctx context.Context, userUUID, tenantID, permiss
 			break
 		}
 	}
-	// Shadow-mode Cedar evaluation (Phase 1 of ADR-0001). The decision
-	// is emitted to the logger alongside the role-table decision so we
-	// can measure divergence before flipping enforcement.
-	s.shadowEvaluate(ctx, userUUID, tenantID, permission, roleDecision)
+	// Cedar evaluation. shadowEvaluate emits agree/divergence telemetry as
+	// before and returns Cedar's verdict so the enforce branch below can
+	// decide whether to override. ok=false means Cedar didn't run cleanly
+	// (engine missing, panic, or evaluation errors) — under enforce mode
+	// the call falls back to the role-table verdict.
+	cedarDecision, cedarOK := s.shadowEvaluate(ctx, userUUID, tenantID, permission, roleDecision)
+	if _, enforce := s.enforcedActions[permission]; enforce && s.cedarEngine != nil {
+		return s.applyCedarEnforcement(permission, roleDecision, cedarDecision, cedarOK), nil
+	}
 	return roleDecision, nil
 }
 
 // shadowEvaluate runs the Cedar engine for the same (user, tenant,
 // permission) triple and logs the outcome. When Cedar agrees with the
-// role table, the line is emitted at Info level ("cedar: agree"). When
+// role table, the line is emitted at Debug level ("cedar: agree"). When
 // they disagree the level is Warn ("cedar: divergence") so operators can
-// triage before flipping enforcement. All branches are best-effort —
-// Cedar failures never propagate to the caller.
-func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permission string, roleDecision bool) {
+// triage before flipping enforcement.
+//
+// Returns (decision, ok). ok is false when the engine is unavailable or
+// the evaluation panicked / returned errors — callers in enforce mode
+// must treat that as a fallback signal rather than a deny.
+func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permission string, roleDecision bool) (decision cedar.Decision, ok bool) {
 	if s.cedarEngine == nil || s.logger == nil {
-		return
+		return cedar.Decision{}, false
 	}
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Warn("cedar: shadow eval panicked",
 				slog.String("permission", permission),
 				slog.Any("recover", r))
+			// Named returns let the deferred recover signal failure to
+			// the enforce branch — without this an enforce-mode action
+			// would silently grant on a Cedar panic.
+			decision = cedar.Decision{}
+			ok = false
 		}
 	}()
 	start := time.Now()
@@ -217,7 +263,7 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 		TenantKind:   tenantKind,
 		TenantStatus: "active",
 	}
-	decision := s.cedarEngine.IsAuthorized(principal, permission, resource)
+	decision = s.cedarEngine.IsAuthorized(principal, permission, resource)
 	attrs := []any{
 		slog.String("user_uuid", userUUID),
 		slog.String("tenant_id", tenantID),
@@ -239,10 +285,6 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 		// from shadow to enforce. outcome labels the disagreement
 		// shape — role-table allowed only, Cedar allowed only, or
 		// neither/both (the latter only fires on matched-policy drift).
-		suffix := permission
-		if idx := strings.LastIndex(permission, "."); idx >= 0 && idx < len(permission)-1 {
-			suffix = permission[idx+1:]
-		}
 		outcome := "neither"
 		switch {
 		case roleDecision && !decision.Allowed:
@@ -252,8 +294,70 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 		case roleDecision && decision.Allowed:
 			outcome = "both"
 		}
-		metrics.Default().RecordCedarDivergence(suffix, decision.MatchedPolicy, outcome)
+		metrics.Default().RecordCedarDivergence(actionSuffix(permission), decision.MatchedPolicy, outcome)
 	}
+	// Cedar evaluation errors don't fail the shadow log, but they do
+	// disqualify the decision from being load-bearing in enforce mode.
+	if len(decision.Errors) > 0 {
+		return decision, false
+	}
+	return decision, true
+}
+
+// applyCedarEnforcement is invoked only when the action is in the enforce
+// allowlist and the engine loaded successfully at boot. Returns the verdict
+// the caller of HasPermission should observe: Cedar's decision when the
+// evaluation succeeded, or the role-table decision when Cedar errored
+// (fail-open from Cedar's perspective; the role table is still the
+// secondary gate). Always emits one orkestra_cedar_enforced_total tick so
+// operators can see how often Cedar's verdict was load-bearing vs. agreed
+// vs. fell back. The logger output here is at Info for agreement (high
+// volume but useful baseline) and Warn for overrides (security-relevant).
+func (s *Service) applyCedarEnforcement(permission string, roleDecision bool, decision cedar.Decision, cedarOK bool) bool {
+	suffix := actionSuffix(permission)
+	if !cedarOK {
+		if s.logger != nil {
+			s.logger.Error("cedar: enforce-mode evaluation failed; falling back to role-table verdict",
+				slog.String("permission", permission),
+				slog.Bool("role_allow", roleDecision),
+				slog.Any("cedar_errors", decision.Errors))
+		}
+		metrics.Default().RecordCedarEnforced(suffix, "fallback_role")
+		return roleDecision
+	}
+	var outcome string
+	switch {
+	case decision.Allowed && roleDecision:
+		outcome = "agree_allow"
+	case !decision.Allowed && !roleDecision:
+		outcome = "agree_deny"
+	case decision.Allowed && !roleDecision:
+		outcome = "cedar_override_allow"
+	default:
+		outcome = "cedar_override_deny"
+	}
+	if s.logger != nil {
+		if outcome == "cedar_override_allow" || outcome == "cedar_override_deny" {
+			s.logger.Warn("cedar: enforce-mode override",
+				slog.String("permission", permission),
+				slog.String("outcome", outcome),
+				slog.Bool("role_allow", roleDecision),
+				slog.Bool("cedar_allow", decision.Allowed),
+				slog.String("matched_policy", decision.MatchedPolicy))
+		}
+	}
+	metrics.Default().RecordCedarEnforced(suffix, outcome)
+	return decision.Allowed
+}
+
+// actionSuffix returns the dotted-key tail of a permission ("foo.bar.read"
+// → "read"). Keys without a dot return as-is. Used for low-cardinality
+// Prometheus labels on Cedar metrics.
+func actionSuffix(permission string) string {
+	if idx := strings.LastIndex(permission, "."); idx >= 0 && idx < len(permission)-1 {
+		return permission[idx+1:]
+	}
+	return permission
 }
 
 func (s *Service) GetEffectivePermissions(ctx context.Context, userUUID, tenantID string) ([]string, error) {

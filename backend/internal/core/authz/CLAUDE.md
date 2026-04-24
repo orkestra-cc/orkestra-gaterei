@@ -200,6 +200,8 @@ Current catalog status (snapshot as of this doc update — the live catalog is i
 
 **When adding a new permission:** declare it in the owning module's `Permissions()` only. Never write directly to `authz_permissions`. Include `System: true` only for platform-level operations that system roles inherit without a binding. Then ensure Cedar coverage — either name it as `Action::"<key>"` in a `cedar/policies/*.cedar` file, or use a suffix already covered by `context.action_suffix == "X"` (today: `read`, `view`, `self`); otherwise the `policycoverage` CI gate will fail with `permission.cedar.unreferenced`.
 
+**Cedar enforce mode:** the `CEDAR_ENFORCE_ACTIONS` env var (comma-separated permission keys) opts each listed action out of shadow mode and into Cedar-authoritative mode — for those actions Cedar's verdict overrides the role table, including the tier-aware forbids in `tenant_scope.cedar`. Unset (the default) keeps every action in pure shadow mode. Cedar-side failures during an enforced check fall back to the role-table verdict (logged at Error, counted as `fallback_role` on `orkestra_cedar_enforced_total`). Recommended starter list: `system.modules.admin,system.tenants.admin,system.users.admin,system.users.mfa_reset` — those four are explicitly named as `Action::` literals in `tenant_scope.cedar`. Roll back is a single env-var change.
+
 ## Related
 
 - [`../user/CLAUDE.md`](../user/CLAUDE.md) — provides the system role lookup

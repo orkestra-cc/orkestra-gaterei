@@ -41,7 +41,8 @@ import (
 type Collector struct {
 	registry *prometheus.Registry
 
-	cedarDivergence *prometheus.CounterVec
+	cedarDivergence  *prometheus.CounterVec
+	cedarEnforced    *prometheus.CounterVec
 	capabilityDenied *prometheus.CounterVec
 
 	// entitlementLag is a GaugeFunc that reads lastApply on every scrape;
@@ -84,6 +85,19 @@ func (c *Collector) buildMetrics() {
 		[]string{"action_suffix", "matched_policy", "outcome"},
 	)
 
+	c.cedarEnforced = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "orkestra",
+			Subsystem: "cedar",
+			Name:      "enforced_total",
+			Help:      "Count of authorization checks for actions where Cedar is the authoritative verdict (Section B item #1 enforce mode). outcome distinguishes whether Cedar agreed with the role table, overrode it, or fell back due to a Cedar-side failure.",
+		},
+		// Labels: action_suffix is the dotted-key tail (low cardinality).
+		// outcome is one of agree_allow, agree_deny, cedar_override_allow,
+		// cedar_override_deny, fallback_role.
+		[]string{"action_suffix", "outcome"},
+	)
+
 	c.capabilityDenied = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "orkestra",
@@ -115,7 +129,7 @@ func (c *Collector) Register() error {
 	if !atomic.CompareAndSwapUint32(&c.registered, 0, 1) {
 		return nil
 	}
-	for _, m := range []prometheus.Collector{c.cedarDivergence, c.capabilityDenied, c.entitlementLag} {
+	for _, m := range []prometheus.Collector{c.cedarDivergence, c.cedarEnforced, c.capabilityDenied, c.entitlementLag} {
 		if err := c.registry.Register(m); err != nil {
 			// rollback so the caller can retry with a fresh collector
 			atomic.StoreUint32(&c.registered, 0)
@@ -146,6 +160,20 @@ func (c *Collector) RecordCedarDivergence(actionSuffix, matchedPolicy, outcome s
 		return
 	}
 	c.cedarDivergence.WithLabelValues(actionSuffix, matchedPolicy, outcome).Inc()
+}
+
+// RecordCedarEnforced increments the enforce counter. outcome is one of
+// "agree_allow", "agree_deny", "cedar_override_allow", "cedar_override_deny"
+// (Cedar's verdict differed from the role-table and won), or "fallback_role"
+// (Cedar errored or panicked; the call resolved to the role-table verdict).
+//
+// Same cardinality discipline as RecordCedarDivergence: pass an
+// action_suffix from a bounded set (the tail of a permission key).
+func (c *Collector) RecordCedarEnforced(actionSuffix, outcome string) {
+	if c == nil || c.cedarEnforced == nil {
+		return
+	}
+	c.cedarEnforced.WithLabelValues(actionSuffix, outcome).Inc()
 }
 
 // RecordCapabilityDenied increments the 402 counter. capabilityID must be
