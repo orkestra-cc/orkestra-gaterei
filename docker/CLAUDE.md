@@ -126,7 +126,7 @@ Separate infrastructure from applications across five compose files:
 1. **`docker-compose.minimal.yml`** — Self-contained 4-container stack (mongo, redis, backend, frontend) using only public images. Recommended for first boot on a modest VM or when you don't have `dhi.io` registry access.
 2. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
 3. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
-4. **`docker-compose.staging.yml`** - Application services in staging mode (production-like)
+4. **`docker-compose.staging.yml`** - Application services in staging mode (staging-like env + AIR/Vite hot reload)
 5. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
 
 The minimal profile is **self-contained** — it does NOT layer on top of `docker-compose.infra.yml`. It brings its own mongo/redis containers (on non-standard ports to avoid colliding with the dev stack's infra containers) and only starts the core module chain.
@@ -141,7 +141,7 @@ The minimal profile is **self-contained** — it does NOT layer on top of `docke
     ├── docker-compose.minimal.yml # Minimal: self-contained 4-container stack
     ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
     ├── docker-compose.dev.yml     # Development: Backend, Frontend with hot reload
-    ├── docker-compose.staging.yml # Staging: Production-like behavior
+    ├── docker-compose.staging.yml # Staging: AIR/Vite hot reload + staging-like env
     ├── docker-compose.prod.yml    # Production: Optimized Backend, Frontend
     ├── docker-compose.ai.yml      # Optional AI sidecar (graph, rag, agents, aimodels)
     ├── .env.example               # Template for environment files
@@ -326,6 +326,25 @@ The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkest
 | ------------ | --------- | ------------- | ---------------------------- |
 | **backend**  | 3007      | Go API server | Hot reload (AIR), debug logs |
 | **frontend** | 8087      | React web app | Vite dev server, HMR         |
+
+#### Staging (`docker-compose.staging.yml`)
+
+**Hot-reload stack with staging-like behavior (cookie strict, JWT, CORS, rate limits).** Used as the primary development environment on long-lived VMs that mirror production-style URLs/cookies but still need fast iteration.
+
+| Service           | Host port | Purpose       | Features                                  |
+| ----------------- | --------- | ------------- | ----------------------------------------- |
+| **orkestra-backend**  | 3000      | Go API server | Hot reload (AIR), staging-like env, RS256 JWT |
+| **orkestra-frontend** | 8080      | React web app | Vite dev server, HMR                       |
+
+The backend mounts `../backend:/app` and runs AIR from the bind mount — no image rebuild on code change. AIR and the Go module/build cache live under `backend/.go-bin/` and `backend/.go-mod-cache/` (gitignored), pre-installed by the host. To bootstrap on a fresh machine:
+
+```bash
+cd backend
+GOMODCACHE=$PWD/.go-mod-cache go mod download
+GOBIN=$PWD/.go-bin GOMODCACHE=$PWD/.go-mod-cache go install github.com/air-verse/air@latest
+```
+
+`userns_mode: "host"` is required when the Docker daemon runs with `userns-remap` (otherwise `group_add` for the docker GID is rewritten and the mounted socket stays unreadable). DNS is inherited from the daemon (`/etc/docker/daemon.json` → `dns: [...]`); the staging compose deliberately does **not** set per-service `dns:`, because public resolvers (8.8.8.8, 1.1.1.1) may be blocked on UDP/53 in restricted networks.
 
 #### Production (`docker-compose.prod.yml`)
 

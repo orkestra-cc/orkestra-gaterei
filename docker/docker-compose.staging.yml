@@ -5,17 +5,33 @@ name: orkestra-staging
 
 services:
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-      target: production
-    container_name: backend
+    # Hot reload (AIR) on staging — bind-mounted source, no image build.
+    # Behavior remains staging-like (cookie strict, JWT, URLs, rate limits)
+    # but the binary is rebuilt on every save. Switch back to production
+    # build by restoring the `build:` block + removing `command:` + bind mount.
+    image: dhi.io/golang:1
+    container_name: orkestra-backend
+    user: "1000:1000"
+    working_dir: /app
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       ENV: staging
       PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
+
+      # Hot reload (AIR)
+      AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
+      AIR_BIN: ./tmp/main
+
+      # Go toolchain — write caches inside the bind mount so they survive rebuilds.
+      # GOSUMDB=off because sum.golang.org isn't reliably reachable from the
+      # corporate DNS upstream; module integrity still relies on go.sum.
+      GOSUMDB: "off"
+      GOMODCACHE: "/app/.go-mod-cache"
+      GOCACHE: "/app/.go-build-cache"
+      GOBIN: "/app/.go-bin"
+      PATH: "/app/.go-bin:/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
       # MongoDB (internal port is always 27017, MONGO_PORT is for host mapping only)
       MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:27017/${MONGO_DATABASE}?authSource=admin
@@ -31,6 +47,11 @@ services:
 
       # OAuth Token Encryption
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped
+      # DEK. Keep env-derived so operators can rotate without a rebuild.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
 
       # Cookie Configuration (production-like)
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -143,7 +164,8 @@ services:
       # running under Kubernetes or when infra is managed externally.
       CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
     volumes:
-      - ./keys:/app/keys:ro
+      - ../backend:/app
+      - ./keys:/app/keys
       - orkestra-backend-logs-staging:/app/logs
       - orkestra-backend-uploads-staging:/app/uploads
       # Enables the agents module to manage the orkestra-hindsight container
@@ -154,8 +176,19 @@ services:
     # DOCKER_GID in the staging env file if the host uses a different gid.
     group_add:
       - "${DOCKER_GID:-1001}"
+    # Required when the Docker daemon runs with userns-remap: without it,
+    # group_add maps to a remapped GID that doesn't match the host docker
+    # group, and the mounted socket stays unreadable.
+    userns_mode: "host"
     networks:
       - orkestra-network
+    # DNS inherits from the Docker daemon (`/etc/docker/daemon.json` →
+    # `dns: ["192.168.88.4", ...]`). Don't override here unless this host's
+    # firewall blocks the upstream — public resolvers (8.8.8.8, 1.1.1.1)
+    # are not reachable on UDP/53 from this network.
+    # AIR is pre-installed by the host into ./.go-bin/air via:
+    #   cd backend && GOBIN=$PWD/.go-bin go install github.com/air-verse/air@latest
+    command: ["sh", "-c", "exec /app/.go-bin/air"]
     # Note: mongodb and redis are in docker-compose.infra.yml
     # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
     healthcheck:
@@ -163,11 +196,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
 
   frontend:
     image: dhi.io/node:24-dev
-    container_name: frontend
+    container_name: orkestra-frontend
     user: "1000:1000"
     userns_mode: "host"
     working_dir: /app
