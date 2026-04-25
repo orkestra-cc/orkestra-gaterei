@@ -101,6 +101,34 @@ ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
 ./scripts/env-validate.sh staging  # Validate specific
 ```
 
+### What belongs in `.env` / compose vs `/admin/modules`
+
+After the architecture-modernization refactor, **module-level configuration lives in MongoDB** (`module_configs`), is edited at `/admin/modules`, and secrets are AES-256-GCM-encrypted with `OAUTH_TOKEN_ENCRYPTION_KEY`. The `EnvVar` field on each module's `ConfigSchema()` is consulted **only on first-boot seeding** (`shared/module/config_service.go::buildInitialConfig`); after that the document is authoritative and editing the env var has no effect.
+
+Keep this split when touching `.env*` or `docker-compose.*.yml`:
+
+| Bucket | Owner | Goes in compose / `.env` |
+|--------|-------|--------------------------|
+| Boot identity (`APP_NAME`, `ENV`, `PORT`, host/port mappings) | process | ✅ yes |
+| Database connections (`MONGO_URI`, `REDIS_URL`, credentials) | process | ✅ yes |
+| JWT keys, cookies, CORS, rate limits, observability | process | ✅ yes |
+| Encryption keys (`OAUTH_TOKEN_ENCRYPTION_KEY`, `ORKESTRA_KMS_MASTER_KEY`, optional `MFA_SECRET_ENCRYPTION_KEY`) | process — bootstraps ConfigService | ✅ yes |
+| Process-scoped auth tunables (`AUTH_REQUIRE_EMAIL_VERIFICATION`, `AUTH_RISK_STEP_UP_THRESHOLD`, `WEBAUTHN_RP_ID`, `AUTH_GEOIP_DB_PATH`, `TENANT_KIND_ENFORCEMENT`, `CEDAR_ENFORCE_ACTIONS`) | process | ✅ yes |
+| `CONTAINER_CONTROL_ENABLED`, `DOCKER_GID`, `AI_SERVICE_URL`, `AI_SERVICE_PORT` | process | ✅ yes |
+| `SALES_*`, `RAG_CHUNK_*` | process — runtime knobs not yet migrated to ConfigSchema | ✅ yes (transitional) |
+| OAuth provider credentials (`OAUTH_GOOGLE/APPLE/GITHUB/DISCORD_*`) | ConfigService (auth module) | ❌ admin UI |
+| OpenAPI billing / company tokens (`OPENAPI_BILLING_*`, `OPENAPI_COMPANY_*`, `OPENAPI_SANDBOX_MODE`, `BILLING_WEBHOOK_*`) | ConfigService (billing, company modules) | ❌ admin UI |
+| AI provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_BASE_URL`) | ConfigService (aimodels module) | ❌ admin UI |
+| Memgraph / Hindsight URLs and credentials (`GRAPH_*`, `HINDSIGHT_URL`, `HINDSIGHT_NAMESPACE`, `HINDSIGHT_IMAGE`, `GRAPH_IMAGE`) | ConfigService (graph, agents modules) | ❌ admin UI |
+| Gotenberg URL (`GOTENBERG_*`) | ConfigService (documents module) | ❌ admin UI |
+| Stripe keys (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_VERSION`) | ConfigService (payments module) | ❌ admin UI |
+| SMTP / notification settings (`SMTP_*`, `NOTIFICATION_EMAIL_*`) | ConfigService (notification module) | ❌ admin UI |
+| Per-module enable flags (`*_ENABLED`) | DB (`module_configs.enabled`) flipped at runtime | ❌ admin UI |
+
+For first-boot bootstrap of a fresh deployment without using the admin UI, export the seed env vars in the shell before `docker compose up` — they're listed as commented stubs at the bottom of `docker/.env`. Once the document exists, those env vars become inert.
+
+Vars **deleted as dead code** during the cleanup (do not re-add): `MODULES`, `BACKEND_HOST`, `FRONTEND_HOST`, `SIGNOZ_ENABLED`, `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `HINDSIGHT_LLM_*` (the agents module reuses the AI Models default LLM).
+
 ### Environment Behavior Matrix
 
 | Feature | Development | Staging | Production |
@@ -253,7 +281,7 @@ docker network create orkestra-network   # once, if it does not exist
 docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
 ```
 
-To enable additional modules, edit `MODULES` in `.env.minimal` (comma-separated, e.g. `MODULES=dev,billing`). Dependencies are auto-included by the backend module registry.
+All optional modules (billing, rag, agents, etc.) are still instantiated when the minimal profile boots — they sit idle until you toggle them on at `/admin/modules`. The registry auto-resolves transitive dependencies on enable.
 
 ### Infrastructure Services (`docker-compose.infra.yml`)
 

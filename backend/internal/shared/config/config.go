@@ -125,14 +125,13 @@ type PDFMargins struct {
 }
 
 type ServerConfig struct {
-	Port            string
-	Environment     string
-	LogLevel        string
-	FrontendURL     string
-	CORSOrigins     []string // Allowed CORS origins
-	MaxBodySize     int64    // Maximum request body size in bytes (default 10MB)
-	AIServiceURL    string   // When set, AI modules run in the external AI service sidecar
-	Modules         []string // Explicit list of optional modules to load (empty = use per-module env vars)
+	Port         string
+	Environment  string
+	LogLevel     string
+	FrontendURL  string
+	CORSOrigins  []string // Allowed CORS origins
+	MaxBodySize  int64    // Maximum request body size in bytes (default 10MB)
+	AIServiceURL string   // When set, AI modules run in the external AI service sidecar
 }
 
 type DatabaseConfig struct {
@@ -231,26 +230,14 @@ func Load() (*Config, error) {
 	defaultCORSOrigins := []string{"http://localhost:8080", "http://localhost:5173"}
 	corsOrigins := getEnvAsSlice("CORS_ORIGINS", defaultCORSOrigins)
 
-	// Parse optional module list: MODULES=billing,documents,sales
-	var enabledModules []string
-	if modulesEnv := getEnv("MODULES", ""); modulesEnv != "" {
-		for _, name := range strings.Split(modulesEnv, ",") {
-			name = strings.TrimSpace(name)
-			if name != "" {
-				enabledModules = append(enabledModules, name)
-			}
-		}
-	}
-
 	config.Server = ServerConfig{
-		Port:            getEnv("PORT", "3000"),
-		Environment:     getEnv("ENV", "development"),
-		LogLevel:        getEnv("LOG_LEVEL", "info"),
-		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:8080"),
-		CORSOrigins:     corsOrigins,
-		MaxBodySize:     getEnvAsInt64("MAX_BODY_SIZE", 10*1024*1024), // Default 10MB
-		AIServiceURL:    getEnv("AI_SERVICE_URL", ""),                 // Empty = local modules, set = remote AI service
-		Modules:         enabledModules,                               // Empty = use per-module env vars
+		Port:         getEnv("PORT", "3000"),
+		Environment:  getEnv("ENV", "development"),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		FrontendURL:  getEnv("FRONTEND_URL", "http://localhost:8080"),
+		CORSOrigins:  corsOrigins,
+		MaxBodySize:  getEnvAsInt64("MAX_BODY_SIZE", 10*1024*1024), // Default 10MB
+		AIServiceURL: getEnv("AI_SERVICE_URL", ""),                 // Empty = local modules, set = remote AI service
 	}
 
 	config.Database = DatabaseConfig{

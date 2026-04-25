@@ -45,7 +45,9 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
 
-      # OAuth Token Encryption
+      # OAuth Token Encryption — bootstraps ConfigService (every secret in
+      # module_configs is AES-256-GCM encrypted with this key). Rotating it
+      # invalidates every stored secret.
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
 
       # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
@@ -62,23 +64,6 @@ services:
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
       ALLOW_LOCALHOST_REDIRECTS: ${ALLOW_LOCALHOST_REDIRECTS:-false}
-
-      # OAuth (staging credentials)
-      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
-      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
-      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
-      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
-      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
-
-      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
-      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
-      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
-      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
-      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
-
-      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
-      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
-      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
 
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-https://staging.orkestra.cc}
@@ -100,52 +85,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend-staging}
 
-      # OpenAPI shared
-      OPENAPI_SANDBOX_MODE: ${OPENAPI_SANDBOX_MODE:-true}
-
-      # Billing - OpenAPI SDI (sandbox mode for staging)
-      OPENAPI_BILLING_BASE_URL: ${OPENAPI_BILLING_BASE_URL:-https://test.sdi.openapi.it}
-      OPENAPI_BILLING_BEARER_TOKEN: ${OPENAPI_BILLING_BEARER_TOKEN:-}
-      OPENAPI_BILLING_FISCAL_ID: ${OPENAPI_BILLING_FISCAL_ID:-}
-      OPENAPI_BILLING_RECIPIENT_CODE: ${OPENAPI_BILLING_RECIPIENT_CODE:-JKKZDGR}
-      OPENAPI_BILLING_APPLY_SIGNATURE: ${OPENAPI_BILLING_APPLY_SIGNATURE:-true}
-      OPENAPI_BILLING_APPLY_STORAGE: ${OPENAPI_BILLING_APPLY_STORAGE:-true}
-      OPENAPI_BILLING_TIMEOUT: ${OPENAPI_BILLING_TIMEOUT:-30s}
-      OPENAPI_BILLING_RETRY_ATTEMPTS: ${OPENAPI_BILLING_RETRY_ATTEMPTS:-3}
-      OPENAPI_BILLING_POLLING_INTERVAL: ${OPENAPI_BILLING_POLLING_INTERVAL:-5m}
-      OPENAPI_BILLING_WEBHOOK_URL: ${OPENAPI_BILLING_WEBHOOK_URL:-}
-      OPENAPI_BILLING_WEBHOOK_SECRET: ${OPENAPI_BILLING_WEBHOOK_SECRET:-}
-
-      # Company Lookup - OpenAPI Company API
-      OPENAPI_COMPANY_BEARER_TOKEN: ${OPENAPI_COMPANY_BEARER_TOKEN:-}
-      OPENAPI_COMPANY_BASE_URL: ${OPENAPI_COMPANY_BASE_URL:-}
-      OPENAPI_COMPANY_CACHE_TTL: ${OPENAPI_COMPANY_CACHE_TTL:-24h}
-      OPENAPI_COMPANY_TIMEOUT: ${OPENAPI_COMPANY_TIMEOUT:-15s}
-
-      # Graph Database - Memgraph
-      GRAPH_ENABLED: ${GRAPH_ENABLED:-false}
-      GRAPH_URI: ${GRAPH_URI:-bolt://orkestra-memgraph:7687}
-      GRAPH_USERNAME: ${GRAPH_USERNAME:-}
-      GRAPH_PASSWORD: ${GRAPH_PASSWORD:-}
-      GRAPH_DATABASE: ${GRAPH_DATABASE:-memgraph}
-      GRAPH_MAX_CONN_POOL: ${GRAPH_MAX_CONN_POOL:-25}
-      GRAPH_TIMEOUT: ${GRAPH_TIMEOUT:-30s}
-      GRAPH_ENCRYPTED: ${GRAPH_ENCRYPTED:-false}
-
-      # AI Models
-      AIMODELS_ENABLED: ${AIMODELS_ENABLED:-false}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-
-      # Agents / Hindsight
-      AGENTS_ENABLED: ${AGENTS_ENABLED:-false}
-      HINDSIGHT_URL: ${HINDSIGHT_URL:-http://orkestra-hindsight:8888}
-      HINDSIGHT_NAMESPACE: ${HINDSIGHT_NAMESPACE:-orkestra}
-
-      # Sales Intelligence
-      SALES_ENABLED: ${SALES_ENABLED:-false}
+      # Sales Intelligence — runtime knobs read directly by the sales
+      # module (cfg.Sales.*). Not yet migrated to ConfigService.
       SALES_MAX_CONCURRENCY: ${SALES_MAX_CONCURRENCY:-5}
       SALES_DEFAULT_LOCALE: ${SALES_DEFAULT_LOCALE:-it}
       SALES_SKILL_TIMEOUT: ${SALES_SKILL_TIMEOUT:-5m}
@@ -154,8 +95,8 @@ services:
       SALES_SCRAPER_TIMEOUT: ${SALES_SCRAPER_TIMEOUT:-30s}
       SALES_SCRAPER_MAX_DEPTH: ${SALES_SCRAPER_MAX_DEPTH:-3}
 
-      # RAG - Retrieval-Augmented Generation
-      RAG_ENABLED: ${RAG_ENABLED:-false}
+      # RAG — chunking knobs read directly by the rag module (cfg.RAG.*).
+      # Not yet migrated to ConfigService.
       RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
       RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-50}
       RAG_DEFAULT_TOP_K: ${RAG_DEFAULT_TOP_K:-10}
@@ -163,6 +104,13 @@ services:
       # Module infrastructure containers (hindsight etc.). Disable when
       # running under Kubernetes or when infra is managed externally.
       CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
+
+      # Module config (OAuth, OpenAPI billing/company tokens, Stripe keys,
+      # SMTP, Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
+      # per-module enable flags) is owned by ConfigService and edited at
+      # /admin/modules. The module ConfigSchema EnvVar fields seed those
+      # values from the host environment ONLY on first boot of a brand-new
+      # install — after that the module_configs document is authoritative.
     volumes:
       - ../backend:/app
       - ./keys:/app/keys

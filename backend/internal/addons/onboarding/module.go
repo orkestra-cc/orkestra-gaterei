@@ -36,9 +36,8 @@ func (m *Module) DisplayName() string             { return "Onboarding" }
 func (m *Module) Description() string             { return "Anonymous self-service signup: creates a new external tenant and its owner user in a single public call." }
 func (m *Module) Category() module.ModuleCategory { return module.CategoryToggleable }
 
-// Onboarding boots as long as the env var isn't explicitly set to false.
-// The module has no external dependencies to verify — it's pure glue —
-// so the default is "on when the operator selects it via MODULES".
+// Onboarding has no external dependencies to verify — it's pure glue —
+// so the default is "on" and operators flip it via /admin/modules.
 func (m *Module) Enabled(cfg *config.Config) bool { return true }
 
 // Dependencies: auth owns the password + email-verification flows we reuse;

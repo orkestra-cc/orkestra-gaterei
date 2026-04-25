@@ -105,8 +105,8 @@ func (s *ModuleConfigService) IsEnabled(ctx context.Context, moduleName string) 
 
 // RegisterKnownModules adds modules to the in-memory known-modules catalog
 // without touching MongoDB. Called from the boot path to advertise addons
-// that were not selected for this process (no MODULES entry, Enabled() false)
-// so GetConfig/GetAllConfigs can lazy-seed and return them to the admin UI.
+// whose Enabled() returned false at first-boot seeding so GetConfig /
+// GetAllConfigs can lazy-seed and return them to the admin UI.
 // Entries already registered by SeedFromModules are preserved.
 func (s *ModuleConfigService) RegisterKnownModules(modules []Module, cfg *config.Config) {
 	if s.cfg == nil {

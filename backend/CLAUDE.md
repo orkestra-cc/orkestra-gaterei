@@ -43,7 +43,7 @@ backend/
 │   │   ├── notification/           # Email delivery, templates, preferences, unsubscribe
 │   │   ├── auth/                   # Email/password + OAuth 2.1, JWT, sessions, RBAC
 │   │   └── navigation/             # Dynamic menu from module NavItems
-│   ├── addons/                     # Optional — loaded via MODULES env var
+│   ├── addons/                     # Optional — toggled at /admin/modules
 │   │   ├── billing/                # FatturaPA/SDI invoicing
 │   │   ├── documents/              # PDF generation via Gotenberg
 │   │   ├── company/                # Business registry lookup
@@ -90,7 +90,7 @@ Each module follows: `module.go` → `handlers/` → `services/` → `repository
 7. Use `shared/iface` interfaces for cross-module deps — add new interfaces there if needed
 8. Use `deps.Services.Register(key, impl)` to expose services to other modules
 
-Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed) or by setting `MODULES` env var / per-module env vars for first boot.
+Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed). For first boot of a fresh install, the module's `ConfigSchema().EnvVar` fields seed the initial `module_configs` document from the host environment — see [docker/CLAUDE.md](../docker/CLAUDE.md) for the env-var-vs-admin-UI split.
 
 ## API Endpoints
 
@@ -134,7 +134,7 @@ docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
 docker compose -f docker-compose.minimal.yml logs -f backend
 ```
 
-The minimal stack builds from `backend/Dockerfile.minimal` which uses `golang:1.25-alpine` → `alpine:3.20`. It's the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend with `MODULES=dev` (user + notification + auth + navigation + dev token generator). Runs on host ports 3050/8050/27050/6350 to avoid colliding with the dev stack.
+The minimal stack builds from `backend/Dockerfile.minimal` which uses `golang:1.25-alpine` → `alpine:3.20`. It's the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend with the core modules + dev token generator. Runs on host ports 3050/8050/27050/6350 to avoid colliding with the dev stack.
 
 **WSL2 caveat**: AIR doesn't detect file changes on Windows mounts. Rebuild manually:
 ```bash

@@ -29,8 +29,14 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
 
-      # OAuth Token Encryption
+      # OAuth Token Encryption — bootstraps ConfigService (every secret in
+      # module_configs is AES-256-GCM encrypted with this key). Rotating it
+      # invalidates every stored secret.
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped DEK.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
 
       # Cookie Configuration (maximum security)
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -40,23 +46,6 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
-
-      # OAuth (production credentials)
-      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
-      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
-      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
-      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
-      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
-
-      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
-      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
-      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
-      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
-      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
-
-      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
-      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
-      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
 
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-https://orkestra.cc}
@@ -75,44 +64,16 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend}
 
-      # Email
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM: ${SMTP_FROM:-noreply@orkestra.cc}
-
-      # Storage
-      S3_BUCKET: ${S3_BUCKET}
-      S3_REGION: ${S3_REGION}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-
-      # OpenAPI shared
-      OPENAPI_SANDBOX_MODE: ${OPENAPI_SANDBOX_MODE:-false}
-
-      # Billing - OpenAPI SDI (production)
-      OPENAPI_BILLING_BASE_URL: ${OPENAPI_BILLING_BASE_URL:-https://sdi.openapi.it}
-      OPENAPI_BILLING_BEARER_TOKEN: ${OPENAPI_BILLING_BEARER_TOKEN}
-      OPENAPI_BILLING_FISCAL_ID: ${OPENAPI_BILLING_FISCAL_ID}
-      OPENAPI_BILLING_RECIPIENT_CODE: ${OPENAPI_BILLING_RECIPIENT_CODE}
-      OPENAPI_BILLING_APPLY_SIGNATURE: ${OPENAPI_BILLING_APPLY_SIGNATURE:-true}
-      OPENAPI_BILLING_APPLY_STORAGE: ${OPENAPI_BILLING_APPLY_STORAGE:-true}
-      OPENAPI_BILLING_TIMEOUT: ${OPENAPI_BILLING_TIMEOUT:-30s}
-      OPENAPI_BILLING_RETRY_ATTEMPTS: ${OPENAPI_BILLING_RETRY_ATTEMPTS:-3}
-      OPENAPI_BILLING_POLLING_INTERVAL: ${OPENAPI_BILLING_POLLING_INTERVAL:-5m}
-      OPENAPI_BILLING_WEBHOOK_URL: ${OPENAPI_BILLING_WEBHOOK_URL:-}
-      OPENAPI_BILLING_WEBHOOK_SECRET: ${OPENAPI_BILLING_WEBHOOK_SECRET:-}
-
-      # Company Lookup - OpenAPI Company API
-      OPENAPI_COMPANY_BEARER_TOKEN: ${OPENAPI_COMPANY_BEARER_TOKEN:-}
-      OPENAPI_COMPANY_BASE_URL: ${OPENAPI_COMPANY_BASE_URL:-}
-      OPENAPI_COMPANY_CACHE_TTL: ${OPENAPI_COMPANY_CACHE_TTL:-24h}
-      OPENAPI_COMPANY_TIMEOUT: ${OPENAPI_COMPANY_TIMEOUT:-15s}
-
       # Module infrastructure containers (hindsight etc.). Set to "false" on
       # Kubernetes deployments where the orchestrator owns container lifecycle.
       CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
+
+      # Module config (OAuth, OpenAPI billing/company tokens, Stripe keys,
+      # SMTP, Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
+      # per-module enable flags) is owned by ConfigService and edited at
+      # /admin/modules. The module ConfigSchema EnvVar fields seed those
+      # values from the host environment ONLY on first boot of a brand-new
+      # install — after that the module_configs document is authoritative.
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs

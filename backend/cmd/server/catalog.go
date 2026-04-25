@@ -44,9 +44,10 @@ var coreModules = []func() module.Module{
 	func() module.Module { return navigation.NewModule() },
 }
 
-// optionalModules can be loaded by the user via the MODULES env var
-// or per-module env vars (BILLING_ENABLED, RAG_ENABLED, etc.).
-// The registry resolves initialization order from Dependencies().
+// optionalModules are all instantiated and initialized at boot.
+// Their enabled state is read from the module_configs collection
+// (managed via /admin/modules); the registry resolves initialization
+// order from Dependencies().
 var optionalModules = map[string]func() module.Module{
 	"billing":       func() module.Module { return billing.NewModule() },
 	"documents":     func() module.Module { return documents.NewModule() },

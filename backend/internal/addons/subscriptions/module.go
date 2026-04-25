@@ -221,7 +221,8 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// anonymous signup UIs can render pricing before login. Disabling the
 	// subscriptions module via /admin/modules does NOT detach this route
 	// at runtime (same caveat as onboarding.RegisterRoutes in commit 3.1) —
-	// operators restart with MODULES= to fully stop public exposure.
+	// to fully stop public exposure, restart with the module disabled
+	// before boot (delete its row in module_configs or mark enabled=false).
 	RegisterPublicCatalogRoutes(ri.PublicAPI, m.serviceHandler)
 
 	// Each permission bucket gets its own chi subgroup. Mutations (POST,
