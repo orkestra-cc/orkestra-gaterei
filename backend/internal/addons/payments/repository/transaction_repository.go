@@ -16,7 +16,6 @@ var ErrTransactionNotFound = errors.New("payments: transaction not found")
 type TransactionFilters struct {
 	SubscriptionUUID string
 	InvoiceUUID      string
-	ClientUUID       string
 	TenantUUID       string
 	Status           models.TransactionStatus
 	Since            *time.Time
@@ -28,17 +27,9 @@ type TransactionRepository interface {
 	GetByUUID(ctx context.Context, uuid string) (*models.Transaction, error)
 	GetByProviderTxID(ctx context.Context, provider models.ProviderName, providerTxID string) (*models.Transaction, error)
 	List(ctx context.Context, f TransactionFilters) ([]models.Transaction, error)
-	// FindByTenantUUID lists transactions bound to the tenant via the
-	// Phase 1 forward-looking TenantUUID. Backs the Phase 2 aggregator
-	// GET /v1/admin/tenants/{id}/payments.
+	// FindByTenantUUID lists transactions bound to the tenant. Backs the
+	// admin aggregator GET /v1/admin/tenants/{id}/payments.
 	FindByTenantUUID(ctx context.Context, tenantUUID string) ([]models.Transaction, error)
-	// FindWithoutTenantUUID returns transactions still missing TenantUUID —
-	// the cold-tail set the Phase 1 backfill migration walks. `limit` caps the
-	// page size; 0 = caller-defined default.
-	FindWithoutTenantUUID(ctx context.Context, limit int64) ([]models.Transaction, error)
-	// SetTenantUUID back-stamps the forward-looking tenant binding on an
-	// existing transaction row. Used by the backfill migration.
-	SetTenantUUID(ctx context.Context, transactionUUID, tenantUUID string) error
 	Update(ctx context.Context, t *models.Transaction) error
 }
 
@@ -92,9 +83,6 @@ func (r *transactionRepository) List(ctx context.Context, f TransactionFilters) 
 	if f.InvoiceUUID != "" {
 		filter["invoiceUUID"] = f.InvoiceUUID
 	}
-	if f.ClientUUID != "" {
-		filter["clientUUID"] = f.ClientUUID
-	}
 	if f.TenantUUID != "" {
 		filter["tenantUUID"] = f.TenantUUID
 	}
@@ -136,40 +124,6 @@ func (r *transactionRepository) FindByTenantUUID(ctx context.Context, tenantUUID
 		return nil, err
 	}
 	return out, nil
-}
-
-func (r *transactionRepository) FindWithoutTenantUUID(ctx context.Context, limit int64) ([]models.Transaction, error) {
-	filter := bson.M{"$or": []bson.M{
-		{"tenantUUID": bson.M{"$exists": false}},
-		{"tenantUUID": ""},
-	}}
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}})
-	if limit > 0 {
-		opts = opts.SetLimit(limit)
-	}
-	cur, err := r.coll.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	out := make([]models.Transaction, 0)
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *transactionRepository) SetTenantUUID(ctx context.Context, transactionUUID, tenantUUID string) error {
-	res, err := r.coll.UpdateOne(ctx, bson.M{"uuid": transactionUUID}, bson.M{
-		"$set": bson.M{"tenantUUID": tenantUUID, "updatedAt": time.Now().UTC()},
-	})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount == 0 {
-		return ErrTransactionNotFound
-	}
-	return nil
 }
 
 func (r *transactionRepository) Update(ctx context.Context, t *models.Transaction) error {

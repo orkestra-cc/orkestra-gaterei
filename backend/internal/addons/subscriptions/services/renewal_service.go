@@ -15,7 +15,7 @@ import (
 )
 
 // DefaultVATRate is applied to every invoice subtotal in v1. Configurable
-// later per client (e.g. B2B EU customers with valid VAT reverse-charge).
+// later per tenant (e.g. B2B EU customers with valid VAT reverse-charge).
 const DefaultVATRate = 0.22 // Italian IVA
 
 // RenewalService owns the "a subscription is due, what happens next?" flow.
@@ -26,11 +26,11 @@ const DefaultVATRate = 0.22 // Italian IVA
 // module can initialize before payments without a cyclic dependency.
 type RenewalService struct {
 	subs        repository.SubscriptionRepository
-	clients     repository.ClientRepository
 	services    repository.ServiceRepository
 	invoices    repository.InvoiceRepository
 	activity    *ActivityService
 	entitlement *EntitlementSyncer
+	tenants     iface.TenantProvider     // resolves tenant billing details + Stripe customer id
 	notifier    iface.NotificationSender // may be nil
 	registry    *module.ServiceRegistry
 	logger      *slog.Logger
@@ -38,22 +38,22 @@ type RenewalService struct {
 
 func NewRenewalService(
 	subs repository.SubscriptionRepository,
-	clients repository.ClientRepository,
 	services repository.ServiceRepository,
 	invoices repository.InvoiceRepository,
 	activity *ActivityService,
 	entitlement *EntitlementSyncer,
+	tenants iface.TenantProvider,
 	notifier iface.NotificationSender,
 	registry *module.ServiceRegistry,
 	logger *slog.Logger,
 ) *RenewalService {
 	return &RenewalService{
 		subs:        subs,
-		clients:     clients,
 		services:    services,
 		invoices:    invoices,
 		activity:    activity,
 		entitlement: entitlement,
+		tenants:     tenants,
 		notifier:    notifier,
 		registry:    registry,
 		logger:      logger,
@@ -130,12 +130,12 @@ func (s *RenewalService) ProcessOne(ctx context.Context, sub *models.Subscriptio
 	if tier == nil {
 		return outcomeFailed, ErrSubscriptionTierNotFound
 	}
-	client, err := s.clients.GetByUUID(ctx, sub.ClientUUID)
+	tenant, err := s.loadTenant(ctx, sub.TenantUUID)
 	if err != nil {
-		return outcomeFailed, fmt.Errorf("load client: %w", err)
+		return outcomeFailed, fmt.Errorf("load tenant: %w", err)
 	}
 
-	invoice, err := s.createInvoice(ctx, sub, svc, tier, client)
+	invoice, err := s.createInvoice(ctx, sub, svc, tier)
 	if err != nil {
 		return outcomeFailed, fmt.Errorf("create invoice: %w", err)
 	}
@@ -153,16 +153,16 @@ func (s *RenewalService) ProcessOne(ctx context.Context, sub *models.Subscriptio
 		}
 		s.activity.Log(ctx, sub, "system", models.ActivityManualPayment,
 			"Payment provider not configured — invoice requires manual reconciliation", nil)
-		s.sendNotification(ctx, client, "subscriptions.manual_payment", invoice, nil)
+		s.sendNotification(ctx, tenant, "subscriptions.manual_payment", invoice, nil)
 		// advance period anyway so we don't loop on the same cycle
 		s.advancePeriod(ctx, sub, tier.Cycle)
 		return outcomeManual, nil
 	}
 
-	return s.chargeInvoice(ctx, provider, sub, client, invoice, tier.Cycle)
+	return s.chargeInvoice(ctx, provider, sub, tenant, invoice, tier.Cycle)
 }
 
-func (s *RenewalService) createInvoice(ctx context.Context, sub *models.Subscription, svc *models.Service, tier *models.PricingTier, client *models.Client) (*models.SubscriptionInvoice, error) {
+func (s *RenewalService) createInvoice(ctx context.Context, sub *models.Subscription, svc *models.Service, tier *models.PricingTier) (*models.SubscriptionInvoice, error) {
 	now := time.Now().UTC()
 	number, err := s.nextInvoiceNumber(ctx, now.Year())
 	if err != nil {
@@ -176,7 +176,7 @@ func (s *RenewalService) createInvoice(ctx context.Context, sub *models.Subscrip
 		UUID:             uuid.NewString(),
 		Number:           number,
 		SubscriptionUUID: sub.UUID,
-		ClientUUID:       client.UUID,
+		TenantUUID:       sub.TenantUUID,
 		ServiceUUID:      svc.UUID,
 		PeriodStart:      sub.CurrentPeriodStart,
 		PeriodEnd:        sub.CurrentPeriodEnd,
@@ -194,48 +194,48 @@ func (s *RenewalService) createInvoice(ctx context.Context, sub *models.Subscrip
 	return inv, nil
 }
 
-func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.PaymentProvider, sub *models.Subscription, client *models.Client, invoice *models.SubscriptionInvoice, cycle models.BillingCycle) (processOutcome, error) {
-	if client.StripeCustomerID == "" {
-		// First charge for this client — create the customer on the fly.
+func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.PaymentProvider, sub *models.Subscription, tenant *iface.Tenant, invoice *models.SubscriptionInvoice, cycle models.BillingCycle) (processOutcome, error) {
+	stripeCustomerID := tenant.StripeCustomerID
+	if stripeCustomerID == "" {
+		// First charge for this tenant — create the Stripe customer on the fly.
 		ref, err := provider.CreateCustomer(ctx, iface.CustomerInput{
-			ClientUUID: client.UUID,
-			Email:      client.Email,
-			Name:       client.LegalName,
-			VATNumber:  client.VATNumber,
-			Country:    client.BillingAddr.Country,
+			TenantUUID: tenant.UUID,
+			Email:      tenant.Email,
+			Name:       tenantBillingName(tenant),
+			VATNumber:  tenant.VATNumber,
+			Country:    tenant.Country,
 		})
 		if err != nil {
-			return s.handleChargeFailure(ctx, sub, invoice, "", "create_customer_failed", err.Error())
+			return s.handleChargeFailure(ctx, sub, tenant, invoice, "", "create_customer_failed", err.Error())
 		}
-		client.StripeCustomerID = ref.ID
-		if err := s.clients.SetStripeCustomerID(ctx, client.UUID, ref.ID); err != nil {
-			s.logger.Warn("renewal: persist stripe customer id failed",
-				slog.String("clientUUID", client.UUID),
-				slog.String("error", err.Error()),
-			)
+		stripeCustomerID = ref.ID
+		tenant.StripeCustomerID = stripeCustomerID
+		if s.tenants != nil {
+			if err := s.tenants.SetTenantStripeCustomerID(ctx, tenant.UUID, stripeCustomerID); err != nil {
+				s.logger.Warn("renewal: persist stripe customer id failed",
+					slog.String("tenantUUID", tenant.UUID),
+					slog.String("error", err.Error()),
+				)
+			}
 		}
 	}
 
 	charge := iface.SubscriptionCharge{
 		SubscriptionUUID: sub.UUID,
 		InvoiceUUID:      invoice.UUID,
-		Customer:         iface.CustomerRef{Provider: provider.Name(), ID: client.StripeCustomerID},
+		Customer:         iface.CustomerRef{Provider: provider.Name(), ID: stripeCustomerID},
 		AmountCents:      invoice.TotalCents,
 		Currency:         invoice.Currency,
-		Description:      fmt.Sprintf("%s — %s", client.DisplayName, invoice.Number),
+		Description:      fmt.Sprintf("%s — %s", tenantBillingName(tenant), invoice.Number),
 		Metadata: map[string]string{
 			"subscriptionUUID": sub.UUID,
 			"invoiceUUID":      invoice.UUID,
-			// ADR-0001 Phase 1: carry both the legacy client id and the
-			// forward-looking tenant id so payments can dual-write on the
-			// Transaction row without a cross-module lookup.
-			"clientUUID": sub.ClientUUID,
-			"tenantUUID": sub.TenantUUID,
+			"tenantUUID":       sub.TenantUUID,
 		},
 	}
 	result, err := provider.ChargeSubscription(ctx, charge)
 	if err != nil {
-		return s.handleChargeFailure(ctx, sub, invoice, "", "provider_error", err.Error())
+		return s.handleChargeFailure(ctx, sub, tenant, invoice, "", "provider_error", err.Error())
 	}
 
 	switch result.Status {
@@ -260,7 +260,7 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 		// tenant recovering from past_due is re-entitled. Idempotent for
 		// within-period duplicate charges.
 		s.entitlement.OnActivate(ctx, sub)
-		s.sendNotification(ctx, client, "subscriptions.renewal.ok", invoice, nil)
+		s.sendNotification(ctx, tenant, "subscriptions.renewal.ok", invoice, nil)
 		return outcomeCharged, nil
 	case "requires_action":
 		// 3DS or similar — invoice stays pending; webhook will resolve.
@@ -275,11 +275,11 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 		s.advancePeriod(ctx, sub, cycle)
 		return outcomeCharged, nil
 	default:
-		return s.handleChargeFailure(ctx, sub, invoice, result.ProviderTxID, result.FailureCode, result.FailureMsg)
+		return s.handleChargeFailure(ctx, sub, tenant, invoice, result.ProviderTxID, result.FailureCode, result.FailureMsg)
 	}
 }
 
-func (s *RenewalService) handleChargeFailure(ctx context.Context, sub *models.Subscription, invoice *models.SubscriptionInvoice, providerTxID, code, msg string) (processOutcome, error) {
+func (s *RenewalService) handleChargeFailure(ctx context.Context, sub *models.Subscription, tenant *iface.Tenant, invoice *models.SubscriptionInvoice, providerTxID, code, msg string) (processOutcome, error) {
 	now := time.Now().UTC()
 	invoice.Status = models.InvoiceFailed
 	invoice.StripePaymentIntentID = providerTxID
@@ -314,13 +314,10 @@ func (s *RenewalService) handleChargeFailure(ctx context.Context, sub *models.Su
 		"message":      msg,
 		"attempts":     sub.FailedChargeCount,
 	})
-	// Load client for notification
-	if client, err := s.clients.GetByUUID(ctx, sub.ClientUUID); err == nil {
-		s.sendNotification(ctx, client, "subscriptions.renewal.failed", invoice, map[string]any{
-			"failureCode": code,
-			"failureMsg":  msg,
-		})
-	}
+	s.sendNotification(ctx, tenant, "subscriptions.renewal.failed", invoice, map[string]any{
+		"failureCode": code,
+		"failureMsg":  msg,
+	})
 	return outcomeFailed, nil
 }
 
@@ -370,12 +367,53 @@ func (s *RenewalService) paymentProvider() (iface.PaymentProvider, bool) {
 	return module.GetTyped[iface.PaymentProvider](s.registry, module.ServicePaymentProvider)
 }
 
-func (s *RenewalService) sendNotification(ctx context.Context, client *models.Client, category string, invoice *models.SubscriptionInvoice, extra map[string]any) {
+// loadTenant resolves the tenant DTO for the renewal flow. Returns an error
+// when the tenant provider is not wired or the lookup fails — the renewal
+// cannot drive a Stripe customer without billing details.
+func (s *RenewalService) loadTenant(ctx context.Context, tenantUUID string) (*iface.Tenant, error) {
+	if tenantUUID == "" {
+		return nil, errors.New("subscription has no tenantUUID")
+	}
+	if s.tenants == nil {
+		return nil, errors.New("tenant provider not configured")
+	}
+	t, err := s.tenants.GetTenant(ctx, tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, errors.New("tenant not found")
+	}
+	return t, nil
+}
+
+// tenantBillingName picks the most descriptive label for the tenant when
+// surfaced on Stripe descriptions and notifications. Falls back through
+// LegalName → Name → Slug → empty string in turn.
+func tenantBillingName(t *iface.Tenant) string {
+	if t == nil {
+		return ""
+	}
+	if t.LegalName != "" {
+		return t.LegalName
+	}
+	if t.Name != "" {
+		return t.Name
+	}
+	return t.Slug
+}
+
+func (s *RenewalService) sendNotification(ctx context.Context, tenant *iface.Tenant, category string, invoice *models.SubscriptionInvoice, extra map[string]any) {
 	if s.notifier == nil || !s.notifier.IsConfigured(ctx) {
 		return
 	}
+	if tenant == nil || tenant.Email == "" {
+		return
+	}
+	name := tenantBillingName(tenant)
 	data := map[string]any{
-		"clientName":    client.DisplayName,
+		"clientName":    name,
+		"tenantName":    name,
 		"invoiceNumber": invoice.Number,
 		"totalCents":    invoice.TotalCents,
 		"currency":      invoice.Currency,
@@ -389,13 +427,13 @@ func (s *RenewalService) sendNotification(ctx context.Context, client *models.Cl
 		Type:       "transactional",
 		Category:   category,
 		TemplateID: category,
-		Recipients: []iface.Recipient{{Address: client.Email, Name: client.DisplayName}},
+		Recipients: []iface.Recipient{{Address: tenant.Email, Name: name}},
 		Data:       data,
 	})
 	if err != nil {
 		s.logger.Warn("renewal: notification send failed",
 			slog.String("category", category),
-			slog.String("clientUUID", client.UUID),
+			slog.String("tenantUUID", tenant.UUID),
 			slog.String("error", err.Error()),
 		)
 	}

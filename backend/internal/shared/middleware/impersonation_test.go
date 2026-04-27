@@ -73,10 +73,10 @@ func (f *fakeTenantProvider) ListCapabilityIDs(_ context.Context, _ string) ([]s
 func (f *fakeTenantProvider) ProvisionExternalTenant(_ context.Context, _ string, _ iface.OnboardingTenantInput) (*iface.Tenant, error) {
 	return nil, nil
 }
-func (f *fakeTenantProvider) FindOrProvisionLegacyClientTenant(_ context.Context, _ iface.LegacyClientTenantSpec) (*iface.Tenant, error) {
-	return nil, nil
-}
 func (f *fakeTenantProvider) ActivateTenant(_ context.Context, _ string) error { return nil }
+func (f *fakeTenantProvider) SetTenantStripeCustomerID(_ context.Context, _, _ string) error {
+	return nil
+}
 
 type capturingSink struct {
 	events []iface.AuditEvent

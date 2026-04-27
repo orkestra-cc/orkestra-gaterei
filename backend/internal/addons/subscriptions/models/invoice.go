@@ -10,7 +10,7 @@ type SubscriptionInvoice struct {
 	UUID                  string        `bson:"uuid" json:"uuid"`
 	Number                string        `bson:"number" json:"number"`
 	SubscriptionUUID      string        `bson:"subscriptionUUID" json:"subscriptionUUID"`
-	ClientUUID            string        `bson:"clientUUID" json:"clientUUID"`
+	TenantUUID            string        `bson:"tenantUUID" json:"tenantUUID"`
 	ServiceUUID           string        `bson:"serviceUUID" json:"serviceUUID"`
 	PeriodStart           time.Time     `bson:"periodStart" json:"periodStart"`
 	PeriodEnd             time.Time     `bson:"periodEnd" json:"periodEnd"`

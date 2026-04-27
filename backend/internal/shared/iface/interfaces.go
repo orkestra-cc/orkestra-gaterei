@@ -233,6 +233,17 @@ type Tenant struct {
 	// features is driven by capability entitlements (see HasCapability),
 	// not by plan name.
 	Plan string
+
+	// Billing-relevant fields. Populated for external tenants so the
+	// subscriptions renewal service can drive Stripe customer creation
+	// without a separate cross-module fetch. All optional — empty values
+	// mean the underlying tenant row hasn't been enriched yet.
+	LegalName        string
+	Email            string
+	VATNumber        string
+	FiscalCode       string
+	Country          string
+	StripeCustomerID string
 }
 
 // TenantMembership is a user's membership in a tenant — identifying the
@@ -278,14 +289,6 @@ type TenantProvider interface {
 	// admin-facing CreateTenant surface — different defaults, narrower
 	// input shape.
 	ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in OnboardingTenantInput) (*Tenant, error)
-	// FindOrProvisionLegacyClientTenant ensures a paired external tenant
-	// exists for the given legacy SubscriptionClient UUID (ADR-0001 Phase 1
-	// migration). Idempotent: a second call with the same LegacyClientUUID
-	// returns the existing tenant instead of creating a duplicate. Backed by
-	// the unique sparse index on tenant_orgs.metadata.legacyClientUUID. The
-	// tenant is created in `active` state (operator-seeded, not self-serve),
-	// with SignupChannel=migrated.
-	FindOrProvisionLegacyClientTenant(ctx context.Context, in LegacyClientTenantSpec) (*Tenant, error)
 	// ActivateTenant transitions a tenant from `provisioning` to `active`.
 	// Idempotent: calling it on an already-active tenant is a no-op on the
 	// status field. The onboarding activate-on-verify hook uses this after
@@ -294,6 +297,11 @@ type TenantProvider interface {
 	// that is not the primary use case and richer transitions live on the
 	// concrete tenant service.
 	ActivateTenant(ctx context.Context, tenantUUID string) error
+	// SetTenantStripeCustomerID persists the Stripe customer identifier the
+	// payment provider returned for the tenant. Called on the first charge
+	// for an external tenant so subsequent renewal cycles skip customer
+	// creation. Idempotent: re-applying the same value is a no-op.
+	SetTenantStripeCustomerID(ctx context.Context, tenantUUID, stripeCustomerID string) error
 }
 
 // OnboardingTenantInput is the cross-module payload for self-service
@@ -308,30 +316,6 @@ type OnboardingTenantInput struct {
 	// Plan is optional — defaults to "free" when empty. Entitlements are
 	// driven by subscriptions, not plan name, so this is a label only.
 	Plan string
-}
-
-// LegacyClientTenantSpec is the input for FindOrProvisionLegacyClientTenant.
-// The subscription migration path supplies this when a legacy
-// SubscriptionClient is encountered without an OrgUUID; the tenant service
-// either returns the existing paired tenant (same LegacyClientUUID) or
-// creates a new one with SignupChannel=migrated and the back-pointer
-// stamped into metadata.
-type LegacyClientTenantSpec struct {
-	// LegacyClientUUID uniquely identifies the paired SubscriptionClient.
-	// Persisted in tenant metadata so re-runs are idempotent.
-	LegacyClientUUID string
-	// OwnerUserUUID is the initial tenant owner — typically the operator who
-	// triggered the migration or created the subscription. Must be non-empty.
-	OwnerUserUUID string
-	Name          string
-	Slug          string
-	Plan          string
-	// VATNumber, FiscalCode, and StripeCustomerID, when set, are stamped on
-	// the tenant so the external-tenant record carries forward what the
-	// legacy Client knew. All optional.
-	VATNumber        string
-	FiscalCode       string
-	StripeCustomerID string
 }
 
 // GrantCapabilityInput is the cross-module payload for granting a capability
@@ -399,7 +383,10 @@ type AuthzProvider interface {
 // ---------------------------------------------------------------------------
 
 type CustomerInput struct {
-	ClientUUID string
+	// TenantUUID is the external tenant the customer is being created for.
+	// Echoed into Stripe customer metadata so cross-system reconciliation
+	// can locate the owning tenant from the gateway side.
+	TenantUUID string
 	Email      string
 	Name       string
 	VATNumber  string
@@ -504,22 +491,6 @@ type SubscriptionReconciler interface {
 }
 
 // ---------------------------------------------------------------------------
-// ClientOwnershipProvider — consumed by: payments
-//
-// Subscriptions owns the `subscriptions_clients` collection. Payments stores
-// a bare ClientUUID on each Transaction and needs to resolve the owning org
-// to gate by-id reads/mutations. This interface keeps payments free of any
-// direct import of the subscriptions repository package.
-// ---------------------------------------------------------------------------
-
-type ClientOwnershipProvider interface {
-	// GetClientOrgUUID returns the org UUID the client is bound to, or an
-	// empty string if the client is not scoped to an org. Returns an error
-	// when the client does not exist.
-	GetClientOrgUUID(ctx context.Context, clientUUID string) (string, error)
-}
-
-// ---------------------------------------------------------------------------
 // TenantSubscriptionProvider — consumed by: core/tenant admin aggregator
 //
 // Exposes a read-only view of a tenant's subscriptions so the Phase 2
@@ -532,7 +503,6 @@ type ClientOwnershipProvider interface {
 type TenantSubscription struct {
 	UUID               string
 	TenantUUID         string
-	ClientUUID         string
 	ServiceUUID        string
 	TierCode           string
 	Status             string
@@ -544,9 +514,7 @@ type TenantSubscription struct {
 
 type TenantSubscriptionProvider interface {
 	// ListByTenant returns every subscription bound to the tenant via
-	// Subscription.TenantUUID (Phase 1 forward-pointer). Does not include
-	// legacy rows that still only carry ClientUUID — Phase 1 backfill
-	// populates TenantUUID across the board.
+	// Subscription.TenantUUID. Sorted by createdAt desc.
 	ListByTenant(ctx context.Context, tenantUUID string) ([]TenantSubscription, error)
 }
 
@@ -560,7 +528,6 @@ type TenantSubscriptionProvider interface {
 type TenantPayment struct {
 	UUID             string
 	TenantUUID       string
-	ClientUUID       string
 	SubscriptionUUID string
 	InvoiceUUID      string
 	Provider         string

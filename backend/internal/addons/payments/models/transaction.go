@@ -10,13 +10,9 @@ type Transaction struct {
 	ProviderTxID     string            `bson:"providerTxID" json:"providerTxID"`
 	SubscriptionUUID string            `bson:"subscriptionUUID,omitempty" json:"subscriptionUUID,omitempty"`
 	InvoiceUUID      string            `bson:"invoiceUUID,omitempty" json:"invoiceUUID,omitempty"`
-	// TenantUUID is the forward-looking tenant binding (ADR-0001 Phase 1).
-	// Dual-written alongside ClientUUID until the legacy SubscriptionClient
-	// model is retired. Prefer this field on reads.
-	TenantUUID string `bson:"tenantUUID,omitempty" json:"tenantUUID,omitempty"`
-	// Deprecated: use TenantUUID. Retained for dual-write compatibility during
-	// the Phase 1 migration window.
-	ClientUUID       string            `bson:"clientUUID,omitempty" json:"clientUUID,omitempty"`
+	// TenantUUID is the tenant binding (ADR-0001). Every transaction row
+	// points directly at a Tier-2 external tenant.
+	TenantUUID       string            `bson:"tenantUUID,omitempty" json:"tenantUUID,omitempty"`
 	AmountCents      int64             `bson:"amountCents" json:"amountCents"`
 	Currency         string            `bson:"currency" json:"currency"`
 	Status           TransactionStatus `bson:"status" json:"status"`

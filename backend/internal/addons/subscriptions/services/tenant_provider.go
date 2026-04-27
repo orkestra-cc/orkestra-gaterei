@@ -24,9 +24,8 @@ func NewTenantSubscriptionAdapter(subs repository.SubscriptionRepository) *Tenan
 	return &TenantSubscriptionAdapter{subs: subs}
 }
 
-// ListByTenant returns every subscription bound to the tenant via the
-// Phase 1 forward-looking TenantUUID. The repository layer already sorts
-// by createdAt desc.
+// ListByTenant returns every subscription bound to the tenant via TenantUUID.
+// The repository layer already sorts by createdAt desc.
 func (a *TenantSubscriptionAdapter) ListByTenant(ctx context.Context, tenantUUID string) ([]iface.TenantSubscription, error) {
 	if tenantUUID == "" {
 		return []iface.TenantSubscription{}, nil
@@ -41,7 +40,6 @@ func (a *TenantSubscriptionAdapter) ListByTenant(ctx context.Context, tenantUUID
 		out = append(out, iface.TenantSubscription{
 			UUID:               r.UUID,
 			TenantUUID:         r.TenantUUID,
-			ClientUUID:         r.ClientUUID,
 			ServiceUUID:        r.ServiceUUID,
 			TierCode:           r.TierCode,
 			Status:             string(r.Status),

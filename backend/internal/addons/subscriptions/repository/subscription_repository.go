@@ -11,20 +11,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Small helpers to keep the new Find* methods terse. They share the same
-// createdAt sort convention used across the module.
+// optionsFindSortCreatedAtDesc keeps every list/find call ordering consistent.
 func optionsFindSortCreatedAtDesc() *options.FindOptions {
 	return options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
-}
-
-func optionsFindSortCreatedAtAsc() *options.FindOptions {
-	return options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}})
 }
 
 var ErrSubscriptionNotFound = errors.New("subscriptions: subscription not found")
 
 type SubscriptionFilters struct {
-	ClientUUID  string
 	TenantUUID  string
 	ServiceUUID string
 	Status      models.SubStatus
@@ -38,17 +32,10 @@ type SubscriptionRepository interface {
 	// FindDue returns subscriptions in active/past_due whose NextBillingAt is
 	// on or before `now`. Used by the renewal job every tick.
 	FindDue(ctx context.Context, now time.Time) ([]models.Subscription, error)
-	// FindByTenantUUID returns every subscription bound to the tenant via the
-	// Phase 1 forward-looking TenantUUID field. Sorted by createdAt desc. Used
-	// by the Phase 2 aggregator GET /v1/admin/tenants/{id}/subscriptions.
+	// FindByTenantUUID returns every subscription bound to the tenant via
+	// the TenantUUID forward pointer. Sorted by createdAt desc. Used by the
+	// admin aggregator GET /v1/admin/tenants/{id}/subscriptions.
 	FindByTenantUUID(ctx context.Context, tenantUUID string) ([]models.Subscription, error)
-	// FindWithoutTenantUUID returns subscriptions that still lack TenantUUID —
-	// the cold-tail set the Phase 1 backfill migration walks. `limit` caps the
-	// page size; pass 0 for the caller-defined default.
-	FindWithoutTenantUUID(ctx context.Context, limit int64) ([]models.Subscription, error)
-	// SetTenantUUID back-stamps the forward-looking tenant binding on an
-	// existing subscription row. Used by the backfill migration.
-	SetTenantUUID(ctx context.Context, subscriptionUUID, tenantUUID string) error
 	UpdateStatus(ctx context.Context, uuid string, status models.SubStatus) error
 	Delete(ctx context.Context, uuid string) error
 }
@@ -85,9 +72,6 @@ func (r *subscriptionRepository) GetByUUID(ctx context.Context, uuid string) (*m
 
 func (r *subscriptionRepository) List(ctx context.Context, f SubscriptionFilters) ([]models.Subscription, error) {
 	filter := bson.M{}
-	if f.ClientUUID != "" {
-		filter["clientUUID"] = f.ClientUUID
-	}
 	if f.TenantUUID != "" {
 		filter["tenantUUID"] = f.TenantUUID
 	}
@@ -121,40 +105,6 @@ func (r *subscriptionRepository) FindByTenantUUID(ctx context.Context, tenantUUI
 		return nil, err
 	}
 	return out, nil
-}
-
-func (r *subscriptionRepository) FindWithoutTenantUUID(ctx context.Context, limit int64) ([]models.Subscription, error) {
-	filter := bson.M{"$or": []bson.M{
-		{"tenantUUID": bson.M{"$exists": false}},
-		{"tenantUUID": ""},
-	}}
-	opts := optionsFindSortCreatedAtAsc()
-	if limit > 0 {
-		opts = opts.SetLimit(limit)
-	}
-	cur, err := r.coll.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(ctx)
-	out := make([]models.Subscription, 0)
-	if err := cur.All(ctx, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *subscriptionRepository) SetTenantUUID(ctx context.Context, subscriptionUUID, tenantUUID string) error {
-	res, err := r.coll.UpdateOne(ctx, bson.M{"uuid": subscriptionUUID}, bson.M{
-		"$set": bson.M{"tenantUUID": tenantUUID, "updatedAt": time.Now().UTC()},
-	})
-	if err != nil {
-		return err
-	}
-	if res.MatchedCount == 0 {
-		return ErrSubscriptionNotFound
-	}
-	return nil
 }
 
 func (r *subscriptionRepository) Update(ctx context.Context, s *models.Subscription) error {

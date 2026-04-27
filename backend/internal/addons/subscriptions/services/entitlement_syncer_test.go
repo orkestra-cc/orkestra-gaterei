@@ -52,10 +52,10 @@ func (s *stubTenantProvider) ListCapabilityIDs(context.Context, string) ([]strin
 func (s *stubTenantProvider) ProvisionExternalTenant(context.Context, string, iface.OnboardingTenantInput) (*iface.Tenant, error) {
 	return nil, nil
 }
-func (s *stubTenantProvider) FindOrProvisionLegacyClientTenant(context.Context, iface.LegacyClientTenantSpec) (*iface.Tenant, error) {
-	return nil, nil
-}
 func (s *stubTenantProvider) ActivateTenant(context.Context, string) error { return nil }
+func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
+	return nil
+}
 
 // stubServiceRepo satisfies repository.ServiceRepository with an in-memory map.
 type stubServiceRepo struct {
@@ -129,9 +129,9 @@ func TestSyncer_OnActivateGrantsEveryCapability(t *testing.T) {
 }
 
 func TestSyncer_OnActivateSkipsWhenTenantMissing(t *testing.T) {
-	// Legacy subscription with only ClientUUID (pre-Phase 3 migration).
-	// Syncer must NOT try to grant — ClientUUID is not a valid tenant
-	// identifier and a grant would fail on the tenant side.
+	// Subscription row missing TenantUUID — must not panic, must not grant.
+	// GrantCapability rejects empty tenant identifiers, so the syncer
+	// short-circuits at the tenantOfSubscription check.
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1", "rag.query"),
 	}}
@@ -139,15 +139,14 @@ func TestSyncer_OnActivateSkipsWhenTenantMissing(t *testing.T) {
 	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
 
 	sub := &models.Subscription{
-		UUID:        "sub-legacy",
-		ClientUUID:  "client-1",
+		UUID:        "sub-1",
 		ServiceUUID: "svc-1",
 		TierCode:    "std",
 	}
 	syncer.OnActivate(context.Background(), sub)
 
 	if len(tp.grants) != 0 {
-		t.Fatalf("expected zero grants for legacy sub, got %d", len(tp.grants))
+		t.Fatalf("expected zero grants when tenantUUID is empty, got %d", len(tp.grants))
 	}
 }
 

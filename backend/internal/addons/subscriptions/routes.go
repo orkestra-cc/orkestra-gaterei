@@ -64,41 +64,6 @@ func RegisterServiceWriteRoutes(api huma.API, h *handlers.ServiceHandler) {
 	}, h.Delete)
 }
 
-// --- Clients ---
-
-// RegisterClientReadRoutes — gate with `subscriptions.client.view`.
-func RegisterClientReadRoutes(api huma.API, h *handlers.ClientHandler) {
-	huma.Register(api, huma.Operation{
-		OperationID: "subscriptions-list-clients",
-		Method:      http.MethodGet, Path: "/v1/subscriptions/clients",
-		Summary: "List clients", Tags: []string{"Subscriptions - Clients"}, Security: subscriptionsSec,
-	}, h.List)
-	huma.Register(api, huma.Operation{
-		OperationID: "subscriptions-get-client",
-		Method:      http.MethodGet, Path: "/v1/subscriptions/clients/{id}",
-		Summary: "Get client", Tags: []string{"Subscriptions - Clients"}, Security: subscriptionsSec,
-	}, h.Get)
-}
-
-// RegisterClientWriteRoutes — gate with `subscriptions.client.manage`.
-func RegisterClientWriteRoutes(api huma.API, h *handlers.ClientHandler) {
-	huma.Register(api, huma.Operation{
-		OperationID: "subscriptions-create-client",
-		Method:      http.MethodPost, Path: "/v1/subscriptions/clients",
-		Summary: "Create client", Tags: []string{"Subscriptions - Clients"}, Security: subscriptionsSec,
-	}, h.Create)
-	huma.Register(api, huma.Operation{
-		OperationID: "subscriptions-update-client",
-		Method:      http.MethodPatch, Path: "/v1/subscriptions/clients/{id}",
-		Summary: "Update client", Tags: []string{"Subscriptions - Clients"}, Security: subscriptionsSec,
-	}, h.Update)
-	huma.Register(api, huma.Operation{
-		OperationID: "subscriptions-archive-client",
-		Method:      http.MethodDelete, Path: "/v1/subscriptions/clients/{id}",
-		Summary: "Archive client", Tags: []string{"Subscriptions - Clients"}, Security: subscriptionsSec,
-	}, h.Archive)
-}
-
 // --- Subscriptions ---
 
 // RegisterSubscriptionReadRoutes — gate with `subscriptions.subscription.view`.

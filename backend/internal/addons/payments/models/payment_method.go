@@ -6,12 +6,9 @@ import "time"
 // We never store raw PANs — only the provider's reference token (pm_xxx).
 type PaymentMethod struct {
 	UUID string `bson:"uuid" json:"uuid"`
-	// TenantUUID is the forward-looking tenant binding (ADR-0001 Phase 1).
-	// Dual-written alongside ClientUUID until the legacy SubscriptionClient
-	// model is retired. Prefer this field on reads.
-	TenantUUID string `bson:"tenantUUID,omitempty" json:"tenantUUID,omitempty"`
-	// Deprecated: use TenantUUID. Retained for dual-write compatibility.
-	ClientUUID       string       `bson:"clientUUID" json:"clientUUID"`
+	// TenantUUID is the tenant binding (ADR-0001). Every payment method
+	// points directly at a Tier-2 external tenant.
+	TenantUUID       string       `bson:"tenantUUID" json:"tenantUUID"`
 	Provider         ProviderName `bson:"provider" json:"provider"`
 	ProviderMethodID string       `bson:"providerMethodID" json:"providerMethodID"` // pm_xxx
 	Brand            string       `bson:"brand,omitempty" json:"brand,omitempty"`

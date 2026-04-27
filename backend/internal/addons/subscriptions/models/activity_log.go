@@ -8,7 +8,7 @@ import "time"
 type ActivityLog struct {
 	UUID             string         `bson:"uuid" json:"uuid"`
 	SubscriptionUUID string         `bson:"subscriptionUUID" json:"subscriptionUUID"`
-	ClientUUID       string         `bson:"clientUUID" json:"clientUUID"`
+	TenantUUID       string         `bson:"tenantUUID,omitempty" json:"tenantUUID,omitempty"`
 	Type             ActivityType   `bson:"type" json:"type"`
 	Actor            string         `bson:"actor" json:"actor"` // "system" or userUUID
 	Message          string         `bson:"message" json:"message"`

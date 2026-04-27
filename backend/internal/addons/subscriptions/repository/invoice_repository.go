@@ -15,7 +15,7 @@ var ErrInvoiceNotFound = errors.New("subscriptions: invoice not found")
 
 type InvoiceFilters struct {
 	SubscriptionUUID string
-	ClientUUID       string
+	TenantUUID       string
 	Status           models.InvoiceStatus
 }
 
@@ -77,8 +77,8 @@ func (r *invoiceRepository) List(ctx context.Context, f InvoiceFilters) ([]model
 	if f.SubscriptionUUID != "" {
 		filter["subscriptionUUID"] = f.SubscriptionUUID
 	}
-	if f.ClientUUID != "" {
-		filter["clientUUID"] = f.ClientUUID
+	if f.TenantUUID != "" {
+		filter["tenantUUID"] = f.TenantUUID
 	}
 	if f.Status != "" {
 		filter["status"] = f.Status

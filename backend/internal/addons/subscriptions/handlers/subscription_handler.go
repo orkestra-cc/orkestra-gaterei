@@ -13,11 +13,10 @@ import (
 )
 
 type SubscriptionHandler struct {
-	subs      *services.SubscriptionService
-	renewal   *services.RenewalService
-	invoices  repository.InvoiceRepository
-	activity  *services.ActivityService
-	ownership *services.ClientOwnershipService
+	subs     *services.SubscriptionService
+	renewal  *services.RenewalService
+	invoices repository.InvoiceRepository
+	activity *services.ActivityService
 	// tenants powers the self-subscribe ownership check. nil in setups that
 	// run subscriptions without the tenant module — self-subscribe returns
 	// 503 in that case (the route refuses to guess ownership from thin air).
@@ -29,28 +28,22 @@ func NewSubscriptionHandler(
 	renewal *services.RenewalService,
 	invoices repository.InvoiceRepository,
 	activity *services.ActivityService,
-	ownership *services.ClientOwnershipService,
 	tenants iface.TenantProvider,
 ) *SubscriptionHandler {
 	return &SubscriptionHandler{
-		subs:      subs,
-		renewal:   renewal,
-		invoices:  invoices,
-		activity:  activity,
-		ownership: ownership,
-		tenants:   tenants,
+		subs:     subs,
+		renewal:  renewal,
+		invoices: invoices,
+		activity: activity,
+		tenants:  tenants,
 	}
 }
 
+// CreateSubscriptionInput is the operator-admin payload. ADR-0001 Phase 1
+// removed the legacy SubscriptionClient indirection — subscriptions point
+// directly at an external tenant.
 type CreateSubscriptionInput struct {
-	// ClientUUID is the legacy binding. Deprecated after ADR-0001 Phase 1 —
-	// still accepted so the existing admin UI keeps working during the
-	// migration window. Mutually exclusive with TenantUUID.
-	ClientUUID string `json:"clientUUID,omitempty"`
-	// TenantUUID is the forward-looking binding to a Tier-2 external tenant.
-	// When set, the subscription is created via CreateForTenantUUID — no
-	// Client row involved. Mutually exclusive with ClientUUID.
-	TenantUUID  string `json:"tenantUUID,omitempty"`
+	TenantUUID  string `json:"tenantUUID" doc:"UUID of the external tenant the subscription is for"`
 	ServiceUUID string `json:"serviceUUID"`
 	TierCode    string `json:"tierCode"`
 }
@@ -65,7 +58,6 @@ type GetSubscriptionRequest struct {
 	ID string `path:"id"`
 }
 type ListSubscriptionsRequest struct {
-	ClientUUID  string `query:"clientUUID"`
 	TenantUUID  string `query:"tenantUUID"`
 	ServiceUUID string `query:"serviceUUID"`
 	Status      string `query:"status" enum:"active,past_due,suspended,cancelled,expired"`
@@ -90,27 +82,13 @@ type RetryChargeRequest struct {
 }
 
 func (h *SubscriptionHandler) Create(ctx context.Context, in *CreateSubscriptionRequest) (*SubscriptionResponse, error) {
-	hasTenant := in.Body.TenantUUID != ""
-	hasClient := in.Body.ClientUUID != ""
-	switch {
-	case hasTenant && hasClient:
-		return nil, huma.Error400BadRequest("provide either clientUUID or tenantUUID, not both")
-	case !hasTenant && !hasClient:
-		return nil, huma.Error400BadRequest("one of clientUUID or tenantUUID is required")
+	if in.Body.TenantUUID == "" {
+		return nil, huma.Error400BadRequest("tenantUUID is required")
 	}
 	if in.Body.ServiceUUID == "" || in.Body.TierCode == "" {
 		return nil, huma.Error400BadRequest("serviceUUID and tierCode are required")
 	}
-
-	var (
-		sub *models.Subscription
-		err error
-	)
-	if hasTenant {
-		sub, err = h.subs.CreateForTenantUUID(ctx, in.Body.TenantUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
-	} else {
-		sub, err = h.subs.Create(ctx, in.Body.ClientUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
-	}
+	sub, err := h.subs.Create(ctx, in.Body.TenantUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +108,6 @@ func (h *SubscriptionHandler) Get(ctx context.Context, in *GetSubscriptionReques
 
 func (h *SubscriptionHandler) List(ctx context.Context, in *ListSubscriptionsRequest) (*ListSubscriptionsResponse, error) {
 	items, err := h.subs.List(ctx, repository.SubscriptionFilters{
-		ClientUUID:  in.ClientUUID,
 		TenantUUID:  in.TenantUUID,
 		ServiceUUID: in.ServiceUUID,
 		Status:      models.SubStatus(in.Status),
@@ -311,20 +288,24 @@ func (h *SubscriptionHandler) SelfSubscribe(ctx context.Context, req *SelfSubscr
 	return &SubscriptionResponse{Body: *sub}, nil
 }
 
-// guardSubscriptionOwnership resolves the owning client for the subscription
-// and enforces the request's active org matches. Clients without an org
-// binding (operator-managed, v1 default) are always allowed.
+// guardSubscriptionOwnership enforces that the request's active tenant
+// matches the subscription's TenantUUID. Subscriptions without a tenant
+// binding are treated as not-owned and visible only to platform admins
+// (whose tokens already bypass the X-Tenant-ID match check via the
+// system.tenants.admin permission). Returns 404 on mismatch so existence
+// of out-of-scope records is not leaked.
 func (h *SubscriptionHandler) guardSubscriptionOwnership(ctx context.Context, sub *models.Subscription) error {
-	if sub == nil || h.ownership == nil {
+	if sub == nil || sub.TenantUUID == "" {
 		return nil
 	}
-	orgUUID, err := h.ownership.GetClientOrgUUID(ctx, sub.ClientUUID)
-	if err != nil {
-		// Treat missing clients as not-found so we never leak existence of
-		// out-of-scope records.
+	tenantID, hasTenant := middleware.GetTenantID(ctx)
+	if !hasTenant {
 		return nil
 	}
-	return assertTenantOwnsClient(ctx, orgUUID)
+	if sub.TenantUUID != tenantID {
+		return huma.Error404NotFound("not found", nil)
+	}
+	return nil
 }
 
 // actorFrom returns the UUID of the authenticated user for audit-log

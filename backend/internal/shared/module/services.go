@@ -77,7 +77,6 @@ const (
 
 	ServicePaymentProvider        ServiceKey = "payments.provider"
 	ServiceSubscriptionReconciler ServiceKey = "subscriptions.reconciler"
-	ServiceClientOwnership        ServiceKey = "subscriptions.client_ownership"
 
 	// ServiceTenantSubscriptionProvider / ServiceTenantPaymentProvider expose
 	// per-tenant read-only listings consumed by the Phase 2 admin aggregator

@@ -70,15 +70,14 @@ func (m *PaymentsModule) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{OrderedKeys: []module.IndexKey{{Field: "provider", Direction: 1}, {Field: "providerTxID", Direction: 1}}, Unique: true, Sparse: true},
 			{Keys: map[string]int{"subscriptionUUID": 1, "createdAt": -1}},
-			// Tenant-scoped lookups for the Phase 2 aggregator endpoint
+			// Tenant-scoped lookups for the admin aggregator endpoint
 			// GET /v1/admin/tenants/{id}/payments.
-			{OrderedKeys: []module.IndexKey{{Field: "tenantUUID", Direction: 1}, {Field: "createdAt", Direction: -1}}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{{Field: "tenantUUID", Direction: 1}, {Field: "createdAt", Direction: -1}}},
 			{Keys: map[string]int{"status": 1}},
 		}},
 		{Name: models.PaymentMethodsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
-			{Keys: map[string]int{"clientUUID": 1, "provider": 1}},
-			{Keys: map[string]int{"tenantUUID": 1, "provider": 1}, Sparse: true},
+			{Keys: map[string]int{"tenantUUID": 1, "provider": 1}},
 			{Keys: map[string]int{"providerMethodID": 1}, Unique: true, Sparse: true},
 		}},
 		{Name: models.WebhookEventsCollection, Indexes: []module.IndexSpec{
@@ -140,7 +139,7 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 
 	m.payment = services.NewPaymentService(defaultProvider, providers, txRepo, deps.Logger)
 	m.dispatcher = services.NewDispatcher(whRepo, deps.Services, deps.Logger)
-	m.txHandler = handlers.NewTransactionHandler(txRepo, pmRepository, whRepo, m.payment, deps.Services)
+	m.txHandler = handlers.NewTransactionHandler(txRepo, pmRepository, whRepo, m.payment)
 	m.stripeHandler = webhooks.NewStripeHandler(m.payment, m.dispatcher, deps.Logger)
 
 	// Register the façade as the PaymentProvider for the subscriptions

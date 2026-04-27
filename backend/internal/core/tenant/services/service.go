@@ -95,6 +95,12 @@ func (s *Service) GetTenant(ctx context.Context, tenantUUID string) (*iface.Tena
 	if err != nil {
 		return nil, err
 	}
+	return tenantToIface(t), nil
+}
+
+// tenantToIface flattens a tenant document into the cross-module DTO shape.
+// Centralized so every provider entry point returns the same projection.
+func tenantToIface(t *models.Tenant) *iface.Tenant {
 	kind := string(t.Kind)
 	if kind == "" {
 		kind = iface.TenantKindInternal
@@ -115,7 +121,13 @@ func (s *Service) GetTenant(ctx context.Context, tenantUUID string) (*iface.Tena
 		Name:             t.Name,
 		Slug:             t.Slug,
 		Plan:             t.Plan,
-	}, nil
+		LegalName:        t.LegalName,
+		Email:            t.PrimaryContact.Email,
+		VATNumber:        t.VATNumber,
+		FiscalCode:       t.FiscalCode,
+		Country:          t.BillingAddress.Country,
+		StripeCustomerID: t.StripeCustomerID,
+	}
 }
 
 func (s *Service) ListUserMemberships(ctx context.Context, userUUID string) ([]iface.TenantMembership, error) {

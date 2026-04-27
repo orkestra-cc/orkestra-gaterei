@@ -21,9 +21,8 @@ func NewTenantPaymentAdapter(transactions repository.TransactionRepository) *Ten
 	return &TenantPaymentAdapter{transactions: transactions}
 }
 
-// ListByTenant returns every transaction bound to the tenant via the
-// Phase 1 forward-looking TenantUUID. The repository layer sorts by
-// createdAt desc.
+// ListByTenant returns every transaction bound to the tenant via TenantUUID.
+// The repository layer sorts by createdAt desc.
 func (a *TenantPaymentAdapter) ListByTenant(ctx context.Context, tenantUUID string) ([]iface.TenantPayment, error) {
 	if tenantUUID == "" {
 		return []iface.TenantPayment{}, nil
@@ -38,7 +37,6 @@ func (a *TenantPaymentAdapter) ListByTenant(ctx context.Context, tenantUUID stri
 		out = append(out, iface.TenantPayment{
 			UUID:             r.UUID,
 			TenantUUID:       r.TenantUUID,
-			ClientUUID:       r.ClientUUID,
 			SubscriptionUUID: r.SubscriptionUUID,
 			InvoiceUUID:      r.InvoiceUUID,
 			Provider:         string(r.Provider),

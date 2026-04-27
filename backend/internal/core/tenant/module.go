@@ -46,11 +46,6 @@ func (m *Module) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"kind": 1}},
 			{Keys: map[string]int{"status": 1}},
 			{Keys: map[string]int{"parentTenantUUID": 1}, Sparse: true},
-			// Unique sparse index keyed on the metadata back-pointer from the
-			// subscriptions-client migration so lazy provisioning of paired
-			// tenants is idempotent: re-running the backfill cannot create
-			// two tenants for the same legacy SubscriptionClient.
-			{Keys: map[string]int{"metadata.legacyClientUUID": 1}, Unique: true, Sparse: true},
 		}},
 		{Name: repository.CollMemberships, Indexes: []module.IndexSpec{
 			{OrderedKeys: []module.IndexKey{

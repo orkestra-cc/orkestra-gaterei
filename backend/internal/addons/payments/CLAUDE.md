@@ -43,18 +43,18 @@ All reconciler methods are idempotent, so a replayed webhook (same `evt.id`) is 
 
 `PaymentIntent.metadata` must carry `subscriptionUUID` + `invoiceUUID` — those are how webhook handlers find the right subscription/invoice to update. Set in `renewal_service.go:chargeInvoice` and echoed back by Stripe on every related event (succeeded, failed, refunded).
 
-## Kind gate + tenant-scoped aggregator (ADR-0001 Phase 2)
+## Tenant scope (ADR-0001)
 
-Every operator-admin route under the module now sits behind `RequireInternalTenant()` — external-tenant tokens cannot hit transaction reads, refunds, payment-method reads, or the webhook audit log. The Stripe webhook endpoint stays public (HMAC-verified inside the handler). Rollout respects `TENANT_KIND_ENFORCEMENT=warn` (log-only) vs `enforce` (default 403).
+Every operator-admin route under the module sits behind `RequireInternalTenant()` — external-tenant tokens cannot hit transaction reads, refunds, payment-method reads, or the webhook audit log. The Stripe webhook endpoint stays public (HMAC-verified inside the handler).
 
-Transaction rows now dual-write `ClientUUID` (legacy) and `TenantUUID` (forward-looking). `PaymentService.ChargeSubscription` extracts both from the charge metadata populated by the subscriptions renewal service. A thin `TenantPaymentAdapter` (`services/tenant_provider.go`) implements `iface.TenantPaymentProvider` so `core/tenant` can serve `GET /v1/admin/tenants/{id}/payments` without importing this addon.
+Transaction and PaymentMethod rows are tenant-scoped via `TenantUUID` only — the legacy `SubscriptionClient` indirection was removed. `PaymentService.ChargeSubscription` reads `tenantUUID` from the charge metadata populated by the subscriptions renewal service. A thin `TenantPaymentAdapter` (`services/tenant_provider.go`) implements `iface.TenantPaymentProvider` so `core/tenant` can serve `GET /v1/admin/tenants/{id}/payments` without importing this addon.
 
 ## Collections
 
 | Collection | Key indexes |
 |---|---|
-| `payments_transactions` | `(provider, providerTxID)` unique, `(subscriptionUUID, createdAt desc)`, `(tenantUUID, createdAt desc)` sparse (Phase 2 aggregator), `status` |
-| `payments_payment_methods` | `(clientUUID, provider)`, `(tenantUUID, provider)` sparse, `providerMethodID` unique |
+| `payments_transactions` | `(provider, providerTxID)` unique, `(subscriptionUUID, createdAt desc)`, `(tenantUUID, createdAt desc)` for the admin aggregator, `status` |
+| `payments_payment_methods` | `(tenantUUID, provider)`, `providerMethodID` unique |
 | `payments_webhook_events` | `(provider, providerEventID)` **unique** — the idempotency guard |
 
 ## Config (encrypted secrets)

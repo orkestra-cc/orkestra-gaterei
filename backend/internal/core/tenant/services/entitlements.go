@@ -181,107 +181,16 @@ func (s *Service) ProvisionExternalTenant(ctx context.Context, ownerUserUUID str
 		}
 		t.Plan = in.Plan
 	}
-	kind := string(t.Kind)
-	if kind == "" {
-		kind = iface.TenantKindExternal
-	}
-	status := string(t.Status)
-	if status == "" {
-		status = iface.TenantStatusProvisioning
-	}
-	return &iface.Tenant{
-		UUID:   t.UUID,
-		Kind:   kind,
-		Status: status,
-		Name:   t.Name,
-		Slug:   t.Slug,
-		Plan:   t.Plan,
-	}, nil
+	return tenantToIface(t), nil
 }
 
-// FindOrProvisionLegacyClientTenant ensures a paired external tenant exists
-// for a legacy SubscriptionClient (ADR-0001 Phase 1 migration). Idempotent:
-// keyed on the unique sparse index on tenant_orgs.metadata.legacyClientUUID
-// — a second call with the same LegacyClientUUID returns the first-provisioned
-// tenant. The tenant is created in `active` state (operator-seeded, not
-// self-serve) with SignupChannel=migrated.
-func (s *Service) FindOrProvisionLegacyClientTenant(ctx context.Context, in iface.LegacyClientTenantSpec) (*iface.Tenant, error) {
-	if in.LegacyClientUUID == "" {
-		return nil, errors.New("tenant: FindOrProvisionLegacyClientTenant requires LegacyClientUUID")
+// SetTenantStripeCustomerID persists the Stripe customer identifier on the
+// tenant row. Called by the subscriptions renewal service after Stripe mints a
+// customer on the first charge for an external tenant. Idempotent — applying
+// the same value is a no-op write.
+func (s *Service) SetTenantStripeCustomerID(ctx context.Context, tenantUUID, stripeCustomerID string) error {
+	if tenantUUID == "" {
+		return errors.New("tenant: SetTenantStripeCustomerID requires tenantUUID")
 	}
-	if existing, err := s.repo.GetTenantByLegacyClientUUID(ctx, in.LegacyClientUUID); err == nil {
-		return toIfaceTenant(existing), nil
-	} else if !errors.Is(err, repository.ErrNotFound) {
-		return nil, fmt.Errorf("tenant: look up paired tenant: %w", err)
-	}
-	if in.OwnerUserUUID == "" {
-		return nil, errors.New("tenant: FindOrProvisionLegacyClientTenant requires OwnerUserUUID")
-	}
-	if in.Name == "" {
-		return nil, errors.New("tenant: FindOrProvisionLegacyClientTenant requires Name")
-	}
-
-	t, err := s.CreateTenant(ctx, in.OwnerUserUUID, models.CreateTenantInput{
-		Name: in.Name,
-		Slug: in.Slug,
-		Plan: in.Plan,
-		Kind: models.TenantKindExternal,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("tenant: provision paired tenant: %w", err)
-	}
-
-	// Stamp the back-pointer metadata and legacy fiscal/Stripe identifiers in
-	// a single update so re-runs find the paired tenant via the unique sparse
-	// index and external admins keep the VAT/FC/Stripe IDs the legacy Client
-	// carried.
-	update := bson.M{
-		"metadata.legacyClientUUID": in.LegacyClientUUID,
-		"signupChannel":             models.SignupChannelSeeded,
-	}
-	if in.VATNumber != "" {
-		update["vatNumber"] = in.VATNumber
-	}
-	if in.FiscalCode != "" {
-		update["fiscalCode"] = in.FiscalCode
-	}
-	if in.StripeCustomerID != "" {
-		update["stripeCustomerID"] = in.StripeCustomerID
-	}
-	if err := s.repo.UpdateTenant(ctx, t.UUID, update); err != nil {
-		return nil, fmt.Errorf("tenant: stamp legacy metadata: %w", err)
-	}
-
-	// Reload so the DTO reflects the persisted metadata.
-	fresh, err := s.repo.GetTenantByUUID(ctx, t.UUID)
-	if err != nil {
-		return nil, fmt.Errorf("tenant: reload paired tenant: %w", err)
-	}
-	return toIfaceTenant(fresh), nil
-}
-
-// toIfaceTenant converts a models.Tenant into the iface.Tenant DTO that
-// cross-module callers expect. Kept private to this package.
-func toIfaceTenant(t *models.Tenant) *iface.Tenant {
-	kind := string(t.Kind)
-	if kind == "" {
-		kind = iface.TenantKindExternal
-	}
-	status := string(t.Status)
-	if status == "" {
-		status = iface.TenantStatusActive
-	}
-	var parent string
-	if t.ParentTenantUUID != nil {
-		parent = *t.ParentTenantUUID
-	}
-	return &iface.Tenant{
-		UUID:             t.UUID,
-		Kind:             kind,
-		ParentTenantUUID: parent,
-		Status:           status,
-		Name:             t.Name,
-		Slug:             t.Slug,
-		Plan:             t.Plan,
-	}
+	return s.repo.UpdateTenant(ctx, tenantUUID, bson.M{"stripeCustomerID": stripeCustomerID})
 }

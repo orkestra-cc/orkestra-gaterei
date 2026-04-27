@@ -3,7 +3,6 @@ package models
 // Collection names — all prefixed per the mongo-collection-naming rule.
 const (
 	ServicesCollection      = "subscriptions_services"
-	ClientsCollection       = "subscriptions_clients"
 	SubscriptionsCollection = "subscriptions_subscriptions"
 	InvoicesCollection      = "subscriptions_invoices"
 	ActivityCollection      = "subscriptions_activity"
@@ -35,14 +34,6 @@ const (
 	SubSuspended SubStatus = "suspended"
 	SubCancelled SubStatus = "cancelled"
 	SubExpired   SubStatus = "expired"
-)
-
-// ClientStatus filters active clients from archived ones in reports.
-type ClientStatus string
-
-const (
-	ClientActive   ClientStatus = "active"
-	ClientArchived ClientStatus = "archived"
 )
 
 // InvoiceStatus tracks the settlement state of a generated invoice.

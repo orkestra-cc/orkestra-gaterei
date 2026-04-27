@@ -188,22 +188,6 @@ func (r *Repository) ListTenants(ctx context.Context, f TenantListFilter) ([]mod
 	return out, nil
 }
 
-// GetTenantByLegacyClientUUID looks up a tenant that was lazily provisioned
-// from a legacy SubscriptionClient by the Phase 1 migration. Returns
-// ErrNotFound if no paired tenant exists. Relies on the unique sparse index
-// on metadata.legacyClientUUID.
-func (r *Repository) GetTenantByLegacyClientUUID(ctx context.Context, legacyClientUUID string) (*models.Tenant, error) {
-	var t models.Tenant
-	err := r.db.Collection(CollTenants).FindOne(ctx, bson.M{
-		"metadata.legacyClientUUID": legacyClientUUID,
-		"deletedAt":                 nil,
-	}).Decode(&t)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, ErrNotFound
-	}
-	return &t, err
-}
-
 // UpdateTenantStatus transitions a tenant to a new lifecycle state.
 func (r *Repository) UpdateTenantStatus(ctx context.Context, uuid string, status models.TenantStatus) error {
 	update := bson.M{"status": string(status), "updatedAt": time.Now()}

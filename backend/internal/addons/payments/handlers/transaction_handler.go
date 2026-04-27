@@ -9,7 +9,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
 	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 type TransactionHandler struct {
@@ -17,9 +17,6 @@ type TransactionHandler struct {
 	pmRepo  repository.PaymentMethodRepository
 	whRepo  repository.WebhookEventRepository
 	payment *services.PaymentService
-	// svcReg is consulted on every request so toggling subscriptions on/off
-	// via the admin UI immediately enables/disables the org-ownership guard.
-	svcReg *module.ServiceRegistry
 }
 
 func NewTransactionHandler(
@@ -27,21 +24,19 @@ func NewTransactionHandler(
 	pmRepo repository.PaymentMethodRepository,
 	whRepo repository.WebhookEventRepository,
 	payment *services.PaymentService,
-	svcReg *module.ServiceRegistry,
 ) *TransactionHandler {
 	return &TransactionHandler{
 		txRepo:  txRepo,
 		pmRepo:  pmRepo,
 		whRepo:  whRepo,
 		payment: payment,
-		svcReg:  svcReg,
 	}
 }
 
 type ListTransactionsRequest struct {
 	SubscriptionUUID string `query:"subscriptionUUID"`
 	InvoiceUUID      string `query:"invoiceUUID"`
-	ClientUUID       string `query:"clientUUID"`
+	TenantUUID       string `query:"tenantUUID"`
 	Status           string `query:"status" enum:"pending,requires_action,succeeded,failed,refunded,partially_refunded"`
 }
 type ListTransactionsResponse struct {
@@ -72,7 +67,7 @@ type RefundResponse struct {
 }
 
 type ListPaymentMethodsRequest struct {
-	ClientUUID string `query:"clientUUID" required:"true"`
+	TenantUUID string `query:"tenantUUID" required:"true"`
 }
 type ListPaymentMethodsResponse struct {
 	Body struct {
@@ -96,7 +91,7 @@ func (h *TransactionHandler) List(ctx context.Context, in *ListTransactionsReque
 	items, err := h.txRepo.List(ctx, repository.TransactionFilters{
 		SubscriptionUUID: in.SubscriptionUUID,
 		InvoiceUUID:      in.InvoiceUUID,
-		ClientUUID:       in.ClientUUID,
+		TenantUUID:       in.TenantUUID,
 		Status:           models.TransactionStatus(in.Status),
 	})
 	if err != nil {
@@ -113,7 +108,7 @@ func (h *TransactionHandler) Get(ctx context.Context, in *GetTransactionRequest)
 	if err != nil {
 		return nil, err
 	}
-	if err := assertTenantOwnsClient(ctx, h.svcReg, t.ClientUUID); err != nil {
+	if err := assertTenantScope(ctx, t.TenantUUID); err != nil {
 		return nil, err
 	}
 	return &TransactionResponse{Body: *t}, nil
@@ -124,7 +119,7 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 	if err != nil {
 		return nil, huma.Error404NotFound("transaction not found", err)
 	}
-	if err := assertTenantOwnsClient(ctx, h.svcReg, tx.ClientUUID); err != nil {
+	if err := assertTenantScope(ctx, tx.TenantUUID); err != nil {
 		return nil, err
 	}
 	if in.Body.AmountCents < 0 {
@@ -158,10 +153,10 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 }
 
 func (h *TransactionHandler) ListPaymentMethods(ctx context.Context, in *ListPaymentMethodsRequest) (*ListPaymentMethodsResponse, error) {
-	if err := assertTenantOwnsClient(ctx, h.svcReg, in.ClientUUID); err != nil {
+	if err := assertTenantScope(ctx, in.TenantUUID); err != nil {
 		return nil, err
 	}
-	items, err := h.pmRepo.ListByClient(ctx, in.ClientUUID)
+	items, err := h.pmRepo.ListByTenant(ctx, in.TenantUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +175,25 @@ func (h *TransactionHandler) ListWebhookEvents(ctx context.Context, in *ListWebh
 	resp.Body.Items = items
 	resp.Body.Total = len(items)
 	return resp, nil
+}
+
+// assertTenantScope enforces that the request's active tenant matches the
+// row's TenantUUID. Rows without a tenant binding (legacy/orphan) are
+// always allowed — platform admins use the impersonation bypass to inspect
+// arbitrary tenants. Returns 404 on mismatch so existence of out-of-scope
+// records is not leaked.
+func assertTenantScope(ctx context.Context, tenantUUID string) error {
+	if tenantUUID == "" {
+		return nil
+	}
+	requestTenant, hasTenant := middleware.GetTenantID(ctx)
+	if !hasTenant {
+		return nil
+	}
+	if tenantUUID != requestTenant {
+		return huma.Error404NotFound("not found", nil)
+	}
+	return nil
 }
 
 // Compile-time check that PaymentService satisfies iface.PaymentProvider.

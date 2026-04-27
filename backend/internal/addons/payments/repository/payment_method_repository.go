@@ -15,7 +15,7 @@ var ErrPaymentMethodNotFound = errors.New("payments: payment method not found")
 type PaymentMethodRepository interface {
 	Create(ctx context.Context, pm *models.PaymentMethod) error
 	GetByUUID(ctx context.Context, uuid string) (*models.PaymentMethod, error)
-	ListByClient(ctx context.Context, clientUUID string) ([]models.PaymentMethod, error)
+	ListByTenant(ctx context.Context, tenantUUID string) ([]models.PaymentMethod, error)
 	Delete(ctx context.Context, uuid string) error
 }
 
@@ -49,8 +49,8 @@ func (r *paymentMethodRepository) GetByUUID(ctx context.Context, uuid string) (*
 	return &pm, nil
 }
 
-func (r *paymentMethodRepository) ListByClient(ctx context.Context, clientUUID string) ([]models.PaymentMethod, error) {
-	cur, err := r.coll.Find(ctx, bson.M{"clientUUID": clientUUID})
+func (r *paymentMethodRepository) ListByTenant(ctx context.Context, tenantUUID string) ([]models.PaymentMethod, error) {
+	cur, err := r.coll.Find(ctx, bson.M{"tenantUUID": tenantUUID})
 	if err != nil {
 		return nil, err
 	}
