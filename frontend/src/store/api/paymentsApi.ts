@@ -20,7 +20,7 @@ export const paymentsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listPaymentTransactions: builder.query<
       PaymentsListResponse<PaymentTransaction>,
-      { subscriptionUUID?: string; invoiceUUID?: string; clientUUID?: string; status?: string } | undefined
+      { subscriptionUUID?: string; invoiceUUID?: string; tenantUUID?: string; status?: string } | undefined
     >({
       query: (params) => `/v1/payments/transactions${params ? buildQS(params) : ''}`,
       providesTags: (result) =>
@@ -50,7 +50,7 @@ export const paymentsApi = baseApi.injectEndpoints({
       ],
     }),
     listPaymentMethods: builder.query<PaymentsListResponse<PaymentMethodRec>, string>({
-      query: (clientUUID) => `/v1/payments/methods${buildQS({ clientUUID })}`,
+      query: (tenantUUID) => `/v1/payments/methods${buildQS({ tenantUUID })}`,
       providesTags: [{ type: 'PaymentMethodRec', id: 'LIST' }],
     }),
     listPaymentWebhookEvents: builder.query<

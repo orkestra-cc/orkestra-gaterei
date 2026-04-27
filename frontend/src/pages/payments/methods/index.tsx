@@ -4,12 +4,12 @@ import PageHeader from 'components/common/PageHeader';
 import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
 import { useListPaymentMethodsQuery } from 'store/api/paymentsApi';
-import { useListSubscriptionClientsQuery } from 'store/api/subscriptionsApi';
+import { useListAllOrgsAdminQuery } from 'store/api/tenantApi';
 
 const PaymentMethodsPage: React.FC = () => {
-  const [clientUUID, setClientUUID] = useState('');
-  const { data: clients } = useListSubscriptionClientsQuery(undefined);
-  const { data, isLoading, refetch } = useListPaymentMethodsQuery(clientUUID, { skip: !clientUUID });
+  const [tenantUUID, setTenantUUID] = useState('');
+  const { data: tenantsData } = useListAllOrgsAdminQuery({ kind: 'external' });
+  const { data, isLoading, refetch } = useListPaymentMethodsQuery(tenantUUID, { skip: !tenantUUID });
 
   return (
     <>
@@ -23,12 +23,12 @@ const PaymentMethodsPage: React.FC = () => {
 
       <Card className="mb-3">
         <Card.Body>
-          <Form.Label>Seleziona cliente</Form.Label>
-          <Form.Select value={clientUUID} onChange={(e) => setClientUUID(e.target.value)}>
+          <Form.Label>Seleziona tenant esterno</Form.Label>
+          <Form.Select value={tenantUUID} onChange={(e) => setTenantUUID(e.target.value)}>
             <option value="">—</option>
-            {clients?.items.map((c) => (
-              <option key={c.uuid} value={c.uuid}>
-                {c.displayName || c.legalName} ({c.email})
+            {tenantsData?.tenants.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.slug})
               </option>
             ))}
           </Form.Select>
@@ -37,8 +37,8 @@ const PaymentMethodsPage: React.FC = () => {
 
       <Card>
         <Card.Body className="p-0">
-          {!clientUUID ? (
-            <div className="p-4 text-muted text-center">Seleziona un cliente per visualizzare i metodi salvati.</div>
+          {!tenantUUID ? (
+            <div className="p-4 text-muted text-center">Seleziona un tenant esterno per visualizzare i metodi salvati.</div>
           ) : isLoading ? (
             <div className="p-4">Caricamento...</div>
           ) : !data?.items.length ? (

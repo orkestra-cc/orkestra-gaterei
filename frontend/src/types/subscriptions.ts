@@ -9,8 +9,6 @@ export type SubStatus =
   | 'cancelled'
   | 'expired';
 
-export type ClientStatus = 'active' | 'archived';
-
 export type InvoiceStatus =
   | 'pending'
   | 'paid'
@@ -52,34 +50,9 @@ export interface SubscriptionService {
   updatedAt: string;
 }
 
-export interface ClientAddress {
-  line1?: string;
-  line2?: string;
-  city?: string;
-  province?: string;
-  postalCode?: string;
-  country?: string;
-}
-
-export interface SubscriptionClient {
-  uuid: string;
-  orgUUID?: string;
-  legalName: string;
-  displayName: string;
-  email: string;
-  vatNumber?: string;
-  fiscalCode?: string;
-  billingAddr?: ClientAddress;
-  status: ClientStatus;
-  stripeCustomerID?: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Subscription {
   uuid: string;
-  clientUUID: string;
+  tenantUUID: string;
   serviceUUID: string;
   tierCode: string;
   status: SubStatus;
@@ -102,7 +75,7 @@ export interface SubscriptionInvoice {
   uuid: string;
   number: string;
   subscriptionUUID: string;
-  clientUUID: string;
+  tenantUUID: string;
   serviceUUID: string;
   periodStart: string;
   periodEnd: string;
@@ -127,7 +100,7 @@ export interface SubscriptionInvoice {
 export interface ActivityLog {
   uuid: string;
   subscriptionUUID: string;
-  clientUUID: string;
+  tenantUUID: string;
   type: ActivityType;
   actor: string;
   message: string;
@@ -153,21 +126,8 @@ export interface CreateServiceInput {
 
 export type UpdateServiceInput = CreateServiceInput;
 
-export interface CreateClientInput {
-  orgUUID?: string;
-  legalName: string;
-  displayName?: string;
-  email: string;
-  vatNumber?: string;
-  fiscalCode?: string;
-  billingAddr?: ClientAddress;
-  notes?: string;
-}
-
-export type UpdateClientInput = CreateClientInput;
-
 export interface CreateSubscriptionInput {
-  clientUUID: string;
+  tenantUUID: string;
   serviceUUID: string;
   tierCode: string;
 }

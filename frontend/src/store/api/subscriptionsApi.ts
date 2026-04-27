@@ -1,15 +1,12 @@
 import { baseApi } from './baseApi';
 import type {
   SubscriptionService,
-  SubscriptionClient,
   Subscription,
   SubscriptionInvoice,
   ActivityLog,
   ListResponse,
   CreateServiceInput,
   UpdateServiceInput,
-  CreateClientInput,
-  UpdateClientInput,
   CreateSubscriptionInput,
 } from '../../types/subscriptions';
 
@@ -64,47 +61,10 @@ export const subscriptionsApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // --- Clients ---
-    listSubscriptionClients: builder.query<
-      ListResponse<SubscriptionClient>,
-      { status?: string; search?: string } | undefined
-    >({
-      query: (params) => `/v1/subscriptions/clients${params ? buildQS(params) : ''}`,
-      providesTags: (result) =>
-        result?.items
-          ? [
-              ...result.items.map(({ uuid }) => ({ type: 'SubscriptionClient' as const, id: uuid })),
-              { type: 'SubscriptionClient', id: 'LIST' },
-            ]
-          : [{ type: 'SubscriptionClient', id: 'LIST' }],
-    }),
-    getSubscriptionClient: builder.query<{ body: SubscriptionClient }, string>({
-      query: (id) => `/v1/subscriptions/clients/${id}`,
-      providesTags: (_r, _e, id) => [{ type: 'SubscriptionClient', id }],
-    }),
-    createSubscriptionClient: builder.mutation<{ body: SubscriptionClient }, CreateClientInput>({
-      query: (body) => ({ url: '/v1/subscriptions/clients', method: 'POST', body }),
-      invalidatesTags: [{ type: 'SubscriptionClient', id: 'LIST' }],
-    }),
-    updateSubscriptionClient: builder.mutation<
-      { body: SubscriptionClient },
-      { id: string; patch: UpdateClientInput }
-    >({
-      query: ({ id, patch }) => ({ url: `/v1/subscriptions/clients/${id}`, method: 'PATCH', body: patch }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: 'SubscriptionClient', id },
-        { type: 'SubscriptionClient', id: 'LIST' },
-      ],
-    }),
-    archiveSubscriptionClient: builder.mutation<void, string>({
-      query: (id) => ({ url: `/v1/subscriptions/clients/${id}`, method: 'DELETE' }),
-      invalidatesTags: [{ type: 'SubscriptionClient', id: 'LIST' }],
-    }),
-
     // --- Subscriptions ---
     listSubscriptions: builder.query<
       ListResponse<Subscription>,
-      { clientUUID?: string; serviceUUID?: string; status?: string } | undefined
+      { tenantUUID?: string; serviceUUID?: string; status?: string } | undefined
     >({
       query: (params) => `/v1/subscriptions/subscriptions${params ? buildQS(params) : ''}`,
       providesTags: (result) =>
@@ -174,11 +134,6 @@ export const {
   useCreateSubscriptionServiceMutation,
   useUpdateSubscriptionServiceMutation,
   useDeleteSubscriptionServiceMutation,
-  useListSubscriptionClientsQuery,
-  useGetSubscriptionClientQuery,
-  useCreateSubscriptionClientMutation,
-  useUpdateSubscriptionClientMutation,
-  useArchiveSubscriptionClientMutation,
   useListSubscriptionsQuery,
   useGetSubscriptionQuery,
   useCreateSubscriptionMutation,

@@ -6,10 +6,10 @@ import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
 import {
   useListSubscriptionsQuery,
-  useListSubscriptionClientsQuery,
   useListSubscriptionServicesQuery,
   useCreateSubscriptionMutation,
 } from 'store/api/subscriptionsApi';
+import { useListAllOrgsAdminQuery } from 'store/api/tenantApi';
 import type { SubStatus } from 'types/subscriptions';
 
 const statusColor: Record<SubStatus, string> = {
@@ -23,18 +23,18 @@ const statusColor: Record<SubStatus, string> = {
 const SubscriptionsListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const { data, isLoading, refetch } = useListSubscriptionsQuery({ status: statusFilter || undefined });
-  const { data: clients } = useListSubscriptionClientsQuery(undefined);
+  const { data: tenantsData } = useListAllOrgsAdminQuery({ kind: 'external' });
   const { data: services } = useListSubscriptionServicesQuery(undefined);
   const [create] = useCreateSubscriptionMutation();
 
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ clientUUID: '', serviceUUID: '', tierCode: '' });
+  const [form, setForm] = useState({ tenantUUID: '', serviceUUID: '', tierCode: '' });
 
-  const clientById = useMemo(() => {
+  const tenantById = useMemo(() => {
     const m = new Map<string, string>();
-    clients?.items.forEach((c) => m.set(c.uuid, c.displayName || c.legalName));
+    tenantsData?.tenants.forEach((t) => m.set(t.id, t.name));
     return m;
-  }, [clients]);
+  }, [tenantsData]);
   const serviceById = useMemo(() => {
     const m = new Map<string, string>();
     services?.items.forEach((s) => m.set(s.uuid, s.name));
@@ -46,7 +46,7 @@ const SubscriptionsListPage: React.FC = () => {
   const submit = async () => {
     await create(form).unwrap();
     setShowModal(false);
-    setForm({ clientUUID: '', serviceUUID: '', tierCode: '' });
+    setForm({ tenantUUID: '', serviceUUID: '', tierCode: '' });
   };
 
   return (
@@ -57,7 +57,7 @@ const SubscriptionsListPage: React.FC = () => {
             icon="plus"
             variant="primary"
             onClick={() => setShowModal(true)}
-            disabled={!clients?.items.length || !services?.items.length}
+            disabled={!tenantsData?.tenants.length || !services?.items.length}
           >
             Nuova sottoscrizione
           </IconButton>
@@ -102,7 +102,7 @@ const SubscriptionsListPage: React.FC = () => {
               <tbody>
                 {data.items.map((s) => (
                   <tr key={s.uuid}>
-                    <td>{clientById.get(s.clientUUID) ?? s.clientUUID.slice(0, 8)}</td>
+                    <td>{tenantById.get(s.tenantUUID) ?? s.tenantUUID.slice(0, 8)}</td>
                     <td>{serviceById.get(s.serviceUUID) ?? s.serviceUUID.slice(0, 8)}</td>
                     <td><code>{s.tierCode}</code></td>
                     <td>
@@ -130,15 +130,15 @@ const SubscriptionsListPage: React.FC = () => {
             <Form.Group className="mb-3">
               <Form.Label>Cliente</Form.Label>
               <Form.Select
-                value={form.clientUUID}
-                onChange={(e) => setForm({ ...form, clientUUID: e.target.value })}
+                value={form.tenantUUID}
+                onChange={(e) => setForm({ ...form, tenantUUID: e.target.value })}
               >
                 <option value="">Seleziona...</option>
-                {clients?.items
-                  .filter((c) => c.status === 'active')
-                  .map((c) => (
-                    <option key={c.uuid} value={c.uuid}>
-                      {c.displayName || c.legalName} ({c.email})
+                {tenantsData?.tenants
+                  .filter((t) => t.status === 'active')
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.slug})
                     </option>
                   ))}
               </Form.Select>
@@ -183,7 +183,7 @@ const SubscriptionsListPage: React.FC = () => {
           </Button>
           <Button
             variant="primary"
-            disabled={!form.clientUUID || !form.serviceUUID || !form.tierCode}
+            disabled={!form.tenantUUID || !form.serviceUUID || !form.tierCode}
             onClick={submit}
           >
             Crea

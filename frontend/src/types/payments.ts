@@ -14,7 +14,7 @@ export interface PaymentTransaction {
   providerTxID: string;
   subscriptionUUID?: string;
   invoiceUUID?: string;
-  clientUUID?: string;
+  tenantUUID?: string;
   amountCents: number;
   currency: string;
   status: TransactionStatus;
@@ -31,7 +31,7 @@ export interface PaymentTransaction {
 
 export interface PaymentMethodRec {
   uuid: string;
-  clientUUID: string;
+  tenantUUID: string;
   provider: ProviderName;
   providerMethodID: string;
   brand?: string;

@@ -338,7 +338,6 @@ export const baseApi = createApi({
     'OrgInvite',
     // Subscriptions module
     'SubscriptionService',
-    'SubscriptionClient',
     'Subscription',
     'SubscriptionInvoice',
     'SubscriptionActivity',
@@ -394,7 +393,7 @@ export const TENANT_SCOPED_TAGS = [
   'Module', 'ModuleHealth',
   'Org', 'Membership', 'Role', 'Binding', 'Permission', 'EffectivePermissions',
   'AdminOrg', 'OrgInvite',
-  'SubscriptionService', 'SubscriptionClient', 'Subscription',
+  'SubscriptionService', 'Subscription',
   'SubscriptionInvoice', 'SubscriptionActivity',
   'PaymentTransaction', 'PaymentMethodRec', 'PaymentWebhookEvent',
   'AuditEvent', 'Soc2Evidence',

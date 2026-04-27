@@ -64,7 +64,6 @@ export interface CreateDivisionInput {
 export interface TenantSubscription {
   uuid: string;
   tenantUUID: string;
-  clientUUID: string;
   serviceUUID: string;
   tierCode: string;
   status: string;
@@ -78,7 +77,6 @@ export interface TenantSubscription {
 export interface TenantPayment {
   uuid: string;
   tenantUUID: string;
-  clientUUID: string;
   subscriptionUUID: string;
   invoiceUUID: string;
   provider: string;

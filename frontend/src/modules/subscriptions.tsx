@@ -5,7 +5,6 @@ import ModuleGate from 'components/common/ModuleGate';
 import FalconLoader from 'components/common/FalconLoader';
 
 const ServicesPage = lazy(() => import('pages/subscriptions/services'));
-const ClientsPage = lazy(() => import('pages/subscriptions/clients'));
 const SubscriptionsPage = lazy(() => import('pages/subscriptions/subscriptions'));
 const SubscriptionDetailPage = lazy(() => import('pages/subscriptions/subscriptions/detail'));
 
@@ -23,7 +22,6 @@ export const subscriptionsManifest: ModuleManifest = {
   name: 'subscriptions',
   routes: () => [
     { path: 'subscriptions/services', element: wrap(<ServicesPage />, 'subscriptions-services') },
-    { path: 'subscriptions/clients', element: wrap(<ClientsPage />, 'subscriptions-clients') },
     { path: 'subscriptions/subscriptions', element: wrap(<SubscriptionsPage />, 'subscriptions-subscriptions') },
     {
       path: 'subscriptions/subscriptions/:id',

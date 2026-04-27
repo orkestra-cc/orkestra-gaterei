@@ -117,7 +117,7 @@ const SubscriptionDetailPage: React.FC = () => {
               <Card.Body>
                 <dl className="row mb-0">
                   <dt className="col-sm-3">Cliente UUID</dt>
-                  <dd className="col-sm-9"><code>{s.clientUUID}</code></dd>
+                  <dd className="col-sm-9"><code>{s.tenantUUID}</code></dd>
                   <dt className="col-sm-3">Servizio UUID</dt>
                   <dd className="col-sm-9"><code>{s.serviceUUID}</code></dd>
                   <dt className="col-sm-3">Tier</dt>
