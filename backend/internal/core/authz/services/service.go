@@ -746,7 +746,7 @@ func (s *Service) SeedSystemRoles(ctx context.Context) error {
 	})
 	// org_billing scopes to the three finance-surface modules. Module
 	// prefix matches the catalog naming convention (billing.invoice.read,
-	// payments.transaction.refund, subscriptions.client.manage, …).
+	// payments.transaction.refund, subscriptions.subscription.manage, …).
 	orgBilling := filter(nonSystem, func(p string) bool {
 		return strings.HasPrefix(p, "billing.") ||
 			strings.HasPrefix(p, "payments.") ||
