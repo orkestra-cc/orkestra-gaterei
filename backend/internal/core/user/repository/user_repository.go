@@ -22,6 +22,15 @@ var (
 
 const (
 	UsersCollection = "users"
+
+	// ADR-0003 PR-B: tier-split user collections. Populated by
+	// backend/scripts/migrate_user_split.go and consumed by the new
+	// OperatorUserProvider / ClientUserProvider once
+	// USER_TIER_SPLIT_ENABLED is flipped (PR-B introduces both; PR-D
+	// is the cutover). The legacy `users` collection above stays the
+	// authoritative source of truth at PR-B boundary.
+	OperatorUsersCollection = "operator_users"
+	ClientUsersCollection   = "client_users"
 )
 
 type UserRepository interface {

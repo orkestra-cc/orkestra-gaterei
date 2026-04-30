@@ -136,6 +136,54 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"userUuid": 1, "deviceId": 1}},
 			{Keys: map[string]int{"trustedUntil": 1}, ExpireAt: true},
 		}},
+
+		// ADR-0003 PR-B: tier-split auth collections. Mirror the
+		// legacy auth_* indexes so the tier-aware repos can be a
+		// drop-in replacement once USER_TIER_SPLIT_ENABLED flips. Each
+		// pair below shares an identical IndexSpec set with its legacy
+		// sibling; only the collection name differs.
+		{Name: models.OperatorOAuthProvidersCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"userUuid": 1, "provider": 1}, Unique: true},
+		}},
+		{Name: models.ClientOAuthProvidersCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"userUuid": 1, "provider": 1}, Unique: true},
+		}},
+		{Name: models.OperatorRefreshTokensCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1}},
+			{Keys: map[string]int{"familyId": 1}},
+		}},
+		{Name: models.ClientRefreshTokensCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1}},
+			{Keys: map[string]int{"familyId": 1}},
+		}},
+		{Name: models.OperatorSessionsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+		}},
+		{Name: models.ClientSessionsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+		}},
+		{Name: models.OperatorEmailTokensCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"tokenHash": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1}},
+			{Keys: map[string]int{"expiresAt": 1}, TTL: 24 * time.Hour},
+		}},
+		{Name: models.ClientEmailTokensCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"tokenHash": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1}},
+			{Keys: map[string]int{"expiresAt": 1}, TTL: 24 * time.Hour},
+		}},
+		{Name: models.OperatorMFAFactorsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1, "type": 1}, Unique: true},
+		}},
+		{Name: models.ClientMFAFactorsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{Keys: map[string]int{"userUuid": 1, "type": 1}, Unique: true},
+		}},
 	}
 }
 

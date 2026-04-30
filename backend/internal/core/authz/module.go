@@ -80,6 +80,23 @@ func (m *Module) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"roleId": 1}},
 			{Keys: map[string]int{"expiresAt": 1}},
 		}},
+		// ADR-0003 PR-B: tier-split role catalogs — same index shape
+		// as authz_roles so the seed/lookup paths can be drop-in
+		// replacements once the cutover lands.
+		{Name: repository.CollOperatorRoles, Indexes: []module.IndexSpec{
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "name", Direction: 1},
+			}, Unique: true},
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+		}},
+		{Name: repository.CollClientRoles, Indexes: []module.IndexSpec{
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "name", Direction: 1},
+			}, Unique: true},
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+		}},
 	}
 }
 

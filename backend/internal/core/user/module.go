@@ -27,11 +27,28 @@ func (m *UserModule) ProvidedServices() []module.ServiceKey {
 }
 
 func (m *UserModule) Collections() []module.CollectionSpec {
+	// Email uniqueness on the per-tier collections is scoped to that
+	// collection — the same email address may legitimately exist as both
+	// an operator user and a client user (the same human running an
+	// internal staff account and an external client account). The legacy
+	// `users` collection retains its global email uniqueness until the
+	// migration script copies its rows into operator_users.
+	tierUserIndexes := []module.IndexSpec{
+		{Keys: map[string]int{"uuid": 1}, Unique: true},
+		{Keys: map[string]int{"email": 1}, Unique: true},
+		{Keys: map[string]int{"tier": 1}},
+	}
 	return []module.CollectionSpec{
-		{Name: "users", Indexes: []module.IndexSpec{
+		{Name: repository.UsersCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"email": 1}, Unique: true},
 		}},
+		// ADR-0003 PR-B: tier-split user collections. Created on every
+		// boot so the migration script + tier-aware providers can rely
+		// on them existing; queries against them return zero rows until
+		// the migration populates operator_users.
+		{Name: repository.OperatorUsersCollection, Indexes: tierUserIndexes},
+		{Name: repository.ClientUsersCollection, Indexes: tierUserIndexes},
 	}
 }
 

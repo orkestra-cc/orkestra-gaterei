@@ -148,6 +148,22 @@ const (
 	SecurityEventsCollection = "auth_security_events"
 	MFAFactorsCollection     = "auth_mfa_factors"
 	DeviceTrustCollection    = "auth_device_trust"
+
+	// ADR-0003 PR-B: tier-split auth collections. Empty until
+	// migrate_user_split.go runs; the legacy auth_* collections above
+	// remain authoritative at the PR-B boundary. SecurityEvents and
+	// DeviceTrust deliberately stay single — security events are an
+	// audit log keyed on userUUID alone, and device-trust grants follow
+	// the user record (PR-D revisits if the auth-path split needs them
+	// per-tier).
+	OperatorOAuthProvidersCollection = "operator_oauth_providers"
+	ClientOAuthProvidersCollection   = "client_oauth_providers"
+	OperatorRefreshTokensCollection  = "operator_refresh_tokens"
+	ClientRefreshTokensCollection    = "client_refresh_tokens"
+	OperatorSessionsCollection       = "operator_sessions"
+	ClientSessionsCollection         = "client_sessions"
+	OperatorMFAFactorsCollection     = "operator_mfa_factors"
+	ClientMFAFactorsCollection       = "client_mfa_factors"
 )
 
 // Indexes for collections

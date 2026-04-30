@@ -93,6 +93,24 @@ func (m *NotificationModule) Collections() []module.CollectionSpec {
 				{Keys: map[string]int{"expiresAt": 1}, TTL: day30},
 			},
 		},
+		// ADR-0003 PR-B: tier-split unsubscribe tokens. Same shape as
+		// the legacy collection — only the name differs.
+		{
+			Name: models.NotificationOperatorUnsubscribeTokensCollect,
+			Indexes: []module.IndexSpec{
+				{Keys: map[string]int{"uuid": 1}, Unique: true},
+				{Keys: map[string]int{"tokenHash": 1}, Unique: true},
+				{Keys: map[string]int{"expiresAt": 1}, TTL: day30},
+			},
+		},
+		{
+			Name: models.NotificationClientUnsubscribeTokensCollect,
+			Indexes: []module.IndexSpec{
+				{Keys: map[string]int{"uuid": 1}, Unique: true},
+				{Keys: map[string]int{"tokenHash": 1}, Unique: true},
+				{Keys: map[string]int{"expiresAt": 1}, TTL: day30},
+			},
+		},
 	}
 }
 
