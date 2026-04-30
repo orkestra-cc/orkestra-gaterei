@@ -74,8 +74,8 @@ func (m *UserModule) RegisterRoutes(ri *module.RouteInfo) {
 	// User management is a platform-level concern: users are global, so
 	// routes live on the system permission gate (administrators) rather
 	// than per-org.
-	ri.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.AuthMW.RequireSystemPermission("system.users.admin"))
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
 	})

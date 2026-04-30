@@ -168,33 +168,33 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// Admin API — all operator-only. Each bucket gates by Kind
 	// (RequireInternalTenant) so an external-tenant token cannot hit the
 	// admin read/refund/method/webhook-log surfaces.
-	ri.ProtectedRouter.Group(func(gated chi.Router) {
+	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("payments.transaction.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("payments.transaction.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterTransactionReadRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("payments.transaction.refund"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("payments.transaction.refund"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterTransactionRefundRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("payments.method.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("payments.method.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterPaymentMethodReadRoutes(api, m.txHandler)
 		})
 
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("payments.webhook.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("payments.webhook.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterWebhookEventReadRoutes(api, m.txHandler)
 		})

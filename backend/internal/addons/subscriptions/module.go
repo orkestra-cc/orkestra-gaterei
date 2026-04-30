@@ -173,13 +173,13 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 }
 
 func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
-	// Public catalog — no auth, no gate. Mounted on ri.PublicAPI so
+	// Public catalog — no auth, no gate. Mounted on ri.Operator.PublicAPI so
 	// anonymous signup UIs can render pricing before login. Disabling the
 	// subscriptions module via /admin/modules does NOT detach this route
 	// at runtime (same caveat as onboarding.RegisterRoutes in commit 3.1) —
 	// to fully stop public exposure, restart with the module disabled
 	// before boot (delete its row in module_configs or mark enabled=false).
-	RegisterPublicCatalogRoutes(ri.PublicAPI, m.serviceHandler)
+	RegisterPublicCatalogRoutes(ri.Operator.PublicAPI, m.serviceHandler)
 
 	// Each permission bucket gets its own chi subgroup. Mutations (POST,
 	// PATCH, DELETE) live behind the `.manage` grants so view-level users
@@ -189,33 +189,33 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// reads) require an internal tenant. The self-service subscribe path
 	// stays kind-agnostic — external tenants self-subscribing is its
 	// entire purpose.
-	ri.ProtectedRouter.Group(func(gated chi.Router) {
+	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
 
 		// Services (catalog) — operator admin only.
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.service.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.service.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterServiceReadRoutes(api, m.serviceHandler)
 		})
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.service.manage"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.service.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterServiceWriteRoutes(api, m.serviceHandler)
 		})
 
 		// Subscriptions — operator admin (not the external self-subscribe).
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.subscription.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.subscription.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSubscriptionReadRoutes(api, m.subscriptionHandler)
 		})
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.subscription.manage"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.subscription.manage"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSubscriptionWriteRoutes(api, m.subscriptionHandler)
 		})
@@ -225,21 +225,21 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 		// TenantProvider.ListUserMemberships. Kind-agnostic by design: the
 		// endpoint exists for external tenants to subscribe themselves.
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			RegisterSelfServiceRoutes(api, m.subscriptionHandler)
 		})
 
 		// Nested reads — operator admin only.
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.invoice.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.invoice.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterInvoiceReadRoutes(api, m.subscriptionHandler)
 		})
 		gated.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireInternalTenant())
-			r.Use(ri.AuthMW.RequirePermission("subscriptions.activity.view"))
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("subscriptions.activity.view"))
 			api := humachi.New(r, ri.APIConfig)
 			RegisterActivityReadRoutes(api, m.subscriptionHandler)
 		})

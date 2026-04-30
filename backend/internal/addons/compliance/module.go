@@ -208,8 +208,8 @@ func (m *Module) Init(deps *module.Dependencies) error {
 // data).
 func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 	if m.admin != nil || m.soc2 != nil {
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireSystemPermission("system.compliance.audit.read"))
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.compliance.audit.read"))
 			api := humachi.New(r, ri.APIConfig)
 			if m.admin != nil {
 				handlers.Register(api, m.admin)
@@ -220,8 +220,8 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 		})
 	}
 	if m.me != nil {
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			handlers.RegisterMeRoutes(api, m.me)
 		})

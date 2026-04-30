@@ -83,5 +83,5 @@ func (m *Module) Init(deps *module.Dependencies) error {
 // Operators disable the endpoint at runtime via the admin UI; the module
 // registry clears the route list when disabled.
 func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
-	handlers.Register(ri.PublicAPI, m.handler)
+	handlers.Register(ri.Operator.PublicAPI, m.handler)
 }

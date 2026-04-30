@@ -553,16 +553,16 @@ func (c webauthnAvailabilityChecker) HasWebAuthnCredentials(ctx context.Context,
 
 func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	// Auth has both public and protected routes
-	protectedAPI := humachi.New(ri.ProtectedRouter, ri.APIConfig)
-	m.authHandler.RegisterRoutes(ri.PublicAPI, protectedAPI, ri.Router, ri.ProtectedRouter)
+	protectedAPI := humachi.New(ri.Operator.ProtectedRouter, ri.APIConfig)
+	m.authHandler.RegisterRoutes(ri.Operator.PublicAPI, protectedAPI, ri.Router, ri.Operator.ProtectedRouter)
 
 	// Password auth endpoints: register/login/verify/reset/forgot live on the
 	// public API; change-password is protected and runs without an org
 	// context (it's a user self-service flow).
 	if m.passwordHandler != nil {
-		m.passwordHandler.RegisterPublicRoutes(ri.PublicAPI)
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+		m.passwordHandler.RegisterPublicRoutes(ri.Operator.PublicAPI)
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.passwordHandler.RegisterProtectedRoutes(api)
 		})
@@ -579,21 +579,21 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	//     another user's MFA lets the admin enroll their own device, so
 	//     step-up here gates the same move.
 	if m.mfaHandler != nil {
-		m.mfaHandler.RegisterPublicRoutes(ri.PublicAPI)
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+		m.mfaHandler.RegisterPublicRoutes(ri.Operator.PublicAPI)
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterProtectedRoutes(api)
 		})
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
-			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
+			r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterStepUpRoutes(api)
 		})
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireSystemPermission("system.users.mfa_reset"))
-			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.mfa_reset"))
+			r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.mfaHandler.RegisterAdminRoutes(api)
 		})
@@ -608,15 +608,15 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	//   - protected (step-up): DELETE credentials — pulling a passkey is
 	//     irreversible so demand a <5min OTP/WebAuthn proof first.
 	if m.webauthnHandler != nil {
-		m.webauthnHandler.RegisterPublicRoutes(ri.PublicAPI)
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+		m.webauthnHandler.RegisterPublicRoutes(ri.Operator.PublicAPI)
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.webauthnHandler.RegisterProtectedRoutes(api)
 		})
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
-			r.Use(ri.AuthMW.RequireStepUp(5 * time.Minute))
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
+			r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 			api := humachi.New(r, ri.APIConfig)
 			m.webauthnHandler.RegisterStepUpRoutes(api)
 		})
@@ -629,8 +629,8 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 	// All three are protected self-service: RequireGlobal() gates on
 	// authenticated session, no org context needed.
 	if m.deviceTrustHandler != nil {
-		ri.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.AuthMW.RequireGlobal())
+		ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.deviceTrustHandler.RegisterRoutes(api)
 		})

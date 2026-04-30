@@ -225,14 +225,27 @@ func main() {
 	// unauthenticated requests.
 	protectedRouter.Use(authMiddleware.TenantBaggage)
 
-	// Module routes
+	// Module routes — ADR-0003 PR-A: per-audience surfaces, both initially
+	// pointing at the same huma.API / chi.Router / middleware so behavior is
+	// unchanged. PR-C splits these into independent muxes per host.
+	operatorSurface := &module.APISurface{
+		Audience:        module.AudienceOperator,
+		PublicAPI:       publicAPI,
+		ProtectedRouter: protectedRouter,
+		AuthMW:          authMW,
+	}
+	clientSurface := &module.APISurface{
+		Audience:        module.AudienceClient,
+		PublicAPI:       publicAPI,
+		ProtectedRouter: protectedRouter,
+		AuthMW:          authMW,
+	}
 	modRegistry.RegisterAllRoutes(&module.RouteInfo{
-		PublicAPI:        publicAPI,
-		ProtectedRouter:  protectedRouter,
-		Router:           router,
-		AuthMW:           authMW,
-		APIConfig:        apiConfig,
-		ConfigService:    configService,
+		Operator:      operatorSurface,
+		Client:        clientSurface,
+		Router:        router,
+		APIConfig:     apiConfig,
+		ConfigService: configService,
 	})
 
 	// First-install onboarding: public /v1/setup/status and /v1/setup/admin.
