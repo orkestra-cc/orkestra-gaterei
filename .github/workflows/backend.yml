@@ -1,0 +1,191 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  push:
+    branches: [dev, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          working-directory: backend
+          args: --config=.golangci.yml
+
+  tenantscope:
+    name: Tenant-scoping analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tenantscope unit tests
+        run: go test ./tools/tenantscope/...
+
+      - name: Enforce tenant-scoping invariant across internal/ (addons, core, shared)
+        run: go run ./tools/tenantscope/cmd/tenantscope -baseline=tools/tenantscope/baseline.txt ./internal/...
+
+  policycoverage:
+    name: Policy coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run policycoverage unit tests
+        run: go test ./tools/policycoverage/...
+
+      - name: Reconcile permission + capability catalog against route middleware
+        run: |
+          go run ./tools/policycoverage/cmd/policycoverage \
+            -baseline=tools/policycoverage/baseline.txt \
+            -cedar=internal/core/authz/cedar/policies \
+            -markdown=policy-coverage-report.md \
+            -json=policy-coverage-report.json \
+            ./internal/...
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-coverage-report
+          path: |
+            backend/policy-coverage-report.md
+            backend/policy-coverage-report.json
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: 15
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports: ['27017:27017']
+      redis:
+        image: redis/redis-stack-server:latest
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -race -coverprofile=coverage.out ./...
+        env:
+          MONGO_URI: mongodb://localhost:27017
+          REDIS_URL: redis://localhost:6379
+
+      - name: Check coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+            echo "::error::Coverage ${COVERAGE}% is below ${COVERAGE_THRESHOLD}% threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.out
+
+  vulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build binary
+        run: go build -o bin/server cmd/server/main.go
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: production
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:latest

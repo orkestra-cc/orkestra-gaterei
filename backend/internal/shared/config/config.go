@@ -15,18 +15,123 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Auth     AuthConfig
-	Rate     RateLimitConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	Auth      AuthConfig
+	Rate      RateLimitConfig
+	Billing   BillingConfig
+	Documents DocumentsConfig
+	Company   CompanyConfig
+	Graph     GraphConfig
+	RAG       RAGConfig
+	AIModels  AIModelsConfig
+	Agents    AgentsConfig
+	Sales     SalesConfig
+}
+
+// SalesConfig holds configuration for the AI Sales Intelligence module
+type SalesConfig struct {
+	Enabled         bool          // Module enabled flag (SALES_ENABLED)
+	MaxConcurrency  int           // Max parallel agent LLM calls per job (SALES_MAX_CONCURRENCY)
+	DefaultLocale   string        // Default locale for prompts (SALES_DEFAULT_LOCALE)
+	SkillTimeout    time.Duration // Timeout for individual skill calls (SALES_SKILL_TIMEOUT)
+	QuickTimeout    time.Duration // Timeout for sync /prospect/quick (SALES_QUICK_TIMEOUT)
+	FullTimeout     time.Duration // Timeout for async /prospect pipeline (SALES_FULL_TIMEOUT)
+	ScraperTimeout  time.Duration // Timeout per scrape request (SALES_SCRAPER_TIMEOUT)
+	ScraperMaxDepth int           // Max subpage depth for scraping (SALES_SCRAPER_MAX_DEPTH)
+	MaxTokens       int           // Max output tokens per agent/skill LLM call (SALES_MAX_TOKENS)
+}
+
+// AgentsConfig holds configuration for the AI agents module (Hindsight integration)
+type AgentsConfig struct {
+	Enabled            bool   // Module enabled flag (AGENTS_ENABLED)
+	HindsightURL       string // Hindsight API base URL (HINDSIGHT_URL)
+	HindsightNamespace string // Hindsight namespace for bank IDs (HINDSIGHT_NAMESPACE)
+}
+
+// AIModelsConfig holds configuration for the AI models management module
+type AIModelsConfig struct {
+	Enabled       bool   // Module enabled flag (AIMODELS_ENABLED)
+	OllamaBaseURL string // Ollama API base URL (shared with RAG)
+	OpenAIAPIKey  string // OpenAI API key (shared with RAG)
+	AnthropicKey  string // Anthropic API key
+	GeminiKey     string // Google Gemini API key
+}
+
+// GraphConfig holds configuration for the graph database module (Memgraph)
+type GraphConfig struct {
+	Enabled     bool          // Module enabled flag (GRAPH_ENABLED)
+	URI         string        // Bolt URI: bolt://host:7687
+	Username    string        // Database username (empty for no auth)
+	Password    string        // Database password (empty for no auth)
+	Database    string        // Default database name
+	MaxConnPool int           // Connection pool size
+	Encrypted   bool          // TLS/encryption
+	Timeout     time.Duration // Query timeout
+}
+
+// RAGConfig holds configuration for the RAG (Retrieval-Augmented Generation) module
+type RAGConfig struct {
+	Enabled       bool   // Module enabled flag (RAG_ENABLED)
+	OllamaBaseURL string // Ollama API base URL
+	OpenAIAPIKey  string // OpenAI API key
+	ChunkSize     int    // Default text chunk size in characters
+	ChunkOverlap  int    // Overlap between chunks in characters
+	DefaultTopK   int    // Default number of results for vector search
+}
+
+// CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
+type CompanyConfig struct {
+	BaseURL       string        // Base URL: https://company.openapi.com (prod) or https://test.company.openapi.com (sandbox)
+	BearerToken   string        // Dedicated token for Company API (falls back to OPENAPI_BILLING_BEARER_TOKEN)
+	Timeout       time.Duration // HTTP client timeout
+	RetryAttempts int           // Number of retry attempts for failed requests
+	CacheTTL      time.Duration // Redis cache TTL for company lookups
+}
+
+// BillingConfig holds configuration for the billing/invoicing module (OpenAPI SDI integration)
+type BillingConfig struct {
+	// OpenAPI SDI configuration
+	OpenAPIBaseURL       string        // Base URL: https://sdi.openapi.it (prod) or https://test.sdi.openapi.it (sandbox)
+	OpenAPIBearerToken   string        // OAuth Bearer Token for authentication
+	OpenAPIFiscalID      string        // Company fiscal ID (P.IVA with country code, e.g., IT12345678901)
+	OpenAPIRecipientCode string        // SDI recipient code (OpenAPI's code: JKKZDGR)
+	ApplySignature       bool          // Enable digital signature for invoices
+	ApplyStorage         bool          // Enable legal storage (conservazione sostitutiva)
+	Timeout              time.Duration // HTTP client timeout
+	RetryAttempts        int           // Number of retry attempts for failed requests
+	PollingInterval      time.Duration // Interval between polling for notifications
+	PollingEnabled       bool          // Enable automatic SDI polling (default: false to stay under API limits)
+	SandboxMode          bool          // Use sandbox environment
+	WebhookURL           string        // Public URL for receiving SDI webhook callbacks (e.g., https://staging-api.orkestra.cc/v1/billing/webhooks/sdi)
+	WebhookSecret        string        // Secret token for verifying incoming webhook requests
+}
+
+// DocumentsConfig holds configuration for the documents/PDF generation module (Gotenberg integration)
+type DocumentsConfig struct {
+	GotenbergURL   string        // Gotenberg service URL (e.g., http://gotenberg:3000)
+	Timeout        time.Duration // HTTP client timeout for PDF generation
+	RetryAttempts  int           // Number of retry attempts for failed requests
+	DefaultMargins PDFMargins    // Default page margins in millimeters
+}
+
+// PDFMargins defines page margins for PDF generation
+type PDFMargins struct {
+	Top    float64 // Top margin in millimeters
+	Bottom float64 // Bottom margin in millimeters
+	Left   float64 // Left margin in millimeters
+	Right  float64 // Right margin in millimeters
 }
 
 type ServerConfig struct {
-	Port        string
-	Environment string
-	LogLevel    string
-	FrontendURL string
+	Port         string
+	Environment  string
+	LogLevel     string
+	FrontendURL  string
+	CORSOrigins  []string // Allowed CORS origins
+	MaxBodySize  int64    // Maximum request body size in bytes (default 10MB)
+	AIServiceURL string   // When set, AI modules run in the external AI service sidecar
 }
 
 type DatabaseConfig struct {
@@ -49,12 +154,13 @@ type RedisConfig struct {
 }
 
 type AuthConfig struct {
-	JWT     JWTConfig
-	Cookie  CookieConfig
-	Google  GoogleOAuthConfig
-	Apple   AppleOAuthConfig
-	Discord DiscordOAuthConfig
-	GitHub  GitHubOAuthConfig
+	JWT                     JWTConfig
+	Cookie                  CookieConfig
+	Google                  GoogleOAuthConfig
+	Apple                   AppleOAuthConfig
+	Discord                 DiscordOAuthConfig
+	GitHub                  GitHubOAuthConfig
+	AllowLocalhostRedirects bool // Allow localhost OAuth redirects (should be false in production)
 }
 
 type JWTConfig struct {
@@ -64,6 +170,7 @@ type JWTConfig struct {
 	PublicKey          *rsa.PublicKey
 	AccessTokenExpiry  time.Duration
 	RefreshTokenExpiry time.Duration
+	KeysLoaded         bool // Indicates if JWT keys were successfully loaded
 }
 
 type CookieConfig struct {
@@ -119,16 +226,23 @@ func Load() (*Config, error) {
 
 	config := &Config{}
 
+	// Default CORS origins for development
+	defaultCORSOrigins := []string{"http://localhost:8080", "http://localhost:5173"}
+	corsOrigins := getEnvAsSlice("CORS_ORIGINS", defaultCORSOrigins)
+
 	config.Server = ServerConfig{
-		Port:        getEnv("PORT", "3000"),
-		Environment: getEnv("ENV", "development"),
-		LogLevel:    getEnv("LOG_LEVEL", "info"),
-		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:8080"),
+		Port:         getEnv("PORT", "3000"),
+		Environment:  getEnv("ENV", "development"),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		FrontendURL:  getEnv("FRONTEND_URL", "http://localhost:8080"),
+		CORSOrigins:  corsOrigins,
+		MaxBodySize:  getEnvAsInt64("MAX_BODY_SIZE", 10*1024*1024), // Default 10MB
+		AIServiceURL: getEnv("AI_SERVICE_URL", ""),                 // Empty = local modules, set = remote AI service
 	}
 
 	config.Database = DatabaseConfig{
-		MongoURI:        getEnv("MONGO_URI", "mongodb://localhost:27017/erp"),
-		DatabaseName:    getEnv("MONGO_DATABASE", "erp"),
+		MongoURI:        getEnv("MONGO_URI", "mongodb://localhost:27017/orkestra"),
+		DatabaseName:    getEnv("MONGO_DATABASE", "orkestra"),
 		MaxPoolSize:     getEnvAsUint64("MONGO_MAX_POOL_SIZE", 100),
 		MinPoolSize:     getEnvAsUint64("MONGO_MIN_POOL_SIZE", 10),
 		MaxConnIdleTime: getEnvAsDuration("MONGO_MAX_CONN_IDLE_TIME", "5m"),
@@ -152,16 +266,19 @@ func Load() (*Config, error) {
 		RefreshTokenExpiry: getEnvAsDuration("JWT_REFRESH_TOKEN_EXPIRY", "7d"),
 	}
 
-	// Load RSA keys
+	// Load RSA keys (non-fatal in development)
 	if err := loadJWTKeys(&jwtConfig); err != nil {
-		return nil, fmt.Errorf("failed to load JWT keys: %w", err)
+		printJWTWarning(err)
+		jwtConfig.KeysLoaded = false
+	} else {
+		jwtConfig.KeysLoaded = true
 	}
 
 	config.Auth = AuthConfig{
 		JWT: jwtConfig,
 		Cookie: CookieConfig{
 			Secret:   getEnv("COOKIE_SECRET", "default-cookie-secret"),
-			Name:     getEnv("COOKIE_NAME", "erp_cookie"),
+			Name:     getEnv("COOKIE_NAME", "orkestra_cookie"),
 			Domain:   getEnv("COOKIE_DOMAIN", ""),
 			HttpOnly: getEnvAsBool("COOKIE_HTTP_ONLY", true),
 			Secure:   getEnvAsBool("COOKIE_SECURE", false), // Default false for development
@@ -195,11 +312,120 @@ func Load() (*Config, error) {
 			ClientSecret: getEnv("OAUTH_GITHUB_CLIENT_SECRET", ""),
 			RedirectURL:  getEnv("OAUTH_GITHUB_REDIRECT_URL", "http://localhost:3000/auth/oauth/github/callback"),
 		},
+		AllowLocalhostRedirects: getEnvAsBool("ALLOW_LOCALHOST_REDIRECTS", true), // Default true for development
 	}
 
 	config.Rate = RateLimitConfig{
 		RequestsPerMinute: getEnvAsInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
 		Burst:             getEnvAsInt("RATE_LIMIT_BURST", 10),
+	}
+
+	// Billing/Invoicing configuration (OpenAPI SDI)
+	sandboxMode := getEnvAsBool("OPENAPI_SANDBOX_MODE", true)
+	defaultBaseURL := "https://test.sdi.openapi.it"
+	if !sandboxMode {
+		defaultBaseURL = "https://sdi.openapi.it"
+	}
+
+	config.Billing = BillingConfig{
+		OpenAPIBaseURL:       getEnv("OPENAPI_BILLING_BASE_URL", defaultBaseURL),
+		OpenAPIBearerToken:   getEnv("OPENAPI_BILLING_BEARER_TOKEN", ""),
+		OpenAPIFiscalID:      getEnv("OPENAPI_BILLING_FISCAL_ID", ""),
+		OpenAPIRecipientCode: getEnv("OPENAPI_BILLING_RECIPIENT_CODE", "JKKZDGR"),
+		ApplySignature:       getEnvAsBool("OPENAPI_BILLING_APPLY_SIGNATURE", true),
+		ApplyStorage:         getEnvAsBool("OPENAPI_BILLING_APPLY_STORAGE", true),
+		Timeout:              getEnvAsDuration("OPENAPI_BILLING_TIMEOUT", "30s"),
+		RetryAttempts:        getEnvAsInt("OPENAPI_BILLING_RETRY_ATTEMPTS", 3),
+		PollingInterval:      getEnvAsDuration("OPENAPI_BILLING_POLLING_INTERVAL", "12h"),
+		PollingEnabled:       getEnvAsBool("OPENAPI_BILLING_POLLING_ENABLED", true),
+		SandboxMode:          sandboxMode,
+		WebhookURL:           getEnv("OPENAPI_BILLING_WEBHOOK_URL", ""),
+		WebhookSecret:        getEnv("OPENAPI_BILLING_WEBHOOK_SECRET", ""),
+	}
+
+	// Company lookup configuration (OpenAPI Company API)
+	// Reuses sandboxMode from billing config
+	defaultCompanyBaseURL := "https://test.company.openapi.com"
+	if !sandboxMode {
+		defaultCompanyBaseURL = "https://company.openapi.com"
+	}
+
+	// Company API token: use dedicated token if set, otherwise fall back to billing token
+	companyToken := getEnv("OPENAPI_COMPANY_BEARER_TOKEN", "")
+	if companyToken == "" {
+		companyToken = config.Billing.OpenAPIBearerToken
+	}
+
+	config.Company = CompanyConfig{
+		BaseURL:       getEnv("OPENAPI_COMPANY_BASE_URL", defaultCompanyBaseURL),
+		BearerToken:   companyToken,
+		Timeout:       getEnvAsDuration("OPENAPI_COMPANY_TIMEOUT", "15s"),
+		RetryAttempts: getEnvAsInt("OPENAPI_COMPANY_RETRY_ATTEMPTS", 3),
+		CacheTTL:      getEnvAsDuration("OPENAPI_COMPANY_CACHE_TTL", "24h"),
+	}
+
+	// Graph database configuration (Memgraph)
+	config.Graph = GraphConfig{
+		Enabled:     getEnvAsBool("GRAPH_ENABLED", false),
+		URI:         getEnv("GRAPH_URI", "bolt://localhost:7687"),
+		Username:    getEnv("GRAPH_USERNAME", ""),
+		Password:    getEnv("GRAPH_PASSWORD", ""),
+		Database:    getEnv("GRAPH_DATABASE", "memgraph"),
+		MaxConnPool: getEnvAsInt("GRAPH_MAX_CONN_POOL", 25),
+		Encrypted:   getEnvAsBool("GRAPH_ENCRYPTED", false),
+		Timeout:     getEnvAsDuration("GRAPH_TIMEOUT", "30s"),
+	}
+
+	// RAG (Retrieval-Augmented Generation) configuration
+	config.RAG = RAGConfig{
+		Enabled:       getEnvAsBool("RAG_ENABLED", false),
+		OllamaBaseURL: getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
+		ChunkSize:     getEnvAsInt("RAG_CHUNK_SIZE", 512),
+		ChunkOverlap:  getEnvAsInt("RAG_CHUNK_OVERLAP", 50),
+		DefaultTopK:   getEnvAsInt("RAG_DEFAULT_TOP_K", 10),
+	}
+
+	// AI Models management configuration
+	config.AIModels = AIModelsConfig{
+		Enabled:       getEnvAsBool("AIMODELS_ENABLED", false),
+		OllamaBaseURL: getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
+		AnthropicKey:  getEnv("ANTHROPIC_API_KEY", ""),
+		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
+	}
+
+	// Agents / Hindsight configuration
+	config.Agents = AgentsConfig{
+		Enabled:            getEnvAsBool("AGENTS_ENABLED", false),
+		HindsightURL:       getEnv("HINDSIGHT_URL", "http://hindsight:8888"),
+		HindsightNamespace: getEnv("HINDSIGHT_NAMESPACE", "orkestra"),
+	}
+
+	// Sales Intelligence configuration
+	config.Sales = SalesConfig{
+		Enabled:         getEnvAsBool("SALES_ENABLED", false),
+		MaxConcurrency:  getEnvAsInt("SALES_MAX_CONCURRENCY", 5),
+		DefaultLocale:   getEnv("SALES_DEFAULT_LOCALE", "it"),
+		SkillTimeout:    getEnvAsDuration("SALES_SKILL_TIMEOUT", "5m"),
+		QuickTimeout:    getEnvAsDuration("SALES_QUICK_TIMEOUT", "5m"),
+		FullTimeout:     getEnvAsDuration("SALES_FULL_TIMEOUT", "15m"),
+		ScraperTimeout:  getEnvAsDuration("SALES_SCRAPER_TIMEOUT", "30s"),
+		ScraperMaxDepth: getEnvAsInt("SALES_SCRAPER_MAX_DEPTH", 3),
+		MaxTokens:       getEnvAsInt("SALES_MAX_TOKENS", 8192),
+	}
+
+	// Documents/PDF generation configuration (Gotenberg)
+	config.Documents = DocumentsConfig{
+		GotenbergURL:  getEnv("GOTENBERG_URL", "http://gotenberg:3000"),
+		Timeout:       getEnvAsDuration("GOTENBERG_TIMEOUT", "60s"),
+		RetryAttempts: getEnvAsInt("GOTENBERG_RETRY_ATTEMPTS", 3),
+		DefaultMargins: PDFMargins{
+			Top:    20.0,
+			Bottom: 20.0,
+			Left:   20.0,
+			Right:  20.0,
+		},
 	}
 
 	if err := config.Validate(); err != nil {
@@ -210,20 +436,61 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.Auth.JWT.PrivateKey == nil {
-		return fmt.Errorf("JWT private key is required")
-	}
-	if c.Auth.JWT.PublicKey == nil {
-		return fmt.Errorf("JWT public key is required")
-	}
-	if c.Auth.Google.ClientID == "" {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required")
-	}
-	if c.Auth.Google.ClientSecret == "" {
-		return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required")
+	// Production/Staging security validations
+	if c.IsProductionLike() {
+		// JWT keys are REQUIRED in production
+		if !c.Auth.JWT.KeysLoaded {
+			return fmt.Errorf("JWT keys are required in production - set JWT_PRIVATE_KEY_PATH and JWT_PUBLIC_KEY_PATH")
+		}
+
+		// Cookie security is REQUIRED in production
+		if !c.Auth.Cookie.Secure {
+			return fmt.Errorf("COOKIE_SECURE must be true in production/staging environments")
+		}
+
+		// Localhost redirects must be disabled in production
+		if c.Auth.AllowLocalhostRedirects {
+			return fmt.Errorf("ALLOW_LOCALHOST_REDIRECTS must be false in production/staging environments")
+		}
+
+		// OAuth is required in production
+		if c.Auth.Google.ClientID == "" {
+			return fmt.Errorf("OAUTH_GOOGLE_CLIENT_ID is required in production")
+		}
+		if c.Auth.Google.ClientSecret == "" {
+			return fmt.Errorf("OAUTH_GOOGLE_CLIENT_SECRET is required in production")
+		}
 	}
 
 	return nil
+}
+
+// printJWTWarning prints a prominent warning when JWT keys are not loaded
+func printJWTWarning(err error) {
+	warning := `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║   ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗███╗   ██╗ ██████╗                  ║
+║   ██║    ██║██╔══██╗██╔══██╗████╗  ██║██║████╗  ██║██╔════╝                  ║
+║   ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║██║██╔██╗ ██║██║  ███╗                 ║
+║   ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██║██║╚██╗██║██║   ██║                 ║
+║   ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║██║ ╚████║╚██████╔╝                 ║
+║    ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝                  ║
+║                                                                              ║
+║   JWT KEYS NOT LOADED - AUTHENTICATION WILL NOT WORK!                        ║
+║                                                                              ║
+║   Error: %s
+║                                                                              ║
+║   To fix this, generate JWT keys:                                            ║
+║     openssl genrsa -out docker/keys/jwt-private.pem 4096                     ║
+║     openssl rsa -in docker/keys/jwt-private.pem -pubout \                    ║
+║       -out docker/keys/jwt-public.pem                                        ║
+║                                                                              ║
+║   Server will continue running, but auth endpoints will fail.                ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+`
+	fmt.Printf(warning, err)
 }
 
 func getEnv(key, defaultValue string) string {
@@ -252,6 +519,14 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 func getEnvAsUint64(key string, defaultValue uint64) uint64 {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseInt(valueStr, 10, 64); err == nil {
 		return value
 	}
 	return defaultValue

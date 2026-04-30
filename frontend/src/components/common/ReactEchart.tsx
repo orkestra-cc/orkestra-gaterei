@@ -3,9 +3,7 @@ import ReactEChartsCore from 'echarts-for-react/lib/core';
 import type { EChartsReactProps } from 'echarts-for-react';
 import { useAppContext } from 'providers/AppProvider';
 
-type ReactEchartProps = Omit<EChartsReactProps, 'echarts'> & {
-  echarts?: EChartsReactProps['echarts'];
-};
+type ReactEchartProps = EChartsReactProps;
 
 const ReactEchart = forwardRef<ReactEChartsCore, ReactEchartProps>((props, ref) => {
   const internalRef = useRef<ReactEChartsCore>(null);
@@ -20,6 +18,12 @@ const ReactEchart = forwardRef<ReactEChartsCore, ReactEchartProps>((props, ref) 
       chartInstance.getEchartsInstance()?.resize();
     }
   }, [isFluid, isNavbarVerticalCollapsed, chartRef]);
+
+  // echarts prop is required for ReactEChartsCore to work properly
+  if (!props.echarts) {
+    console.error('ReactEchart: echarts prop is required');
+    return null;
+  }
 
   return <ReactEChartsCore ref={chartRef} {...props} />;
 });

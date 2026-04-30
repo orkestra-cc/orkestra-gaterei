@@ -10,7 +10,7 @@ type KanbanStoreType = ReturnType<typeof useKanban>;
 
 export const KanbanContext = createContext<KanbanStoreType | null>(null);
 
-const KanbanProvider: React.FC<KanbanProviderProps> = ({ children, initialData = null }) => {
+const KanbanProvider: React.FC<KanbanProviderProps> = ({ children, initialData: _initialData = null }) => {
   const kanbanStore = useKanban();
 
   return (

@@ -26,12 +26,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   });
 
   const roles = [
-    { value: 'ceo', label: 'CEO' },
-    { value: 'developer', label: 'Sviluppatore' },
-    { value: 'administrator', label: 'Amministratore' },
+    { value: 'super_admin', label: 'Super Admin' },
+    { value: 'administrator', label: 'Administrator' },
+    { value: 'developer', label: 'Developer' },
     { value: 'manager', label: 'Manager' },
-    { value: 'operator', label: 'Operatore' },
-    { value: 'guest', label: 'Ospite' }
+    { value: 'operator', label: 'Operator' },
+    { value: 'guest', label: 'Guest' }
   ];
 
   const handleChange = (
@@ -48,16 +48,16 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
     // Validation
     if (!formData.fullName.trim()) {
-      setError('Il nome completo è obbligatorio');
+      setError('Full name is required');
       return;
     }
     if (!formData.email.trim()) {
-      setError("L'email è obbligatoria");
+      setError('Email is required');
       return;
     }
 
     if (!formData.phone.trim()) {
-      setError('Il telefono è obbligatorio');
+      setError('Phone number is required');
       return;
     }
     // if (!formData.username.trim()) {
@@ -87,7 +87,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       onHide();
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      setError(err?.data?.message || "Errore durante la creazione dell'utente");
+      setError(err?.data?.message || 'Error creating user');
     }
   };
 
@@ -107,7 +107,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   return (
     <Modal show={show} onHide={handleClose} centered size="lg">
       <Modal.Header>
-        <Modal.Title>Nuovo Utente</Modal.Title>
+        <Modal.Title>New User</Modal.Title>
         <FalconCloseButton onClick={handleClose} />
       </Modal.Header>
       <Form onSubmit={handleSubmit}>
@@ -120,14 +120,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
           <Form.Group className="mb-3">
             <Form.Label>
-              Nome Completo <span className="text-danger">*</span>
+              Full Name <span className="text-danger">*</span>
             </Form.Label>
             <Form.Control
               type="text"
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
-              placeholder="Es: Mario Rossi"
+              placeholder="e.g. John Smith"
               required
             />
           </Form.Group>
@@ -141,21 +141,21 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="mario.rossi@example.com"
+              placeholder="john.smith@example.com"
               required
             />
           </Form.Group>
 
           <Form.Group className="mb-3">
             <Form.Label>
-              Telefono <span className="text-danger">*</span>
+              Phone <span className="text-danger">*</span>
             </Form.Label>
             <Form.Control
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              placeholder="+39 333 1234567"
+              placeholder="+1 555 1234567"
               required
             />
           </Form.Group>
@@ -167,10 +167,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               name="username"
               value={formData.username}
               onChange={handleChange}
-              placeholder="mariorossi"
+              placeholder="johnsmith"
             />
             <Form.Text className="text-muted">
-              L'username verrà utilizzato per accedere al sistema
+              Username will be used for system login
             </Form.Text>
           </Form.Group>
 
@@ -186,13 +186,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               maxLength={5}
             />
             <Form.Text className="text-muted">
-              Codice numerico di 5 cifre per l'accesso
+              5-digit numeric code for access
             </Form.Text>
           </Form.Group>
 
           <Form.Group className="mb-3">
             <Form.Label>
-              Ruolo <span className="text-danger">*</span>
+              Role <span className="text-danger">*</span>
             </Form.Label>
             <Form.Select
               name="role"
@@ -214,10 +214,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             onClick={handleClose}
             disabled={isLoading}
           >
-            Annulla
+            Cancel
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
-            {isLoading ? 'Creazione in corso...' : 'Crea Utente'}
+            {isLoading ? 'Creating...' : 'Create User'}
           </Button>
         </Modal.Footer>
       </Form>

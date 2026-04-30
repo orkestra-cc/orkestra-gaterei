@@ -34,7 +34,7 @@ const EducationSettings: React.FC = () => {
             </div>
           </Collapse>
         </div>
-        {educationData.map((item, index) => (
+        {educationData.map((item: any, index: number) => (
           <EducationItem
             key={item.id}
             details={item}

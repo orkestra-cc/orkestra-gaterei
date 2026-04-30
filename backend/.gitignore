@@ -22,6 +22,11 @@ bin/
 tmp/
 dist/
 
+# Go cache directories (Docker dev environment)
+.go-bin/
+.go-build-cache/
+.go-mod-cache/
+
 # Air temporary files
 *.log
 

@@ -12,7 +12,7 @@ const ExperiencesSettings: React.FC = () => {
       <FalconCardHeader title="Experiences" />
       <Card.Body className="fs-10 bg-body-tertiary">
         <ExperienceForm collapsed={collapsed} setCollapsed={setCollapsed} />
-        {experiences.map((experience, index) => (
+        {experiences.map((experience: any, index: number) => (
           <Experience
             key={experience.id}
             experience={experience}

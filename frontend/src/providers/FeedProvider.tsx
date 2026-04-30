@@ -1,27 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode, Dispatch } from 'react';
-import { feedReducer } from 'reducers/feedReducer';
+import { feedReducer, Feed, FeedAction } from 'reducers/feedReducer';
 import rawFeeds from 'data/feed';
-
-// Type definitions
-interface Feed {
-  id: number;
-  [key: string]: any;
-}
-
-interface AddAction {
-  type: 'ADD';
-  payload: Feed;
-}
-
-interface UpdateAction {
-  type: 'UPDATE';
-  payload: {
-    id: number;
-    feed: Feed;
-  };
-}
-
-type FeedAction = AddAction | UpdateAction;
 
 interface FeedContextValue {
   feeds: Feed[];

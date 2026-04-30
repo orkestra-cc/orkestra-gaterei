@@ -23,6 +23,8 @@
     /* Path mapping for cleaner imports */
     "baseUrl": ".",
     "paths": {
+      "App": ["src/App.tsx"],
+      "widgets/*": ["src/widgets/*"],
       "components/*": ["src/components/*"],
       "features/*": ["src/features/*"],
       "pages/*": ["src/pages/*"],
@@ -39,9 +41,14 @@
       "utils/*": ["src/utils/*"],
       "store/*": ["src/store/*"],
       "stores/*": ["src/stores/*"],
-      "config": ["src/config"]
+      "config": ["src/config"],
+      "reference/*": ["src/reference/*"],
+      "types/*": ["src/types/*"],
+      "modules/*": ["src/modules/*"],
+      "modules": ["src/modules"]
     }
   },
   "include": ["src/**/*", "vite.config.js"],
+  "exclude": ["src/modules/_template/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

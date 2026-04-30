@@ -24,7 +24,7 @@ export const EducationItem: React.FC<EducationItemProps> = ({ details, isLast })
   return (
     <Flex>
       <Link to="#!">
-        <Avatar size="3xl" src={logo} width={56} />
+        <Avatar size="3xl" src={logo} />
       </Link>
       <div className="flex-1 position-relative ps-3">
         <h6 className="fs-9 mb-0">

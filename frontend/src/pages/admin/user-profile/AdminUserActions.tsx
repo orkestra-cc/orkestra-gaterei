@@ -9,7 +9,6 @@ import {
   Alert
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import Flex from 'components/common/Flex';
 import { User, useUpdateUserMutation } from 'store/api/userApi';
 import { toast } from 'react-toastify';
 
@@ -33,25 +32,34 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
   const roles = [
     {
       value: 'guest',
-      label: 'Ospite',
-      description: 'Accesso limitato al proprio profilo'
+      label: 'Guest',
+      description: 'Read-only access'
     },
     {
       value: 'operator',
-      label: 'Operatore',
-      description: 'Accesso limitato operatori'
+      label: 'Operator',
+      description: 'Read + self-service'
     },
     {
       value: 'manager',
       label: 'Manager',
-      description: 'Gestione team e compiti'
+      description: 'Read/write without delete or admin'
+    },
+    {
+      value: 'developer',
+      label: 'Developer',
+      description: 'Technical power user — cannot manage admin/super_admin'
     },
     {
       value: 'administrator',
-      label: 'Amministratore',
-      description: 'Amministrazione del sistema'
+      label: 'Administrator',
+      description: 'Organization administrator — cannot elevate peers to admin'
     },
-    { value: 'ceo', label: 'CEO', description: 'Accesso completo al sistema' }
+    {
+      value: 'super_admin',
+      label: 'Super Admin',
+      description: 'Full power, wildcard permission'
+    }
   ];
 
   const handleToggleAccountLock = async () => {
@@ -64,15 +72,15 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
       }).unwrap();
       toast.success(
         newStatus
-          ? 'Account sbloccato con successo'
-          : 'Account bloccato con successo'
+          ? 'Account unlocked successfully'
+          : 'Account locked successfully'
       );
       setShowLockModal(false);
     } catch (error: any) {
       const errorMessage =
-        error?.data?.message || "Errore durante l'operazione";
+        error?.data?.message || "Error during operation";
       setUpdateError(errorMessage);
-      toast.error("Impossibile modificare lo stato dell'account");
+      toast.error("Unable to modify account status");
     }
   };
 
@@ -82,7 +90,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="tools" className="me-2" />
-            Azioni Rapide
+            Quick Actions
           </h5>
         </Card.Header>
         <Card.Body>
@@ -101,7 +109,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
               }}
             >
               <FontAwesomeIcon icon="edit" className="me-2" />
-              Modifica Profilo
+              Edit Profile
             </Button>
 
             <Button
@@ -114,7 +122,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
               }}
             >
               <FontAwesomeIcon icon="users" className="me-2" />
-              Cambia Ruolo
+              Change Role
             </Button>
 
             {/* <Button variant="warning" size="sm">
@@ -125,25 +133,25 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             <Dropdown>
               <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
                 <FontAwesomeIcon icon="cog" className="me-2" />
-                Impostazioni Account
+                Account Settings
               </Dropdown.Toggle>
               <Dropdown.Menu className="w-100">
                 <Dropdown.Item>
                   <FontAwesomeIcon icon="shield-alt" className="me-2" />
-                  Impostazioni Sicurezza
+                  Security Settings
                 </Dropdown.Item>
                 <Dropdown.Item>
                   <FontAwesomeIcon icon="bell" className="me-2" />
-                  Preferenze Notifiche
+                  Notification Preferences
                 </Dropdown.Item>
                 <Dropdown.Item>
                   <FontAwesomeIcon icon="clock" className="me-2" />
-                  Cronologia Login
+                  Login History
                 </Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item>
                   <FontAwesomeIcon icon="download" className="me-2" />
-                  Esporta Dati Utente
+                  Export User Data
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
@@ -155,7 +163,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-            Azioni di Sicurezza
+            Security Actions
           </h5>
         </Card.Header>
         <Card.Body>
@@ -172,22 +180,22 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                 icon={user.isActive ? 'lock' : 'unlock'}
                 className="me-2"
               />
-              {user.isActive ? 'Blocca Account' : 'Sblocca Account'}
+              {user.isActive ? 'Lock Account' : 'Unlock Account'}
             </Button>
 
             <Button variant="outline-danger" size="sm">
               <FontAwesomeIcon icon="ban" className="me-2" />
-              Sospendi Utente
+              Suspend User
             </Button>
 
             <Button variant="outline-info" size="sm">
               <FontAwesomeIcon icon="sign-out-alt" className="me-2" />
-              Forza Logout
+              Force Logout
             </Button>
 
             <Button variant="outline-secondary" size="sm">
               <FontAwesomeIcon icon="mobile" className="me-2" />
-              Reimposta 2FA
+              Reset 2FA
             </Button>
           </div>
         </Card.Body>
@@ -195,7 +203,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
 
       <Modal show={showRoleModal} onHide={() => setShowRoleModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Cambia Ruolo Utente</Modal.Title>
+          <Modal.Title>Change User Role</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {updateError && (
@@ -209,7 +217,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
           )}
           <Form>
             <Form.Group className="mb-3">
-              <Form.Label>Seleziona Nuovo Ruolo</Form.Label>
+              <Form.Label>Select New Role</Form.Label>
               {roles.map(role => (
                 <Form.Check
                   key={role.value}
@@ -241,7 +249,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             }}
             disabled={isUpdating}
           >
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -253,15 +261,15 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                   data: { role: selectedRole }
                 }).unwrap();
                 toast.success(
-                  `Ruolo aggiornato con successo a ${selectedRole}`
+                  `Role successfully updated to ${selectedRole}`
                 );
                 setShowRoleModal(false);
               } catch (error: any) {
                 setUpdateError(
                   error?.data?.message ||
-                    "Errore durante l'aggiornamento del ruolo"
+                    "Error updating role"
                 );
-                toast.error('Impossibile aggiornare il ruolo');
+                toast.error('Unable to update role');
               }
             }}
             disabled={isUpdating || selectedRole === user.role}
@@ -269,10 +277,10 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             {isUpdating ? (
               <>
                 <Spinner size="sm" animation="border" className="me-2" />
-                Aggiornamento...
+                Updating...
               </>
             ) : (
-              'Aggiorna Ruolo'
+              'Update Role'
             )}
           </Button>
         </Modal.Footer>
@@ -280,7 +288,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
 
       <Modal show={showProfileModal} onHide={() => setShowProfileModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Modifica Profilo Utente</Modal.Title>
+          <Modal.Title>Edit User Profile</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {updateError && (
@@ -304,12 +312,12 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                     email: e.target.value
                   }))
                 }
-                placeholder="Inserisci email"
+                placeholder="Enter email"
               />
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>Nome Completo</Form.Label>
+              <Form.Label>Full Name</Form.Label>
               <Form.Control
                 type="text"
                 value={profileFormData.fullName}
@@ -319,12 +327,12 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                     fullName: e.target.value
                   }))
                 }
-                placeholder="Inserisci nome completo"
+                placeholder="Enter full name"
               />
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>Telefono</Form.Label>
+              <Form.Label>Phone</Form.Label>
               <Form.Control
                 type="tel"
                 value={profileFormData.phone}
@@ -334,7 +342,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                     phone: e.target.value
                   }))
                 }
-                placeholder="Inserisci numero di telefono"
+                placeholder="Enter phone number"
               />
             </Form.Group>
           </Form>
@@ -353,7 +361,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             }}
             disabled={isUpdating}
           >
-            Annulla
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -390,22 +398,22 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                   id: user.id,
                   data: updatedFields
                 }).unwrap();
-                toast.success('Profilo aggiornato con successo');
+                toast.success('Profile updated successfully');
                 setShowProfileModal(false);
               } catch (error: any) {
                 const errorMessage =
                   error?.data?.detail ||
                   error?.data?.message ||
-                  "Errore durante l'aggiornamento del profilo";
+                  "Error updating profile";
                 setUpdateError(errorMessage);
 
                 if (
                   error?.status === 409 ||
                   errorMessage.includes('already in use')
                 ) {
-                  toast.error('Email già in uso da un altro utente');
+                  toast.error('Email already in use by another user');
                 } else {
-                  toast.error('Impossibile aggiornare il profilo');
+                  toast.error('Unable to update profile');
                 }
               }
             }}
@@ -414,10 +422,10 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             {isUpdating ? (
               <>
                 <Spinner size="sm" animation="border" className="me-2" />
-                Aggiornamento...
+                Updating...
               </>
             ) : (
-              'Aggiorna Profilo'
+              'Update Profile'
             )}
           </Button>
         </Modal.Footer>
@@ -430,7 +438,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
       >
         <Modal.Header closeButton>
           <Modal.Title>
-            {user.isActive ? 'Blocca Account' : 'Sblocca Account'}
+            {user.isActive ? 'Lock Account' : 'Unlock Account'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -444,17 +452,17 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             </Alert>
           )}
           <p>
-            Sei sicuro di voler {user.isActive ? 'bloccare' : 'sbloccare'}{' '}
-            l'account di <strong>{user.fullName}</strong>?
+            Are you sure you want to {user.isActive ? 'lock' : 'unlock'}{' '}
+            the account of <strong>{user.fullName}</strong>?
           </p>
           {user.isActive ? (
             <p className="text-warning mb-0">
-              L'utente non potrà più accedere al sistema fino a quando l'account
-              non verrà sbloccato.
+              The user will no longer be able to access the system until the account
+              is unlocked.
             </p>
           ) : (
             <p className="text-success mb-0">
-              L'utente potrà nuovamente accedere al sistema.
+              The user will be able to access the system again.
             </p>
           )}
         </Modal.Body>
@@ -467,7 +475,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             }}
             disabled={isUpdating}
           >
-            Annulla
+            Cancel
           </Button>
           <Button
             variant={user.isActive ? 'warning' : 'success'}
@@ -477,12 +485,12 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             {isUpdating ? (
               <>
                 <Spinner size="sm" animation="border" className="me-2" />
-                Attendere...
+                Please wait...
               </>
             ) : user.isActive ? (
-              'Blocca'
+              'Lock'
             ) : (
-              'Sblocca'
+              'Unlock'
             )}
           </Button>
         </Modal.Footer>

@@ -1,0 +1,1633 @@
+#!/usr/bin/env bash
+
+# ============================================================================
+# Orkestra — Unified Stack Management
+# ============================================================================
+#
+# Single entry point for managing the Orkestra stack. Combines the former
+# deploy.sh and logs.sh scripts and adds first-class minimal-profile support.
+#
+# Two modes:
+#
+#   Interactive TUI     ./orkestra.sh
+#                       Profile menu (minimal / full stack) then a per-profile
+#                       operations menu.
+#
+#   Non-interactive CLI ./orkestra.sh <command> [args...]
+#                       Scriptable subcommands. See ./orkestra.sh --help.
+#
+# Graceful enhancements:
+#   - Auto-detects gum (charm.sh) and fzf; uses them when available for a more
+#     polished experience, falls back to pure bash otherwise.
+#   - Honors NO_COLOR and disables colors when stdout is not a TTY.
+#
+# Backward compat:
+#   ENV=development|staging|production ./orkestra.sh
+#     Skips the profile menu and opens the full-stack TUI directly.
+# ============================================================================
+
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+ORKESTRA_VERSION="1.0.0"
+
+# ---------------------------------------------------------------------------
+# Capability detection
+# ---------------------------------------------------------------------------
+
+HAS_TTY=false
+HAS_COLOR=false
+HAS_UNICODE=true
+HAS_GUM=false
+HAS_FZF=false
+TERM_COLS=80
+
+detect_capabilities() {
+    # TTY detection — no colors / fancy rendering when piped
+    if [ -t 1 ]; then
+        HAS_TTY=true
+    fi
+
+    # Honor https://no-color.org
+    if [ -z "${NO_COLOR:-}" ] && [ "$HAS_TTY" = true ]; then
+        # 256-color support (xterm-256color, screen-256color, etc.)
+        case "${TERM:-}" in
+            *-256color | *-color | xterm* | screen* | tmux* | alacritty | kitty)
+                HAS_COLOR=true
+                ;;
+        esac
+    fi
+
+    # Terminal width (with fallback)
+    if command -v tput > /dev/null 2>&1 && [ "$HAS_TTY" = true ]; then
+        TERM_COLS=$(tput cols 2>/dev/null || echo 80)
+    fi
+
+    # Optional enhancers
+    command -v gum > /dev/null 2>&1 && HAS_GUM=true
+    command -v fzf > /dev/null 2>&1 && HAS_FZF=true
+
+    # Assume Unicode support unless the locale clearly disables it
+    case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+        *UTF-8* | *utf8* | *UTF8*) HAS_UNICODE=true ;;
+        C | POSIX | "") HAS_UNICODE=false ;;
+    esac
+}
+
+detect_capabilities
+
+# ---------------------------------------------------------------------------
+# Theme (semantic colors, 256-color ANSI)
+# ---------------------------------------------------------------------------
+
+if [ "$HAS_COLOR" = true ]; then
+    c_reset=$'\033[0m'
+    c_bold=$'\033[1m'
+    c_dim=$'\033[2m'
+    c_italic=$'\033[3m'
+    c_underline=$'\033[4m'
+
+    # Semantic palette (256-color)
+    c_success=$'\033[38;5;114m'   # soft green
+    c_warn=$'\033[38;5;215m'      # amber
+    c_error=$'\033[38;5;203m'     # coral red
+    c_info=$'\033[38;5;117m'      # sky blue
+    c_muted=$'\033[38;5;244m'     # gray
+    c_accent=$'\033[38;5;141m'    # soft purple
+    c_header=$'\033[38;5;111m'    # steel blue
+    c_prompt=$'\033[38;5;222m'    # warm yellow
+    c_border=$'\033[38;5;240m'    # dim gray for box borders
+else
+    c_reset="" c_bold="" c_dim="" c_italic="" c_underline=""
+    c_success="" c_warn="" c_error="" c_info="" c_muted=""
+    c_accent="" c_header="" c_prompt="" c_border=""
+fi
+
+# ---------------------------------------------------------------------------
+# Icons (Unicode glyphs for consistent log prefixes)
+# ---------------------------------------------------------------------------
+
+if [ "$HAS_UNICODE" = true ]; then
+    ic_step="▸"
+    ic_ok="✓"
+    ic_err="✗"
+    ic_warn="⚠"
+    ic_info="ℹ"
+    ic_arrow="→"
+    ic_dot="●"
+    ic_bullet="•"
+    ic_box_tl="╭" ic_box_tr="╮" ic_box_bl="╰" ic_box_br="╯"
+    ic_box_h="─" ic_box_v="│" ic_box_l="├" ic_box_r="┤"
+else
+    ic_step=">" ic_ok="+" ic_err="x" ic_warn="!" ic_info="i"
+    ic_arrow="->" ic_dot="*" ic_bullet="-"
+    ic_box_tl="+" ic_box_tr="+" ic_box_bl="+" ic_box_br="+"
+    ic_box_h="-" ic_box_v="|" ic_box_l="+" ic_box_r="+"
+fi
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+DOCKER_DIR="$PROJECT_ROOT/docker"
+
+ENV_FILE="$DOCKER_DIR/.env"
+MINIMAL_COMPOSE_FILE="$DOCKER_DIR/docker-compose.minimal.yml"
+MINIMAL_ENV_FILE="$DOCKER_DIR/.env.minimal"
+MINIMAL_BACKEND_URL="http://localhost:3050"
+MINIMAL_FRONTEND_URL="http://localhost:8050"
+
+# Profile state — "minimal", "fullstack", or "" (at profile menu)
+PROFILE=""
+
+# Env-detect utility for full-stack ENV resolution
+source "$PROJECT_ROOT/scripts/env-detect.sh"
+
+# ---------------------------------------------------------------------------
+# Traps — restore terminal state on exit, handle Ctrl-C gracefully
+# ---------------------------------------------------------------------------
+
+_restore_terminal() {
+    # Always print the reset sequence, even if colors were disabled (no-op string)
+    printf '%s' "$c_reset"
+    # Re-show cursor in case a spinner hid it
+    if [ "$HAS_TTY" = true ] && command -v tput > /dev/null 2>&1; then
+        tput cnorm 2>/dev/null || true
+    fi
+}
+
+_on_exit() {
+    local code=$?
+    _restore_terminal
+    exit "$code"
+}
+
+_on_int() {
+    _restore_terminal
+    printf '\n%s%s Interrupted.%s\n' "$c_warn" "$ic_warn" "$c_reset" >&2
+    exit 130
+}
+
+_on_err() {
+    local code=$?
+    local line=$1
+    _restore_terminal
+    if [ "$code" -ne 0 ] && [ "$code" -ne 130 ]; then
+        printf '\n%s%s Error (exit %d) on line %d%s\n' \
+            "$c_error" "$ic_err" "$code" "$line" "$c_reset" >&2
+    fi
+    exit "$code"
+}
+
+trap _on_exit EXIT
+trap _on_int INT
+trap '_on_err $LINENO' ERR
+
+# ---------------------------------------------------------------------------
+# Core printing primitives
+# ---------------------------------------------------------------------------
+
+term_width() {
+    if [ "$HAS_TTY" = true ]; then
+        tput cols 2>/dev/null || echo 80
+    else
+        echo 80
+    fi
+}
+
+# Clamp terminal width for boxes (min 60, max 100 to stay readable)
+box_width() {
+    local w
+    w=$(term_width)
+    if [ "$w" -lt 60 ]; then
+        echo 60
+    elif [ "$w" -gt 100 ]; then
+        echo 100
+    else
+        echo "$w"
+    fi
+}
+
+p_info() { printf '%s%s%s  %s\n' "$c_info" "$ic_info" "$c_reset" "$*"; }
+p_step() { printf '%s%s%s  %s\n' "$c_accent" "$ic_step" "$c_reset" "$*"; }
+p_ok() { printf '%s%s%s  %s\n' "$c_success" "$ic_ok" "$c_reset" "$*"; }
+p_warn() { printf '%s%s%s  %s\n' "$c_warn" "$ic_warn" "$c_reset" "$*"; }
+p_err() { printf '%s%s%s  %s\n' "$c_error" "$ic_err" "$c_reset" "$*" >&2; }
+p_muted() { printf '%s%s%s\n' "$c_muted" "$*" "$c_reset"; }
+p_section() {
+    local title=$1
+    printf '\n%s%s%s %s%s\n' "$c_accent" "$c_bold" "$title" "$c_reset" ""
+    printf '%s' "$c_muted"
+    local i n
+    n=${#title}
+    for ((i = 0; i < n; i++)); do printf '%s' "$ic_box_h"; done
+    printf '%s\n' "$c_reset"
+}
+
+die() {
+    p_err "$*"
+    exit 1
+}
+
+pause_for_return() {
+    printf '\n%s%s Press Enter to continue...%s' "$c_muted" "$ic_arrow" "$c_reset"
+    read -r _
+}
+
+# ---------------------------------------------------------------------------
+# Box drawing (rounded borders, dynamic width)
+# ---------------------------------------------------------------------------
+
+# Repeat a string N times
+_repeat() {
+    local str=$1 count=$2 i
+    for ((i = 0; i < count; i++)); do printf '%s' "$str"; done
+}
+
+# Strip ANSI escape sequences to count visible width
+_visible_width() {
+    local stripped
+    # shellcheck disable=SC2001
+    stripped=$(printf '%s' "$1" | sed 's/\x1b\[[0-9;]*[mGKH]//g')
+    # Count characters (rough — assumes ASCII/1-wide Unicode)
+    printf '%d' "${#stripped}"
+}
+
+# Pad a line to a target visible width
+_pad_line() {
+    local text=$1 target=$2
+    local visible
+    visible=$(_visible_width "$text")
+    if [ "$visible" -lt "$target" ]; then
+        printf '%s' "$text"
+        _repeat ' ' $((target - visible))
+    else
+        printf '%s' "$text"
+    fi
+}
+
+# draw_box <title> <line1> <line2> ...
+# Renders a rounded box with the given title and body lines.
+draw_box() {
+    local title=$1
+    shift
+    local width
+    width=$(box_width)
+    local inner=$((width - 4)) # 2 border chars + 1 space padding each side
+
+    # Top border with embedded title
+    local title_text=" $title "
+    local title_visible
+    title_visible=$(_visible_width "$title_text")
+    local dash_right=$((width - title_visible - 3))
+    [ "$dash_right" -lt 2 ] && dash_right=2
+
+    printf '%s%s%s' "$c_border" "$ic_box_tl" "$ic_box_h"
+    printf '%s%s%s' "$c_reset$c_bold$c_header" "$title_text" "$c_reset$c_border"
+    _repeat "$ic_box_h" "$dash_right"
+    printf '%s%s\n' "$ic_box_tr" "$c_reset"
+
+    # Body lines
+    local line
+    for line in "$@"; do
+        printf '%s%s%s ' "$c_border" "$ic_box_v" "$c_reset"
+        _pad_line "$line" "$inner"
+        printf ' %s%s%s\n' "$c_border" "$ic_box_v" "$c_reset"
+    done
+
+    # Bottom border
+    printf '%s%s' "$c_border" "$ic_box_bl"
+    _repeat "$ic_box_h" $((width - 2))
+    printf '%s%s\n' "$ic_box_br" "$c_reset"
+}
+
+# A short horizontal rule (muted, spans terminal width)
+draw_rule() {
+    local width
+    width=$(term_width)
+    [ "$width" -gt 100 ] && width=100
+    printf '%s' "$c_muted"
+    _repeat "$ic_box_h" "$width"
+    printf '%s\n' "$c_reset"
+}
+
+# Status line — compact 1-liner showing current profile + env + docker state
+draw_status_line() {
+    local docker_state
+    if docker info > /dev/null 2>&1; then
+        docker_state="${c_success}${ic_dot} docker${c_reset}"
+    else
+        docker_state="${c_error}${ic_dot} docker down${c_reset}"
+    fi
+
+    local profile_chip
+    case "$PROFILE" in
+        minimal)
+            profile_chip="${c_accent}${ic_bullet} minimal${c_reset}"
+            ;;
+        fullstack)
+            local env_upper
+            env_upper=$(echo "${ENV:-?}" | tr '[:lower:]' '[:upper:]')
+            local env_color=$c_muted
+            case "${ENV:-}" in
+                development) env_color=$c_success ;;
+                staging) env_color=$c_warn ;;
+                production) env_color=$c_error ;;
+            esac
+            profile_chip="${env_color}${ic_bullet} full stack · ${env_upper}${c_reset}"
+            ;;
+        *)
+            profile_chip="${c_muted}${ic_bullet} no profile${c_reset}"
+            ;;
+    esac
+
+    printf '%s%s Orkestra v%s%s   %s   %s\n' \
+        "$c_header" "$c_bold" "$ORKESTRA_VERSION" "$c_reset" \
+        "$profile_chip" "$docker_state"
+}
+
+# Full-screen header: clear, draw status line, draw title box
+page_header() {
+    local title=$1
+    [ "$HAS_TTY" = true ] && clear 2>/dev/null || true
+    draw_status_line
+    draw_rule
+    printf '\n%s%s %s%s\n\n' "$c_bold" "$c_header" "$title" "$c_reset"
+}
+
+# ---------------------------------------------------------------------------
+# Spinner (pure bash, upgrades to gum spin when available)
+# ---------------------------------------------------------------------------
+
+_spinner_frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+
+# Run a command with a spinner. Output is suppressed; stderr is kept for
+# errors. Returns the command's exit code.
+#
+# Usage: with_spinner "Building images..." docker compose build
+with_spinner() {
+    local message=$1
+    shift
+
+    # Upgrade path: gum's built-in spinner
+    if [ "$HAS_GUM" = true ] && [ "$HAS_TTY" = true ]; then
+        gum spin --spinner dot --title "$message" -- "$@"
+        return $?
+    fi
+
+    # Non-TTY: no spinner, just run
+    if [ "$HAS_TTY" != true ] || [ "$HAS_UNICODE" != true ]; then
+        printf '%s %s\n' "$ic_step" "$message"
+        "$@"
+        return $?
+    fi
+
+    # Pure bash spinner
+    local pid frame=0 delay=0.08
+    tput civis 2>/dev/null || true
+    (
+        "$@"
+    ) &
+    pid=$!
+
+    # shellcheck disable=SC2064
+    trap "kill $pid 2>/dev/null; tput cnorm 2>/dev/null; exit 130" INT
+
+    while kill -0 "$pid" 2>/dev/null; do
+        local f="${_spinner_frames[$((frame % ${#_spinner_frames[@]}))]}"
+        printf '\r%s%s%s %s' "$c_accent" "$f" "$c_reset" "$message"
+        frame=$((frame + 1))
+        sleep "$delay"
+    done
+
+    wait "$pid" 2>/dev/null
+    local code=$?
+    trap - INT
+
+    # Clear spinner line
+    printf '\r\033[K'
+    tput cnorm 2>/dev/null || true
+
+    if [ $code -eq 0 ]; then
+        p_ok "$message"
+    else
+        p_err "$message (exit $code)"
+    fi
+    return $code
+}
+
+# ---------------------------------------------------------------------------
+# Prompt helpers (upgrade to gum when present)
+# ---------------------------------------------------------------------------
+
+# ask_yes_no <prompt> [default=y|n]
+ask_yes_no() {
+    local prompt=$1
+    local default=${2:-y}
+
+    if [ "$HAS_GUM" = true ] && [ "$HAS_TTY" = true ]; then
+        if [ "$default" = "y" ]; then
+            gum confirm --default=true "$prompt"
+        else
+            gum confirm --default=false "$prompt"
+        fi
+        return $?
+    fi
+
+    local hint="[Y/n]"
+    [ "$default" = "n" ] && hint="[y/N]"
+    local answer
+    while true; do
+        printf '%s%s %s %s %s' "$c_prompt" "$ic_arrow" "$prompt" "$hint" "$c_reset"
+        read -r answer
+        answer=${answer:-$default}
+        case "$answer" in
+            [Yy]*) return 0 ;;
+            [Nn]*) return 1 ;;
+            *) p_warn "Please answer yes or no." ;;
+        esac
+    done
+}
+
+# ask_menu <prompt> <option1> <option2> ...
+# Prints the selected option on stdout, or empty string on cancel.
+ask_menu() {
+    local prompt=$1
+    shift
+    local -a options=("$@")
+
+    if [ "$HAS_GUM" = true ] && [ "$HAS_TTY" = true ]; then
+        printf '%s\n' "$prompt" >&2
+        gum choose "${options[@]}"
+        return $?
+    fi
+
+    printf '%s%s %s%s\n' "$c_prompt" "$ic_arrow" "$prompt" "$c_reset" >&2
+    local i
+    for i in "${!options[@]}"; do
+        printf '  %s%d)%s %s\n' "$c_accent" "$((i + 1))" "$c_reset" "${options[$i]}" >&2
+    done
+    local choice
+    printf '%s%s [1-%d]: %s' "$c_prompt" "$ic_arrow" "${#options[@]}" "$c_reset" >&2
+    read -r choice
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#options[@]}" ]; then
+        return 1
+    fi
+    printf '%s' "${options[$((choice - 1))]}"
+}
+
+# ---------------------------------------------------------------------------
+# Shared infrastructure helpers
+# ---------------------------------------------------------------------------
+
+check_docker_running() {
+    if ! docker info > /dev/null 2>&1; then
+        die "Docker daemon is not running"
+    fi
+}
+
+ensure_network_exists() {
+    local network_name="orkestra-network"
+    if ! docker network inspect "$network_name" > /dev/null 2>&1; then
+        p_step "Creating Docker network: $network_name"
+        docker network create "$network_name" > /dev/null
+        p_ok "Network created"
+    else
+        p_ok "Network $network_name exists"
+    fi
+}
+
+# List services declared in a compose file.
+get_services() {
+    local compose_file=$1
+    if [ -f "$compose_file" ]; then
+        docker compose -f "$compose_file" config --services 2> /dev/null || true
+    fi
+}
+
+is_service_running() {
+    local compose_file=$1 service=$2 count
+    count=$(docker compose -f "$compose_file" ps -q "$service" 2> /dev/null | wc -l)
+    [ "$count" -gt 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# Minimal profile operations
+# ---------------------------------------------------------------------------
+
+minimal_check_prereqs() {
+    check_docker_running
+
+    if [ ! -f "$MINIMAL_ENV_FILE" ]; then
+        p_err "$MINIMAL_ENV_FILE not found"
+        p_muted "  The minimal env file is tracked in git — did you delete it?"
+        p_muted "  Recover with: git checkout docker/.env.minimal"
+        exit 1
+    fi
+
+    if [ ! -f "$MINIMAL_COMPOSE_FILE" ]; then
+        die "$MINIMAL_COMPOSE_FILE not found"
+    fi
+
+    ensure_network_exists
+}
+
+minimal_deploy() {
+    local rebuild=${1:-no}
+    PROFILE="minimal"
+    page_header "Minimal · Deploy / Update"
+    minimal_check_prereqs
+    echo
+
+    local -a cmd=(docker compose
+        -f "$MINIMAL_COMPOSE_FILE"
+        --env-file "$MINIMAL_ENV_FILE"
+        up -d)
+    [ "$rebuild" = "yes" ] && cmd+=(--build)
+
+    local msg="Starting containers"
+    [ "$rebuild" = "yes" ] && msg="Building and starting containers (first run can take several minutes)"
+
+    if ! with_spinner "$msg" "${cmd[@]}"; then
+        die "Deployment failed"
+    fi
+
+    echo
+    draw_box "Minimal stack is up" \
+        "" \
+        "  Frontend      ${c_info}${MINIMAL_FRONTEND_URL}${c_reset}" \
+        "  Backend API   ${c_info}${MINIMAL_BACKEND_URL}${c_reset}" \
+        "  API docs      ${c_info}${MINIMAL_BACKEND_URL}/docs${c_reset}" \
+        "  Health        ${c_info}${MINIMAL_BACKEND_URL}/health${c_reset}" \
+        "" \
+        "  ${c_muted}Generate an admin token for first login:${c_reset}" \
+        "  ${c_accent}ORKESTRA_API_URL=${MINIMAL_BACKEND_URL} ./scripts/devtoken.sh administrator${c_reset}" \
+        ""
+}
+
+minimal_stop() {
+    PROFILE="minimal"
+    page_header "Minimal · Stop"
+    check_docker_running
+    echo
+
+    if ! with_spinner "Stopping containers (volumes kept)" \
+        docker compose -f "$MINIMAL_COMPOSE_FILE" --env-file "$MINIMAL_ENV_FILE" down; then
+        die "Stop failed"
+    fi
+
+    echo
+    p_muted "  Data volumes were NOT removed. Use 'reset' to wipe them."
+}
+
+minimal_reset() {
+    local confirm=${1:-ask}
+    PROFILE="minimal"
+    page_header "Minimal · Reset (wipe volumes)"
+    echo
+    draw_box "Destructive operation" \
+        "" \
+        "  ${c_error}${ic_warn} This will DELETE the minimal stack's mongo and redis volumes.${c_reset}" \
+        "  ${c_error}   All users, sessions, and module configs will be lost.${c_reset}" \
+        ""
+
+    if [ "$confirm" != "yes" ]; then
+        echo
+        if ! ask_yes_no "Are you sure you want to wipe the minimal data?" "n"; then
+            p_warn "Reset cancelled."
+            return 0
+        fi
+    fi
+
+    minimal_check_prereqs
+    echo
+
+    if ! with_spinner "Removing containers and volumes" \
+        docker compose -f "$MINIMAL_COMPOSE_FILE" --env-file "$MINIMAL_ENV_FILE" down -v; then
+        die "Reset failed during teardown"
+    fi
+
+    if ! with_spinner "Rebuilding and restarting" \
+        docker compose -f "$MINIMAL_COMPOSE_FILE" --env-file "$MINIMAL_ENV_FILE" up -d --build; then
+        die "Reset failed during restart"
+    fi
+
+    echo
+    p_ok "Minimal stack reset complete"
+    p_muted "  Collections + indexes are recreated on boot by the module registry."
+}
+
+minimal_status() {
+    PROFILE="minimal"
+    page_header "Minimal · Status"
+    check_docker_running
+    echo
+
+    p_section "Containers"
+    docker compose -f "$MINIMAL_COMPOSE_FILE" ps
+    echo
+
+    p_section "Backend /health"
+    if command -v curl > /dev/null 2>&1; then
+        local health_json
+        if health_json=$(curl -s --max-time 3 "${MINIMAL_BACKEND_URL}/health" 2>&1); then
+            if command -v jq > /dev/null 2>&1; then
+                echo "$health_json" | jq -r '"  status: \(.status)\n  checks:\n    mongodb: \(.checks.mongodb)\n    redis:   \(.checks.redis)"' 2>/dev/null || printf '  %s\n' "$health_json"
+            else
+                printf '  %s\n' "$health_json"
+            fi
+            if echo "$health_json" | grep -q '"status":"healthy"'; then
+                p_ok "Backend reports healthy"
+            else
+                p_warn "Backend reachable but not healthy"
+            fi
+        else
+            p_err "Backend unreachable at ${MINIMAL_BACKEND_URL}"
+        fi
+    else
+        p_warn "curl not installed — skipping HTTP health check"
+    fi
+    echo
+
+    p_section "Resource usage"
+    local names
+    names=$(docker ps --filter name=minimal --format '{{.Names}}' 2>/dev/null || true)
+    if [ -n "$names" ]; then
+        # shellcheck disable=SC2086
+        docker stats --no-stream \
+            --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" $names
+    else
+        p_warn "No minimal containers running"
+    fi
+}
+
+minimal_info() {
+    PROFILE="minimal"
+    page_header "Minimal · Profile Info"
+
+    draw_box "Minimal profile" \
+        "" \
+        "  The minimal profile boots Orkestra with only core modules:" \
+        "" \
+        "    ${c_accent}auth${c_reset}         OAuth 2.1, JWT, sessions, RBAC" \
+        "    ${c_accent}user${c_reset}         User CRUD, roles" \
+        "    ${c_accent}navigation${c_reset}   Dynamic menu aggregator" \
+        "    ${c_accent}dev${c_reset}          Dev token generator (first login)" \
+        ""
+    echo
+
+    p_section "Access points"
+    printf '  Frontend      %s%s%s\n' "$c_info" "$MINIMAL_FRONTEND_URL" "$c_reset"
+    printf '  Backend API   %s%s%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
+    printf '  API docs      %s%s/docs%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
+    printf '  OpenAPI JSON  %s%s/openapi.json%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
+    printf '  Health        %s%s/health%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
+    echo
+
+    p_section "Generate a dev token for first login"
+    printf '  %sORKESTRA_API_URL=%s ./scripts/devtoken.sh administrator%s\n' \
+        "$c_accent" "$MINIMAL_BACKEND_URL" "$c_reset"
+    echo
+
+    p_section "Enable more modules"
+    printf '  Edit %sMODULES=%s in %s%s%s, e.g.:\n' \
+        "$c_accent" "$c_reset" "$c_info" "$MINIMAL_ENV_FILE" "$c_reset"
+    printf '    %sMODULES=dev,billing,documents%s\n' "$c_accent" "$c_reset"
+    printf '  Dependencies are auto-included by the backend module registry.\n'
+    echo
+
+    p_muted "Ports are non-standard (3050/8050/27050/6350) so the minimal stack can"
+    p_muted "coexist with full dev/staging/prod stacks without port collisions."
+    p_muted "See docker/CLAUDE.md and backend/CLAUDE.md for details."
+}
+
+# ---------------------------------------------------------------------------
+# Full-stack profile operations
+# ---------------------------------------------------------------------------
+
+# Map detected ENV to compose file, branch, DB, URLs, env-chip color.
+set_env_config() {
+    case "$ENV" in
+        development)
+            ENV_CHIP_COLOR=$c_success
+            ENV_ICON="$ic_dot"
+            BRANCH="any"
+            COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml"
+            DB_NAME="orkestra_dev"
+            FRONTEND_URL="http://localhost:8080"
+            BACKEND_URL="http://localhost:3000"
+            ;;
+        staging)
+            ENV_CHIP_COLOR=$c_warn
+            ENV_ICON="$ic_dot"
+            BRANCH="dev"
+            COMPOSE_FILE="$DOCKER_DIR/docker-compose.staging.yml"
+            DB_NAME="orkestra_staging"
+            FRONTEND_URL="https://stage.orkestra.com"
+            BACKEND_URL="https://stage.orkestra.com/api"
+            ;;
+        production)
+            ENV_CHIP_COLOR=$c_error
+            ENV_ICON="$ic_dot"
+            BRANCH="main"
+            COMPOSE_FILE="$DOCKER_DIR/docker-compose.prod.yml"
+            DB_NAME="orkestra"
+            FRONTEND_URL="https://gestionale.orkestra.com"
+            BACKEND_URL="https://api.orkestra.com"
+            ;;
+    esac
+}
+
+fullstack_init_env() {
+    if ! detect_environment > /dev/null 2>&1; then
+        die "Cannot detect ENV. Set ENV=development|staging|production in docker/.env or as a shell variable."
+    fi
+    ENV="$DETECTED_ENV"
+    set_env_config
+    PROFILE="fullstack"
+}
+
+show_deploy_summary() {
+    draw_box "Summary" \
+        "" \
+        "  Environment  ${ENV_CHIP_COLOR}${ic_dot}${c_reset} $(echo "$ENV" | tr '[:lower:]' '[:upper:]')" \
+        "  Operation    Deploy" \
+        "  Branch       ${BRANCH:-any}" \
+        "  Scope        ${DEPLOY_SCOPE:-all}" \
+        "  Rebuild      $([ "$REBUILD_IMAGES" = "yes" ] && echo "${c_success}yes${c_reset}" || echo "${c_warn}no${c_reset}")" \
+        ""
+}
+
+fullstack_deploy_interactive() {
+    page_header "Full stack · Deploy"
+    case "$ENV" in
+        development | staging)
+            ask_yes_no "Rebuild images?" "y" && REBUILD_IMAGES="yes" || REBUILD_IMAGES="no"
+            SKIP_CONFIRMATION="yes"
+            ;;
+        production)
+            draw_box "WARNING" \
+                "" \
+                "  ${c_error}Deploying to PRODUCTION.${c_reset}" \
+                "  ${c_muted}Double-check you've tested this in staging.${c_reset}" \
+                ""
+            echo
+            ask_yes_no "Skip confirmation prompts?" "n" && SKIP_CONFIRMATION="yes" || SKIP_CONFIRMATION="no"
+            REBUILD_IMAGES="yes"
+            ;;
+    esac
+
+    echo
+    p_section "Select deployment scope"
+    local scope
+    scope=$(ask_menu "Which services?" \
+        "All (full stack)" \
+        "Backend only" \
+        "Frontend only" \
+        "Frontend + Backend" \
+        "Infrastructure only")
+
+    case "$scope" in
+        "All (full stack)") DEPLOY_SCOPE="all" ;;
+        "Backend only") DEPLOY_SCOPE="backend" ;;
+        "Frontend only") DEPLOY_SCOPE="frontend" ;;
+        "Frontend + Backend") DEPLOY_SCOPE="frontend+backend" ;;
+        "Infrastructure only") DEPLOY_SCOPE="infra" ;;
+        *)
+            p_warn "Deployment cancelled."
+            return
+            ;;
+    esac
+
+    echo
+    show_deploy_summary
+
+    if ! ask_yes_no "Proceed with deployment?" "y"; then
+        p_warn "Deployment cancelled."
+        return
+    fi
+
+    if [ "$ENV" = "production" ] && [ "$SKIP_CONFIRMATION" = "no" ]; then
+        if ! ask_yes_no "Have you tested this in staging?" "y"; then
+            die "Please test in staging first. Deployment cancelled."
+        fi
+    fi
+
+    fullstack_execute_deploy
+}
+
+# The full deploy pipeline. Preserves the behavior of the old deploy.sh
+# execute_deploy() function verbatim (git ops, version tagging, rolling
+# updates, health checks, smoke tests, deployment metadata log).
+fullstack_execute_deploy() {
+    local TIMESTAMP DEPLOYMENT_ID BACKEND_SERVICE FRONTEND_SERVICE
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    DEPLOYMENT_ID="${ENV}_${TIMESTAMP}"
+
+    if [ "$ENV" = "development" ]; then
+        BACKEND_SERVICE="orkestra-backend"
+        FRONTEND_SERVICE="orkestra-frontend"
+    else
+        BACKEND_SERVICE="backend"
+        FRONTEND_SERVICE="frontend"
+    fi
+
+    echo
+    draw_box "Starting deployment" \
+        "" \
+        "  Deployment ID  ${c_accent}${DEPLOYMENT_ID}${c_reset}" \
+        "  Environment    $(echo "$ENV" | tr '[:lower:]' '[:upper:]')" \
+        "  Scope          ${DEPLOY_SCOPE}" \
+        ""
+    echo
+
+    # --- Pre-deployment checks ---
+    p_section "Pre-deployment checks"
+    check_docker_running
+    p_ok "Docker is running"
+    ensure_network_exists
+    if [ "$ENV" = "production" ] && [ "$EUID" -eq 0 ]; then
+        die "Do not run as root"
+    fi
+    [ "$ENV" = "production" ] && p_ok "Not running as root"
+
+    # --- Git operations (non-dev only) ---
+    local COMMIT_HASH COMMIT_MSG
+    if [ "$ENV" != "development" ]; then
+        p_section "Git operations"
+        cd "$PROJECT_ROOT"
+        local CURRENT_BRANCH
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+        if ! git diff-index --quiet HEAD --; then
+            p_warn "Uncommitted changes detected"
+            if [ "$ENV" = "production" ]; then
+                die "Production requires a clean working tree. Commit or stash changes."
+            fi
+            local action
+            action=$(ask_menu "What would you like to do?" \
+                "Stash changes and continue" \
+                "Proceed anyway" \
+                "Stop deployment")
+            case "$action" in
+                "Stash changes and continue")
+                    git stash push -m "Auto-stash before $ENV deployment $TIMESTAMP"
+                    p_ok "Changes stashed (use 'git stash pop' to restore)"
+                    ;;
+                "Proceed anyway")
+                    p_warn "Proceeding with uncommitted changes"
+                    ;;
+                *)
+                    p_warn "Deployment cancelled."
+                    return 0
+                    ;;
+            esac
+        else
+            p_ok "No uncommitted changes"
+        fi
+
+        if [ "$CURRENT_BRANCH" != "$BRANCH" ] && [ "$BRANCH" != "any" ]; then
+            p_step "Switching to $BRANCH branch"
+            git checkout "$BRANCH"
+            p_ok "Switched to $BRANCH"
+        fi
+
+        with_spinner "Pulling latest changes" git pull origin "$BRANCH"
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        COMMIT_MSG=$(git log -1 --pretty=%B)
+        p_ok "Updated to commit: $COMMIT_HASH"
+
+        if [ "$ENV" = "production" ]; then
+            local LOCAL_HASH REMOTE_HASH
+            LOCAL_HASH=$(git rev-parse HEAD)
+            REMOTE_HASH=$(git rev-parse "origin/$BRANCH")
+            if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+                die "Local and remote branches are out of sync"
+            fi
+            p_ok "Branch is up to date with origin"
+        fi
+    else
+        COMMIT_HASH="dev"
+        COMMIT_MSG="Development build"
+    fi
+
+    # --- Build images ---
+    if [ "$REBUILD_IMAGES" = "yes" ] && [ "$DEPLOY_SCOPE" != "infra" ]; then
+        p_section "Building Docker images"
+        export VERSION BUILD_TIME GIT_COMMIT
+        VERSION="$(date -u +%Y-%m-%d_%H:%M:%S)_${COMMIT_HASH}"
+        BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        GIT_COMMIT="$COMMIT_HASH"
+        p_muted "  Version    $VERSION"
+        p_muted "  Build time $BUILD_TIME"
+        p_muted "  Commit     $GIT_COMMIT"
+        echo
+
+        if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "backend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
+            with_spinner "Building backend image (no cache)" \
+                docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache \
+                --build-arg VERSION="$VERSION" \
+                --build-arg BUILD_TIME="$BUILD_TIME" \
+                --build-arg GIT_COMMIT="$GIT_COMMIT" \
+                "$BACKEND_SERVICE"
+        fi
+        if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "frontend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
+            with_spinner "Building frontend image (no cache)" \
+                docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache \
+                --build-arg VERSION="$VERSION" \
+                --build-arg BUILD_TIME="$BUILD_TIME" \
+                --build-arg GIT_COMMIT="$GIT_COMMIT" \
+                "$FRONTEND_SERVICE"
+        fi
+    fi
+
+    # --- Deploy services ---
+    p_section "Deploying services"
+    with_spinner "Ensuring infrastructure services are running" \
+        docker compose -f "$DOCKER_DIR/docker-compose.infra.yml" --env-file "$ENV_FILE" up -d
+    sleep 5
+    p_ok "Infrastructure ready"
+
+    if [ "$DEPLOY_SCOPE" = "infra" ]; then
+        p_ok "Infrastructure-only deployment complete"
+    elif [ "$ENV" = "production" ]; then
+        if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "backend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
+            with_spinner "Rolling-update backend" \
+                docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps "$BACKEND_SERVICE"
+            with_spinner "Waiting for backend to be healthy" sleep 15
+        fi
+        if [ "$DEPLOY_SCOPE" = "all" ] || [ "$DEPLOY_SCOPE" = "frontend" ] || [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
+            with_spinner "Deploying frontend" \
+                docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --no-deps "$FRONTEND_SERVICE"
+        fi
+        with_spinner "Waiting for services to stabilize" sleep 30
+    else
+        if [ "$DEPLOY_SCOPE" = "all" ]; then
+            with_spinner "Stopping current services" \
+                docker compose -f "$COMPOSE_FILE" down
+            with_spinner "Starting new services" \
+                docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+        else
+            if [ "$DEPLOY_SCOPE" = "backend" ]; then
+                docker compose -f "$COMPOSE_FILE" stop "$BACKEND_SERVICE" 2> /dev/null || true
+                with_spinner "Restarting backend" \
+                    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d "$BACKEND_SERVICE"
+            fi
+            if [ "$DEPLOY_SCOPE" = "frontend" ]; then
+                docker compose -f "$COMPOSE_FILE" stop "$FRONTEND_SERVICE" 2> /dev/null || true
+                with_spinner "Restarting frontend" \
+                    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d "$FRONTEND_SERVICE"
+            fi
+            if [ "$DEPLOY_SCOPE" = "frontend+backend" ]; then
+                docker compose -f "$COMPOSE_FILE" stop "$FRONTEND_SERVICE" "$BACKEND_SERVICE" 2> /dev/null || true
+                with_spinner "Restarting frontend and backend" \
+                    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d "$FRONTEND_SERVICE" "$BACKEND_SERVICE"
+            fi
+        fi
+        with_spinner "Waiting for services to initialize" sleep 30
+    fi
+
+    # --- Health checks (non-dev) ---
+    if [ "$ENV" != "development" ]; then
+        p_section "Health checks"
+        local health_script=""
+        if [ -f "$DOCKER_DIR/health-check.sh" ]; then
+            health_script="$DOCKER_DIR/health-check.sh"
+        elif [ -f "$PROJECT_ROOT/scripts/health-check.sh" ]; then
+            health_script="$PROJECT_ROOT/scripts/health-check.sh"
+        fi
+
+        if [ "$ENV" = "production" ]; then
+            local max_retries=5 retry_interval=10 health_ok=false i
+            for i in $(seq 1 $max_retries); do
+                p_step "Health check attempt $i/$max_retries"
+                if [ -n "$health_script" ]; then
+                    if bash "$health_script" "$ENV" > /tmp/health_check_output.txt 2>&1; then
+                        p_ok "All health checks passed"
+                        health_ok=true
+                        break
+                    else
+                        p_warn "Health checks failed, waiting ${retry_interval}s..."
+                        sleep $retry_interval
+                    fi
+                else
+                    p_err "Health check script not found"
+                    break
+                fi
+            done
+            if [ "$health_ok" = false ]; then
+                die "Health checks failed after $max_retries attempts — manual intervention required"
+            fi
+        else
+            if [ -n "$health_script" ]; then
+                if bash "$health_script" "$ENV"; then
+                    p_ok "All health checks passed"
+                else
+                    die "Health checks failed"
+                fi
+            else
+                p_warn "Health check script not found, skipping..."
+            fi
+        fi
+    fi
+
+    # --- Smoke tests (production only) ---
+    if [ "$ENV" = "production" ]; then
+        p_section "Smoke tests"
+        local AUTH_STATUS DOCS_STATUS
+        AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${BACKEND_URL}/api/v1/auth/health" || echo "000")
+        [ "$AUTH_STATUS" = "200" ] && p_ok "Authentication endpoint healthy" || p_warn "Authentication endpoint returned: $AUTH_STATUS"
+        DOCS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${BACKEND_URL}/docs" || echo "000")
+        [ "$DOCS_STATUS" = "200" ] && p_ok "API documentation accessible" || p_warn "API documentation returned: $DOCS_STATUS"
+    fi
+
+    # --- Post-deployment ---
+    p_section "Post-deployment"
+    if [ "$ENV" = "production" ]; then
+        docker tag orkestra-backend:production "orkestra-backend:$DEPLOYMENT_ID"
+        docker tag orkestra-backend:production orkestra-backend:latest
+        docker tag orkestra-frontend:production "orkestra-frontend:$DEPLOYMENT_ID"
+        docker tag orkestra-frontend:production orkestra-frontend:latest
+    else
+        docker tag "orkestra-backend:$ENV" "orkestra-backend:$DEPLOYMENT_ID" 2> /dev/null || true
+        docker tag "orkestra-frontend:$ENV" "orkestra-frontend:$DEPLOYMENT_ID" 2> /dev/null || true
+    fi
+    p_ok "Images tagged"
+
+    local METADATA_FILE="$DOCKER_DIR/deployments/${ENV}_deployments.log"
+    mkdir -p "$(dirname "$METADATA_FILE")"
+    cat >> "$METADATA_FILE" << EOF
+Deployment ID: $DEPLOYMENT_ID
+Timestamp: $(date '+%Y-%m-%d %H:%M:%S')
+Branch: $BRANCH
+Commit: $COMMIT_HASH
+Commit Message: $COMMIT_MSG
+Status: SUCCESS
+---
+EOF
+    p_ok "Deployment metadata saved"
+
+    if [ "$ENV" = "production" ]; then
+        cd "$PROJECT_ROOT"
+        local TAG_NAME="production-${TIMESTAMP}"
+        git tag -a "$TAG_NAME" -m "Production deployment: $COMMIT_MSG"
+        p_ok "Git tag created: $TAG_NAME"
+    fi
+
+    echo
+    draw_box "Deployment successful" \
+        "" \
+        "  ${c_success}${ic_ok}${c_reset} Deployment ID  ${c_accent}${DEPLOYMENT_ID}${c_reset}" \
+        "  Environment    $(echo "$ENV" | tr '[:lower:]' '[:upper:]')" \
+        "  Commit         ${COMMIT_HASH}" \
+        "  Frontend URL   ${c_info}${FRONTEND_URL}${c_reset}" \
+        "  Backend URL    ${c_info}${BACKEND_URL}${c_reset}" \
+        ""
+
+    if [ "$ENV" = "production" ]; then
+        p_section "Post-deployment checklist"
+        printf '  %s Verify user login flow\n' "$ic_bullet"
+        printf '  %s Test critical workflows\n' "$ic_bullet"
+        printf '  %s Monitor error rates\n' "$ic_bullet"
+        printf '  %s Check application logs\n' "$ic_bullet"
+        printf '  %s Verify background jobs\n' "$ic_bullet"
+        printf '  %s Test mobile app connectivity\n' "$ic_bullet"
+    fi
+}
+
+fullstack_deploy_cli() {
+    DEPLOY_SCOPE="${1:-all}"
+    REBUILD_IMAGES="${2:-no}"
+    SKIP_CONFIRMATION="${3:-yes}"
+    fullstack_execute_deploy
+}
+
+fullstack_stop() {
+    local with_infra=${1:-ask}
+    page_header "Full stack · Stop"
+    check_docker_running
+    echo
+
+    if [ "$ENV" = "production" ] && [ "$with_infra" = "ask" ]; then
+        draw_box "WARNING" "" "  ${c_error}Stopping PRODUCTION services.${c_reset}" ""
+        echo
+        if ! ask_yes_no "Are you sure you want to stop all services?" "n"; then
+            p_warn "Operation cancelled."
+            return
+        fi
+    fi
+
+    with_spinner "Stopping application services" \
+        docker compose -f "$COMPOSE_FILE" down
+
+    local stop_infra=false
+    case "$with_infra" in
+        yes) stop_infra=true ;;
+        no) stop_infra=false ;;
+        ask) ask_yes_no "Also stop infrastructure services (MongoDB, Redis, ...)?" "n" && stop_infra=true ;;
+    esac
+
+    if [ "$stop_infra" = true ]; then
+        with_spinner "Stopping infrastructure services" \
+            docker compose -f "$DOCKER_DIR/docker-compose.infra.yml" down
+    fi
+}
+
+fullstack_status() {
+    page_header "Full stack · Status"
+    check_docker_running
+    echo
+
+    p_section "Containers"
+    docker compose -f "$DOCKER_DIR/docker-compose.infra.yml" -f "$COMPOSE_FILE" ps
+    echo
+
+    if [ "$ENV" != "development" ]; then
+        p_section "Health checks"
+        local health_script=""
+        if [ -f "$DOCKER_DIR/health-check.sh" ]; then
+            health_script="$DOCKER_DIR/health-check.sh"
+        elif [ -f "$PROJECT_ROOT/scripts/health-check.sh" ]; then
+            health_script="$PROJECT_ROOT/scripts/health-check.sh"
+        fi
+        if [ -n "$health_script" ]; then
+            bash "$health_script" "$ENV" || true
+        else
+            p_warn "Health check script not found"
+        fi
+        echo
+    fi
+
+    p_section "Resource usage"
+    docker stats --no-stream \
+        --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" | head -n 10
+}
+
+# ---------------------------------------------------------------------------
+# Unified logs picker (minimal + full-stack aware)
+# ---------------------------------------------------------------------------
+
+# Populates the global SERVICES array and SERVICE_FILE map.
+declare -a SERVICES=()
+declare -A SERVICE_FILE=()
+
+list_all_services() {
+    local profile=$1
+    SERVICES=()
+    SERVICE_FILE=()
+
+    local -a files=()
+    case "$profile" in
+        minimal)
+            files+=("$MINIMAL_COMPOSE_FILE")
+            ;;
+        fullstack)
+            files+=("$DOCKER_DIR/docker-compose.infra.yml")
+            files+=("$COMPOSE_FILE")
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    local seen=""
+    local f svc
+    for f in "${files[@]}"; do
+        [ ! -f "$f" ] && continue
+        while IFS= read -r svc; do
+            [ -z "$svc" ] && continue
+            case " $seen " in *" $svc "*) continue ;; esac
+            SERVICES+=("$svc")
+            SERVICE_FILE["$svc"]="$f"
+            seen="$seen $svc"
+        done < <(get_services "$f")
+    done
+}
+
+PICKED_SERVICE=""
+PICKED_COMPOSE=""
+
+interactive_service_picker() {
+    local profile=$1
+    list_all_services "$profile"
+
+    if [ "${#SERVICES[@]}" -eq 0 ]; then
+        p_err "No services found for profile '$profile'."
+        return 1
+    fi
+
+    # fzf upgrade: fuzzy-searchable picker with running-status annotations
+    if [ "$HAS_FZF" = true ] && [ "$HAS_TTY" = true ]; then
+        local lines="" svc file status_label
+        for svc in "${SERVICES[@]}"; do
+            file="${SERVICE_FILE[$svc]}"
+            if is_service_running "$file" "$svc"; then
+                status_label="● running"
+            else
+                status_label="○ stopped"
+            fi
+            lines+=$(printf '%-25s  [%s]  %s\n' "$svc" "$(basename "$file")" "$status_label")$'\n'
+        done
+        local picked
+        picked=$(printf '%s' "$lines" | fzf --prompt="service > " --height=40% --reverse \
+            --header="Select service for logs" --no-mouse 2>/dev/null) || return 1
+        PICKED_SERVICE=$(echo "$picked" | awk '{print $1}')
+        PICKED_COMPOSE="${SERVICE_FILE[$PICKED_SERVICE]}"
+        return 0
+    fi
+
+    # Pure-bash numbered picker
+    p_section "Available services"
+    local i svc file status_chip
+    for i in "${!SERVICES[@]}"; do
+        svc="${SERVICES[$i]}"
+        file="${SERVICE_FILE[$svc]}"
+        if is_service_running "$file" "$svc"; then
+            status_chip="${c_success}${ic_dot} running${c_reset}"
+        else
+            status_chip="${c_muted}${ic_dot} stopped${c_reset}"
+        fi
+        printf '  %s%2d)%s %-25s %s[%s]%s  %b\n' \
+            "$c_accent" "$((i + 1))" "$c_reset" \
+            "$svc" \
+            "$c_muted" "$(basename "$file")" "$c_reset" \
+            "$status_chip"
+    done
+    echo
+    printf '%s%s Select a service [1-%d] or q to cancel: %s' \
+        "$c_prompt" "$ic_arrow" "${#SERVICES[@]}" "$c_reset"
+    local choice
+    read -r choice
+    if [ "$choice" = "q" ] || [ "$choice" = "Q" ]; then
+        return 1
+    fi
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#SERVICES[@]}" ]; then
+        p_err "Invalid selection."
+        return 1
+    fi
+    PICKED_SERVICE="${SERVICES[$((choice - 1))]}"
+    PICKED_COMPOSE="${SERVICE_FILE[$PICKED_SERVICE]}"
+    return 0
+}
+
+view_logs() {
+    local compose_file=$1 service=$2
+    local follow=${3:-true} lines=${4:-100} timestamps=${5:-false}
+
+    if ! is_service_running "$compose_file" "$service"; then
+        p_warn "Service '$service' is not currently running."
+        if ! ask_yes_no "Show its buffered logs anyway?" "y"; then
+            return 0
+        fi
+    fi
+
+    local -a cmd=(docker compose -f "$compose_file" logs)
+    [ "$timestamps" = "true" ] && cmd+=(--timestamps)
+    if [ "$follow" = "true" ]; then
+        cmd+=(--follow)
+    else
+        cmd+=(--tail="$lines")
+    fi
+    cmd+=("$service")
+
+    echo
+    # Build a space-joined command string; avoid ${cmd[*]} here because the
+    # script sets IFS=$'\n\t', which would make the default [*] join use
+    # newlines and print each arg on its own line.
+    local cmd_display
+    printf -v cmd_display '%s ' "${cmd[@]}"
+    p_muted "${ic_arrow} ${cmd_display% }"
+    p_muted "  Press Ctrl-C to stop following"
+    draw_rule
+    # Use a sub-shell so Ctrl-C doesn't kill orkestra.sh itself
+    ( "${cmd[@]}" ) || true
+}
+
+logs_interactive() {
+    local profile=$1
+    page_header "Logs"
+    if ! interactive_service_picker "$profile"; then
+        p_warn "Cancelled."
+        return 0
+    fi
+    view_logs "$PICKED_COMPOSE" "$PICKED_SERVICE" "true" "100" "false"
+}
+
+logs_cli() {
+    local profile=$1 service=$2
+    shift 2
+    local follow="false" lines="100" timestamps="false"
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -f | --follow) follow="true"; shift ;;
+            -n | --lines) lines="$2"; shift 2 ;;
+            -t | --timestamps) timestamps="true"; shift ;;
+            *) die "Unknown logs flag: $1" ;;
+        esac
+    done
+
+    list_all_services "$profile"
+    if [ -z "${SERVICE_FILE[$service]:-}" ]; then
+        p_err "Service '$service' not found in profile '$profile'."
+        p_muted "Known services:"
+        local svc
+        for svc in "${SERVICES[@]}"; do
+            printf '  %s %s\n' "$ic_bullet" "$svc"
+        done
+        exit 1
+    fi
+    view_logs "${SERVICE_FILE[$service]}" "$service" "$follow" "$lines" "$timestamps"
+}
+
+# ---------------------------------------------------------------------------
+# TUI menus
+# ---------------------------------------------------------------------------
+
+show_profile_menu() {
+    [ "$HAS_TTY" = true ] && clear 2>/dev/null || true
+    draw_status_line
+    draw_rule
+    echo
+    draw_box "Orkestra Stack Manager" \
+        "" \
+        "  ${c_accent}${ic_bullet}${c_reset} ${c_bold}Minimal profile${c_reset}" \
+        "     ${c_muted}core modules only, public images, modest VM${c_reset}" \
+        "" \
+        "  ${c_accent}${ic_bullet}${c_reset} ${c_bold}Full stack${c_reset} (dev / staging / production)" \
+        "     ${c_muted}ENV autodetected from docker/.env${c_reset}" \
+        ""
+}
+
+show_minimal_menu() {
+    page_header "Minimal profile"
+    draw_box "Select operation" \
+        "" \
+        "  ${c_accent}1${c_reset}  Deploy / Update    ${c_muted}(up -d [--build])${c_reset}" \
+        "  ${c_accent}2${c_reset}  Stop               ${c_muted}(keeps volumes)${c_reset}" \
+        "  ${c_accent}3${c_reset}  Reset              ${c_muted}(wipes volumes — destructive)${c_reset}" \
+        "  ${c_accent}4${c_reset}  Status             ${c_muted}(ps + /health + stats)${c_reset}" \
+        "  ${c_accent}5${c_reset}  Logs               ${c_muted}(service picker)${c_reset}" \
+        "  ${c_accent}6${c_reset}  Info               ${c_muted}(URLs + dev-token recipe)${c_reset}" \
+        "  ${c_accent}7${c_reset}  Back to profile menu" \
+        ""
+}
+
+show_fullstack_menu() {
+    page_header "Full stack"
+    draw_box "Select operation" \
+        "" \
+        "  ${c_accent}1${c_reset}  Deploy             ${c_muted}(with scope selection)${c_reset}" \
+        "  ${c_accent}2${c_reset}  Stop               ${c_muted}(app + optional infra)${c_reset}" \
+        "  ${c_accent}3${c_reset}  Status             ${c_muted}(ps + health + stats)${c_reset}" \
+        "  ${c_accent}4${c_reset}  Logs               ${c_muted}(service picker)${c_reset}" \
+        "  ${c_accent}5${c_reset}  Back to profile menu" \
+        ""
+}
+
+minimal_menu_loop() {
+    PROFILE="minimal"
+    while true; do
+        show_minimal_menu
+        printf '%s%s Select operation [1-7]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
+        local choice
+        read -r choice
+        case "$choice" in
+            1)
+                local rebuild="no"
+                ask_yes_no "Rebuild images?" "n" && rebuild="yes"
+                minimal_deploy "$rebuild"
+                pause_for_return
+                ;;
+            2) minimal_stop; pause_for_return ;;
+            3) minimal_reset "ask"; pause_for_return ;;
+            4) minimal_status; pause_for_return ;;
+            5) logs_interactive "minimal"; pause_for_return ;;
+            6) minimal_info; pause_for_return ;;
+            7) PROFILE=""; return ;;
+            *) p_warn "Invalid selection"; sleep 1 ;;
+        esac
+    done
+}
+
+fullstack_menu_loop() {
+    fullstack_init_env
+    while true; do
+        show_fullstack_menu
+        printf '%s%s Select operation [1-5]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
+        local choice
+        read -r choice
+        case "$choice" in
+            1) fullstack_deploy_interactive; pause_for_return ;;
+            2) fullstack_stop "ask"; pause_for_return ;;
+            3) fullstack_status; pause_for_return ;;
+            4) logs_interactive "fullstack"; pause_for_return ;;
+            5) PROFILE=""; return ;;
+            *) p_warn "Invalid selection"; sleep 1 ;;
+        esac
+    done
+}
+
+# ---------------------------------------------------------------------------
+# CLI dispatcher
+# ---------------------------------------------------------------------------
+
+show_version() {
+    printf '%sOrkestra Stack Manager%s v%s\n' "$c_bold" "$c_reset" "$ORKESTRA_VERSION"
+    printf '%scapabilities:%s color=%s unicode=%s gum=%s fzf=%s tty=%s\n' \
+        "$c_muted" "$c_reset" "$HAS_COLOR" "$HAS_UNICODE" "$HAS_GUM" "$HAS_FZF" "$HAS_TTY"
+}
+
+show_usage() {
+    cat << EOF
+${c_bold}${c_header}Orkestra — unified stack management${c_reset}
+
+${c_bold}USAGE${c_reset}
+  ./orkestra.sh                    ${c_muted}# interactive TUI (profile menu)${c_reset}
+  ./orkestra.sh <command> [args]   ${c_muted}# non-interactive CLI${c_reset}
+
+${c_bold}MINIMAL PROFILE${c_reset}
+  ${c_accent}minimal deploy${c_reset} [--build]          Start minimal stack (optionally rebuild)
+  ${c_accent}minimal stop${c_reset}                      Stop minimal stack (volumes kept)
+  ${c_accent}minimal reset${c_reset} [--yes]             Wipe volumes and redeploy
+  ${c_accent}minimal status${c_reset}                    Containers + /health + resources
+  ${c_accent}minimal info${c_reset}                      URLs, dev-token recipe, MODULES hint
+  ${c_accent}minimal logs${c_reset} <service> [flags]    View logs for a minimal-stack service
+
+${c_bold}FULL STACK${c_reset} ${c_muted}(uses ENV from docker/.env or ENV=... prefix)${c_reset}
+  ${c_accent}deploy${c_reset} [--scope SCOPE] [--rebuild] [--yes]
+                                   Deploy. SCOPE: all | backend | frontend |
+                                                 frontend+backend | infra
+  ${c_accent}stop${c_reset} [--with-infra]               Stop application services (+ infra)
+  ${c_accent}status${c_reset}                            Containers + health + resources
+  ${c_accent}logs${c_reset} <service> [flags]            View logs for a full-stack service
+
+${c_bold}LOG FLAGS${c_reset}
+  ${c_accent}-f${c_reset}, ${c_accent}--follow${c_reset}           Follow log output (tail -f)
+  ${c_accent}-n${c_reset}, ${c_accent}--lines${c_reset} N          Lines to show when not following (default 100)
+  ${c_accent}-t${c_reset}, ${c_accent}--timestamps${c_reset}       Show timestamps
+
+${c_bold}SHORTCUTS${c_reset}
+  ${c_muted}ENV=development ./orkestra.sh${c_reset}     Skip profile menu, open full-stack TUI
+  ${c_accent}-h${c_reset}, ${c_accent}--help${c_reset}             Show this message
+  ${c_accent}-v${c_reset}, ${c_accent}--version${c_reset}          Show version + capabilities
+
+${c_bold}EXAMPLES${c_reset}
+  ./orkestra.sh
+  ./orkestra.sh minimal deploy --build
+  ./orkestra.sh minimal logs backend -f
+  ./orkestra.sh minimal reset --yes
+  ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
+  ./orkestra.sh logs orkestra-backend-dev -f
+
+${c_bold}ENHANCEMENTS${c_reset}
+  Install ${c_accent}gum${c_reset} (charm.sh) for prettier prompts, spinners, and choose menus.
+  Install ${c_accent}fzf${c_reset} for fuzzy-searchable service selection in the logs picker.
+  Both are optional — orkestra.sh works with neither.
+EOF
+}
+
+cli_dispatch() {
+    local cmd=$1
+    shift
+
+    case "$cmd" in
+        -h | --help | help)
+            show_usage
+            exit 0
+            ;;
+        -v | --version | version)
+            show_version
+            exit 0
+            ;;
+
+        minimal)
+            PROFILE="minimal"
+            local subcmd=${1:-}
+            [ -n "$subcmd" ] && shift
+            case "$subcmd" in
+                deploy)
+                    local rebuild="no"
+                    while [ $# -gt 0 ]; do
+                        case "$1" in
+                            --build) rebuild="yes"; shift ;;
+                            *) die "Unknown flag: $1" ;;
+                        esac
+                    done
+                    minimal_deploy "$rebuild"
+                    ;;
+                stop) minimal_stop ;;
+                reset)
+                    local confirm="ask"
+                    while [ $# -gt 0 ]; do
+                        case "$1" in
+                            --yes | -y) confirm="yes"; shift ;;
+                            *) die "Unknown flag: $1" ;;
+                        esac
+                    done
+                    minimal_reset "$confirm"
+                    ;;
+                status) minimal_status ;;
+                info) minimal_info ;;
+                logs)
+                    local service=${1:-}
+                    [ -n "$service" ] && shift
+                    [ -z "$service" ] && die "Usage: ./orkestra.sh minimal logs <service> [-f] [-n N] [-t]"
+                    logs_cli "minimal" "$service" "$@"
+                    ;;
+                "") die "Missing minimal subcommand. Try --help." ;;
+                *) die "Unknown minimal subcommand: $subcmd" ;;
+            esac
+            ;;
+
+        deploy)
+            fullstack_init_env
+            local scope="all" rebuild="no" yes_flag="yes"
+            while [ $# -gt 0 ]; do
+                case "$1" in
+                    --scope) scope="$2"; shift 2 ;;
+                    --rebuild) rebuild="yes"; shift ;;
+                    --yes | -y) yes_flag="yes"; shift ;;
+                    *) die "Unknown flag: $1" ;;
+                esac
+            done
+            case "$scope" in
+                all | backend | frontend | frontend+backend | infra) ;;
+                *) die "Invalid scope: $scope" ;;
+            esac
+            fullstack_deploy_cli "$scope" "$rebuild" "$yes_flag"
+            ;;
+
+        stop)
+            fullstack_init_env
+            local with_infra="no"
+            while [ $# -gt 0 ]; do
+                case "$1" in
+                    --with-infra) with_infra="yes"; shift ;;
+                    *) die "Unknown flag: $1" ;;
+                esac
+            done
+            fullstack_stop "$with_infra"
+            ;;
+
+        status)
+            fullstack_init_env
+            fullstack_status
+            ;;
+
+        logs)
+            fullstack_init_env
+            local service=${1:-}
+            [ -n "$service" ] && shift
+            [ -z "$service" ] && die "Usage: ./orkestra.sh logs <service> [-f] [-n N] [-t]"
+            logs_cli "fullstack" "$service" "$@"
+            ;;
+
+        *) die "Unknown command: $cmd. Try --help." ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+main() {
+    # CLI mode: any argument triggers non-interactive dispatch.
+    if [ $# -gt 0 ]; then
+        cli_dispatch "$@"
+        exit 0
+    fi
+
+    # Non-TTY (e.g. piped): no interactive menu makes sense.
+    if [ "$HAS_TTY" != true ]; then
+        show_usage
+        exit 0
+    fi
+
+    # Backward compat: if ENV is already set, jump straight to full-stack.
+    if [ -n "${ENV:-}" ]; then
+        fullstack_menu_loop
+        return
+    fi
+
+    while true; do
+        show_profile_menu
+        printf '%s%s Select profile [1-3]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
+        local choice
+        read -r choice
+        case "$choice" in
+            1) minimal_menu_loop ;;
+            2) fullstack_menu_loop ;;
+            3)
+                echo
+                printf '%s%s Goodbye!%s\n' "$c_success" "$ic_ok" "$c_reset"
+                exit 0
+                ;;
+            *) p_warn "Invalid selection"; sleep 1 ;;
+        esac
+    done
+}
+
+main "$@"

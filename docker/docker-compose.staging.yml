@@ -1,25 +1,43 @@
 # ORKESTRA Staging Environment Docker Compose
 # Production-like behavior with staging credentials and URLs
 
+name: orkestra-staging
+
 services:
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-      target: production
-    container_name: orkestra-backend-staging
+    # Hot reload (AIR) on staging — bind-mounted source, no image build.
+    # Behavior remains staging-like (cookie strict, JWT, URLs, rate limits)
+    # but the binary is rebuilt on every save. Switch back to production
+    # build by restoring the `build:` block + removing `command:` + bind mount.
+    image: dhi.io/golang:1
+    container_name: orkestra-backend
+    user: "1000:1000"
+    working_dir: /app
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       ENV: staging
-      PORT: ${BACKEND_PORT:-3000}
+      PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
 
-      # MongoDB
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:${MONGO_PORT:-27017}/${MONGO_DATABASE}?authSource=admin
+      # Hot reload (AIR)
+      AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
+      AIR_BIN: ./tmp/main
 
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+      # Go toolchain — write caches inside the bind mount so they survive rebuilds.
+      # GOSUMDB=off because sum.golang.org isn't reliably reachable from the
+      # corporate DNS upstream; module integrity still relies on go.sum.
+      GOSUMDB: "off"
+      GOMODCACHE: "/app/.go-mod-cache"
+      GOCACHE: "/app/.go-build-cache"
+      GOBIN: "/app/.go-bin"
+      PATH: "/app/.go-bin:/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+      # MongoDB (internal port is always 27017, MONGO_PORT is for host mapping only)
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:27017/${MONGO_DATABASE}?authSource=admin
+
+      # Redis (internal port is always 6379, REDIS_PORT is for host mapping only)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:6379/${REDIS_DB:-0}
 
       # JWT & Auth (RS256 asymmetric keys)
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}
@@ -27,8 +45,15 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
 
-      # OAuth Token Encryption
+      # OAuth Token Encryption — bootstraps ConfigService (every secret in
+      # module_configs is AES-256-GCM encrypted with this key). Rotating it
+      # invalidates every stored secret.
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped
+      # DEK. Keep env-derived so operators can rotate without a rebuild.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
 
       # Cookie Configuration (production-like)
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -38,27 +63,14 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
-
-      # OAuth (staging credentials)
-      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
-      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
-      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
-      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
-      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
-
-      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
-      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
-      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
-      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
-      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
-
-      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
-      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
-      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
+      ALLOW_LOCALHOST_REDIRECTS: ${ALLOW_LOCALHOST_REDIRECTS:-false}
 
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-https://staging.orkestra.cc}
       BACKEND_URL: ${BACKEND_URL:-https://staging-api.orkestra.cc}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.orkestra.cc}
 
       # Security (production-like)
       RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
@@ -72,52 +84,102 @@ services:
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend-staging}
+
+      # Sales Intelligence — runtime knobs read directly by the sales
+      # module (cfg.Sales.*). Not yet migrated to ConfigService.
+      SALES_MAX_CONCURRENCY: ${SALES_MAX_CONCURRENCY:-5}
+      SALES_DEFAULT_LOCALE: ${SALES_DEFAULT_LOCALE:-it}
+      SALES_SKILL_TIMEOUT: ${SALES_SKILL_TIMEOUT:-5m}
+      SALES_QUICK_TIMEOUT: ${SALES_QUICK_TIMEOUT:-60s}
+      SALES_FULL_TIMEOUT: ${SALES_FULL_TIMEOUT:-5m}
+      SALES_SCRAPER_TIMEOUT: ${SALES_SCRAPER_TIMEOUT:-30s}
+      SALES_SCRAPER_MAX_DEPTH: ${SALES_SCRAPER_MAX_DEPTH:-3}
+
+      # RAG — chunking knobs read directly by the rag module (cfg.RAG.*).
+      # Not yet migrated to ConfigService.
+      RAG_CHUNK_SIZE: ${RAG_CHUNK_SIZE:-512}
+      RAG_CHUNK_OVERLAP: ${RAG_CHUNK_OVERLAP:-50}
+      RAG_DEFAULT_TOP_K: ${RAG_DEFAULT_TOP_K:-10}
+
+      # Module infrastructure containers (hindsight etc.). Disable when
+      # running under Kubernetes or when infra is managed externally.
+      CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
+
+      # Module config (OAuth, OpenAPI billing/company tokens, Stripe keys,
+      # SMTP, Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
+      # per-module enable flags) is owned by ConfigService and edited at
+      # /admin/modules. The module ConfigSchema EnvVar fields seed those
+      # values from the host environment ONLY on first boot of a brand-new
+      # install — after that the module_configs document is authoritative.
     volumes:
-      - ./keys:/app/keys:ro
-      - backend_logs_staging:/app/logs
-      - backend_uploads_staging:/app/uploads
+      - ../backend:/app
+      - ./keys:/app/keys
+      - orkestra-backend-logs-staging:/app/logs
+      - orkestra-backend-uploads-staging:/app/uploads
+      # Enables the agents module to manage the orkestra-hindsight container
+      # lifecycle. For stricter isolation in staging, front the socket with
+      # tecnativa/docker-socket-proxy exposing only containers endpoints.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Join the host Docker group so the mounted socket is usable. Override
+    # DOCKER_GID in the staging env file if the host uses a different gid.
+    group_add:
+      - "${DOCKER_GID:-1001}"
+    # Required when the Docker daemon runs with userns-remap: without it,
+    # group_add maps to a remapped GID that doesn't match the host docker
+    # group, and the mounted socket stays unreadable.
+    userns_mode: "host"
     networks:
       - orkestra-network
+    # DNS inherits from the Docker daemon (`/etc/docker/daemon.json` →
+    # `dns: ["192.168.88.4", ...]`). Don't override here unless this host's
+    # firewall blocks the upstream — public resolvers (8.8.8.8, 1.1.1.1)
+    # are not reachable on UDP/53 from this network.
+    # AIR is pre-installed by the host into ./.go-bin/air via:
+    #   cd backend && GOBIN=$PWD/.go-bin go install github.com/air-verse/air@latest
+    command: ["sh", "-c", "exec /app/.go-bin/air"]
     # Note: mongodb and redis are in docker-compose.infra.yml
     # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/3000 && echo 'OK'"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
 
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-      target: production
-      args:
-        VITE_API_URL: ${VITE_API_URL:-https://staging-api.orkestra.cc}
-        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-https://staging-api.orkestra.cc}
-        VITE_WS_URL: ${VITE_WS_URL:-wss://staging-api.orkestra.cc/ws}
-        VITE_ENV: staging
-        VITE_DEBUG: "false"
-    container_name: orkestra-frontend-staging
+    image: dhi.io/node:24-dev
+    container_name: orkestra-frontend
+    user: "1000:1000"
+    userns_mode: "host"
+    working_dir: /app
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_PORT:-8080}:5173"
+    environment:
+      NODE_ENV: development
+      VITE_ENV: staging
+      VITE_DEBUG: "false"
+      VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000}
+      VITE_HMR_HOST: staging.orkestra.cc
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      npm_config_cache: /app/.npm-cache
     volumes:
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../frontend:/app
+      - ../frontend/.vite-cache:/app/.vite
+      - ../frontend/.npm-cache:/app/.npm-cache
     networks:
       - orkestra-network
     depends_on:
       - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
 
 volumes:
-  backend_logs_staging:
+  orkestra-backend-logs-staging:
     driver: local
-  backend_uploads_staging:
+  orkestra-backend-uploads-staging:
     driver: local
 
 networks:

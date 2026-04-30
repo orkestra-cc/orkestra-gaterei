@@ -1,250 +1,153 @@
-# Module: Backend - Orkestra Modular Monolithic Go Server
+# Backend — Go Modular Server
 
-_Path: `/backend`_
-_Parent: [../CLAUDE.md](../CLAUDE.md)_
+Single Go binary. 4 core modules (always loaded) + 12 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
 
-<!-- Navigation -->
+## Stack
 
-[← Root](../CLAUDE.md) | [☰ Module Map](../CLAUDE.md#module-map) | [🚀 Quick Start](../CLAUDE.md#quick-start)
+Go 1.25.1 | Huma v2 (OpenAPI-first) | MongoDB 8.0 | Redis 8.2 | Chi router | AIR hot-reload (Docker)
 
-<!-- /Navigation -->
+## Module System
 
-## Module Purpose
+Every module implements the `Module` interface (`internal/shared/module/module.go`):
 
-The backend serves as the **monolithic Go server** handling all API operations, real-time communications, and business logic for the Orkestra system.
+```
+Name, DisplayName, Description, Category
+ConfigSchema, Collections, NavItems, Dependencies
+ProvidedServices, RequiredServices, OptionalServices
+Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
+```
 
-- **Primary Role**: Unified API server for all client applications
-- **System Integration**: Central hub connecting frontend, mobile, and external services
-- **Architecture**: Single Go application with modular internal structure
+**Registration** (`cmd/server/catalog.go`): core modules (user → notification → auth → navigation) are always loaded. All optional modules are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
 
-**CRITICAL**: This is a monolithic application, not microservices. All modules run within a single Go application on port 3000, utilizing goroutines for concurrent processing.
+**Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
 
-## Dependencies
+**Runtime config**: `ModuleConfigService` stores module state in MongoDB (`module_configs` collection), cached in Redis (30s TTL). Secrets encrypted with AES-256-GCM. Each module supports named config environments (production/sandbox) stored as nested maps in the same document. Admin API at `GET/PATCH /v1/admin/modules`, with per-environment endpoints at `/v1/admin/modules/{name}/environments/{env}` and `PUT /v1/admin/modules/{name}/active-environment`.
 
-### Imports
+**Module infrastructure containers**: modules that need an external service (e.g. `agents` → `orkestra-hindsight`) declare it via `InfraContainers() []InfraContainerSpec` on the `Module` interface. The registry routes these specs through `shared/container.Manager`, which uses the Docker Go SDK over the host docker socket to create/start containers before `Start()` and stop them after `Stop()`. A module's container is therefore bound to its enabled state: toggling the module on/off via the admin UI starts/stops the container within the same request. The manager falls back to a no-op implementation when `CONTAINER_CONTROL_ENABLED=false` or the socket is unreachable — module toggling still works, operators are expected to manage infra externally. Security: dev/staging/prod compose files mount `/var/run/docker.sock` into the backend container; front this with `tecnativa/docker-socket-proxy` (restricted to container endpoints) when running on shared/production hosts. Note: backend-managed containers are **not** part of any compose project — they won't appear in `docker compose ps`. Use `docker ps --filter label=orkestra.managed=true` to discover them; see [docker/CLAUDE.md](../docker/CLAUDE.md#backend-managed-containers-not-visible-to-compose) for the ownership split and volume-sharing details.
 
-- **[`/shared/`](../shared/CLAUDE.md)** - Data models, types, and validation rules
-- **[`/docker/`](../docker/CLAUDE.md)** - Infrastructure services (MongoDB, Redis)
-
-### Importers
-
-- **[`/frontend/`](../frontend/CLAUDE.md)** - Consumes REST APIs and WebSocket events
-- **[`/mobile/`](../mobile/CLAUDE.md)** - Consumes mobile-optimized APIs
-
-## Module-Specific AI Guidelines
-
-### Development Workflow - CRITICAL
-
-- **🚫 NEVER manually start the server** - The development server runs automatically in Docker with AIR (hot reload)
-- **🐳 Always use Docker Compose** - The backend runs in a containerized environment with live reload
-- **📋 Check logs via Docker Compose** - Use `docker compose logs backend` to view server logs
-- **🔄 Automatic rebuilds** - AIR detects code changes and automatically rebuilds/restarts the server
-- **🚪 No manual server management** - The server is managed entirely through Docker Compose
-
-### Code Standards
-
-- **Code Organization**: Maintain strict module separation within the monolithic structure
-- **API Standards**: Always generate new OpenAPI 3.1 specs when DTOs or routes change
-- **Performance Focus**: Optimize for 1,000+ concurrent users with <50ms response times
-- **Security First**: Validate all inputs, sanitize outputs, follow RBAC patterns
-- **Real-time Support**: Preserve WebSocket functionality for live updates
-- **Testing**: Maintain minimum 80% coverage with comprehensive integration tests
-- **Documentation**: Auto-generate API docs via Huma v2 framework
-
-## Technology Stack
-
-- **Language**: Go 1.25.1+
-- **Framework**: Huma v2 (OpenAPI-first)
-- **Database**: MongoDB 8.0+ (primary datastore)
-- **Cache**: Redis 8.2 (sessions, hot data)
-- **Message Queue**: RabbitMQ 3 (async tasks)
-- **Object Storage**: MinIO (S3-compatible)
-- **Real-time**: Native WebSocket implementation
-- **Monitoring**: OpenTelemetry + SigNoz
-- **Development**: AIR (hot reload) + Docker Compose for automated server management
+**Startup reliability**: `NewMongoConnection` and `NewRedisConnection` (in `internal/shared/database/`) retry with exponential backoff (up to 20 attempts, 500ms → 5s) to wait out first-boot auth races — container servers start accepting TCP before SCRAM user / `--requirepass` provisioning completes. The Mongo readiness probe uses `ListDatabaseNames`, not `Ping`, because `Ping` bypasses the auth path and can pass prematurely. `ensureCollection` in the registry also retries transient Mongo errors (pool cleared, `AuthenticationFailed` code 18) because the driver's background monitoring connections re-authenticate for several seconds after the main client succeeds. If you see `Transient mongo error, retrying` at debug level during startup, that's this mechanism working as intended.
 
 ## Project Structure
 
 ```
 backend/
 ├── cmd/
-│   └── server/
-│       └── main.go              # Application entry point
+│   ├── server/                     # Monolith binary
+│   │   ├── main.go                 # Boot, register modules, start
+│   │   └── catalog.go              # Module catalog (core + optional)
+│   └── ai-service/                 # AI sidecar binary (optional)
+│       └── main.go
 ├── internal/
-│   ├── auth/                    # Authentication module
-│   │   ├── handler.go           # HTTP handlers
-│   │   ├── service.go           # Business logic
-│   │   ├── repository.go        # Data access
-│   │   └── jwt.go               # JWT utilities
-│   ├── user/                    # User management module
-│   │   ├── handler.go
-│   │   ├── service.go
-│   │   ├── repository.go
-│   │   └── rbac.go              # Role-based access control
-│   ├── operator/                # Operator/driver module
-│   │   ├── handler.go
-│   │   ├── service.go
-│   │   └── repository.go
-│   ├── tracking/                # Real-time tracking module
-│   │   ├── handler.go
-│   │   ├── service.go
-│   │   ├── repository.go
-│   │   └── websocket.go         # WebSocket handler
-│   ├── task/                    # Task management module
-│   │   ├── handler.go
-│   │   ├── service.go
-│   │   └── repository.go
-│   ├── reporting/               # Analytics & reporting module
-│   │   ├── handler.go
-│   │   ├── service.go
-│   │   ├── repository.go
-│   │   └── aggregations.go      # MongoDB aggregations
-│   ├── shared/                  # Shared components
-│   │   ├── database/            # Database connections
-│   │   ├── middleware/          # HTTP middleware
-│   │   ├── errors/              # Error handling
-│   │   ├── validators/          # Input validation
-│   │   └── utils/               # Utility functions
-│   └── config/                  # Configuration management
-├── pkg/                         # Exportable packages
-│   ├── models/                  # Data models
-│   ├── types/                   # Shared types
-│   └── constants/               # Application constants
-├── migrations/                  # Database migrations
-├── tests/                       # Integration tests
-├── go.mod
-├── go.sum
-├── Dockerfile
-├── Makefile
-└── .env.example
-
+│   ├── core/                       # Always loaded (init order: user → notification → auth → navigation)
+│   │   ├── user/                   # User CRUD, roles, documents
+│   │   ├── notification/           # Email delivery, templates, preferences, unsubscribe
+│   │   ├── auth/                   # Email/password + OAuth 2.1, JWT, sessions, RBAC
+│   │   └── navigation/             # Dynamic menu from module NavItems
+│   ├── addons/                     # Optional — toggled at /admin/modules
+│   │   ├── billing/                # FatturaPA/SDI invoicing
+│   │   ├── documents/              # PDF generation via Gotenberg
+│   │   ├── company/                # Business registry lookup
+│   │   ├── graph/                  # Memgraph knowledge graph
+│   │   ├── aimodels/               # AI model management
+│   │   ├── rag/                    # RAG pipeline
+│   │   ├── agents/                 # Hindsight AI agents
+│   │   ├── sales/                  # AI prospect analysis
+│   │   ├── subscriptions/          # Recurring services catalog, clients, subscriptions
+│   │   ├── payments/               # Stripe gateway, refunds, webhooks
+│   │   ├── onboarding/             # Anonymous self-service signup (external tenant + owner)
+│   │   └── dev/                    # Dev token generator
+│   ├── shared/                     # Infrastructure — used by core and addons
+│   │   ├── module/                 # Module interface, registry, config service
+│   │   ├── iface/                  # Cross-module interfaces
+│   │   ├── config/                 # App configuration
+│   │   ├── database/               # MongoDB, Redis, Graph connections
+│   │   ├── middleware/             # Auth, JWT validator, rate limiting
+│   │   ├── remote/                 # Remote service clients (HTTP)
+│   │   ├── setup/                  # First-install wizard endpoints (/v1/setup/*)
+│   │   ├── systeminit/             # Atomic first-admin sentinel (system_init collection)
+│   │   ├── tenantrepo/             # orgId scope helpers (every addon repo must use these)
+│   │   ├── errors/                 # Error management
+│   │   └── utils/                  # Utilities
+│   └── testkit/                    # Test helpers for auth identity + context
+├── tools/
+│   └── tenantscope/                # Static analyzer: enforces tenantrepo use in addons (CI gate)
+├── Dockerfile                      # Multi-stage: dev (AIR) / production — Chainguard hardened base
+├── Dockerfile.minimal              # Public-image build (golang:1.25-alpine → alpine:3.20) used by the minimal compose profile
+├── Dockerfile.ai-service           # AI service build
+└── go.mod
 ```
 
-## Module Architecture
+Each module follows: `module.go` → `handlers/` → `services/` → `repository/` → `models/`
 
-### Core Principles
+## Adding a New Module
 
-1. **Single Process**: All modules run in one Go application
-2. **Goroutine Concurrency**: Each module uses goroutines for parallel processing
-3. **Interface-Based**: Modules communicate through interfaces
-4. **Dependency Injection**: Clean dependency management
-5. **Repository Pattern**: Separation of data access logic
-6. **API Standards**: Automatic OpenAPI 3.1 generation via Huma v2
+1. Create `internal/addons/yourmodule/module.go` implementing the `Module` interface
+2. Add to `optionalModules` in `cmd/server/catalog.go` (the registry auto-sorts by `Dependencies()`)
+3. Declare `Collections()` for auto-created MongoDB collections + indexes
+4. Declare `NavItems()` for sidebar entries (group, icon, path, minRole)
+5. Declare `ConfigSchema()` for admin-configurable fields
+6. Declare `Dependencies()` if your module needs other modules to init first
+7. Use `shared/iface` interfaces for cross-module deps — add new interfaces there if needed
+8. Use `deps.Services.Register(key, impl)` to expose services to other modules
 
-## Performance Requirements
+Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed). For first boot of a fresh install, the module's `ConfigSchema().EnvVar` fields seed the initial `module_configs` document from the host environment — see [docker/CLAUDE.md](../docker/CLAUDE.md) for the env-var-vs-admin-UI split.
 
-### Targets
+## API Endpoints
 
-- **Concurrent Users**: 1,000+
-- **API Response Time**: < 50ms (p99)
-- **WebSocket Connections**: 1,000 simultaneous
-- **Tracking Updates**: 5-second intervals
-- **Database Queries**: < 30ms (p95)
+- **`/docs`** — Interactive API documentation (Scalar)
+- **`/openapi.json`** — Auto-generated OpenAPI 3.1 spec
+- **`/v1/admin/modules`** — Module management (administrator only)
+- **`/v1/admin/modules/{name}/environments/{env}`** — Per-environment config CRUD
+- **`/v1/admin/modules/{name}/active-environment`** — Switch active environment
+- **`/v1/admin/modules/health`** — Per-module health checks
 
-### Optimization Techniques
+OpenAPI specs are auto-generated by Huma v2 — add endpoints with `huma.Register()` and they appear in `/docs` after restart.
 
-1. **Connection pooling** for all external services
-2. **Goroutine worker pools** for concurrent processing
-3. **Redis caching** for frequently accessed data
-4. **MongoDB indexes** on all query fields
-5. **Batch processing** for bulk operations
-6. **Response pagination** for list endpoints
-
-## Security Checklist
-
-- [ ] JWT authentication implemented
-- [ ] Refresh token rotation
-- [ ] RBAC with role hierarchy
-- [ ] Input validation on all endpoints
-- [ ] SQL/NoSQL injection prevention
-- [ ] XSS protection
-- [ ] CSRF tokens for state-changing operations
-- [ ] Sensitive data encryption
-- [ ] Audit logging for critical operations
-- [ ] Dependencies regularly updated
-- [ ] Secrets management (never in code)
-
-### API Documentation & Health Checks
-
-- **`/docs`** - Interactive API documentation (Scalar interface)
-- **`/openapi.json`** - OpenAPI 3.1 specification (auto-generated by Huma v2)
-- `/health` - Overall health status
-- `/ready` - Readiness probe
-- `/metrics` - Prometheus metrics
-
-**IMPORTANT**: OpenAPI specs are automatically generated from code. When adding/modifying endpoints:
-
-1. Use Huma v2 `huma.Register()` for auto-documentation
-2. Specs update automatically on server restart
-3. Visit `/docs` for interactive testing and documentation
-
-## Development Environment
-
-### AIR Hot Reload System
-
-The backend runs in Docker with **AIR (Live Reload)** which provides:
-
-- **Automatic detection** of Go file changes (`.go`, `.tpl`, `.tmpl`, `.html`)
-- **Instant rebuilds** when code is modified
-- **Zero-downtime restarts** for development
-- **Build error reporting** in real-time
-
-### Docker Development Workflow
-
-#### ✅ **DO** - Recommended Development Practices
+## Dev Tokens (Dev/Staging Only)
 
 ```bash
-# View server logs (ALWAYS use this to check server status)
-docker compose logs backend
-
-# Follow logs in real-time
-docker compose logs -f backend
-
-# Check all services status
-docker compose ps
-
-# Restart if needed (rarely required)
-docker compose restart backend
+./scripts/devtoken.sh developer          # Generate token for role
+./scripts/devtoken.sh admin --quiet      # Token only (for piping)
+./scripts/devtoken.sh operator --curl    # Ready-to-use curl command
 ```
 
-#### 🚫 **DON'T** - Avoid These Practices
+Roles (highest to lowest): `super_admin` > `administrator` > `developer` > `manager` > `operator` > `guest`
 
+Disabled in production. Creates synthetic users (no DB writes).
+
+## Development
+
+All services run in Docker. Never start the server manually. Two workflows depending on what you need:
+
+**Full dev stack (Chainguard hardened images, AIR hot reload):**
 ```bash
-# NEVER manually start the server
-go run ./cmd/server/main.go
-
-# NEVER build and run locally
-go build ./cmd/server/ && ./server
-
-# NEVER try to manage the server process manually
-./server &
+cd docker
+docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.dev.yml up -d
+docker compose logs -f orkestra-backend-dev
 ```
 
-### Development Configuration
+**Minimal stack (public images only, core modules only, no hot reload):**
+```bash
+cd docker
+docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+docker compose -f docker-compose.minimal.yml logs -f backend
+```
 
-- **Port**: 3000 (exposed via Docker)
-- **Hot Reload**: Enabled by default in development
-- **Config**: Uses `.env` file for environment variables
-- **Logs**: Accessible via `docker compose logs backend`
-- **Restart Policy**: Automatic on file changes
+The minimal stack builds from `backend/Dockerfile.minimal` which uses `golang:1.25-alpine` → `alpine:3.20`. It's the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend with the core modules + dev token generator. Runs on host ports 3050/8050/27050/6350 to avoid colliding with the dev stack.
 
-## Common Pitfalls to Avoid
+**WSL2 caveat**: AIR doesn't detect file changes on Windows mounts. Rebuild manually:
+```bash
+docker exec orkestra-backend-dev go build -o /app/tmp/main ./cmd/server/
+docker restart orkestra-backend-dev
+```
 
-1. **Don't split into microservices** - Keep it monolithic
-2. **Don't skip input validation** - Validate everything
-3. **Don't ignore context cancellation** - Respect context in all operations
-4. **Don't forget indexes** - MongoDB performance depends on proper indexing
-5. **Don't hardcode secrets** - Use environment variables
-6. **Don't ignore errors** - Handle all errors appropriately
-7. **Don't block goroutines** - Use channels and select statements properly
-8. **Don't forget transactions** - Use them for data consistency
-9. **Don't cache sensitive data** - Be careful what goes in Redis
+**Log level**: controlled by `LOG_LEVEL` env var — `debug` (dev), `info` (staging), `warn` (prod).
 
----
+## Rules
 
-### Related Guides
-
-- [Project Overview](../CLAUDE.md) - System architecture and design principles
-- [Shared Types](../shared/CLAUDE.md) - Data models and validation rules
-- [Docker Infrastructure](../docker/CLAUDE.md) - Database and infrastructure setup
-- [Authentication Flow](../docs/Authentication_flow.md) - OAuth 2.1 implementation details
+- **Read the module's own CLAUDE.md** before modifying it — notification, billing, documents, graph, rag, agents, aimodels, company each have one
+- **Use the module system** — don't add routes or init logic directly to main.go
+- **Use `shared/iface`** for cross-module deps — never import another module's services package from module.go
+- **Validate all inputs**, implement RBAC on every endpoint, never expose secrets in responses
+- **MongoDB indexes** — declare them in `Collections()`, don't create them manually

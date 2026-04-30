@@ -35,7 +35,10 @@ export default ({ mode }) => {
         widgets: path.resolve(__dirname, './src/widgets'),
         store: path.resolve(__dirname, './src/store'),
         stores: path.resolve(__dirname, './src/stores'),
-        config: path.resolve(__dirname, './src/config')
+        config: path.resolve(__dirname, './src/config'),
+        reference: path.resolve(__dirname, './src/reference'),
+        types: path.resolve(__dirname, './src/types'),
+        modules: path.resolve(__dirname, './src/modules')
       }
     },
     esbuild: {
@@ -69,10 +72,10 @@ export default ({ mode }) => {
             'ui-vendor': ['react-bootstrap', 'bootstrap', 'classnames'],
 
             // Charts and visualization
-            'charts-vendor': ['echarts', 'echarts-for-react', 'chart.js', 'react-chartjs-2', 'd3'],
+            'charts-vendor': ['echarts', 'echarts-for-react'],
 
             // Maps
-            'maps-vendor': ['@react-google-maps/api', 'leaflet', 'react-leaflet', 'react-leaflet-markercluster'],
+            'maps-vendor': ['leaflet', 'react-leaflet', 'react-leaflet-markercluster'],
 
             // Form handling
             'forms-vendor': ['react-hook-form', '@hookform/resolvers', 'yup', 'react-select'],
@@ -113,6 +116,23 @@ export default ({ mode }) => {
       global: 'window'
     },
     server: {
+      // Pre-transform frequently visited pages on dev server start so the
+      // first navigation doesn't pay the WSL2 cold-transform penalty (~3-5s).
+      warmup: {
+        clientFiles: [
+          // Shared layout + navbar (every page depends on these)
+          './src/layouts/MainLayout.tsx',
+          './src/components/navbar/vertical/NavbarVertical.tsx',
+          // All production pages — pre-transform so first navigation is instant
+          './src/pages/**/index.tsx',
+          './src/pages/user/dashboard/UserDashboard.tsx',
+          './src/pages/user/settings/Settings.tsx',
+          './src/pages/user/calendar/UserCalendar.tsx',
+          './src/pages/operator/profile/OperatorProfile.tsx',
+          './src/pages/admin/user-profile/AdminUserProfile.tsx',
+          './src/pages/admin/settings/AdminSettings.tsx',
+        ]
+      },
       open: false,
       port: 5173,
       host: '0.0.0.0',
@@ -120,14 +140,19 @@ export default ({ mode }) => {
         'localhost',
         '127.0.0.1',
         '192.168.88.53',
-        'orkestra.cc'
+        'orkestra.cc',
+        'staging.orkestra.cc'
       ],
-      hmr: {
-        clientPort: 8080
-      },
+      hmr: process.env.VITE_HMR_HOST
+        ? {
+            host: process.env.VITE_HMR_HOST,
+            protocol: 'wss',
+            clientPort: 443
+          }
+        : true,
       watch: {
-        usePolling: false,
-        interval: 100
+        usePolling: true,
+        interval: 300
       },
       middlewares: [
         '/health',

@@ -10,7 +10,7 @@ interface AdminProfileIntroProps {
 const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
   // Helper function to format date with time
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('it-IT', {
+    return new Date(dateString).toLocaleString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -21,27 +21,18 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
 
   // Helper function to format date only
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('it-IT', {
+    return new Date(dateString).toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   };
 
-  // Role labels
-  const roleLabels: Record<string, string> = {
-    developer: 'Sviluppatore',
-    ceo: 'CEO',
-    administrator: 'Amministratore',
-    manager: 'Manager',
-    operator: 'Operatore',
-    guest: 'Ospite'
-  };
   const [collapsed, setCollapsed] = useState(false);
   return (
     <Card className="mb-3">
       <Card.Header className="bg-body-tertiary">
-        <h5 className="mb-0">Informazioni Utente</h5>
+        <h5 className="mb-0">User Information</h5>
       </Card.Header>
 
       <Card.Body className="text-1000">
@@ -59,12 +50,12 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
             <p className="mb-2">
               <Badge
                 bg={
-                  user.role === 'developer'
-                    ? 'primary'
-                    : user.role === 'ceo'
-                      ? 'danger'
-                      : user.role === 'administrator'
-                        ? 'warning'
+                  user.role === 'super_admin'
+                    ? 'danger'
+                    : user.role === 'administrator'
+                      ? 'warning'
+                      : user.role === 'developer'
+                        ? 'primary'
                         : user.role === 'manager'
                           ? 'info'
                           : user.role === 'operator'
@@ -96,7 +87,7 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
 
         {user.providers && user.providers.length > 0 && (
           <div className="mb-3">
-            <small className="text-700 d-block mb-2">Login Social</small>
+            <small className="text-700 d-block mb-2">Social Login</small>
             <div>
               {user.providers.map((provider, index) => (
                 <div key={index} className="d-flex align-items-center mb-2">
@@ -155,39 +146,39 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
           <div>
             <Row className="mb-3">
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Account Creato</small>
+                <small className="text-700 d-block mb-1">Account Created</small>
                 <p className="mb-2">{formatDateTime(user.createdAt)}</p>
               </Col>
               <Col md={6}>
                 <small className="text-700 d-block mb-1">
-                  Ultimo Aggiornamento
+                  Last Updated
                 </small>
                 <p className="mb-2">{formatDateTime(user.updatedAt)}</p>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Ultimo Login</small>
+                <small className="text-700 d-block mb-1">Last Login</small>
                 <p className="mb-2">
-                  {user.lastLogin ? formatDateTime(user.lastLogin) : 'Mai'}
+                  {user.lastLogin ? formatDateTime(user.lastLogin) : 'Never'}
                 </p>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Verifica Email</small>
+                <small className="text-700 d-block mb-1">Email Verification</small>
                 <p className="mb-2">
                   <Badge bg={user.emailVerified ? 'success' : 'warning'}>
-                    {user.emailVerified ? 'Verificata' : 'Non Verificata'}
+                    {user.emailVerified ? 'Verified' : 'Not Verified'}
                   </Badge>
                 </p>
               </Col>
             </Row>
 
             <div className="mb-3">
-              <small className="text-700 d-block mb-1">Note di Sistema</small>
+              <small className="text-700 d-block mb-1">System Notes</small>
               <p className="text-600 fst-italic">
-                Account {user.role} creato il {formatDate(user.createdAt)}.
+                Account {user.role} created on {formatDate(user.createdAt)}.
                 {user.emailVerified
-                  ? ' Email verificata.'
-                  : ' Email non ancora verificata.'}
-                {user.isActive ? ' Account attivo.' : ' Account disattivato.'}
+                  ? ' Email verified.'
+                  : ' Email not yet verified.'}
+                {user.isActive ? ' Account active.' : ' Account disabled.'}
               </p>
             </div>
           </div>
@@ -196,7 +187,7 @@ const AdminProfileIntro: React.FC<AdminProfileIntroProps> = ({ user }) => {
 
       <Card.Footer className="bg-body-tertiary p-0 border-top d-grid">
         <Button variant="link" onClick={() => setCollapsed(!collapsed)}>
-          Mostra {collapsed ? 'meno' : 'più'} dettagli
+          Show {collapsed ? 'less' : 'more'} details
           <FontAwesomeIcon
             icon="chevron-down"
             className="ms-2 fs-11"

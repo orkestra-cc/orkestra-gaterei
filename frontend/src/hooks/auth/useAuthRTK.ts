@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { useAppSelector, useAppDispatch } from 'store/hooks';
 import {
@@ -13,9 +13,9 @@ import {
   setAccessToken,
   logout as logoutAction,
   selectAuth,
-  selectPermissions,
   selectPreferences
 } from 'store/slices/authSlice';
+import { selectPermissions as selectTenantPermissions } from 'store/slices/tenantSlice';
 
 /**
  * Enhanced auth hook using RTK Query for server state and Redux for client state
@@ -25,9 +25,11 @@ export const useAuth = () => {
   const dispatch = useAppDispatch();
 
 
-  // Redux selectors for client-side auth state
+  // Redux selectors for client-side auth state. Permissions now live on
+  // the tenant slice (computed per-org by the authz module) rather than
+  // on the auth slice, since they are org-scoped.
   const auth = useAppSelector(selectAuth);
-  const permissions = useAppSelector(selectPermissions);
+  const tenantPermissions = useAppSelector(selectTenantPermissions);
   const preferences = useAppSelector(selectPreferences);
 
   // Check if logout is in progress (dynamic check)
@@ -56,27 +58,24 @@ export const useAuth = () => {
   // Extract user data from session response
   const currentUser = sessionData?.user || null;
 
-  // Debug logging in development (throttled to reduce noise)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      const logoutInProgress = sessionStorage.getItem('logout_in_progress');
-      const debugInfo = {
-        sessionData: sessionData === undefined ? 'undefined' : sessionData === null ? 'null' : 'has_data',
-        currentUser: currentUser ? 'has_user' : 'no_user',
-        isAuthLoading,
-        authError: authError ? 'has_error' : 'no_error',
-        logoutInProgress: logoutInProgress ? 'true' : 'false',
-        skipSessionQuery,
-        querySkipped: skipSessionQuery
-      };
-
-      // Only log on significant state changes
-      const isSignificantChange = !isAuthLoading && (sessionData !== undefined);
-      if (isSignificantChange) {
-        console.log('🔍 useAuth State:', debugInfo);
-      }
+  // Effective permissions shown to ProtectedRoute and hasPermission.
+  // We merge the org-scoped tenant permissions with the user's global
+  // system role so that:
+  //   1) legacy role-name guards like [['developer','administrator']]
+  //      keep working immediately after login, before any org is selected,
+  //   2) the array is never empty for an authenticated user — which
+  //      unblocks ProtectedRoute's permissionsAreLoading spinner for
+  //      accounts that don't yet have an organization membership,
+  //   3) real permission keys from the authz evaluator still take effect
+  //      once useTenantBootstrap resolves an orgId.
+  const permissions = useMemo(() => {
+    const merged = [...tenantPermissions];
+    const systemRole = currentUser?.role;
+    if (systemRole && !merged.includes(systemRole)) {
+      merged.push(systemRole);
     }
-  }, [isAuthLoading, sessionData, currentUser, authError]);
+    return merged;
+  }, [tenantPermissions, currentUser?.role]);
 
   // Profile functionality removed - using currentUser data only
   const userProfile = null;
@@ -117,8 +116,20 @@ export const useAuth = () => {
     try {
       const result = await loginMutation(credentials).unwrap();
 
+      // MFA partial response: caller must route to /mfa/verify before we
+      // can hydrate session state. Return early so the useAuthRTK consumer
+      // can decide what to do (EmailPasswordForm handles the nav itself).
+      if (result.requiresMfa) {
+        return {
+          success: true,
+          requiresMfa: true,
+          mfaToken: result.mfaToken,
+          webauthnAvailable: result.webauthnAvailable ?? false,
+        };
+      }
+
       // Sync successful login with Redux state
-      dispatch(setUserFromApiResponse(result.user));
+      dispatch(setUserFromApiResponse(result.user ?? null));
 
       toast.success('Login successful!', {
         toastId: 'login-success',
@@ -157,7 +168,6 @@ export const useAuth = () => {
       console.error('Logout failed:', error);
 
       // Even if logout fails server-side, clear client state
-      localStorage.removeItem('access_token');
       dispatch(logoutAction());
 
       // Re-enable session queries even if logout failed
@@ -181,12 +191,15 @@ export const useAuth = () => {
     throw new Error('Profile update functionality has been removed');
   }, []);
 
-  // Permission helpers
+  // Permission helpers. The `*` wildcard grants all permissions and is
+  // issued to users with the developer system role.
   const hasPermission = useCallback((permission: string) => {
+    if (permissions.includes('*')) return true;
     return permissions.includes(permission);
   }, [permissions]);
 
   const hasAnyPermission = useCallback((requiredPermissions: string[]) => {
+    if (permissions.includes('*')) return true;
     return requiredPermissions.some(p => permissions.includes(p));
   }, [permissions]);
 

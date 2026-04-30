@@ -63,13 +63,13 @@ export const downloadCSV = (csv: string, filename: string): void => {
 };
 
 /**
- * Format date to Italian locale
+ * Format date to UK English locale
  */
 export const formatDateForCSV = (dateString: string | undefined): string => {
   if (!dateString) return '';
 
   const date = new Date(dateString);
-  return date.toLocaleString('it-IT', {
+  return date.toLocaleString('en-GB', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

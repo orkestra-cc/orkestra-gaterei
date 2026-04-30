@@ -9,7 +9,7 @@ const Experiences: React.FC = () => {
     <Card className="mb-3">
       <FalconCardHeader title="Experience" light />
       <Card.Body className="fs-10">
-        {experiences.map((experience, index) => (
+        {(experiences as any[]).map((experience: any, index: number) => (
           <Experience
             key={experience.id}
             experience={experience}

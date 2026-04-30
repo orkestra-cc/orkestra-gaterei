@@ -1,12 +1,11 @@
 import { useEffect, Fragment } from 'react';
 import classNames from 'classnames';
-import { Nav, Navbar, Row, Col } from 'react-bootstrap';
+import { Nav, Navbar, Row, Col, Placeholder } from 'react-bootstrap';
 import { navbarBreakPoint, topNavbarBreakpoint } from 'config';
 import Flex from 'components/common/Flex';
 import Logo from 'components/common/Logo';
 import NavbarVerticalMenu from './NavbarVerticalMenu';
 import ToggleButton from './ToggleButton';
-import routes from 'routes/siteMaps';
 import { capitalize } from 'helpers/utils';
 import NavbarTopDropDownMenus from 'components/navbar/top/NavbarTopDropDownMenus';
 import bgNavbar from 'assets/img/generic/bg-navbar.png';
@@ -16,6 +15,40 @@ import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
 interface NavbarLabelProps {
   label: string;
 }
+
+/**
+ * Loading skeleton for navigation items
+ * Displays placeholder content while navigation is being fetched from backend
+ */
+const NavbarSkeleton = () => (
+  <div className="navbar-vertical-content scrollbar">
+    <Nav className="flex-column" as="ul">
+      {[1, 2, 3].map((group) => (
+        <Fragment key={group}>
+          <Nav.Item as="li">
+            <Row className="mt-3 mb-2 navbar-vertical-label-wrapper">
+              <Col xs="auto" className="navbar-vertical-label">
+                <Placeholder animation="glow">
+                  <Placeholder xs={6} />
+                </Placeholder>
+              </Col>
+              <Col className="ps-0">
+                <hr className="mb-0 navbar-vertical-divider" />
+              </Col>
+            </Row>
+          </Nav.Item>
+          {[1, 2, 3].map((item) => (
+            <Nav.Item as="li" key={`${group}-${item}`} className="px-3 py-2">
+              <Placeholder as="div" animation="glow">
+                <Placeholder xs={8} />
+              </Placeholder>
+            </Nav.Item>
+          ))}
+        </Fragment>
+      ))}
+    </Nav>
+  </div>
+);
 
 const NavbarVertical = () => {
   const {
@@ -27,9 +60,9 @@ const NavbarVertical = () => {
     }
   } = useAppContext();
 
-  // Filter routes based on user role and permissions
-  const { filteredNavigation, isAuthenticated } =
-    useRoleBasedNavigation(routes);
+  // Get navigation from backend API (pre-filtered by role + tenant kind)
+  const { filteredNavigation, realms, isAuthenticated, isLoading, isError } =
+    useRoleBasedNavigation();
 
   const HTMLClassList = document.getElementsByTagName('html')[0].classList;
 
@@ -44,7 +77,7 @@ const NavbarVertical = () => {
     };
   }, [isNavbarVerticalCollapsed, HTMLClassList]);
 
-  //Control mouseEnter event
+  // Control mouseEnter event
   let time: ReturnType<typeof setTimeout> | null = null;
   const handleMouseEnter = () => {
     if (isNavbarVerticalCollapsed) {
@@ -68,6 +101,16 @@ const NavbarVertical = () => {
           <hr className="mb-0 navbar-vertical-divider"></hr>
         </Col>
       </Row>
+    </Nav.Item>
+  );
+
+  // Sub-label for a realm's sections. Less prominent than NavbarLabel —
+  // no divider, smaller, so the realm header stays visually dominant.
+  const NavbarSectionLabel = ({ label }: NavbarLabelProps) => (
+    <Nav.Item as="li">
+      <div className="px-3 pt-3 pb-1 text-uppercase text-500 small fw-semibold">
+        {label}
+      </div>
     </Nav.Item>
   );
 
@@ -99,32 +142,61 @@ const NavbarVertical = () => {
               : 'none'
         }}
       >
-        <div className="navbar-vertical-content scrollbar">
-          <Nav className="flex-column" as="ul">
-            {filteredNavigation.map(route => (
-              <Fragment key={route.label}>
-                {!route.labelDisable && (
-                  <NavbarLabel label={capitalize(route.label)} />
-                )}
-                <NavbarVerticalMenu routes={route.children} />
-              </Fragment>
-            ))}
-          </Nav>
+        {/* Loading state */}
+        {isLoading && <NavbarSkeleton />}
 
-          <>
-            {navbarPosition === 'combo' && (
-              <div className={`d-${topNavbarBreakpoint}-none`}>
-                <div className="navbar-vertical-divider">
-                  <hr className="navbar-vertical-hr my-2" />
+        {/* Error state - show minimal message */}
+        {isError && !isLoading && (
+          <div className="navbar-vertical-content scrollbar text-center py-4">
+            <small className="text-muted">Navigation unavailable</small>
+          </div>
+        )}
+
+        {/* Loaded navigation — prefer v2 realms shape; fall back to v1 flat groups. */}
+        {!isLoading && !isError && (
+          <div className="navbar-vertical-content scrollbar">
+            <Nav className="flex-column" as="ul">
+              {realms.length > 0
+                ? realms.map(realm => (
+                    <Fragment key={realm.key}>
+                      <NavbarLabel label={capitalize(realm.label)} />
+                      {realm.sections.map(section => (
+                        <Fragment key={`${realm.key}::${section.label}`}>
+                          {section.label &&
+                            section.label !== realm.label && (
+                              <NavbarSectionLabel
+                                label={capitalize(section.label)}
+                              />
+                            )}
+                          <NavbarVerticalMenu routes={section.children} />
+                        </Fragment>
+                      ))}
+                    </Fragment>
+                  ))
+                : filteredNavigation.map(route => (
+                    <Fragment key={route.label}>
+                      {!route.labelDisable && (
+                        <NavbarLabel label={capitalize(route.label)} />
+                      )}
+                      <NavbarVerticalMenu routes={route.children} />
+                    </Fragment>
+                  ))}
+            </Nav>
+
+            <>
+              {navbarPosition === 'combo' && (
+                <div className={`d-${topNavbarBreakpoint}-none`}>
+                  <div className="navbar-vertical-divider">
+                    <hr className="navbar-vertical-hr my-2" />
+                  </div>
+                  <Nav navbar>
+                    <NavbarTopDropDownMenus />
+                  </Nav>
                 </div>
-                <Nav navbar>
-                  <NavbarTopDropDownMenus />
-                </Nav>
-              </div>
-            )}
-            {/* <PurchaseCard /> */}
-          </>
-        </div>
+              )}
+            </>
+          </div>
+        )}
       </Navbar.Collapse>
     </Navbar>
   );

@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi';
+import { setAccessToken } from '../slices/authSlice';
 
 // Backend OAuth types matching the Go models
 export type OAuthProvider = 'google' | 'apple' | 'discord' | 'github';
@@ -50,6 +51,46 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface PasswordLoginResponse {
+  success: boolean;
+  // accessToken/tokenType/expiresIn are absent on MFA partial responses.
+  accessToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+  user?: BackendUser;
+  // Populated only when the account has an enrolled second factor. The
+  // caller must POST challengeId+code to /v1/auth/mfa/login/verify to
+  // complete the flow — no session cookies are set until then.
+  requiresMfa?: boolean;
+  mfaToken?: string;
+  // True when the user has at least one enrolled passkey alongside (or
+  // instead of) TOTP. Drives the "Use a passkey" button on /mfa/verify.
+  webauthnAvailable?: boolean;
+  // Populated when the account's role requires MFA but none is enrolled.
+  // The caller receives a full token (grace window) but must enroll before
+  // mfaGraceExpiresAt.
+  mfaEnrollmentRequired?: boolean;
+  mfaGraceExpiresAt?: string | null;
+}
+
+export interface RegisterInput {
+  email: string;
+  password: string;
+  fullName: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  userUuid: string;
+  message: string;
+  requiresVerification: boolean;
+}
+
+export interface SimpleMessageResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface LoginResponse {
   success: boolean;
   user: BackendUser;
@@ -62,6 +103,7 @@ export interface SessionResponse {
   expiresIn: number;
   user: BackendUser;
   oauthProviders?: OAuthProviderInfo[];
+  authenticated?: boolean;
   success: boolean;
 }
 
@@ -71,8 +113,8 @@ export const authApi = baseApi.injectEndpoints({
     // Check authentication status - returns backend user data directly
     getCurrentUser: builder.query<BackendUser | null, void>({
       providesTags: ['Auth', 'User'],
-      queryFn: async (arg, api, extraOptions, baseQuery) => {
-        const result = await baseQuery('api/v1/auth/me');
+      queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery('v1/auth/me');
 
         // Handle 401/403 as expected unauthenticated state, not an error
         if (result.error && (result.error.status === 401 || result.error.status === 403)) {
@@ -93,28 +135,123 @@ export const authApi = baseApi.injectEndpoints({
       keepUnusedDataFor: 30, // 30 seconds
     }),
 
-    // User login
-    login: builder.mutation<LoginResponse, LoginCredentials>({
+    // Email/password login — returns access token + user
+    login: builder.mutation<PasswordLoginResponse, LoginCredentials>({
       query: (credentials) => ({
-        url: 'api/v1/auth/login',
+        url: 'v1/auth/login',
         method: 'POST',
         body: credentials,
       }),
-      invalidatesTags: ['Auth', 'User'],
+      // Intentionally does NOT invalidate 'Auth'. Invalidating 'Auth' would
+      // trigger useGetSessionQuery to immediately refetch /v1/auth/session,
+      // which rotates the refresh cookie a SECOND time (login already set a
+      // fresh one). That post-login rotation races the cookie application
+      // in the browser and trips the family-replay guard. The login response
+      // body already contains accessToken + user, so we dispatch them
+      // directly from the login callback in useAuthRTK — no session refetch
+      // is needed to establish the authenticated state. We still invalidate
+      // User + Navigation so role-dependent queries refetch.
+      invalidatesTags: ['User', 'Navigation'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const result = await queryFulfilled;
+          // MFA partial response: no tokens minted, caller routes to
+          // /mfa/verify with the challenge id. Don't seed auth state.
+          if (result.data?.requiresMfa) {
+            return;
+          }
+          if (result.data?.accessToken && result.data?.expiresIn) {
+            dispatch(
+              setAccessToken({
+                accessToken: result.data.accessToken,
+                expiresIn: result.data.expiresIn,
+              })
+            );
+          }
+          // Seed the session cache with the login response so subsequent
+          // useGetSessionQuery subscribers see authenticated state without
+          // another round-trip (which would rotate the cookie again).
+          if (result.data?.user && result.data?.accessToken) {
+            dispatch(
+              authApi.util.upsertQueryData('getSession', undefined, {
+                accessToken: result.data.accessToken,
+                tokenType: result.data.tokenType ?? 'Bearer',
+                expiresIn: result.data.expiresIn ?? 0,
+                user: result.data.user,
+                success: true,
+              } as SessionResponse)
+            );
+          }
+        } catch {
+          // login failed — nothing to seed, error surfaces via mutation result
+        }
+      },
+    }),
+
+    // Self-service registration with email/password
+    register: builder.mutation<RegisterResponse, RegisterInput>({
+      query: (input) => ({
+        url: 'v1/auth/register',
+        method: 'POST',
+        body: input,
+      }),
+    }),
+
+    // Verify email address with token from link
+    verifyEmail: builder.mutation<SimpleMessageResponse, { token: string }>({
+      query: (body) => ({
+        url: 'v1/auth/verify-email',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Resend the verification email
+    resendVerification: builder.mutation<SimpleMessageResponse, { email: string }>({
+      query: (body) => ({
+        url: 'v1/auth/verify-email/resend',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Request password reset email
+    forgotPassword: builder.mutation<SimpleMessageResponse, { email: string }>({
+      query: (body) => ({
+        url: 'v1/auth/forgot-password',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Consume a password reset token and set a new password
+    resetPassword: builder.mutation<SimpleMessageResponse, { token: string; newPassword: string }>({
+      query: (body) => ({
+        url: 'v1/auth/reset-password',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Change password while authenticated
+    changePassword: builder.mutation<SimpleMessageResponse, { currentPassword: string; newPassword: string }>({
+      query: (body) => ({
+        url: 'v1/auth/change-password',
+        method: 'POST',
+        body,
+      }),
     }),
 
     // User logout
     logout: builder.mutation<LogoutResponse, void>({
       query: () => ({
-        url: 'api/v1/auth/logout',
+        url: 'v1/auth/logout',
         method: 'POST',
       }),
-      invalidatesTags: ['Auth', 'User'],
+      // Clear navigation cache on logout
+      invalidatesTags: ['Auth', 'User', 'Navigation'],
       onQueryStarted: async (_, { dispatch, queryFulfilled }) => {
         try {
-          // Clear access token immediately
-          localStorage.removeItem('access_token');
-
           // Wait for logout to complete
           await queryFulfilled;
 
@@ -133,7 +270,7 @@ export const authApi = baseApi.injectEndpoints({
     // OAuth endpoints
     initiateOAuth: builder.mutation<{ redirectUrl: string }, { provider: string }>({
       query: ({ provider }) => ({
-        url: `api/v1/auth/oauth/${provider}`,
+        url: `v1/auth/oauth/${provider}`,
         method: 'POST',
       }),
     }),
@@ -141,20 +278,24 @@ export const authApi = baseApi.injectEndpoints({
     // OAuth callback handling
     handleOAuthCallback: builder.mutation<LoginResponse, { code: string; state?: string; provider: string }>({
       query: ({ code, state, provider }) => ({
-        url: `api/v1/auth/oauth/${provider}/callback`,
+        url: `v1/auth/oauth/${provider}/callback`,
         method: 'POST',
         body: { code, state },
       }),
-      invalidatesTags: ['Auth', 'User'],
+      // Invalidate navigation to fetch role-filtered menu for new user
+      invalidatesTags: ['Auth', 'User', 'Navigation'],
     }),
 
     // Get session after OAuth callback - retrieves access token using refresh token from cookie
     getSession: builder.query<SessionResponse | null, void>({
       providesTags: ['Auth'],
-      queryFn: async (arg, api, extraOptions, baseQuery) => {
-        const result = await baseQuery('api/v1/auth/session');
+      queryFn: async (_arg, api, _extraOptions, baseQuery) => {
+        const result = await baseQuery('v1/auth/session');
 
-        // Handle 401/403 as expected unauthenticated state, not an error
+        // Handle 401/403 as expected unauthenticated state, not an error.
+        // 401 now means "cookie present but refresh rejected" (expired,
+        // revoked, replay) — the bootstrap "no cookie" case returns 200
+        // with authenticated:false, handled below.
         if (result.error && (result.error.status === 401 || result.error.status === 403)) {
           return { data: null };
         }
@@ -166,9 +307,38 @@ export const authApi = baseApi.injectEndpoints({
 
         // For successful responses, enhance user data with OAuth providers
         const sessionData = result.data as SessionResponse;
+
+        // Backend returns 200 + authenticated:false when no refresh cookie
+        // is present (fresh browser, post-logout). Surface this as a null
+        // session so subscribers see the same unauthenticated state the
+        // 401 path produced before.
+        if (sessionData && sessionData.authenticated === false) {
+          return { data: null };
+        }
+
         if (sessionData && sessionData.user && sessionData.oauthProviders) {
           // Add OAuth providers to user data for consistency
           sessionData.user.oauthProviders = sessionData.oauthProviders;
+        }
+
+        // Dispatch setAccessToken BEFORE returning so dependent queries
+        // (useListMyOrgsQuery, useGetNavigationQuery, etc.) that unskip
+        // the moment isAuthenticated flips true include the Authorization
+        // header in their very first request. Doing it here — rather than
+        // in a useEffect in useAuthRTK that runs after render — avoids a
+        // page-load race: without the token in Redux, those queries fire
+        // with no auth header, the backend's inline refresh-cookie
+        // rotation races across the concurrent middleware invocations, and
+        // the CAS-loss branch trips the family-replay guard. That revokes
+        // the entire session and bounces the user to /login on every
+        // page refresh.
+        if (sessionData && sessionData.accessToken) {
+          api.dispatch(
+            setAccessToken({
+              accessToken: sessionData.accessToken,
+              expiresIn: sessionData.expiresIn,
+            })
+          );
         }
 
         return { data: sessionData };
@@ -183,6 +353,12 @@ export const authApi = baseApi.injectEndpoints({
 export const {
   useGetCurrentUserQuery,
   useLoginMutation,
+  useRegisterMutation,
+  useVerifyEmailMutation,
+  useResendVerificationMutation,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
+  useChangePasswordMutation,
   useLogoutMutation,
   useInitiateOAuthMutation,
   useHandleOAuthCallbackMutation,

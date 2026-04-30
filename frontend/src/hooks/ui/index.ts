@@ -7,4 +7,5 @@ export { useGetDndSensor } from './useGetDndSensor';
 export { default as usePagination } from './usePagination';
 export { default as useSupportDeskTable } from './useSupportDeskTable';
 export { default as useToggleStyle } from './useToggleStyle';
+export { useResizable } from './useResizable';
 export { default as useVisibilityObserver } from './useVisibilityObserver';

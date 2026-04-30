@@ -75,6 +75,7 @@ pid
 # temp
 temp/
 tmp/
+.npm-cache
 
 # Build artifacts
 bin/
@@ -97,4 +98,5 @@ Thumbs.db
 
 # CLAUDE
 CLAUDE-*.md
-mongo-mcp.json
+settings.local.json
+mongo-mcp.jsonbackend/server

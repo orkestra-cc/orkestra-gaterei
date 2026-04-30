@@ -66,6 +66,7 @@ const WizardInput = ({
       <Form.Group {...formGroupProps}>
         {!!label && <Form.Label>{label}</Form.Label>}
 
+{/* @ts-expect-error react-datepicker has complex discriminated union types for onChange */}
         <DatePicker
           selected={date}
           onChange={(newDate: Date | null) => {
@@ -86,13 +87,30 @@ const WizardInput = ({
     );
   }
 
-  if (type === 'checkbox' || type === 'switch' || type === 'radio') {
-    const checkType = type === 'switch' ? 'checkbox' : type;
+  if (type === 'checkbox' || type === 'switch') {
+    const { type: _type, size: _size, ...checkboxProps } = formControlProps || {};
     return (
-      <Form.Check type={type === 'switch' ? 'switch' : checkType} id={name + Math.floor(Math.random() * 100)}>
+      <Form.Check type={type === 'switch' ? 'switch' : 'checkbox'} id={name + Math.floor(Math.random() * 100)}>
         <Form.Check.Input
-          type={checkType as 'checkbox' | 'radio'}
-          {...formControlProps}
+          {...checkboxProps}
+          type="checkbox"
+          isInvalid={!!errors[name]}
+          isValid={Object.keys(errors).length > 0 && !errors[name]}
+        />
+        <Form.Check.Label className="ms-2">{label}</Form.Check.Label>
+        <Form.Control.Feedback type="invalid" className="mt-0">
+          {errors[name]?.message as string | undefined}
+        </Form.Control.Feedback>
+      </Form.Check>
+    );
+  }
+  if (type === 'radio') {
+    const { type: _type, size: _size, ...radioProps } = formControlProps || {};
+    return (
+      <Form.Check type="radio" id={name + Math.floor(Math.random() * 100)}>
+        <Form.Check.Input
+          {...radioProps}
+          type="radio"
           isInvalid={!!errors[name]}
           isValid={Object.keys(errors).length > 0 && !errors[name]}
         />
@@ -104,12 +122,12 @@ const WizardInput = ({
     );
   }
   if (type === 'select') {
-    const { ref: _ref, ...selectProps } = formControlProps || {};
+    const { ref: _ref, size: _size, ...selectProps } = formControlProps || {};
     return (
       <Form.Group {...formGroupProps}>
         <Form.Label>{label}</Form.Label>
         <Form.Select
-          {...selectProps}
+          {...(selectProps as Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'>)}
           isInvalid={!!errors[name]}
           isValid={Object.keys(errors).length > 0 && !errors[name]}
         >

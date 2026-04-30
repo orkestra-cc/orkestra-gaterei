@@ -22,7 +22,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
         style={{ minHeight: '200px' }}
       >
         <Spinner animation="border" role="status">
-          <span className="visually-hidden">Caricamento metriche...</span>
+          <span className="visually-hidden">Loading metrics...</span>
         </Spinner>
       </div>
     );
@@ -30,14 +30,14 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
 
   // If error, show error message
   if (error) {
-    return <Alert variant="danger">Nessuna metriche utente</Alert>;
+    return <Alert variant="danger">No user metrics</Alert>;
   }
 
   // If no data, use default values
   if (!metricsData) {
     return (
       <Alert variant="warning">
-        Nessuna metrica disponibile per questo utente
+        No metrics available for this user
       </Alert>
     );
   }
@@ -45,7 +45,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
   const metrics = [
     {
       icon: 'calendar-check',
-      label: 'Compiti Completati',
+      label: 'Tasks Completed',
       value: `${metricsData.tasksCompleted}`,
       total: `${metricsData.totalTasks}`,
       percentage: Math.round(
@@ -55,21 +55,21 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
     },
     {
       icon: 'clock',
-      label: 'Consegne Puntuali',
+      label: 'On-Time Deliveries',
       value: `${Math.round(metricsData.onTimeDeliveryRate)}%`,
       percentage: Math.round(metricsData.onTimeDeliveryRate),
       variant: 'info'
     },
     {
       icon: 'star',
-      label: 'Valutazione Performance',
+      label: 'Performance Rating',
       value: `${metricsData.performanceRating.toFixed(1)}/5`,
       percentage: Math.round((metricsData.performanceRating / 5) * 100),
       variant: 'warning'
     },
     {
       icon: 'users',
-      label: 'Collaborazione Team',
+      label: 'Team Collaboration',
       value: `${Math.round(metricsData.teamCollaboration)}%`,
       percentage: Math.round(metricsData.teamCollaboration),
       variant: 'primary'
@@ -83,17 +83,12 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
       color: 'primary'
     },
     {
-      feature: 'Gestione Flotta',
-      usage: metricsData.systemUsage.fleetManagement,
+      feature: 'Reports',
+      usage: metricsData.systemUsage.reports,
       color: 'success'
     },
     {
-      feature: 'Report',
-      usage: metricsData.systemUsage.reports,
-      color: 'info'
-    },
-    {
-      feature: 'Impostazioni',
+      feature: 'Settings',
       usage: metricsData.systemUsage.settings,
       color: 'warning'
     },
@@ -110,7 +105,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="chart-bar" className="me-2" />
-            Metriche Performance
+            Performance Metrics
           </h5>
         </Card.Header>
         <Card.Body>
@@ -126,7 +121,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
               >
                 <Flex alignItems="center">
                   <FontAwesomeIcon
-                    icon={metric.icon}
+                    icon={metric.icon as any}
                     className={`text-${metric.variant} me-2`}
                   />
                   <small className="text-700">{metric.label}</small>
@@ -147,7 +142,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="chart-pie" className="me-2" />
-            Utilizzo Sistema
+            System Usage
           </h5>
         </Card.Header>
         <Card.Body>
@@ -174,7 +169,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
         <Card.Header className="bg-body-tertiary">
           <h5 className="mb-0">
             <FontAwesomeIcon icon="info-circle" className="me-2" />
-            Statistiche Rapide
+            Quick Stats
           </h5>
         </Card.Header>
         <Card.Body>
@@ -184,7 +179,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
                 <div className="fw-bold text-primary fs-7">
                   {metricsData.quickStats.loginCount}
                 </div>
-                <small className="text-600">Login</small>
+                <small className="text-600">Logins</small>
               </div>
             </Col>
             <Col xs={6}>
@@ -192,7 +187,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
                 <div className="fw-bold text-success fs-7">
                   {metricsData.quickStats.onlineTimeHours}h
                 </div>
-                <small className="text-600">Tempo Online</small>
+                <small className="text-600">Online Time</small>
               </div>
             </Col>
             <Col xs={6}>
@@ -200,7 +195,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
                 <div className="fw-bold text-info fs-7">
                   {metricsData.quickStats.activeTasks}
                 </div>
-                <small className="text-600">Compiti Attivi</small>
+                <small className="text-600">Active Tasks</small>
               </div>
             </Col>
             <Col xs={6}>
@@ -208,7 +203,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
                 <div className="fw-bold text-warning fs-7">
                   {metricsData.quickStats.overdueTasks}
                 </div>
-                <small className="text-600">In Ritardo</small>
+                <small className="text-600">Overdue</small>
               </div>
             </Col>
           </Row>

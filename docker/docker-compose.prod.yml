@@ -1,25 +1,27 @@
 # ORKESTRA Production Environment Docker Compose
 # Full security, production credentials
 
+name: orkestra-prod
+
 services:
   backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
       target: production
-    container_name: orkestra-backend-prod
+    container_name: orkestra-backend
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       ENV: production
-      PORT: ${BACKEND_PORT:-3000}
+      PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
 
-      # MongoDB
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:${MONGO_PORT:-27017}/${MONGO_DATABASE}?authSource=admin
+      # MongoDB (internal port is always 27017, MONGO_PORT is for host mapping only)
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@${MONGO_HOST:-mongodb}:27017/${MONGO_DATABASE}?authSource=admin
 
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+      # Redis (internal port is always 6379, REDIS_PORT is for host mapping only)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:6379/${REDIS_DB:-0}
 
       # JWT & Auth (RS256 asymmetric keys)
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}
@@ -27,8 +29,14 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
 
-      # OAuth Token Encryption
+      # OAuth Token Encryption — bootstraps ConfigService (every secret in
+      # module_configs is AES-256-GCM encrypted with this key). Rotating it
+      # invalidates every stored secret.
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped DEK.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
 
       # Cookie Configuration (maximum security)
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -38,23 +46,6 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-strict}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
-
-      # OAuth (production credentials)
-      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
-      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
-      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
-      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
-      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
-
-      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
-      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
-      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
-      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
-      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
-
-      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
-      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
-      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
 
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-https://orkestra.cc}
@@ -73,28 +64,34 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend}
 
-      # Email
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM: ${SMTP_FROM:-noreply@orkestra.cc}
+      # Module infrastructure containers (hindsight etc.). Set to "false" on
+      # Kubernetes deployments where the orchestrator owns container lifecycle.
+      CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
 
-      # Storage
-      S3_BUCKET: ${S3_BUCKET}
-      S3_REGION: ${S3_REGION}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # Module config (OAuth, OpenAPI billing/company tokens, Stripe keys,
+      # SMTP, Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
+      # per-module enable flags) is owned by ConfigService and edited at
+      # /admin/modules. The module ConfigSchema EnvVar fields seed those
+      # values from the host environment ONLY on first boot of a brand-new
+      # install — after that the module_configs document is authoritative.
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs
       - ./keys:/app/keys:ro
+      # Docker socket mount enables runtime container control. In production
+      # Docker Swarm, strongly consider fronting this with
+      # tecnativa/docker-socket-proxy and restricting to container endpoints.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Join the host Docker group so the mounted socket is usable. Override
+    # DOCKER_GID in the production env file if the host uses a different gid.
+    group_add:
+      - "${DOCKER_GID:-1001}"
     networks:
       - orkestra-network
     # Note: mongodb and redis are in docker-compose.infra.yml
     # Ensure infra is running: docker compose -f docker-compose.infra.yml up -d
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/3000 && echo 'OK'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -109,10 +106,11 @@ services:
         VITE_API_URL: ${VITE_API_URL:-https://api.orkestra.cc}
         VITE_BACKEND_URL: ${VITE_BACKEND_URL:-https://api.orkestra.cc}
         VITE_WS_URL: ${VITE_WS_URL:-wss://api.orkestra.cc/ws}
+        VITE_PUBLIC_URL: ${VITE_PUBLIC_URL:-/}
         VITE_ENV: production
         VITE_DEBUG: "false"
         VITE_SENTRY_DSN: ${SENTRY_DSN_FRONTEND}
-    container_name: orkestra-frontend-prod
+    container_name: orkestra-frontend
     restart: unless-stopped
     ports:
       - "8080:80"

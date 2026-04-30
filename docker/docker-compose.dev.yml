@@ -1,25 +1,32 @@
 # ORKESTRA Development Environment Docker Compose
 # Local development with hot reload, relaxed security
 
+name: orkestra-dev
+
 services:
-  backend:
+  orkestra-backend:
     image: dhi.io/golang:1
     container_name: orkestra-backend-dev
     user: "1000:1000"
     userns_mode: "host"
+    # Join the host Docker group so the backend can read/write /var/run/docker.sock
+    # for module container lifecycle. Override DOCKER_GID in .env if your host
+    # uses a different gid (common values: 999 on Debian, 1001 on Ubuntu/WSL).
+    group_add:
+      - "${DOCKER_GID:-1001}"
     working_dir: /app
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
       ENV: development
-      PORT: ${BACKEND_PORT:-3000}
+      PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
 
       # MongoDB
       MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@${MONGO_HOST}:27017/${MONGO_DATABASE:-orkestra}?authSource=admin
 
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@${REDIS_HOST}:${REDIS_PORT:-6379}/${REDIS_DB:-0}
+      # Redis (internal port is always 6379, REDIS_PORT is for host mapping only)
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@${REDIS_HOST}:6379/${REDIS_DB:-0}
 
       # JWT & Auth (RS256 asymmetric keys)
       JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-/app/keys/jwt-private.pem}
@@ -27,8 +34,15 @@ services:
       JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY:-15m}
       JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY:-7d}
 
-      # OAuth Token Encryption
+      # OAuth Token Encryption — bootstraps ConfigService (every secret in
+      # module_configs is AES-256-GCM encrypted with this key). Rotating it
+      # invalidates every stored secret.
       OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY}
+
+      # Compliance KMS master key (Phase 4.3) — 64 hex chars = 32 bytes.
+      # Wraps per-tenant DEKs; losing this key invalidates every wrapped
+      # DEK. Keep env-derived so operators can rotate without a rebuild.
+      ORKESTRA_KMS_MASTER_KEY: ${ORKESTRA_KMS_MASTER_KEY}
 
       # Cookie Configuration
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -39,35 +53,39 @@ services:
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
 
-      # OAuth (dev credentials)
-      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
-      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
-      OAUTH_GOOGLE_ANDROID_CLIENT_ID: ${OAUTH_GOOGLE_ANDROID_CLIENT_ID}
-      OAUTH_GOOGLE_IOS_CLIENT_ID: ${OAUTH_GOOGLE_IOS_CLIENT_ID}
-      OAUTH_GOOGLE_REDIRECT_URL: ${OAUTH_GOOGLE_REDIRECT_URL}
-
-      OAUTH_APPLE_TEAM_ID: ${OAUTH_APPLE_TEAM_ID}
-      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID}
-      OAUTH_APPLE_KEY_ID: ${OAUTH_APPLE_KEY_ID}
-      OAUTH_APPLE_PRIVATE_KEY_PATH: /app/keys/apple.p8
-      OAUTH_APPLE_REDIRECT_URL: ${OAUTH_APPLE_REDIRECT_URL}
-
-      OAUTH_DISCORD_CLIENT_ID: ${OAUTH_DISCORD_CLIENT_ID}
-      OAUTH_DISCORD_CLIENT_SECRET: ${OAUTH_DISCORD_CLIENT_SECRET}
-      OAUTH_DISCORD_REDIRECT_URL: ${OAUTH_DISCORD_REDIRECT_URL}
-
       # URLs
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:3000}
 
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+
       # Security (relaxed for dev)
-      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
-      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-1m}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-1000}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-100}
 
       # Development specific
       DEBUG: "true"
       LOG_LEVEL: debug
       PRETTY_LOGS: "true"
+
+      # AI Service sidecar (empty = local modules, set = remote AI service)
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-}
+
+      # Module config (OAuth secrets, Stripe keys, OpenAPI tokens, SMTP,
+      # Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
+      # per-module enable flags) is owned by ConfigService and edited at
+      # /admin/modules. The module ConfigSchema EnvVar fields seed those
+      # values from the host environment ONLY on first boot of a brand-new
+      # install — after that the module_configs document is authoritative.
+      # If you need to bootstrap a fresh deployment from .env, export the
+      # seed vars in the shell before running `docker compose up`.
+
+      # Module infrastructure containers (e.g. hindsight).
+      # Enables the backend to start/stop external containers when a module is toggled.
+      # Set to "false" when running under Kubernetes or when you want to manage
+      # infra containers externally.
+      CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
 
       # Hot reload
       AIR_BUILD_CMD: go build -o ./tmp/main ./cmd/server
@@ -75,18 +93,25 @@ services:
 
       # Go module settings
       GOSUMDB: "off"
+      GOMODCACHE: "/app/.go-mod-cache"
       GOCACHE: "/app/.go-build-cache"
       GOBIN: "/app/.go-bin"
       PATH: "/app/.go-bin:/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     volumes:
       - ../backend:/app
-      - /app/tmp
       - ./keys:/app/keys
+      # Bind-mount the host Docker socket so the backend can manage module
+      # infrastructure containers (e.g. orkestra-hindsight for the agents
+      # module). Hardening for staging/prod: front with tecnativa/docker-socket-proxy.
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - orkestra-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     command: ["sh", "-c", "go mod download && go install github.com/air-verse/air@latest && air"]
 
-  frontend:
+  orkestra-frontend:
     image: dhi.io/node:24-dev
     container_name: orkestra-frontend-dev
     user: "1000:1000"

@@ -30,6 +30,45 @@ The docker module provides **containerized infrastructure and deployment configu
 - **Developers**: Local development environment setup
 - **Production**: Deployment and scaling configurations
 
+## AI Assistant Critical Rules
+
+### 🚨 MANDATORY: Check ENV Variable FIRST
+
+**BEFORE running ANY Docker command, you MUST check the current environment:**
+
+```bash
+# ALWAYS run this FIRST before any docker operations
+grep "^ENV=" /home/tore/orkestra/docker/.env
+```
+
+**This determines which compose file to use:**
+- `ENV=development` → Use `docker-compose.dev.yml`
+- `ENV=staging` → Use `docker-compose.staging.yml`
+- `ENV=production` → Use `docker-compose.prod.yml`
+
+**⛔ NEVER assume the environment. ALWAYS check first.**
+
+---
+
+### 🚨 ALWAYS use `--env-file` when running Docker Compose commands:
+
+```bash
+# ✅ CORRECT - Always specify the env file
+docker compose -f docker-compose.staging.yml --env-file .env up -d
+docker compose -f docker-compose.staging.yml --env-file .env restart frontend
+docker compose -f docker-compose.staging.yml --env-file .env logs frontend
+
+# ❌ WRONG - Using wrong compose file without checking ENV first
+docker compose -f docker-compose.dev.yml up -d
+```
+
+**Compose file selection based on ENV variable:**
+- `ENV=development` → `docker-compose.dev.yml` with `--env-file .env`
+- `ENV=staging` → `docker-compose.staging.yml` with `--env-file .env`
+- `ENV=production` → `docker-compose.prod.yml` with `--env-file .env`
+
+---
+
 ## Three-Stage Environment Workflow
 
 ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and **Production**.
@@ -46,16 +85,49 @@ ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and *
 ### Quick Commands
 
 ```bash
-# Interactive deployment manager (from project root)
-./deploy.sh                        # Select environment and operation interactively
+# Interactive TUI — single entry point for every stack operation
+./orkestra.sh                      # Profile menu: minimal or full stack
 
-# Interactive log viewer (from project root)
-./logs.sh                          # Select service and view logs interactively
+# CLI mode (scriptable, same operations)
+./orkestra.sh minimal deploy --build
+./orkestra.sh minimal logs backend -f
+./orkestra.sh minimal reset --yes
+ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
+./orkestra.sh logs orkestra-backend-dev -f
+./orkestra.sh --help               # Full command surface
 
 # Validate environment files
 ./scripts/env-validate.sh all      # Validate all
 ./scripts/env-validate.sh staging  # Validate specific
 ```
+
+### What belongs in `.env` / compose vs `/admin/modules`
+
+After the architecture-modernization refactor, **module-level configuration lives in MongoDB** (`module_configs`), is edited at `/admin/modules`, and secrets are AES-256-GCM-encrypted with `OAUTH_TOKEN_ENCRYPTION_KEY`. The `EnvVar` field on each module's `ConfigSchema()` is consulted **only on first-boot seeding** (`shared/module/config_service.go::buildInitialConfig`); after that the document is authoritative and editing the env var has no effect.
+
+Keep this split when touching `.env*` or `docker-compose.*.yml`:
+
+| Bucket | Owner | Goes in compose / `.env` |
+|--------|-------|--------------------------|
+| Boot identity (`APP_NAME`, `ENV`, `PORT`, host/port mappings) | process | ✅ yes |
+| Database connections (`MONGO_URI`, `REDIS_URL`, credentials) | process | ✅ yes |
+| JWT keys, cookies, CORS, rate limits, observability | process | ✅ yes |
+| Encryption keys (`OAUTH_TOKEN_ENCRYPTION_KEY`, `ORKESTRA_KMS_MASTER_KEY`, optional `MFA_SECRET_ENCRYPTION_KEY`) | process — bootstraps ConfigService | ✅ yes |
+| Process-scoped auth tunables (`AUTH_REQUIRE_EMAIL_VERIFICATION`, `AUTH_RISK_STEP_UP_THRESHOLD`, `WEBAUTHN_RP_ID`, `AUTH_GEOIP_DB_PATH`, `TENANT_KIND_ENFORCEMENT`, `CEDAR_ENFORCE_ACTIONS`) | process | ✅ yes |
+| `CONTAINER_CONTROL_ENABLED`, `DOCKER_GID`, `AI_SERVICE_URL`, `AI_SERVICE_PORT` | process | ✅ yes |
+| `SALES_*`, `RAG_CHUNK_*` | process — runtime knobs not yet migrated to ConfigSchema | ✅ yes (transitional) |
+| OAuth provider credentials (`OAUTH_GOOGLE/APPLE/GITHUB/DISCORD_*`) | ConfigService (auth module) | ❌ admin UI |
+| OpenAPI billing / company tokens (`OPENAPI_BILLING_*`, `OPENAPI_COMPANY_*`, `OPENAPI_SANDBOX_MODE`, `BILLING_WEBHOOK_*`) | ConfigService (billing, company modules) | ❌ admin UI |
+| AI provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_BASE_URL`) | ConfigService (aimodels module) | ❌ admin UI |
+| Memgraph / Hindsight URLs and credentials (`GRAPH_*`, `HINDSIGHT_URL`, `HINDSIGHT_NAMESPACE`, `HINDSIGHT_IMAGE`, `GRAPH_IMAGE`) | ConfigService (graph, agents modules) | ❌ admin UI |
+| Gotenberg URL (`GOTENBERG_*`) | ConfigService (documents module) | ❌ admin UI |
+| Stripe keys (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_VERSION`) | ConfigService (payments module) | ❌ admin UI |
+| SMTP / notification settings (`SMTP_*`, `NOTIFICATION_EMAIL_*`) | ConfigService (notification module) | ❌ admin UI |
+| Per-module enable flags (`*_ENABLED`) | DB (`module_configs.enabled`) flipped at runtime | ❌ admin UI |
+
+For first-boot bootstrap of a fresh deployment without using the admin UI, export the seed env vars in the shell before `docker compose up` — they're listed as commented stubs at the bottom of `docker/.env`. Once the document exists, those env vars become inert.
+
+Vars **deleted as dead code** during the cleanup (do not re-add): `MODULES`, `BACKEND_HOST`, `FRONTEND_HOST`, `SIGNOZ_ENABLED`, `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `HINDSIGHT_LLM_*` (the agents module reuses the AI Models default LLM).
 
 ### Environment Behavior Matrix
 
@@ -77,37 +149,42 @@ ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and *
 
 ### Core Philosophy
 
-Separate infrastructure from applications across four compose files:
+Separate infrastructure from applications across five compose files:
 
-1. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis)
-2. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
-3. **`docker-compose.staging.yml`** - Application services in staging mode (production-like)
-4. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
+1. **`docker-compose.minimal.yml`** — Self-contained 4-container stack (mongo, redis, backend, frontend) using only public images. Recommended for first boot on a modest VM or when you don't have `dhi.io` registry access.
+2. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
+3. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
+4. **`docker-compose.staging.yml`** - Application services in staging mode (staging-like env + AIR/Vite hot reload)
+5. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
+
+The minimal profile is **self-contained** — it does NOT layer on top of `docker-compose.infra.yml`. It brings its own mongo/redis containers (on non-standard ports to avoid colliding with the dev stack's infra containers) and only starts the core module chain.
 
 ### File Organization
 
 ```
 /                              # Project root
-├── deploy.sh                  # Interactive deployment manager
-├── logs.sh                    # Interactive log viewer
+├── README.md                  # Leads with the minimal bootstrap path
+├── orkestra.sh                # Unified TUI + CLI for the whole stack (replaces deploy.sh and logs.sh)
 └── docker/
-    ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis
+    ├── docker-compose.minimal.yml # Minimal: self-contained 4-container stack
+    ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
     ├── docker-compose.dev.yml     # Development: Backend, Frontend with hot reload
-    ├── docker-compose.staging.yml # Staging: Production-like behavior
+    ├── docker-compose.staging.yml # Staging: AIR/Vite hot reload + staging-like env
     ├── docker-compose.prod.yml    # Production: Optimized Backend, Frontend
+    ├── docker-compose.ai.yml      # Optional AI sidecar (graph, rag, agents, aimodels)
     ├── .env.example               # Template for environment files
-    ├── .env.development           # Development environment variables
-    ├── .env.staging               # Staging environment variables
-    ├── .env.production            # Production environment variables
+    ├── .env.minimal               # Tracked dev-only env for the minimal profile
+    ├── .env                       # Active env (gitignored) - contains ENV=development|staging|production
     ├── keys/                      # JWT and OAuth keys (gitignored)
     └── mongo-init/                # MongoDB initialization scripts
 ```
 
 ### Environment Combinations
 
-- **Development**: `docker-compose.infra.yml` + `docker-compose.dev.yml` + `.env.development`
-- **Staging**: `docker-compose.infra.yml` + `docker-compose.staging.yml` + `.env.staging`
-- **Production**: `docker-compose.infra.yml` + `docker-compose.prod.yml` + `.env.production`
+- **Minimal**: `docker-compose.minimal.yml` + `.env.minimal` — one-command boot with core modules only, uses public images
+- **Development**: `docker-compose.infra.yml` + `docker-compose.dev.yml` + `.env` (with `ENV=development`)
+- **Staging**: `docker-compose.infra.yml` + `docker-compose.staging.yml` + `.env` (with `ENV=staging`)
+- **Production**: `docker-compose.infra.yml` + `docker-compose.prod.yml` + `.env` (with `ENV=production`)
 
 **IMPORTANT**: All Docker files must remain in `/docker` directory for proper build contexts.
 
@@ -127,28 +204,40 @@ cp .env.example .env.production
 # Edit each file with appropriate values
 ```
 
-### Using deploy.sh (Recommended)
+### Using orkestra.sh (Recommended)
+
+`orkestra.sh` is the single entry point for every stack operation. It works as both an interactive TUI and a scriptable CLI, and knows about all five profiles (minimal, infra+dev, infra+staging, infra+prod, ai sidecar).
 
 ```bash
-# From project root - interactive deployment manager
-./deploy.sh
+# Interactive TUI — profile menu appears, then a per-profile op menu
+./orkestra.sh
 
-# The script will:
-# 1. Show available environments with status (✓/✗)
-# 2. Prompt for environment selection
-# 3. Show operation menu (Deploy, Stop, Status)
-# 4. Handle all docker compose operations automatically
+# The TUI flow:
+# 1. Pick profile: "Minimal" or "Full stack"
+# 2. Minimal: Deploy / Stop / Reset (wipe volumes) / Status / Logs / Info / Back
+# 3. Full stack: Deploy (with scope selection) / Stop / Status / Logs / Back
+# 4. ENV is autodetected from docker/.env for the full-stack path
 ```
 
-### Using logs.sh
+**CLI mode** — same operations, non-interactive, suitable for scripting and CI:
 
 ```bash
-# From project root - interactive log viewer
-./logs.sh              # Interactive service selection
-./logs.sh -f           # Follow logs
-./logs.sh -n 50        # Show last 50 lines
-./logs.sh -t           # Show timestamps
+# Minimal profile
+./orkestra.sh minimal deploy [--build]
+./orkestra.sh minimal stop
+./orkestra.sh minimal reset [--yes]
+./orkestra.sh minimal status
+./orkestra.sh minimal info
+./orkestra.sh minimal logs <service> [-f] [-n N] [-t]
+
+# Full stack (uses ENV from docker/.env, or ENV=... prefix)
+./orkestra.sh deploy [--scope all|backend|frontend|frontend+backend|infra] [--rebuild] [--yes]
+./orkestra.sh stop [--with-infra]
+./orkestra.sh status
+./orkestra.sh logs <service> [-f] [-n N] [-t]
 ```
+
+**Backward-compat shortcut**: `ENV=development ./orkestra.sh` skips the profile menu and opens the full-stack TUI directly (same convention the old deploy.sh used). Any existing scripted usage along those lines keeps working.
 
 ### Manual Docker Compose (Alternative)
 
@@ -167,34 +256,132 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 ## Service Architecture
 
+### Minimal Profile (`docker-compose.minimal.yml`)
+
+**Self-contained 4-container stack using only public images — recommended for first boot**
+
+| Service      | Host port | Purpose       | Features                                                              |
+| ------------ | --------- | ------------- | --------------------------------------------------------------------- |
+| **mongodb**  | 27050     | Primary DB    | `mongo:8.0`, authenticated healthcheck                                |
+| **redis**    | 6350      | Cache         | `redis:8.2-alpine`                                                    |
+| **backend**  | 3050      | Go API server | Built from `backend/Dockerfile.minimal` (public `golang:1.25-alpine`) |
+| **frontend** | 8050      | React web app | Built from `frontend/Dockerfile` (`nginx:alpine` static serving)      |
+
+The minimal profile:
+
+- Uses **only publicly available images** (no `dhi.io` Chainguard registry required)
+- Runs on **non-standard host ports** (3050/8050/27050/6350) so it coexists with the dev/staging/prod stacks without colliding
+- Boots **only the core modules** (auth, user, navigation) plus the `dev` token generator — no Gotenberg, Memgraph, Hindsight, Ollama, or AI sidecar
+- Has its own `.env.minimal` file (tracked in git, all values are dev placeholders)
+- Is a **self-contained compose file** — do NOT layer `docker-compose.infra.yml` on top of it
+
+```bash
+cd docker
+docker network create orkestra-network   # once, if it does not exist
+docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+```
+
+All optional modules (billing, rag, agents, etc.) are still instantiated when the minimal profile boots — they sit idle until you toggle them on at `/admin/modules`. The registry auto-resolves transitive dependencies on enable.
+
 ### Infrastructure Services (`docker-compose.infra.yml`)
 
-**Shared across all environments - start once, use everywhere**
+**Shared across dev/staging/prod environments — start once, use everywhere**
 
-| Service     | Port  | Purpose          | Health Check   |
-| ----------- | ----- | ---------------- | -------------- |
-| **mongodb** | 27017 | Primary database | mongosh ping   |
-| **redis**   | 6379  | Cache & sessions | redis-cli ping |
+| Service       | Port        | Purpose             | Health Check     |
+| ------------- | ----------- | ------------------- | ---------------- |
+| **mongodb**   | 27027       | Primary database    | mongosh ping     |
+| **redis**     | 6387        | Cache & sessions    | redis-cli ping   |
+| **gotenberg** | 3030        | PDF generation      | curl /health     |
+| **memgraph**  | 7687 / 7444 | Graph database (managed by backend — see note below) | TCP dial on 7687 |
+| **hindsight** | 8888        | AI agents backend (managed by backend — see note below) | curl /health     |
+
+**Memgraph and Hindsight are no longer auto-started.** The `graph` and `agents` backend modules each own their respective container's lifecycle: enabling the module at `/admin/modules` starts `orkestra-memgraph` / `orkestra-hindsight`; disabling stops it. Both services are still declared in `docker-compose.infra.yml` for documentation and volume ownership, but live behind the `manual-only` compose profile. To run them by hand anyway (e.g. to inspect a container without the backend):
+
+```bash
+docker compose -f docker-compose.infra.yml --profile manual-only up -d memgraph hindsight
+```
+
+### Backend-managed Containers (Not Visible to Compose)
+
+Containers declared by a backend module via `Module.InfraContainers()` — `orkestra-memgraph` from the `graph` module and `orkestra-hindsight` from the `agents` module — are created and destroyed by the backend's `shared/container.Manager` directly against the Docker daemon. They are **not** part of any compose project:
+
+- They do NOT appear in `docker compose ls`, `docker compose ps`, or `docker compose -f docker-compose.infra.yml ps`.
+- `docker compose down` on any compose file does **not** stop them. Disable the owning module at `/admin/modules` to stop the container.
+- To discover them from the shell:
+  ```bash
+  docker ps --filter label=orkestra.managed=true
+  ```
+  Every backend-managed container carries `orkestra.managed=true` and `orkestra.module=<name>`.
+
+**Shared volumes**: `orkestra-memgraph-data` and `orkestra-hindsight-data` in `docker-compose.infra.yml` are declared with explicit `name:` directives so they are **not** project-prefixed. Both the backend (when it creates the container at module enable time) and the compose `manual-only` profile reference the exact same Docker volume, so data persists across whichever path started the container first.
+
+**Health probes**: the container manager supports two readiness modes — HTTP GET (`InfraHealthCheck.HTTPPath`, used by hindsight against `/health`) and raw TCP dial (`InfraHealthCheck.TCPPort`, used by memgraph against Bolt port 7687). Pick TCP for services whose native protocol isn't HTTP.
+
+**Migration from older setups**: users who ran hindsight from compose before this change will have an orphaned `orkestra-infra_orkestra-hindsight-data` volume. To salvage that data into the shared volume:
+
+```bash
+# 1. Disable agents at /admin/modules (unmounts orkestra-hindsight-data)
+# 2. Copy old → new
+docker run --rm \
+  -v orkestra-infra_orkestra-hindsight-data:/from \
+  -v orkestra-hindsight-data:/to \
+  alpine sh -c 'cd /from && cp -a . /to/'
+# 3. Drop the stale volume
+docker volume rm orkestra-infra_orkestra-hindsight-data
+# 4. Re-enable agents
+```
+
+To discard the old data instead, just run step 3 once no container is mounting it.
+
+### Container Lifecycle Control (Docker Socket Mount)
+
+The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkestra-backend` container so the shared container manager can start/stop module infrastructure (currently hindsight and memgraph; other modules may opt in later by declaring `InfraContainers()`). Toggle behavior with `CONTAINER_CONTROL_ENABLED`:
+
+| Value | Effect |
+|-------|--------|
+| `true` (default in dev/staging/prod) | Backend uses the Docker SDK to manage declared containers |
+| `false` (default in minimal) | Container control is a no-op; operators manage infra externally (Kubernetes, systemd, etc.) |
+
+**Security**: mounting docker.sock gives the backend container effective root on the host. Acceptable on dev workstations; for production or shared hosts, front the socket with `tecnativa/docker-socket-proxy` restricted to `/containers/...` endpoints and point `DOCKER_HOST` at the proxy instead of the raw socket.
 
 ### Application Services
 
 #### Development (`docker-compose.dev.yml`)
 
-**Lightweight development with hot reload**
+**Lightweight development with hot reload. Uses `dhi.io` Chainguard hardened base images.**
 
-| Service      | Port | Purpose       | Features                     |
-| ------------ | ---- | ------------- | ---------------------------- |
-| **backend**  | 3000 | Go API server | Hot reload (Air), debug logs |
-| **frontend** | 8080 | React web app | Vite dev server, HMR         |
+| Service      | Host port | Purpose       | Features                     |
+| ------------ | --------- | ------------- | ---------------------------- |
+| **backend**  | 3007      | Go API server | Hot reload (AIR), debug logs |
+| **frontend** | 8087      | React web app | Vite dev server, HMR         |
+
+#### Staging (`docker-compose.staging.yml`)
+
+**Hot-reload stack with staging-like behavior (cookie strict, JWT, CORS, rate limits).** Used as the primary development environment on long-lived VMs that mirror production-style URLs/cookies but still need fast iteration.
+
+| Service           | Host port | Purpose       | Features                                  |
+| ----------------- | --------- | ------------- | ----------------------------------------- |
+| **orkestra-backend**  | 3000      | Go API server | Hot reload (AIR), staging-like env, RS256 JWT |
+| **orkestra-frontend** | 8080      | React web app | Vite dev server, HMR                       |
+
+The backend mounts `../backend:/app` and runs AIR from the bind mount — no image rebuild on code change. AIR and the Go module/build cache live under `backend/.go-bin/` and `backend/.go-mod-cache/` (gitignored), pre-installed by the host. To bootstrap on a fresh machine:
+
+```bash
+cd backend
+GOMODCACHE=$PWD/.go-mod-cache go mod download
+GOBIN=$PWD/.go-bin GOMODCACHE=$PWD/.go-mod-cache go install github.com/air-verse/air@latest
+```
+
+`userns_mode: "host"` is required when the Docker daemon runs with `userns-remap` (otherwise `group_add` for the docker GID is rewritten and the mounted socket stays unreadable). DNS is inherited from the daemon (`/etc/docker/daemon.json` → `dns: [...]`); the staging compose deliberately does **not** set per-service `dns:`, because public resolvers (8.8.8.8, 1.1.1.1) may be blocked on UDP/53 in restricted networks.
 
 #### Production (`docker-compose.prod.yml`)
 
 **Optimized production services**
 
-| Service      | Port | Purpose       | Features                       |
-| ------------ | ---- | ------------- | ------------------------------ |
-| **backend**  | 3000 | Go API server | Optimized build, health checks |
-| **frontend** | 8080 | React web app | Nginx static serving           |
+| Service      | Host port | Purpose       | Features                       |
+| ------------ | --------- | ------------- | ------------------------------ |
+| **backend**  | 3000      | Go API server | Optimized build, health checks |
+| **frontend** | 8080      | React web app | Nginx static serving           |
 
 ## Network Architecture
 
@@ -207,14 +394,26 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 ### Port Mapping Strategy
 
-```
-Infrastructure (docker-compose.infra.yml):
-27017 → mongodb:27017     # Database access
-6379  → redis:6379        # Cache access
+Host ports vary per profile so multiple stacks can coexist on the same machine. Container-internal ports stay standard.
 
-Application Services (dev/prod):
+```
+Minimal profile (docker-compose.minimal.yml):
+3050  → backend:3000      # API server
+8050  → frontend:80       # Web application
+27050 → mongodb:27017     # Dedicated mongo for minimal
+6350  → redis:6379        # Dedicated redis for minimal
+
+Dev stack (docker-compose.infra.yml + docker-compose.dev.yml):
+3007  → backend:3000      # API server
+8087  → frontend:5173     # Vite dev server
+27027 → mongodb:27017     # Shared infra mongo
+6387  → redis:6379        # Shared infra redis
+3030  → gotenberg:3000    # PDF generation
+8888  → hindsight:8888    # AI agents backend
+
+Production (docker-compose.prod.yml):
 3000  → backend:3000      # API server
-8080  → frontend:8080     # Web application
+8080  → frontend:80       # Nginx static
 ```
 
 ### Security & Secrets Management
@@ -344,17 +543,49 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 
 ## Monitoring & Observability
 
-### Infrastructure Monitoring
+### Self-hosted OTEL stack (docker-compose.observability.yml)
 
-With the simplified infrastructure, monitoring focuses on essential services:
+Phase 5.2 of the tenancy plan ships a self-hosted observability profile that layers on top of the dev/staging/prod stacks. Four containers, all pinned public images:
 
-- **MongoDB**: Monitor connection health, query performance, disk usage
-- **Redis**: Monitor memory usage, cache hit rates, connection counts
-- **Application Services**: Monitor via application-level instrumentation
+| Service           | Image                                         | Host port | Purpose                                                                            |
+| ----------------- | --------------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
+| **otel-collector**| `otel/opentelemetry-collector-contrib:0.96.0` | 4318 / 4317 | OTLP receiver; fans traces to Tempo, exposes collected metrics for Prometheus     |
+| **tempo**         | `grafana/tempo:2.4.1`                         | 3200        | Trace backend (local storage, 72 h retention)                                      |
+| **prometheus**    | `prom/prometheus:v2.51.2`                     | 9090        | Metric scraper (15 d retention)                                                    |
+| **grafana**       | `grafana/grafana-oss:10.4.2`                  | 3010        | UI; Tempo + Prometheus datasources auto-provisioned; "Tenant traces" dashboard pre-loaded |
 
-### External Monitoring Options
+Boot it alongside the dev stack:
 
-For production environments, consider external monitoring services:
+```bash
+cd docker
+docker network create orkestra-network   # first time only
+docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.dev.yml  up -d
+docker compose -f docker-compose.observability.yml up -d
+```
+
+Point the backend at the collector by setting in `docker/.env`:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://orkestra-otel:4318
+OTEL_TRACES_ENABLED=true
+```
+
+Restart the backend (`docker compose -f docker-compose.dev.yml restart backend`) and open:
+
+- Grafana — http://localhost:3010 (admin / admin; anonymous Viewer access is enabled so shareable links work without login)
+- Prometheus — http://localhost:9090
+- Tempo — http://localhost:3200 (not meant for direct use; query via Grafana's Tempo datasource)
+
+The pre-provisioned "Tenant traces" dashboard (`Orkestra` folder in Grafana) takes a `tenant.id` and optional tier filter and shows every span where the `TenantBaggage` middleware stamped the matching attribute. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go` + `backend/internal/shared/middleware/baggage_coverage_test.go`.
+
+Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. Three metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
+
+### Legacy: External monitoring integrations
+
+### External monitoring alternatives
+
+For production environments, consider managed services instead of (or in addition to) the self-hosted stack above:
 
 - **DataDog**: Comprehensive APM and infrastructure monitoring
 - **New Relic**: Application performance monitoring
@@ -369,6 +600,9 @@ docker exec orkestra-mongodb mongosh --eval "db.adminCommand('ping')"
 
 # Check Redis health
 docker exec orkestra-redis redis-cli ping
+
+# Check Gotenberg health (PDF service)
+curl http://localhost:3030/health
 
 # Check application health endpoints
 curl http://localhost:3000/health  # Backend health
@@ -464,10 +698,10 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 # View logs for specific services
-docker compose -f docker-compose.dev.yml logs -f backend frontend
+docker compose -f docker-compose.dev.yml logs -f orkestra-backend orkestra-frontend
 
 # Restart a specific service
-docker compose -f docker-compose.dev.yml restart backend
+docker compose -f docker-compose.dev.yml restart orkestra-backend
 
 # Scale production backend
 docker compose -f docker-compose.prod.yml up -d --scale backend=3
@@ -656,4 +890,5 @@ docker compose -f docker-compose.dev.yml restart
 - [Project Overview](../CLAUDE.md) - System architecture and design principles
 - [Backend Containerization](../backend/CLAUDE.md) - Go API server configuration
 - [Frontend Containerization](../frontend/CLAUDE.md) - React application setup
+- [Documents Module](../backend/internal/addons/documents/CLAUDE.md) - PDF generation with Gotenberg
 - [Deployment Scripts](../scripts/CLAUDE.md) - Automation and deployment orchestration

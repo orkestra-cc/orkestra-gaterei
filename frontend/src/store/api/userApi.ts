@@ -95,22 +95,6 @@ export interface DeleteUserResponse {
   message: string;
 }
 
-export interface UserActivity {
-  id: string;
-  type: 'login' | 'profile' | 'security' | 'task' | 'permission';
-  action: string;
-  timestamp: string;
-  ipAddress: string;
-  device: string;
-  status: 'success' | 'warning' | 'info' | 'danger';
-}
-
-export interface UserActivitiesResponse {
-  activities: UserActivity[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 export interface UserMetrics {
   tasksCompleted: number;
@@ -120,7 +104,6 @@ export interface UserMetrics {
   teamCollaboration: number;
   systemUsage: {
     dashboard: number;
-    fleetManagement: number;
     reports: number;
     settings: number;
     helpDesk: number;
@@ -161,7 +144,7 @@ export const userApi = baseApi.injectEndpoints({
         if (params?.pageSize !== undefined) searchParams.append('pageSize', String(params.pageSize));
 
         return {
-          url: `/api/v1/users?${searchParams.toString()}`,
+          url: `/v1/users?${searchParams.toString()}`,
           method: 'GET',
         };
       },
@@ -176,20 +159,20 @@ export const userApi = baseApi.injectEndpoints({
 
     // Get user by ID
     getUserById: builder.query<User, string>({
-      query: (id) => `/api/v1/users/${id}`,
+      query: (id) => `/v1/users/${id}`,
       providesTags: (_result, _error, id) => [{ type: 'User', id }],
     }),
 
     // Get user by email
     getUserByEmail: builder.query<User, string>({
-      query: (email) => `/api/v1/users/by-email?email=${email}`,
+      query: (email) => `/v1/users/by-email?email=${email}`,
       providesTags: (result) => result ? [{ type: 'User', id: result.id }] : [],
     }),
 
     // Create new user
     createUser: builder.mutation<User, CreateUserInput>({
       query: (userData) => ({
-        url: '/api/v1/users',
+        url: '/v1/users',
         method: 'POST',
         body: userData,
       }),
@@ -199,7 +182,7 @@ export const userApi = baseApi.injectEndpoints({
     // Update user
     updateUser: builder.mutation<User, { id: string; data: UpdateUserInput }>({
       query: ({ id, data }) => ({
-        url: `/api/v1/users/${id}`,
+        url: `/v1/users/${id}`,
         method: 'PUT',
         body: data,
       }),
@@ -212,7 +195,7 @@ export const userApi = baseApi.injectEndpoints({
     // Delete user
     deleteUser: builder.mutation<DeleteUserResponse, string>({
       query: (id) => ({
-        url: `/api/v1/users/${id}`,
+        url: `/v1/users/${id}`,
         method: 'DELETE',
       }),
       invalidatesTags: (_result, _error, id) => [
@@ -221,24 +204,9 @@ export const userApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // Get user activities
-    getUserActivities: builder.query<UserActivitiesResponse, { userId: string; page?: number; pageSize?: number; type?: string }>({
-      query: ({ userId, page = 1, pageSize = 10, type }) => {
-        const searchParams = new URLSearchParams();
-        searchParams.append('page', String(page));
-        searchParams.append('pageSize', String(pageSize));
-        if (type) searchParams.append('type', type);
-
-        return `/api/v1/users/${userId}/activities?${searchParams.toString()}`;
-      },
-      providesTags: (_result, _error, { userId }) => [
-        { type: 'User' as const, id: `activities-${userId}` }
-      ],
-    }),
-
     // Get user metrics
     getUserMetrics: builder.query<UserMetrics, string>({
-      query: (userId) => `/api/v1/users/${userId}/metrics`,
+      query: (userId) => `/v1/users/${userId}/metrics`,
       providesTags: (_result, _error, userId) => [
         { type: 'User' as const, id: `metrics-${userId}` }
       ],
@@ -254,6 +222,6 @@ export const {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
-  useGetUserActivitiesQuery,
+
   useGetUserMetricsQuery,
 } = userApi;

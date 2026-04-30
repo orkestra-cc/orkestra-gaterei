@@ -1,0 +1,76 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(docker exec:*)",
+      "Bash(go build:*)",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__get_network_request",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run lint)",
+      "Bash(node_modules/.bin/tsc:*)",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__get_console_message",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__press_key",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(docker logs:*)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:github.com)",
+      "Bash(docker ps:*)",
+      "WebFetch(domain:console.openapi.com)",
+      "WebFetch(domain:www.openapi.it)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(docker restart:*)",
+      "Read(//tmp/**)",
+      "Bash(./scripts/devtoken.sh super_admin --quiet)",
+      "Bash(docker port orkestra-frontend-dev:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker start:*)",
+      "Bash(ORKESTRA_API_URL=http://localhost:3007 ./scripts/devtoken.sh super_admin --quiet)",
+      "Bash(xargs -I {} sh -c 'echo \"=== {} ===\" && grep -A 20 \"func.*NavItems\" {}')",
+      "Read(//usr/local/go/bin/**)",
+      "Read(//home/tore/go/bin/**)",
+      "Bash(ORKESTRA_API_URL=http://localhost:3000 ./scripts/devtoken.sh administrator --quiet)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "dart",
+    "chrome-devtools"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; case \"$f\" in */backend/*.go) C=$(docker ps --filter name=orkestra-backend --filter name=backend --format '{{.Names}}' | head -1); [ -n \"$C\" ] && docker exec \"$C\" go build -o /app/tmp/main ./cmd/server/ && docker restart \"$C\" ;; esac; }",
+            "timeout": 120,
+            "statusMessage": "Rebuilding backend..."
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "greptile@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
+  }
+}
