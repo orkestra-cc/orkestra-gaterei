@@ -1,6 +1,9 @@
 package user
 
 import (
+	"os"
+	"strings"
+
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	authRepo "github.com/orkestra/backend/internal/core/auth/repository"
@@ -10,6 +13,25 @@ import (
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// userTierSplitEnabled reads the ADR-0003 PR-B cutover flag from the
+// process environment. When true the operator-tier provider becomes the
+// canonical ServiceUserService — login lookups and user CRUD all read
+// and write operator_users. False is the safe default: the legacy
+// `users` collection stays authoritative and the script in
+// backend/scripts/migrate_user_split has not yet copied data into the
+// new collection. Operators flip the flag to true on every host once
+// the migration finishes.
+//
+// Reading from os.Getenv (not deps.Config) is deliberate: the flag is
+// process-scoped and must take effect at boot — flipping it at runtime
+// via /admin/modules would leave half the binary serving the old
+// collection. This is the same pattern AUTH_REQUIRE_EMAIL_VERIFICATION
+// uses.
+func userTierSplitEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("USER_TIER_SPLIT_ENABLED")))
+	return v == "true" || v == "1" || v == "yes"
+}
 
 type UserModule struct {
 	module.BaseModule
@@ -72,36 +94,47 @@ func (m *UserModule) Permissions() []iface.PermissionSpec {
 }
 
 func (m *UserModule) Init(deps *module.Dependencies) error {
-	userRepo := repository.NewUserRepository(deps.DB)
 	oauthProviderRepo := authRepo.NewOAuthProviderRepository(deps.DB)
-	svc := services.NewUserService(userRepo, oauthProviderRepo)
-	m.handler = handlers.NewUserHandler(svc)
-	deps.Services.Register(module.ServiceUserService, svc)
 
-	// ADR-0003 PR-B: tier-aware providers registered alongside the
-	// legacy one. They share the legacy oauth_provider_repo at the
-	// PR-B boundary because the auth-side tier split (separate
-	// operator_oauth_providers / client_oauth_providers repos) lands
-	// in PR-D — operator_users / client_users are also empty until
-	// the migration script runs in B-3, so any handler that
-	// accidentally calls these now would just get zero rows. Both
-	// keys are populated regardless of USER_TIER_SPLIT_ENABLED so a
-	// future MustGetTyped lookup never panics; the flag governs which
-	// provider auth flows consume, not whether they exist.
-	deps.Services.Register(
-		module.ServiceOperatorUserProvider,
-		services.NewUserService(repository.NewOperatorUserRepository(deps.DB), oauthProviderRepo),
-	)
-	deps.Services.Register(
-		module.ServiceClientUserProvider,
-		services.NewUserService(repository.NewClientUserRepository(deps.DB), oauthProviderRepo),
-	)
+	legacyRepo := repository.NewUserRepository(deps.DB)
+	legacySvc := services.NewUserService(legacyRepo, oauthProviderRepo)
+
+	operatorRepo := repository.NewOperatorUserRepository(deps.DB)
+	operatorSvc := services.NewUserService(operatorRepo, oauthProviderRepo)
+
+	clientRepo := repository.NewClientUserRepository(deps.DB)
+	clientSvc := services.NewUserService(clientRepo, oauthProviderRepo)
+
+	// ADR-0003 PR-B: tier-aware providers always register under their
+	// dedicated keys so a downstream MustGetTyped never panics. The
+	// USER_TIER_SPLIT_ENABLED flag picks which one serves as the
+	// canonical ServiceUserService — the legacy `users` collection
+	// stays the source of truth at PR-B's default (flag=false), and
+	// operators flip to true after running migrate_user_split.go to
+	// move read+write traffic onto operator_users.
+	//
+	// PR-D will collapse this into per-audience consumption: auth
+	// handlers on the operator host pull ServiceOperatorUserProvider
+	// directly, client handlers pull ServiceClientUserProvider, and
+	// the legacy ServiceUserService key goes away alongside JWT v1.
+	deps.Services.Register(module.ServiceOperatorUserProvider, operatorSvc)
+	deps.Services.Register(module.ServiceClientUserProvider, clientSvc)
+
+	canonical := legacySvc
+	canonicalRepo := legacyRepo
+	if userTierSplitEnabled() {
+		canonical = operatorSvc
+		canonicalRepo = operatorRepo
+		deps.Logger.Info("ADR-0003 PR-B: USER_TIER_SPLIT_ENABLED=true — operator_users is the canonical user collection")
+	}
+	m.handler = handlers.NewUserHandler(canonical)
+	deps.Services.Register(module.ServiceUserService, canonical)
 
 	// Register the user PII producer with the DSR registry pre-created in
 	// main.go. Missing registry means the platform was booted without
 	// compliance infrastructure — tolerate and skip.
 	if reg, ok := module.GetTyped[*iface.PIIProducerRegistry](deps.Services, module.ServicePIIProducerRegistry); ok {
-		reg.Register(services.NewPIIProducer(userRepo))
+		reg.Register(services.NewPIIProducer(canonicalRepo))
 	}
 	return nil
 }
