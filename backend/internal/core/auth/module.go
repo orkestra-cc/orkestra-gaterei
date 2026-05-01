@@ -44,6 +44,19 @@ type AuthModule struct {
 	operatorPasswordHandler *handlers.PasswordAuthHandler
 	operatorMFAHandler      *handlers.MFAHandler
 	operatorWebAuthnHandler *handlers.WebAuthnHandler
+
+	// ADR-0003 PR-D D-5: client-tier handler instances bound to the
+	// client authTierBundle. Same shape as the operator block above but
+	// tied to client_* collections + a JWT service that stamps
+	// aud=client on every minted token, so /v1/auth/client/* requests
+	// produce client-audience access + refresh tokens that only the
+	// client host mux accepts. Nil when ServiceClientUserProvider is
+	// not registered — the client mounts are silently skipped and only
+	// the operator + legacy paths are reachable.
+	clientAuthHandler     *handlers.AuthHandler
+	clientPasswordHandler *handlers.PasswordAuthHandler
+	clientMFAHandler      *handlers.MFAHandler
+	clientWebAuthnHandler *handlers.WebAuthnHandler
 }
 
 func NewModule() *AuthModule { return &AuthModule{} }
@@ -594,15 +607,88 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	}
 
 	if clientUser, ok := module.GetTyped[iface.UserProvider](deps.Services, module.ServiceClientUserProvider); ok {
+		// ADR-0003 PR-D D-5: client-tier JWT service. Mints access +
+		// refresh tokens with aud=client so the client host mux's
+		// RequireAudience("client") gate accepts them and the operator
+		// mux rejects them. Reuses the same RS256 key pair as the
+		// operator service — only the audience claim differs. Tenant
+		// provider is wired in identically so client tokens still
+		// embed the user's memberships.
+		clientJWT, err := services.NewJWTServiceWithAudience(
+			cfg.Auth.JWT.PrivateKey,
+			cfg.Auth.JWT.PublicKey,
+			cfg.Server.Environment,
+			services.AudienceClient,
+			cfg.Auth.JWT.AccessTokenExpiry,
+			cfg.Auth.JWT.RefreshTokenExpiry,
+		)
+		if err != nil {
+			return err
+		}
+		clientJWT.SetTenantProvider(tenantProvider)
+
 		clDeps := commonTierDeps
 		clDeps.tier = tierClient
 		clDeps.userProvider = clientUser
+		clDeps.jwtService = clientJWT
 		clBundle, err := buildAuthTierBundle(clDeps)
 		if err != nil {
 			return err
 		}
 		deps.Services.Register(module.ServiceClientAuthService, clBundle.authService)
 		deps.Services.Register(module.ServiceClientPasswordAuthService, clBundle.passwordSvc)
+
+		// ADR-0003 PR-D D-5: client-tier handler instances. Same shape
+		// as the operator block above; the only differences are the
+		// bound services (clBundle.* read/write through client_*
+		// collections) and the JWT service the AuthHandler holds (so
+		// refresh + me responses carry aud=client). OAuth flows stay
+		// legacy-only until D-6 — `m.clientAuthHandler` exposes only
+		// the tier-mountable subset (refresh/refresh-cookie/logout/me).
+		m.clientPasswordHandler = handlers.NewPasswordAuthHandler(
+			clBundle.passwordSvc,
+			cfg.Auth.Cookie.Name,
+			cfg.Auth.Cookie.Domain,
+			cfg.Auth.Cookie.Secure,
+		)
+		m.clientPasswordHandler.SetSessionRevocation(sessionRevocationSvc)
+
+		m.clientAuthHandler = handlers.NewAuthHandler(
+			clBundle.authService,
+			providerFactory,
+			oauthResolver,
+			oauthStateService,
+			clBundle.oauthProviderRepo,
+			clientJWT,
+			cfg,
+		)
+		m.clientAuthHandler.SetSessionRevocation(sessionRevocationSvc)
+
+		m.clientMFAHandler = handlers.NewMFAHandler(
+			clBundle.mfaSvc,
+			mfaChallengeSvc,
+			clientJWT,
+			clientUser,
+			clBundle.passwordSvc,
+			cfg.Auth.Cookie.Name,
+			cfg.Auth.Cookie.Domain,
+			cfg.Auth.Cookie.Secure,
+		)
+		m.clientMFAHandler.SetDeviceTrust(deviceTrustSvc)
+		if clBundle.webauthnSvc != nil {
+			m.clientMFAHandler.SetWebAuthn(clBundle.webauthnSvc)
+			m.clientWebAuthnHandler = handlers.NewWebAuthnHandler(
+				clBundle.webauthnSvc,
+				mfaChallengeSvc,
+				clientJWT,
+				clientUser,
+				clBundle.passwordSvc,
+				cfg.Auth.Cookie.Name,
+				cfg.Auth.Cookie.Domain,
+				cfg.Auth.Cookie.Secure,
+			)
+			m.clientWebAuthnHandler.SetDeviceTrust(deviceTrustSvc)
+		}
 	} else {
 		logger.Warn("auth: client user provider not registered — client-tier auth bundle skipped (ADR-0003 PR-D)")
 	}
@@ -902,6 +988,68 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.Operator.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
 			m.deviceTrustHandler.RegisterRoutes(api, handlers.OperatorMount)
+		})
+	}
+
+	// ADR-0003 PR-D D-5: client-tier auth paths under /v1/auth/client/...
+	// — mounted on the client host mux (ri.Client.PublicAPI /
+	// ri.Client.ProtectedRouter / ri.ClientRouter). Each client-bound
+	// handler reads/writes through the client authTierBundle's tier-
+	// stamped collections (client_*) and mints aud=client tokens via
+	// the client-audience JWT service constructed in Init. The legacy
+	// /v1/auth/* mounts on the operator mux remain live as the canonical
+	// surface until D-8 deletes them. OAuth flows are not yet split per
+	// tier — D-6 introduces state-encoded tier dispatch — so the client
+	// AuthHandler exposes only the tier-mountable subset (refresh/
+	// refresh-cookie/logout/me), and admin paths stay operator-only.
+	if ri.Client == nil {
+		return
+	}
+	clientProtectedAPI := humachi.New(ri.Client.ProtectedRouter, ri.APIConfig)
+	if m.clientAuthHandler != nil && ri.ClientRouter != nil {
+		m.clientAuthHandler.RegisterTierMountableRoutes(ri.Client.PublicAPI, clientProtectedAPI, ri.ClientRouter, handlers.ClientMount)
+	}
+	if m.clientPasswordHandler != nil {
+		m.clientPasswordHandler.RegisterPublicRoutes(ri.Client.PublicAPI, handlers.ClientMount)
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.clientPasswordHandler.RegisterProtectedRoutes(api, handlers.ClientMount)
+		})
+	}
+	if m.clientMFAHandler != nil {
+		m.clientMFAHandler.RegisterPublicRoutes(ri.Client.PublicAPI, handlers.ClientMount)
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.clientMFAHandler.RegisterProtectedRoutes(api, handlers.ClientMount)
+		})
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			r.Use(ri.Client.AuthMW.RequireStepUp(5 * time.Minute))
+			api := humachi.New(r, ri.APIConfig)
+			m.clientMFAHandler.RegisterStepUpRoutes(api, handlers.ClientMount)
+		})
+	}
+	if m.clientWebAuthnHandler != nil {
+		m.clientWebAuthnHandler.RegisterPublicRoutes(ri.Client.PublicAPI, handlers.ClientMount)
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.clientWebAuthnHandler.RegisterProtectedRoutes(api, handlers.ClientMount)
+		})
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			r.Use(ri.Client.AuthMW.RequireStepUp(5 * time.Minute))
+			api := humachi.New(r, ri.APIConfig)
+			m.clientWebAuthnHandler.RegisterStepUpRoutes(api, handlers.ClientMount)
+		})
+	}
+	if m.deviceTrustHandler != nil {
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.deviceTrustHandler.RegisterRoutes(api, handlers.ClientMount)
 		})
 	}
 }

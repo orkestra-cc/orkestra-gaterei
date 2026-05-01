@@ -254,7 +254,11 @@ func main() {
 		// Root chi.Router for special-case routes (dev/token, SSE that
 		// bypasses Huma). Operator-only — dev tokens never need to land
 		// on the client host.
-		Router:        operatorMux,
+		Router: operatorMux,
+		// ADR-0003 PR-D D-5: client-side raw HTTP router so the auth
+		// module can mount /v1/auth/client/{refresh,refresh-cookie,
+		// logout} on the client host mux alongside its Huma routes.
+		ClientRouter:  clientMux,
 		APIConfig:     apiConfig,
 		ConfigService: configService,
 	})
