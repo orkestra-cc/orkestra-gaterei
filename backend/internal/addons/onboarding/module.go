@@ -76,12 +76,13 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	return nil
 }
 
-// RegisterRoutes mounts the single public endpoint on the shared public
-// Huma API. Mirrors the pattern used by auth.RegisterPublicRoutes so the
-// endpoint is visible in the root OpenAPI spec and reachable without an
-// access token — signup is the one flow that predates authentication.
-// Operators disable the endpoint at runtime via the admin UI; the module
-// registry clears the route list when disabled.
+// RegisterRoutes mounts the single public endpoint on the client-tier
+// public Huma API. ADR-0003 PR-D D-7: onboarding is a Tier-2 self-service
+// flow (creates an external tenant + owner user), so its surface lives on
+// `api.*` rather than the operator console. The endpoint stays anonymous —
+// signup is the one flow that predates authentication. Operators disable
+// the endpoint at runtime via the admin UI; the module registry clears
+// the route list when disabled.
 func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
-	handlers.Register(ri.Operator.PublicAPI, m.handler)
+	handlers.Register(ri.Client.PublicAPI, m.handler)
 }

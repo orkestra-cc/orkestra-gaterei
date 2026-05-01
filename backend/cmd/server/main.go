@@ -231,11 +231,15 @@ func main() {
 	clientProtected.Use(authMW.RequireAuth)
 	clientProtected.Use(authMiddleware.TenantBaggage)
 
-	// Module routes — every module currently registers on the Operator
-	// surface (no behavior change from PR-A). Subscriptions / payments /
-	// onboarding migrate to the Client surface in PR-D when the auth path
-	// split + JWT v2 land. Until then the Client surface exists but has
-	// zero registered routes, and visiting api.localhost:3000 returns 404.
+	// Module routes — operator-only modules (billing, documents, company,
+	// graph, aimodels, rag, agents, sales, dev) register on the Operator
+	// surface; the auth core module dual-registers per ADR-0003 PR-D D-4/D-5
+	// for the operator and client login paths; PR-D D-7 moves onboarding's
+	// public signup, subscriptions' Tier-2 self-service routes (public
+	// catalog + /v1/me/subscriptions), and the payments Stripe webhook to
+	// the Client surface. Operator-admin oversight of subscriptions /
+	// payments stays on the Operator surface (RequireInternalTenant gates
+	// preclude a clean client-surface mount).
 	operatorSurface := &module.APISurface{
 		Audience:        module.AudienceOperator,
 		PublicAPI:       operatorAPI,
