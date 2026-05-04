@@ -34,6 +34,14 @@ const (
 	ServiceOperatorPasswordAuthService ServiceKey = "auth.operator_password_auth"
 	ServiceClientPasswordAuthService   ServiceKey = "auth.client_password_auth"
 	ServiceJWTService      ServiceKey = "auth.jwt"
+	// ServiceOperatorJWTService / ServiceClientJWTService publish each
+	// tier's JWTService under a named key so audience-aware consumers
+	// (dev token generator, future test harnesses) can mint a token
+	// stamped with the matching `aud` claim. The canonical
+	// ServiceJWTService stays bound to the operator-tier service for
+	// audience-unaware consumers.
+	ServiceOperatorJWTService ServiceKey = "auth.jwt_operator"
+	ServiceClientJWTService   ServiceKey = "auth.jwt_client"
 	ServiceOAuthProviderFactory ServiceKey = "auth.oauth_factory"
 	ServiceOAuthStateService    ServiceKey = "auth.oauth_state"
 	ServiceOAuthProviderRepo    ServiceKey = "auth.oauth_provider_repo"

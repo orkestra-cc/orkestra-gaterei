@@ -522,6 +522,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// compliance audit sink) request the per-tier key directly.
 	deps.Services.Register(module.ServiceAuthService, opBundle.authService)
 	deps.Services.Register(module.ServiceJWTService, operatorJWT)
+	// ADR-0003 PR-D D-10: per-tier JWT services published so audience-
+	// aware consumers (dev token generator) can mint a token stamped
+	// with the matching `aud` claim without poking at tier internals.
+	deps.Services.Register(module.ServiceOperatorJWTService, operatorJWT)
+	deps.Services.Register(module.ServiceClientJWTService, clientJWT)
 	deps.Services.Register(module.ServicePasswordService, passwordSvc)
 	deps.Services.Register(module.ServicePasswordAuthService, opBundle.passwordSvc)
 	deps.Services.Register(module.ServiceSessionRevocation, sessionRevocationSvc)
