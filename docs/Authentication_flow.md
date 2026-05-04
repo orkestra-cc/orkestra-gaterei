@@ -5,6 +5,8 @@
 [← Root](../CLAUDE.md)
 <!-- /Navigation -->
 
+> **Status note (2026-05-04):** This walkthrough predates ADR-0003 PR-D and still references the legacy single-prefix routes (`/v1/auth/login`, `/v1/auth/refresh`, etc.). After the D-8 hard cutover those paths no longer exist — every auth route is mounted under one of two audience prefixes (`/v1/auth/operator/...` on `console.*`, `/v1/auth/client/...` on `api.*`), each tier mints tokens with its own `aud` claim, and refresh-token cookies are scoped to the matching subdomain (`Domain=console.orkestra.com` vs `Domain=api.orkestra.com`). For the canonical, current route table see [`backend/internal/core/auth/CLAUDE.md`](../backend/internal/core/auth/CLAUDE.md). For the architecture rationale see [`adr/0003-three-audience-host-split.md`](adr/0003-three-audience-host-split.md). A full rewrite of this doc is tracked separately.
+
 Orkestra supports two authentication methods for end users:
 
 1. **Email and password** — the default sign-in method for web clients, backed by argon2id password hashing and email verification via the notification module.

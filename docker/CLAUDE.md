@@ -416,18 +416,26 @@ The host mux ([cmd/server/hostmux.go](../backend/cmd/server/hostmux.go)) strips 
 | `CLIENT_CORS_ORIGINS` | CORS allowlist for client mux | falls back to `CORS_ORIGINS` |
 | `OPERATOR_RATE_LIMIT_REQUESTS_PER_MINUTE` / `_BURST` | Per-audience throttling | falls back to `RATE_LIMIT_*` |
 | `CLIENT_RATE_LIMIT_REQUESTS_PER_MINUTE` / `_BURST` | Per-audience throttling | falls back to `RATE_LIMIT_*` |
+| `OPERATOR_COOKIE_DOMAIN` | Refresh-cookie `Domain=` for operator-tier tokens (ADR-0003 PR-D D-9). | `console.localhost` (dev) / empty (prod, operator-set) |
+| `CLIENT_COOKIE_DOMAIN` | Refresh-cookie `Domain=` for client-tier tokens. | `api.localhost` (dev) / empty (prod, operator-set) |
 
-**JWT audience**: PR-C sets `aud=operator` on every issued access/refresh token (single-aud cutover). Client-issued tokens (`aud=client`) and the auth-path split land in PR-D. Until then the client mux exists but has zero registered routes and visiting `api.localhost:3000` returns 404.
+In production-like environments **set both `OPERATOR_COOKIE_DOMAIN` and `CLIENT_COOKIE_DOMAIN` explicitly** — leaving them empty falls back to the legacy `COOKIE_DOMAIN` (which spans both audiences) and defeats the host split.
+
+**JWT audience** (post PR-D): operator login mints `aud=operator`, client login mints `aud=client`; both issuance paths now exist. Each mux's `RequireAudience` gate rejects cross-audience tokens with `401 audience_mismatch`. The dev token endpoint accepts an `audience` field (`operator`|`client`) to mint a matching token for either surface — see `scripts/devtoken.sh --audience client`.
 
 **Smoke test**:
 ```bash
 # Operator surface (default — works via dev fallthrough or *.localhost):
 curl -i http://console.localhost:3000/health
 curl -i http://localhost:3000/health   # dev fallthrough → operator
-# Client surface (no routes registered until PR-D):
+# Client surface (post-PR-D registers per-tier auth + onboarding/subscriptions/payments):
 curl -i http://api.localhost:3000/health
 # 421 in non-dev when Host doesn't match (run with ENV=staging):
 curl -i -H 'Host: example.com' http://localhost:3000/health
+
+# Mint per-audience dev tokens (see scripts/devtoken.sh):
+./scripts/devtoken.sh administrator                  # default — aud=operator
+./scripts/devtoken.sh administrator --audience client  # aud=client (api.* surface)
 ```
 
 ### Port Mapping Strategy

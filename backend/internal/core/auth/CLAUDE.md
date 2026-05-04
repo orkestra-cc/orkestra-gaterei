@@ -70,8 +70,8 @@ Only email tokens and device-trust grants currently have a TTL — refresh token
 6. **Auth service**: the orchestrator for OAuth flows.
 7. **Password service**: argon2id hasher with HIBP policy validation (`services/password_service.go`).
 8. **Password auth service**: register/login/verify/reset/change flows, wired to the optional notification sender and a shared `RateLimiter`.
-9. **Handlers**: OAuth and password handlers, both given access to the cookie config (`cfg.Auth.Cookie.Name`, `Domain`, `Secure`).
-10. **Register services** under `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`.
+9. **Handlers**: OAuth, password, MFA, and WebAuthn handlers, each constructed twice (operator + client) and stamped with the matching tier's cookie domain at construction time (`cfg.Auth.Cookie.OperatorDomain` / `ClientDomain`, falling back to the legacy `Domain`). The shared `Cookie.Name` + `Cookie.Secure` are still process-scoped.
+10. **Register services** under `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`, plus the per-tier keys (`ServiceOperator{AuthService,PasswordAuthService,JWTService}` / `ServiceClient{...}`) that audience-aware consumers (onboarding, dev token generator) request directly.
 
 `Start / Stop / HealthCheck` inherit from `BaseModule`.
 
@@ -109,7 +109,10 @@ Schema keys below are what handlers and the resolver look up. The `EnvVar` colum
 | `AUTH_REQUIRE_EMAIL_VERIFICATION` | Gate signup on successful verification | `true` in prod, `false` otherwise |
 | `JWT_ACCESS_TOKEN_EXPIRY` | Access-token TTL (Go `time.Duration`, e.g. `15m`, `1h`). Applied by `NewJWTService`; zero/unset falls back to `15m`. | `15m` |
 | `JWT_REFRESH_TOKEN_EXPIRY` | Refresh-token TTL. Applied by `NewJWTService`; zero/unset falls back to `720h` (30d). | `7d` |
-| `COOKIE_NAME` / `COOKIE_DOMAIN` / `COOKIE_SECURE` | Refresh-token cookie attributes | set in `cfg.Auth.Cookie` |
+| `COOKIE_NAME` / `COOKIE_SECURE` / `COOKIE_SAME_SITE` / `COOKIE_HTTP_ONLY` / `COOKIE_MAX_AGE` | Refresh-token cookie attributes shared across audiences | set in `cfg.Auth.Cookie` |
+| `COOKIE_DOMAIN` | Legacy single-host cookie domain. Used as the fallback when the per-audience values below are empty (single-host or transitional deployments). | empty |
+| `OPERATOR_COOKIE_DOMAIN` | Refresh-cookie `Domain=` for tokens minted on the operator host (`console.*`). ADR-0003 PR-D D-9 — keep this distinct from `CLIENT_COOKIE_DOMAIN` so a session minted on one surface can't be replayed on the other. | `console.localhost` (dev) / empty (prod, operator-set) |
+| `CLIENT_COOKIE_DOMAIN` | Refresh-cookie `Domain=` for tokens minted on the client host (`api.*`). | `api.localhost` (dev) / empty (prod, operator-set) |
 | `APP_NAME` / `SUPPORT_EMAIL` | Rendered into verification/reset email templates | `Orkestra` / empty |
 
 ### Resolver API
