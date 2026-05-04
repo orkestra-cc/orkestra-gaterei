@@ -349,7 +349,12 @@ func main() {
 	if cfg.Server.Environment == "development" {
 		devFallthrough = operatorMux
 	}
-	root := newHostMux(hostRoutes, devFallthrough)
+	// LAN probe escape hatch: HAProxy / k8s liveness checks hit the pod
+	// by IP, so their Host header never matches an audience. Carve out
+	// /health and /ready (only) so those probes can answer 200 without
+	// spoofing a Host header. Everything else on a non-matching host
+	// still gets 421 — the host-header smuggling guard stays intact.
+	root := newHostMux(hostRoutes, devFallthrough, lanOpsHandler(db, redisClient))
 
 	// HTTP server. The host mux is wrapped in otelhttp.NewHandler so every
 	// request spawns a span the tenant-baggage middleware can enrich
