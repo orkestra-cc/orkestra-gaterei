@@ -15,7 +15,7 @@ The billing module handles **Italian electronic invoicing** (Fatturazione Elettr
 
 - **Primary Role**: Create, send, and receive electronic invoices compliant with FatturaPA format
 - **External Integration**: OpenAPI SDI for invoice transmission and notification retrieval
-- **Conditional Activation**: Module activates only when `OPENAPI_BILLING_BEARER_TOKEN` is configured
+- **Conditional Activation**: Module activates when either (a) `OPENAPI_BILLING_ACCOUNT_EMAIL` + `OPENAPI_BILLING_API_KEY` are configured (preferred — module mints + rotates JWTs against `oauth.openapi.it/token` via the shared [`openapiauth`](../../shared/openapiauth) minter), or (b) the legacy static `OPENAPI_BILLING_BEARER_TOKEN` is set
 - **Internal-tenant only** (ADR-0001 Phase 2): every protected route sits behind `RequireInternalTenant()`. FatturaPA/SDI is an operator-side concern; external-tenant tokens cannot hit these endpoints. The gate honours `TENANT_KIND_ENFORCEMENT=warn|enforce` for staged rollout.
 
 **IMPORTANT**: This module is disabled by default. Configure the OpenAPI SDI credentials to enable billing functionality.
@@ -195,7 +195,10 @@ The `GET /invoices` endpoint uses these parameters (per the [OAS spec](https://c
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENAPI_BILLING_BASE_URL` | OpenAPI SDI API URL | `https://test.sdi.openapi.it` |
-| `OPENAPI_BILLING_BEARER_TOKEN` | Authentication token | _(required to enable)_ |
+| `OPENAPI_BILLING_ACCOUNT_EMAIL` | OpenAPI.com account email (paired with API key for OAuth /token) | _(empty)_ |
+| `OPENAPI_BILLING_API_KEY` | Long-lived API key from console.openapi.com — module mints + caches JWTs from this | _(empty)_ |
+| `OPENAPI_OAUTH_BASE_URL` | OAuth host (shared with company) | `https://oauth.openapi.it` (sandbox: `https://test.oauth.openapi.it`) |
+| `OPENAPI_BILLING_BEARER_TOKEN` | Legacy static JWT fallback (used only when API key is empty) | _(empty)_ |
 | `OPENAPI_BILLING_FISCAL_ID` | Company fiscal code (P.IVA) | _(required)_ |
 | `OPENAPI_BILLING_RECIPIENT_CODE` | Default recipient code | `JKKZDGR` |
 | `OPENAPI_BILLING_APPLY_SIGNATURE` | Enable digital signature | `true` |

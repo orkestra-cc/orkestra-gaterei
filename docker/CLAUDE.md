@@ -117,7 +117,7 @@ Keep this split when touching `.env*` or `docker-compose.*.yml`:
 | `CONTAINER_CONTROL_ENABLED`, `DOCKER_GID`, `AI_SERVICE_URL`, `AI_SERVICE_PORT` | process | ✅ yes |
 | `SALES_*`, `RAG_CHUNK_*` | process — runtime knobs not yet migrated to ConfigSchema | ✅ yes (transitional) |
 | OAuth provider credentials (`OAUTH_GOOGLE/APPLE/GITHUB/DISCORD_*`) | ConfigService (auth module) | ❌ admin UI |
-| OpenAPI billing / company tokens (`OPENAPI_BILLING_*`, `OPENAPI_COMPANY_*`, `OPENAPI_SANDBOX_MODE`, `BILLING_WEBHOOK_*`) | ConfigService (billing, company modules) | ❌ admin UI |
+| OpenAPI billing / company credentials (`OPENAPI_BILLING_*`, `OPENAPI_COMPANY_*`, `OPENAPI_OAUTH_BASE_URL`, `OPENAPI_SANDBOX_MODE`, `BILLING_WEBHOOK_*`) — `accountEmail` + `apiKey` for the shared OAuth minter, or legacy static `bearerToken` | ConfigService (billing, company modules) | ❌ admin UI |
 | AI provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_BASE_URL`) | ConfigService (aimodels module) | ❌ admin UI |
 | Memgraph / Hindsight URLs and credentials (`GRAPH_*`, `HINDSIGHT_URL`, `HINDSIGHT_NAMESPACE`, `HINDSIGHT_IMAGE`, `GRAPH_IMAGE`) | ConfigService (graph, agents modules) | ❌ admin UI |
 | Gotenberg URL (`GOTENBERG_*`) | ConfigService (documents module) | ❌ admin UI |

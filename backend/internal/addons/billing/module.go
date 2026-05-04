@@ -42,7 +42,12 @@ func (m *BillingModule) Name() string                   { return "billing" }
 func (m *BillingModule) DisplayName() string             { return "Fatturazione Elettronica" }
 func (m *BillingModule) Description() string             { return "Italian electronic invoicing via FatturaPA/SDI" }
 func (m *BillingModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *BillingModule) Enabled(cfg *config.Config) bool { return cfg.Billing.OpenAPIBearerToken != "" }
+func (m *BillingModule) Enabled(cfg *config.Config) bool {
+	if cfg.Billing.OpenAPIBearerToken != "" {
+		return true
+	}
+	return cfg.Billing.OpenAPIAccountEmail != "" && cfg.Billing.OpenAPIAPIKey != ""
+}
 func (m *BillingModule) Dependencies() []string          { return []string{"documents"} }
 func (m *BillingModule) OptionalServices() []module.ServiceKey {
 	// TenantProvider is optional from the billing module's POV: the
@@ -60,8 +65,20 @@ func (m *BillingModule) ProvidedServices() []module.ServiceKey {
 
 func (m *BillingModule) ConfigSchema() []module.ConfigField {
 	return []module.ConfigField{
-		{Key: "bearerToken", Label: "OpenAPI Bearer Token", Type: module.FieldSecret, Required: true, EnvVar: "OPENAPI_BILLING_BEARER_TOKEN"},
-		{Key: "baseURL", Label: "API Base URL", Type: module.FieldString, Default: "https://test.sdi.openapi.it", EnvVar: "OPENAPI_BILLING_BASE_URL"},
+		{Key: "accountEmail", Label: "Account Email", Type: module.FieldString,
+			Description: "Email of your OpenAPI.com account. Combined with API Key to mint short-lived JWT bearer tokens automatically.",
+			EnvVar:      "OPENAPI_BILLING_ACCOUNT_EMAIL"},
+		{Key: "apiKey", Label: "API Key", Type: module.FieldSecret,
+			Description: "Long-lived API key from console.openapi.com. The module exchanges it for a JWT at the OAuth host.",
+			EnvVar:      "OPENAPI_BILLING_API_KEY"},
+		{Key: "oauthBaseURL", Label: "OAuth Base URL", Type: module.FieldString,
+			Description: "OpenAPI.com OAuth host. Production: https://oauth.openapi.it · Sandbox: https://test.oauth.openapi.it",
+			Default:     "https://oauth.openapi.it",
+			EnvVar:      "OPENAPI_OAUTH_BASE_URL"},
+		{Key: "bearerToken", Label: "Bearer Token (legacy fallback)", Type: module.FieldSecret,
+			Description: "Optional. Static JWT used only when API Key is empty. Leave blank if you've set the API Key above.",
+			EnvVar:      "OPENAPI_BILLING_BEARER_TOKEN"},
+		{Key: "baseURL", Label: "SDI API Base URL", Type: module.FieldString, Default: "https://test.sdi.openapi.it", EnvVar: "OPENAPI_BILLING_BASE_URL"},
 		{Key: "fiscalID", Label: "Codice Fiscale", Type: module.FieldString, Required: true, EnvVar: "OPENAPI_BILLING_FISCAL_ID"},
 		{Key: "recipientCode", Label: "Codice Destinatario", Type: module.FieldString, Default: "JKKZDGR", EnvVar: "OPENAPI_BILLING_RECIPIENT_CODE"},
 		{Key: "applySignature", Label: "Apply Digital Signature", Type: module.FieldBool, Default: "true", EnvVar: "OPENAPI_BILLING_APPLY_SIGNATURE"},
@@ -118,6 +135,9 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	configLoader := func() *billingConfig.OpenAPIConfig {
 		return &billingConfig.OpenAPIConfig{
 			BaseURL:        deps.GetConfig("billing", "baseURL"),
+			AccountEmail:   deps.GetConfig("billing", "accountEmail"),
+			APIKey:         deps.GetSecret("billing", "apiKey"),
+			OAuthBaseURL:   deps.GetConfig("billing", "oauthBaseURL"),
 			BearerToken:    deps.GetSecret("billing", "bearerToken"),
 			FiscalID:       deps.GetConfig("billing", "fiscalID"),
 			RecipientCode:  deps.GetConfig("billing", "recipientCode"),

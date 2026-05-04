@@ -44,6 +44,12 @@ const CompanyLookupSearch = () => {
     if ('status' in error && error.status === 404) {
       return 'Azienda non trovata. Verifica il codice fiscale o la partita IVA inserita.';
     }
+    if ('status' in error && error.status === 502) {
+      return "Servizio aziende non configurato correttamente. Contattare l'amministratore per aggiornare il token API.";
+    }
+    if ('status' in error && error.status === 503) {
+      return 'Servizio aziende temporaneamente non disponibile. Riprova tra qualche minuto.';
+    }
     return 'Errore durante la ricerca. Riprova più tardi.';
   };
 

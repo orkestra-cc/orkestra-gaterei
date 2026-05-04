@@ -84,7 +84,10 @@ type RAGConfig struct {
 // CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
 type CompanyConfig struct {
 	BaseURL       string        // Base URL: https://company.openapi.com (prod) or https://test.company.openapi.com (sandbox)
-	BearerToken   string        // Dedicated token for Company API (falls back to OPENAPI_BILLING_BEARER_TOKEN)
+	AccountEmail  string        // OpenAPI.com account email — paired with APIKey to mint JWTs at OAuthBaseURL/token
+	APIKey        string        // Long-lived API key from console.openapi.com (Basic-auth password to OAuth /token)
+	OAuthBaseURL  string        // OAuth host: https://oauth.openapi.it (prod) or https://test.oauth.openapi.it (sandbox)
+	BearerToken   string        // Legacy static JWT — used only when AccountEmail+APIKey are empty
 	Timeout       time.Duration // HTTP client timeout
 	RetryAttempts int           // Number of retry attempts for failed requests
 	CacheTTL      time.Duration // Redis cache TTL for company lookups
@@ -94,7 +97,10 @@ type CompanyConfig struct {
 type BillingConfig struct {
 	// OpenAPI SDI configuration
 	OpenAPIBaseURL       string        // Base URL: https://sdi.openapi.it (prod) or https://test.sdi.openapi.it (sandbox)
-	OpenAPIBearerToken   string        // OAuth Bearer Token for authentication
+	OpenAPIAccountEmail  string        // Account email — paired with OpenAPIAPIKey to mint JWTs at OpenAPIOAuthBaseURL/token
+	OpenAPIAPIKey        string        // Long-lived API key (Basic-auth password to OAuth /token)
+	OpenAPIOAuthBaseURL  string        // OAuth host: https://oauth.openapi.it (prod) or https://test.oauth.openapi.it (sandbox)
+	OpenAPIBearerToken   string        // Legacy static JWT — used only when OpenAPIAccountEmail+APIKey are empty
 	OpenAPIFiscalID      string        // Company fiscal ID (P.IVA with country code, e.g., IT12345678901)
 	OpenAPIRecipientCode string        // SDI recipient code (OpenAPI's code: JKKZDGR)
 	ApplySignature       bool          // Enable digital signature for invoices
@@ -398,8 +404,16 @@ func Load() (*Config, error) {
 		defaultBaseURL = "https://sdi.openapi.it"
 	}
 
+	billingDefaultOAuthBaseURL := "https://oauth.openapi.it"
+	if sandboxMode {
+		billingDefaultOAuthBaseURL = "https://test.oauth.openapi.it"
+	}
+
 	config.Billing = BillingConfig{
 		OpenAPIBaseURL:       getEnv("OPENAPI_BILLING_BASE_URL", defaultBaseURL),
+		OpenAPIAccountEmail:  getEnv("OPENAPI_BILLING_ACCOUNT_EMAIL", ""),
+		OpenAPIAPIKey:        getEnv("OPENAPI_BILLING_API_KEY", ""),
+		OpenAPIOAuthBaseURL:  getEnv("OPENAPI_OAUTH_BASE_URL", billingDefaultOAuthBaseURL),
 		OpenAPIBearerToken:   getEnv("OPENAPI_BILLING_BEARER_TOKEN", ""),
 		OpenAPIFiscalID:      getEnv("OPENAPI_BILLING_FISCAL_ID", ""),
 		OpenAPIRecipientCode: getEnv("OPENAPI_BILLING_RECIPIENT_CODE", "JKKZDGR"),
@@ -427,8 +441,16 @@ func Load() (*Config, error) {
 		companyToken = config.Billing.OpenAPIBearerToken
 	}
 
+	defaultOAuthBaseURL := "https://oauth.openapi.it"
+	if sandboxMode {
+		defaultOAuthBaseURL = "https://test.oauth.openapi.it"
+	}
+
 	config.Company = CompanyConfig{
 		BaseURL:       getEnv("OPENAPI_COMPANY_BASE_URL", defaultCompanyBaseURL),
+		AccountEmail:  getEnv("OPENAPI_COMPANY_ACCOUNT_EMAIL", ""),
+		APIKey:        getEnv("OPENAPI_COMPANY_API_KEY", ""),
+		OAuthBaseURL:  getEnv("OPENAPI_OAUTH_BASE_URL", defaultOAuthBaseURL),
 		BearerToken:   companyToken,
 		Timeout:       getEnvAsDuration("OPENAPI_COMPANY_TIMEOUT", "15s"),
 		RetryAttempts: getEnvAsInt("OPENAPI_COMPANY_RETRY_ATTEMPTS", 3),
