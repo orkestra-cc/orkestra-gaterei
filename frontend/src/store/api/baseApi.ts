@@ -14,14 +14,16 @@ export const setNavigateToLogin = (fn: (location?: string) => void) => {
 // Endpoints for which a 401 must NOT trigger a silent refresh attempt —
 // either because they *are* the refresh/login/logout endpoints (retrying
 // would loop) or because a 401 here already means "user is not signed in"
-// and the correct UX is to fall through to the caller.
+// and the correct UX is to fall through to the caller. ADR-0003 PR-D D-8
+// dropped the legacy un-prefixed paths; this dashboard targets the
+// operator tier, so all entries are mounted under /v1/auth/operator.
 const AUTH_ENDPOINT_PATHS = [
-  'v1/auth/login',
-  'v1/auth/logout',
-  'v1/auth/refresh',
-  'v1/auth/refresh-cookie',
-  'v1/auth/register',
-  'v1/auth/mfa/login/verify',
+  'v1/auth/operator/login',
+  'v1/auth/operator/logout',
+  'v1/auth/operator/refresh',
+  'v1/auth/operator/refresh-cookie',
+  'v1/auth/operator/register',
+  'v1/auth/operator/mfa/login/verify',
 ];
 
 function isAuthEndpoint(url: string): boolean {
@@ -41,7 +43,7 @@ async function performRefresh(baseUrl: string): Promise<RefreshResult> {
   if (inFlightRefresh) return inFlightRefresh;
   inFlightRefresh = (async () => {
     try {
-      const res = await fetch(`${baseUrl}/v1/auth/refresh-cookie`, {
+      const res = await fetch(`${baseUrl}/v1/auth/operator/refresh-cookie`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -149,7 +151,7 @@ const baseQueryWithRetry: BaseQueryFn<
 
     const requestUrl = typeof args === 'string' ? args : args.url;
     const isSessionEndpoint = requestUrl.includes('v1/auth/session');
-    const isAuthCheck = requestUrl.includes('v1/auth/me') || requestUrl.includes('v1/auth/session');
+    const isAuthCheck = requestUrl.includes('v1/auth/operator/me') || requestUrl.includes('v1/auth/session');
 
     // Server-side session revocation (logout, admin-kill, password change)
     // sets `code: "session_revoked"` on the 401 body. Skip the silent-refresh
@@ -173,7 +175,7 @@ const baseQueryWithRetry: BaseQueryFn<
 
     // Step-up MFA required. Pause the original request, open the global
     // StepUpModal via requestStepUp(), and replay once the user completes
-    // /v1/auth/mfa/verify — the mutation dispatches a refreshed access
+    // /v1/auth/operator/mfa/verify — the mutation dispatches a refreshed access
     // token into Redux so the replay carries fresh AMR + last_otp_at.
     // Auth endpoints themselves are excluded so we don't recurse on
     // /mfa/verify's own 401s.
@@ -216,7 +218,7 @@ const baseQueryWithRetry: BaseQueryFn<
     // instead of being kicked out every access-token window.
     if (!isAuthEndpoint(requestUrl) && !isSessionEndpoint) {
       const refreshResult = await performRefresh(
-        import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+        import.meta.env.VITE_BACKEND_URL || 'http://console.localhost:3000'
       );
       if (refreshResult.ok) {
         api.dispatch(
