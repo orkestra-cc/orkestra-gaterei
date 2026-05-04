@@ -2,7 +2,11 @@
 // at `/v1/auth/operator/mfa/*` and `/v1/auth/operator/me/mfa`. Kept here (not colocated with
 // mfaApi) so UI components can import types without pulling the slice.
 
-export type MfaStatus = 'none' | 'pending' | 'active';
+export type MfaStatus =
+  | 'not_required'
+  | 'required_pending_enrollment'
+  | 'enrolled'
+  | 'grace';
 export type MfaFactorType = 'totp' | 'webauthn' | '';
 
 export interface MfaStatusResponse {

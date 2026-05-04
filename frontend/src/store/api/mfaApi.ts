@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi';
+import { authApi, type SessionResponse } from './authApi';
 import type {
   MfaStatusResponse,
   MfaEnrollBeginResponse,
@@ -22,11 +23,10 @@ import type {
 } from 'types/mfa';
 import { setAccessToken } from '../slices/authSlice';
 
-// Every backend MFA response wraps the payload in a `{body: ...}` envelope
-// because Huma v2's response marshalling keeps the header layer separate.
-// unwrap flattens that so consumers see plain shapes.
-type Envelope<T> = { body: T };
-const unwrap = <T,>(res: unknown): T => (res as Envelope<T>).body;
+// Huma v2 lifts the Go handler's `Body` field directly to the top of the
+// JSON response — there is no `{body: ...}` wrapper on the wire. Pass the
+// parsed payload through as-is.
+const unwrap = <T,>(res: unknown): T => res as T;
 
 export const mfaApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -130,6 +130,22 @@ export const mfaApi = baseApi.injectEndpoints({
               accessToken: data.accessToken,
               expiresIn: data.expiresIn,
             }));
+          }
+          // Seed the getSession cache so ProtectedRoute sees an authenticated
+          // session immediately on the next render — same pattern as the
+          // password login mutation. Without this, useGetSessionQuery returns
+          // null after the verify, ProtectedRoute reads isAuthenticated=false
+          // and bounces the user back to /login.
+          if (data?.user && data?.accessToken) {
+            dispatch(
+              authApi.util.upsertQueryData('getSession', undefined, {
+                accessToken: data.accessToken,
+                tokenType: data.tokenType ?? 'Bearer',
+                expiresIn: data.expiresIn ?? 0,
+                user: data.user,
+                success: true,
+              } as SessionResponse)
+            );
           }
         } catch {
           // handled by the mutation consumer

@@ -27,8 +27,8 @@ const MfaSettings = () => {
   const [showRemove, setShowRemove] = useState(false);
   const [showPasskey, setShowPasskey] = useState(false);
 
-  const totpStatus = data?.type === 'totp' && data.status === 'active';
-  const totpPending = data?.status === 'pending';
+  const totpStatus = data?.type === 'totp' && data.status === 'enrolled';
+  const totpPending = false;
   const webauthnCount = data?.webauthnCredentials ?? 0;
   const supports = browserSupportsWebAuthn();
 

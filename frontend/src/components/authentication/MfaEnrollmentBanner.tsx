@@ -18,7 +18,7 @@ export default function MfaEnrollmentBanner() {
   });
 
   if (!isAuthenticated || !user) return null;
-  if (!mfa || !mfa.requiresMfa || mfa.status === 'active') return null;
+  if (!mfa || !mfa.requiresMfa || mfa.status === 'enrolled') return null;
 
   const remaining = formatGraceRemaining(mfa.graceExpiresAt);
   const expired = remaining === 'expired';
