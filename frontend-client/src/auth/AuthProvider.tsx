@@ -15,6 +15,7 @@ import {
 } from '@/auth/tokenStore';
 import { apiBaseURL } from '@/api/client';
 import { AuthContext, type AuthState } from '@/auth/authContext';
+import { clearSessionMarker, setSessionMarker } from '@/auth/sessionMarker';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -32,12 +33,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => subscribe(setToken), []);
 
   useEffect(() => {
-    // One-shot bootstrap refresh — silently no-op if there is no
-    // refresh cookie yet (anonymous visitor on /catalog).
+    // One-shot bootstrap refresh. tokenStore.refreshAccessToken is a
+    // no-op for anonymous visitors (no localStorage marker) so the
+    // catalog/signup pages don't fire a guaranteed-401 on every cold
+    // load. Returning users — who have stamped the marker on a prior
+    // signIn — get auto-rehydrated here.
     void refreshAccessToken(apiBaseURL);
   }, []);
 
   const signIn = useCallback((next: string) => {
+    setSessionMarker();
     setAccessToken(next);
   }, []);
 
@@ -48,6 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         credentials: 'include',
       });
     } finally {
+      clearSessionMarker();
       clearAccessToken();
     }
   }, []);

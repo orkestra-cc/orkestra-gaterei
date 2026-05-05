@@ -1,9 +1,11 @@
 // Module-scoped in-memory access token. Stored outside React state so the
 // API client middleware can read it synchronously without dragging React
 // context into the fetch path. The refresh cookie is httpOnly and lives
-// on the API origin (Domain=api.localhost in dev, app.orkestra.cc in
-// staging) — the SPA never sees it directly; it just calls the refresh
-// endpoint and stores the resulting access token here.
+// on the API origin (Domain=api.localhost in dev, api.<env>.orkestra.cc
+// in staging/prod) — the SPA never sees it directly; it just calls the
+// refresh endpoint and stores the resulting access token here.
+
+import { clearSessionMarker, hasSessionMarker } from '@/auth/sessionMarker';
 
 let accessToken: string | null = null;
 const subscribers = new Set<(token: string | null) => void>();
@@ -33,7 +35,14 @@ export function subscribe(fn: (token: string | null) => void): () => void {
 // can't trigger N refresh attempts.
 let inflightRefresh: Promise<string | null> | null = null;
 
+// refreshAccessToken issues a single coalesced refresh request. Skips
+// the request entirely when no session marker is present (anonymous
+// visitor) — refresh cookies are httpOnly so the SPA can't probe for
+// them, and a guaranteed-401 every cold load shows up as console noise
+// for every anonymous visitor. The marker is stamped on signIn and
+// cleared on signOut / 401, so returning users still auto-rehydrate.
 export async function refreshAccessToken(apiBase: string): Promise<string | null> {
+  if (!hasSessionMarker()) return null;
   if (inflightRefresh) return inflightRefresh;
   inflightRefresh = (async () => {
     try {
@@ -42,6 +51,9 @@ export async function refreshAccessToken(apiBase: string): Promise<string | null
         credentials: 'include',
       });
       if (!res.ok) {
+        // Stale marker — clear it so the next page load doesn't repeat
+        // the doomed refresh attempt.
+        clearSessionMarker();
         clearAccessToken();
         return null;
       }
