@@ -294,8 +294,9 @@ type RoleMiddleware interface {
 	// that a second factor was completed for this session (amr claim
 	// contains "otp" or "webauthn"). Applied to sensitive routes such as
 	// role grant/revoke and module secret writes. Returns 401 with
-	// error="mfa_required" so the frontend can prompt for a TOTP code and
-	// retry against /v1/auth/mfa/verify.
+	// code="step_up_required" — shared with RequireStepUp and RequireLowRisk
+	// so the frontend's step-up modal handles every MFA-driven 401 the same
+	// way: prompt for a TOTP code, call /v1/auth/mfa/verify, retry.
 	RequireMFA() func(http.Handler) http.Handler
 
 	// RequireStepUp blocks the request unless the caller completed a second

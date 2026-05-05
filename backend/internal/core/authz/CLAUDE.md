@@ -80,7 +80,7 @@ Two route groups (`module.go:113-127`):
 
 ### Per-org — mutation (`RequirePermission("authz.role.read")` + `RequireMFA()`)
 
-Block B gates every mutation path behind an MFA step-up because each can grant or revoke effective permissions. A pwd-only or oauth-only token fails with 401 `mfa_required`; the client steps up via `/v1/auth/mfa/verify` then retries.
+Block B gates every mutation path behind an MFA step-up because each can grant or revoke effective permissions. A pwd-only or oauth-only token fails with 401 `step_up_required`; the client steps up via `/v1/auth/mfa/verify` then retries.
 
 | Method | Path | Purpose |
 |---|---|---|

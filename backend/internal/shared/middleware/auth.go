@@ -1009,11 +1009,13 @@ func amrSatisfiesMFA(amr []string) bool {
 }
 
 // sendMFARequired emits the structured 401 the frontend looks for to trigger
-// a step-up prompt. The body mirrors sendErrorResponse's shape but adds the
-// stable `code` field so the client can switch on it without parsing prose.
+// a step-up prompt. Shares the `step_up_required` code with sendStepUpRequired
+// and sendRiskStepUp so the client switches on a single value to drive the
+// MFA modal regardless of whether the gate is session-MFA, freshness, or
+// risk-based.
 func (m *AuthMiddleware) sendMFARequired(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("WWW-Authenticate", `MFA error="mfa_required"`)
+	w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status": http.StatusUnauthorized,
@@ -1023,9 +1025,9 @@ func (m *AuthMiddleware) sendMFARequired(w http.ResponseWriter, r *http.Request)
 		"errors": []map[string]any{{
 			"message":  "mfa required",
 			"location": "require_mfa",
-			"value":    "MFA_REQUIRED",
+			"value":    "STEP_UP_REQUIRED",
 		}},
-		"code": "mfa_required",
+		"code": "step_up_required",
 	})
 }
 

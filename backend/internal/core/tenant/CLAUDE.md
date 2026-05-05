@@ -79,7 +79,7 @@ Three route groups, each with a different gate:
 
 ### Per-org — mutation (`RequirePermission("tenant.read")` + `RequireMFA()`)
 
-Block B gates every tenant mutation behind an MFA step-up. Each can transfer ownership-adjacent data, change plan entitlements, or destroy the org — a pwd-only token fails with 401 `mfa_required` and the client steps up via `/v1/auth/mfa/verify` before retrying.
+Block B gates every tenant mutation behind an MFA step-up. Each can transfer ownership-adjacent data, change plan entitlements, or destroy the org — a pwd-only token fails with 401 `step_up_required` and the client steps up via `/v1/auth/mfa/verify` before retrying.
 
 | Method | Path | Purpose |
 |---|---|---|

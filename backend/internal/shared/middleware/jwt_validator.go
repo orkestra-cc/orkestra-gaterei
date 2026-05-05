@@ -370,14 +370,14 @@ func (v *JWTValidator) RequireMFA() func(http.Handler) http.Handler {
 					return
 				}
 			}
-			w.Header().Set("WWW-Authenticate", `MFA error="mfa_required"`)
+			w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": http.StatusUnauthorized,
 				"title":  "mfa required",
 				"detail": "this action requires a second authentication factor",
-				"code":   "mfa_required",
+				"code":   "step_up_required",
 			})
 		})
 	}
