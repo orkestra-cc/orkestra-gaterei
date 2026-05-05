@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "Orkestra",
+    "tagline": "Managed services for your business"
+  },
+  "nav": {
+    "catalog": "Services",
+    "signin": "Sign in",
+    "signup": "Sign up",
+    "account": "Account",
+    "signout": "Sign out"
+  },
+  "home": {
+    "hero": "Pick the services you need. Nothing more.",
+    "subhero": "Monthly subscriptions, transparent invoicing, secure payments via Stripe.",
+    "cta": "Browse the catalog"
+  },
+  "lang": {
+    "switch": "Language",
+    "it": "Italiano",
+    "en": "English"
+  },
+  "loading": "Loading…",
+  "error": {
+    "generic": "Something went wrong. Please try again."
+  }
+}

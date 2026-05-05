@@ -350,10 +350,11 @@ The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkest
 
 **Lightweight development with hot reload. Uses `dhi.io` Chainguard hardened base images.**
 
-| Service      | Host port | Purpose       | Features                     |
-| ------------ | --------- | ------------- | ---------------------------- |
-| **backend**  | 3007      | Go API server | Hot reload (AIR), debug logs |
-| **frontend** | 8087      | React web app | Vite dev server, HMR         |
+| Service                  | Host port | Purpose                              | Features                                                       |
+| ------------------------ | --------- | ------------------------------------ | -------------------------------------------------------------- |
+| **backend**              | 3007      | Go API server                        | Hot reload (AIR), debug logs                                   |
+| **frontend**             | 8087      | Operator console (Tier-1)            | Vite dev server, HMR; host `console.localhost`                 |
+| **client-frontend**      | 8081      | Tier-2 client demo SPA               | Vite dev server, HMR; host `client.localhost`; consumes `api.*`|
 
 #### Staging (`docker-compose.staging.yml`)
 
@@ -450,12 +451,13 @@ Minimal profile (docker-compose.minimal.yml):
 6350  → redis:6379        # Dedicated redis for minimal
 
 Dev stack (docker-compose.infra.yml + docker-compose.dev.yml):
-3007  → backend:3000      # API server
-8087  → frontend:5173     # Vite dev server
-27027 → mongodb:27017     # Shared infra mongo
-6387  → redis:6379        # Shared infra redis
-3030  → gotenberg:3000    # PDF generation
-8888  → hindsight:8888    # AI agents backend
+3007  → backend:3000             # API server
+8087  → frontend:5173            # Operator console (host: console.localhost)
+8081  → client-frontend:5173     # Tier-2 client demo SPA (host: client.localhost)
+27027 → mongodb:27017            # Shared infra mongo
+6387  → redis:6379               # Shared infra redis
+3030  → gotenberg:3000           # PDF generation
+8888  → hindsight:8888           # AI agents backend
 
 Production (docker-compose.prod.yml):
 3000  → backend:3000      # API server
