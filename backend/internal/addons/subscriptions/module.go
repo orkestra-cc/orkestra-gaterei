@@ -48,6 +48,7 @@ func (m *SubscriptionsModule) ProvidedServices() []module.ServiceKey {
 		module.ServiceSubscriptionReconciler,
 		module.ServiceSubscriptionService,
 		module.ServiceTenantSubscriptionProvider,
+		module.ServiceSelfServiceCheckoutPlanner,
 	}
 }
 
@@ -165,6 +166,13 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	// importing this module. iface.TenantSubscriptionProvider is the
 	// contract — consumers resolve it via module.GetTyped.
 	deps.Services.Register(module.ServiceTenantSubscriptionProvider, iface.TenantSubscriptionProvider(services.NewTenantSubscriptionAdapter(subRepo)))
+
+	// Publish the self-service checkout planner so the payments client-
+	// surface handler can resolve a subscription UUID into a payable
+	// snapshot (tenant + pending invoice + tier price) without importing
+	// the subscriptions package directly. Optional dependency on payments
+	// side — the route returns 503 when this key is missing.
+	deps.Services.Register(module.ServiceSelfServiceCheckoutPlanner, iface.SelfServiceCheckoutPlanner(services.NewCheckoutPlanner(subRepo, serviceRepo, invoiceRepo)))
 
 	deps.Logger.Info("Subscriptions module initialized",
 		slog.Duration("renewalInterval", interval),

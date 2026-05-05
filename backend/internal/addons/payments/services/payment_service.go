@@ -185,6 +185,30 @@ func (s *PaymentService) VerifyWebhook(ctx context.Context, rawBody []byte, head
 	return s.providers[s.defaultP].VerifyWebhook(ctx, rawBody, headers)
 }
 
+// CreateCheckoutSession routes the call to the provider associated with
+// in.Customer.Provider (defaulting to the configured default provider).
+// No transaction row is persisted at session-open time — the row lands
+// when the webhook reports the resulting PaymentIntent's outcome, the
+// same path the renewal job's off-session charges follow.
+func (s *PaymentService) CreateCheckoutSession(ctx context.Context, in iface.CheckoutSessionInput) (iface.CheckoutSessionResult, error) {
+	p, _, err := s.resolve(in.Customer.Provider)
+	if err != nil {
+		return iface.CheckoutSessionResult{}, err
+	}
+	return p.CreateCheckoutSession(ctx, in)
+}
+
+// CreateSetupCheckoutSession routes the call to the provider associated
+// with in.Customer.Provider. No charge is made — the session only collects
+// a payment method against the customer for use on future renewals.
+func (s *PaymentService) CreateSetupCheckoutSession(ctx context.Context, in iface.SetupCheckoutInput) (iface.CheckoutSessionResult, error) {
+	p, _, err := s.resolve(in.Customer.Provider)
+	if err != nil {
+		return iface.CheckoutSessionResult{}, err
+	}
+	return p.CreateSetupCheckoutSession(ctx, in)
+}
+
 // Provider returns the underlying provider by name, for the webhook handler
 // that needs direct access to VerifyWebhook with a specific secret.
 func (s *PaymentService) Provider(name models.ProviderName) (iface.PaymentProvider, bool) {

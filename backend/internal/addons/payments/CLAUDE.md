@@ -66,6 +66,21 @@ stripeApiVersion      string   STRIPE_API_VERSION        pinned: 2024-12-18.acac
 defaultProvider       string                             "stripe" in v1
 ```
 
+## Tier-2 self-service routes (ADR-0003 client surface)
+
+Mounted on `ri.Client.ProtectedRouter` behind `RequireGlobal()`; each handler re-checks tenant ownership against `TenantProvider.ListUserMemberships`. Built only when the tenant module is wired (skipped with a Warn log otherwise).
+
+```
+GET  /v1/me/transactions                      ?tenantUuid&subscriptionUuid&status
+GET  /v1/me/payment-methods                   ?tenantUuid
+POST /v1/me/payments/checkout-session         { subscriptionUuid, successUrl, cancelUrl }
+POST /v1/me/payments/setup-checkout-session   { tenantUuid, successUrl, cancelUrl }
+```
+
+`checkout-session` opens a Stripe Checkout in `mode=payment` for the subscription's most recent pending invoice, with `setup_future_usage=off_session` so the card is saved for next-cycle renewals. Stamps `subscriptionUUID/invoiceUUID/tenantUUID` into the resulting PaymentIntent metadata so the existing webhook reconciler picks it up — no new reconciliation path. Returns 409 when the subscription has no pending invoice.
+
+`setup-checkout-session` opens Stripe Checkout in `mode=setup` (card-only, no charge) so a Tier-2 user can save a card from the account page without going through a billing cycle.
+
 ## Not in v1
 
-PayPal, SEPA Direct Debit, bank transfers, hosted checkout, client-side payment element (Stripe Elements) endpoints — those come with the self-service client portal in v2.
+PayPal, SEPA Direct Debit, bank transfers, embedded Stripe Elements (hosted Checkout only). Anonymous-checkout (no auth, sessionless) is also out — every `/v1/me/*` route requires an authenticated client session.

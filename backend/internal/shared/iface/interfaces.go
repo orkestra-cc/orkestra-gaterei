@@ -11,6 +11,7 @@ package iface
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -500,6 +501,52 @@ type PaymentProvider interface {
 	// decodes the raw body into a normalized WebhookEvent. Returns an
 	// error if the signature is invalid.
 	VerifyWebhook(ctx context.Context, rawBody []byte, headers map[string]string) (WebhookEvent, error)
+
+	// CreateCheckoutSession opens a hosted-checkout session in payment mode
+	// for a one-shot charge that also saves the chosen payment method on
+	// the customer for future off-session renewals. The returned URL is the
+	// gateway-hosted page the SPA redirects the user to.
+	CreateCheckoutSession(ctx context.Context, in CheckoutSessionInput) (CheckoutSessionResult, error)
+
+	// CreateSetupCheckoutSession opens a hosted-checkout session in setup
+	// mode — no charge, only collects and stores a payment method on the
+	// customer. Used by the "add card" flow on the client account page.
+	CreateSetupCheckoutSession(ctx context.Context, in SetupCheckoutInput) (CheckoutSessionResult, error)
+}
+
+// CheckoutSessionInput parameterises a payment-mode hosted checkout. The
+// gateway charges Customer for AmountCents in Currency once, surfaces the
+// transaction under the metadata-stamped subscription/invoice, and saves
+// the card off-session so the renewal job can reuse it next cycle.
+type CheckoutSessionInput struct {
+	Customer      CustomerRef
+	AmountCents   int64
+	Currency      string // ISO 4217 (e.g. "EUR")
+	Description   string
+	SuccessURL    string // absolute URL the gateway redirects to on success
+	CancelURL     string // absolute URL the gateway redirects to on cancel
+	CustomerEmail string // optional pre-fill for the checkout email field
+	// Metadata is copied to the underlying PaymentIntent so the existing
+	// webhook reconciler picks up subscriptionUUID/invoiceUUID/tenantUUID
+	// without any new plumbing.
+	Metadata map[string]string
+}
+
+// SetupCheckoutInput parameterises a setup-mode hosted checkout — collects
+// a payment method against Customer with no charge.
+type SetupCheckoutInput struct {
+	Customer      CustomerRef
+	SuccessURL    string
+	CancelURL     string
+	CustomerEmail string
+	Metadata      map[string]string // copied to the underlying SetupIntent
+}
+
+// CheckoutSessionResult is the shape returned to the SPA — the hosted URL
+// to redirect to plus the gateway-side session id for client-side recovery.
+type CheckoutSessionResult struct {
+	SessionID string
+	URL       string
 }
 
 // ---------------------------------------------------------------------------
@@ -543,6 +590,47 @@ type TenantSubscriptionProvider interface {
 	// Subscription.TenantUUID. Sorted by createdAt desc.
 	ListByTenant(ctx context.Context, tenantUUID string) ([]TenantSubscription, error)
 }
+
+// ---------------------------------------------------------------------------
+// SelfServiceCheckoutPlanner — consumed by: payments self-service handler.
+//
+// Resolves a subscription UUID into the snapshot the payments module needs
+// to open a hosted Stripe Checkout session: the owning tenant (for the
+// ownership re-check), the pending invoice (for the metadata stamp the
+// existing webhook reconciler keys off), and the catalog tier price + label.
+//
+// Implemented by the subscriptions module and registered under
+// module.ServiceSelfServiceCheckoutPlanner. Optional from payments' point
+// of view — when absent, the checkout-session route returns 503.
+// ---------------------------------------------------------------------------
+
+type CheckoutPlan struct {
+	SubscriptionUUID string
+	TenantUUID       string
+	ServiceUUID      string
+	ServiceName      string
+	TierCode         string
+	InvoiceUUID      string // pending invoice; required by the webhook reconciler
+	InvoiceNumber    string
+	AmountCents      int64
+	Currency         string
+	Description      string // human-readable line for the Checkout page
+}
+
+// SelfServiceCheckoutPlanner translates a subscription UUID into a payable
+// checkout snapshot. Returns ErrCheckoutNoPendingInvoice when the
+// subscription has no invoice in `pending` status — the handler maps that
+// to 409 so the SPA can prompt the user to retry the renewal cycle.
+type SelfServiceCheckoutPlanner interface {
+	PlanCheckoutSession(ctx context.Context, subscriptionUUID string) (CheckoutPlan, error)
+}
+
+// ErrCheckoutNoPendingInvoice is returned by SelfServiceCheckoutPlanner.
+// PlanCheckoutSession when the subscription exists and is owned by the
+// caller but has no invoice in `pending` status to charge. Handlers map
+// this to a 409 response so the SPA can guide the user to wait for the
+// next renewal tick or trigger a retry-charge first.
+var ErrCheckoutNoPendingInvoice = errors.New("self-service checkout: no pending invoice for subscription")
 
 // ---------------------------------------------------------------------------
 // TenantPaymentProvider — consumed by: core/tenant admin aggregator

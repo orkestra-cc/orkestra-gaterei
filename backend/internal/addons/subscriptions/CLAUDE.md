@@ -59,6 +59,22 @@ subscriptions.invoice.view
 subscriptions.activity.view
 ```
 
+## Tier-2 self-service routes (ADR-0003 client surface)
+
+Mounted on `ri.Client.ProtectedRouter` behind `RequireGlobal()` via `RegisterSelfServiceRoutes`; each handler re-checks tenant ownership through `TenantProvider.ListUserMemberships`. Reads are owner-scoped across every tenant the caller owns; mutations target one subscription at a time.
+
+```
+POST /v1/me/subscriptions                          { tenantUuid, serviceCode, tierCode }
+GET  /v1/me/subscriptions                          ?tenantUuid&status
+GET  /v1/me/subscriptions/{id}
+POST /v1/me/subscriptions/{id}/cancel              { atPeriodEnd }
+POST /v1/me/subscriptions/{id}/reactivate
+GET  /v1/me/subscriptions/{id}/invoices
+GET  /v1/me/subscriptions/{id}/activity
+```
+
+The module also publishes `iface.SelfServiceCheckoutPlanner` under `module.ServiceSelfServiceCheckoutPlanner`. Implementation in `services/checkout_planner.go` resolves a subscription UUID into the snapshot the payments client handler needs to open a Stripe Checkout session (tenant + pending invoice + tier price). Returns `iface.ErrCheckoutNoPendingInvoice` when nothing is due — the payments handler maps that to 409.
+
 ## Not in v1
 
-Trials, proration, metered usage, multi-currency, FatturaPA issuance, self-service client portal, dunning sequences beyond one failure email, org-scoped RBAC.
+Trials, proration, metered usage, multi-currency, FatturaPA issuance, dunning sequences beyond one failure email, org-scoped RBAC. Member invites + per-tenant role assignment also deferred — Tier-2 routes assume single-owner tenants.

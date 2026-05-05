@@ -25,6 +25,7 @@ type PaymentsModule struct {
 	dispatcher    *services.Dispatcher
 	txHandler     *handlers.TransactionHandler
 	stripeHandler *webhooks.StripeHandler
+	clientHandler *handlers.ClientHandler // nil when TenantProvider is unavailable
 
 	hasStripe bool
 	logger    *slog.Logger
@@ -52,7 +53,14 @@ func (m *PaymentsModule) ProvidedServices() []module.ServiceKey {
 }
 
 func (m *PaymentsModule) OptionalServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceSubscriptionReconciler}
+	return []module.ServiceKey{
+		module.ServiceSubscriptionReconciler,
+		// Tenant + checkout planner power the Tier-2 client-surface
+		// self-service routes. Both are optional — when missing, the
+		// /v1/me/* routes are simply not mounted (logged at Init time).
+		module.ServiceTenantProvider,
+		module.ServiceSelfServiceCheckoutPlanner,
+	}
 }
 
 func (m *PaymentsModule) ConfigSchema() []module.ConfigField {
@@ -153,9 +161,21 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 	// importing this module. Matches the subscriptions adapter pattern.
 	deps.Services.Register(module.ServiceTenantPaymentProvider, iface.TenantPaymentProvider(services.NewTenantPaymentAdapter(txRepo)))
 
+	// Tier-2 self-service handler — built only when TenantProvider is wired
+	// because every /v1/me/* route re-checks ownership against memberships.
+	// SelfServiceCheckoutPlanner stays optional even when the handler is
+	// built; the checkout-session route returns 503 if the planner is nil.
+	if tenants, ok := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider); ok {
+		planner, _ := module.GetTyped[iface.SelfServiceCheckoutPlanner](deps.Services, module.ServiceSelfServiceCheckoutPlanner)
+		m.clientHandler = handlers.NewClientHandler(m.payment, txRepo, pmRepository, tenants, planner)
+	} else {
+		deps.Logger.Warn("payments: tenant provider missing — Tier-2 self-service routes will not mount")
+	}
+
 	deps.Logger.Info("Payments module initialized",
 		slog.String("defaultProvider", string(defaultProvider)),
 		slog.Bool("stripeConfigured", m.hasStripe),
+		slog.Bool("clientSelfService", m.clientHandler != nil),
 	)
 	return nil
 }
@@ -216,6 +236,24 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 
 	// --- Client surface (api.*) ---
 	//
+	// Tier-2 self-service routes (/v1/me/transactions, /v1/me/payment-
+	// methods, /v1/me/payments/checkout-session, /v1/me/payments/
+	// setup-checkout-session). Mounted on ri.Client.ProtectedRouter behind
+	// RequireGlobal() — the handlers re-check ownership against
+	// TenantProvider memberships, so no per-route RBAC permission is
+	// required (mirrors the subscriptions self-subscribe pattern). Skipped
+	// entirely when m.clientHandler is nil (tenant module disabled).
+	if m.clientHandler != nil {
+		ri.Client.ProtectedRouter.Group(func(gated chi.Router) {
+			gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+			gated.Group(func(r chi.Router) {
+				r.Use(ri.Client.AuthMW.RequireGlobal())
+				api := humachi.New(r, ri.APIConfig)
+				RegisterClientSelfServiceRoutes(api, m.clientHandler)
+			})
+		})
+	}
+
 	// Public Stripe webhook — no JWT, HMAC-verified inside the handler.
 	// Mounted on the client root router so we can read the raw request
 	// body (Huma's binding would have already consumed it). Mux-level

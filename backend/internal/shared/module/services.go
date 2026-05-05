@@ -104,6 +104,13 @@ const (
 	ServicePaymentProvider        ServiceKey = "payments.provider"
 	ServiceSubscriptionReconciler ServiceKey = "subscriptions.reconciler"
 
+	// ServiceSelfServiceCheckoutPlanner is the per-subscription checkout
+	// snapshot resolver consumed by the payments client-surface handler
+	// when building Stripe Checkout sessions for /v1/me/payments/checkout-
+	// session. Implemented by the subscriptions module. Optional from
+	// payments' point of view — when absent, the route returns 503.
+	ServiceSelfServiceCheckoutPlanner ServiceKey = "subscriptions.checkout_planner"
+
 	// ServiceTenantSubscriptionProvider / ServiceTenantPaymentProvider expose
 	// per-tenant read-only listings consumed by the Phase 2 admin aggregator
 	// endpoints under /v1/admin/tenants/{id}/{subscriptions,payments}. Core

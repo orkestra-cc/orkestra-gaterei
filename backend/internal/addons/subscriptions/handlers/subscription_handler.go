@@ -308,6 +308,174 @@ func (h *SubscriptionHandler) guardSubscriptionOwnership(ctx context.Context, su
 	return nil
 }
 
+// meOwnedTenants returns the set of TenantUUIDs the calling user owns,
+// resolved by a fresh ListUserMemberships call against TenantProvider.
+// Memberships are read live (not from JWT context) so a freshly granted
+// or revoked ownership is reflected without waiting for token refresh.
+//
+// Returns 401 when the caller is anonymous, 503 when the tenant provider
+// is not wired, and an empty set when the caller owns no tenants.
+func (h *SubscriptionHandler) meOwnedTenants(ctx context.Context) (map[string]struct{}, error) {
+	if h.tenants == nil {
+		return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
+	}
+	userUUID, ok := middleware.GetUserUUID(ctx)
+	if !ok || userUUID == "" {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	owned := make(map[string]struct{}, len(memberships))
+	for _, m := range memberships {
+		if m.IsOwner {
+			owned[m.TenantUUID] = struct{}{}
+		}
+	}
+	return owned, nil
+}
+
+// meGuardSubscription resolves the subscription by UUID and returns it iff
+// the caller owns its bound tenant. Returns 404 (not 403) on ownership
+// mismatch so the existence of out-of-scope subscriptions does not leak
+// to a fishing client.
+func (h *SubscriptionHandler) meGuardSubscription(ctx context.Context, subscriptionUUID string) (*models.Subscription, error) {
+	owned, err := h.meOwnedTenants(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sub, err := h.subs.Get(ctx, subscriptionUUID)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := owned[sub.TenantUUID]; !ok {
+		return nil, huma.Error404NotFound("not found")
+	}
+	return sub, nil
+}
+
+// --- Self-service handlers ---
+
+// MeListSubscriptionsRequest filters the caller's subscriptions to one
+// owned tenant when TenantUUID is non-empty; otherwise returns
+// subscriptions across every tenant the caller owns.
+type MeListSubscriptionsRequest struct {
+	TenantUUID string `query:"tenantUuid" doc:"Optional — restrict to one owned tenant"`
+	Status     string `query:"status" enum:"active,past_due,suspended,cancelled,expired"`
+}
+
+// MeList returns subscriptions across every tenant the caller owns. The
+// repository is queried per-tenant and the results are merged in memory;
+// for the demo MVP a Tier-2 user is rarely an owner of more than a handful
+// of tenants, so a fan-out without an aggregate index is acceptable.
+func (h *SubscriptionHandler) MeList(ctx context.Context, in *MeListSubscriptionsRequest) (*ListSubscriptionsResponse, error) {
+	owned, err := h.meOwnedTenants(ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp := &ListSubscriptionsResponse{}
+	resp.Body.Items = []models.Subscription{}
+
+	if in.TenantUUID != "" {
+		if _, ok := owned[in.TenantUUID]; !ok {
+			// Pretend the tenant does not exist rather than confirming
+			// it does and refusing — same leak-prevention rationale as
+			// the 404 on subscription mismatch.
+			resp.Body.Total = 0
+			return resp, nil
+		}
+		owned = map[string]struct{}{in.TenantUUID: {}}
+	}
+
+	for tenantUUID := range owned {
+		items, err := h.subs.List(ctx, repository.SubscriptionFilters{
+			TenantUUID: tenantUUID,
+			Status:     models.SubStatus(in.Status),
+		})
+		if err != nil {
+			return nil, err
+		}
+		resp.Body.Items = append(resp.Body.Items, items...)
+	}
+	resp.Body.Total = len(resp.Body.Items)
+	return resp, nil
+}
+
+type MeSubscriptionRequest struct {
+	ID string `path:"id"`
+}
+
+func (h *SubscriptionHandler) MeGet(ctx context.Context, in *MeSubscriptionRequest) (*SubscriptionResponse, error) {
+	sub, err := h.meGuardSubscription(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &SubscriptionResponse{Body: *sub}, nil
+}
+
+type MeCancelSubscriptionRequest struct {
+	ID   string `path:"id"`
+	Body struct {
+		AtPeriodEnd bool `json:"atPeriodEnd"`
+	}
+}
+
+func (h *SubscriptionHandler) MeCancel(ctx context.Context, in *MeCancelSubscriptionRequest) (*SubscriptionResponse, error) {
+	if _, err := h.meGuardSubscription(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	sub, err := h.subs.Cancel(ctx, in.ID, in.Body.AtPeriodEnd, actorFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return &SubscriptionResponse{Body: *sub}, nil
+}
+
+func (h *SubscriptionHandler) MeReactivate(ctx context.Context, in *MeSubscriptionRequest) (*SubscriptionResponse, error) {
+	if _, err := h.meGuardSubscription(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	sub, err := h.subs.Reactivate(ctx, in.ID, actorFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return &SubscriptionResponse{Body: *sub}, nil
+}
+
+func (h *SubscriptionHandler) MeListInvoices(ctx context.Context, in *MeSubscriptionRequest) (*ListInvoicesResponse, error) {
+	if _, err := h.meGuardSubscription(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	items, err := h.invoices.List(ctx, repository.InvoiceFilters{SubscriptionUUID: in.ID})
+	if err != nil {
+		return nil, err
+	}
+	resp := &ListInvoicesResponse{}
+	resp.Body.Items = items
+	resp.Body.Total = len(items)
+	return resp, nil
+}
+
+type MeListActivityRequest struct {
+	ID    string `path:"id"`
+	Limit int64  `query:"limit" default:"100" maximum:"500"`
+}
+
+func (h *SubscriptionHandler) MeListActivity(ctx context.Context, in *MeListActivityRequest) (*ListActivityResponse, error) {
+	if _, err := h.meGuardSubscription(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	items, err := h.activity.List(ctx, in.ID, in.Limit)
+	if err != nil {
+		return nil, err
+	}
+	resp := &ListActivityResponse{}
+	resp.Body.Items = items
+	resp.Body.Total = len(items)
+	return resp, nil
+}
+
 // actorFrom returns the UUID of the authenticated user for audit-log
 // attribution. Falls back to "system" when the middleware has not populated
 // the context (background jobs, tests).
