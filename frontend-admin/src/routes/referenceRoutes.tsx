@@ -106,8 +106,6 @@ const ScatterCharts = lazy(() => import('reference/charts/echarts/scatter-charts
 const PieCharts = lazy(() => import('reference/charts/echarts/pie-charts'));
 const RadarCharts = lazy(() => import('reference/charts/echarts/radar-charts/Index'));
 const HeatmapCharts = lazy(() => import('reference/charts/echarts/heatmap-chart'));
-const Chartjs = lazy(() => import('reference/charts/chartjs'));
-const D3js = lazy(() => import('reference/charts/d3js'));
 const GoogleMapExample = lazy(() => import('reference/components/maps/GoogleMapExample'));
 const Widgets = lazy(() => import('reference/components/widgets/Widgets'));
 const ProjectManagement = lazy(() => import('reference/dashboards/ProjectManagementDashboard'));
@@ -309,12 +307,10 @@ export function getReferenceRoutes(): RouteObject[] {
       path: rootPaths.tableRoot,
       element: <Suspense key="tables" fallback={<FalconLoader />}><Tables /></Suspense>,
     },
-    // Charts
+    // Charts (echarts only — chartjs and d3js were removed; production code uses echarts)
     {
       path: rootPaths.chartsRoot,
       children: [
-        { path: paths.chartjs, element: <Suspense key="chartjs" fallback={<FalconLoader />}><Chartjs /></Suspense> },
-        { path: paths.d3js, element: <Suspense key="d3j" fallback={<FalconLoader />}><D3js /></Suspense> },
         {
           path: rootPaths.echartsRoot,
           children: [
@@ -638,8 +634,6 @@ export function getReferenceRoutes(): RouteObject[] {
         {
           path: 'charts',
           children: [
-            { path: 'chartjs', element: <Suspense key="ref-charts-chartjs" fallback={<FalconLoader />}><Chartjs /></Suspense> },
-            { path: 'd3js', element: <Suspense key="ref-charts-d3js" fallback={<FalconLoader />}><D3js /></Suspense> },
             {
               path: 'echarts',
               children: [

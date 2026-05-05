@@ -496,20 +496,6 @@ export const modulesRoutes: RouteGroup = {
       active: true,
       children: [
         {
-          name: 'Chartjs',
-          to: paths.chartjs,
-          active: true
-        },
-        {
-          name: 'D3js',
-          to: paths.d3js,
-          active: true,
-          badge: {
-            type: 'success',
-            text: 'New'
-          }
-        },
-        {
           name: 'ECharts',
           active: true,
           children: [
@@ -1476,8 +1462,6 @@ export const referenceRoutes: RouteGroup = {
       icon: 'chart-line',
       roles: ['developer'],
       children: [
-        { name: 'Chart.js', to: paths.refChartsChartjs, active: true },
-        { name: 'D3.js', to: paths.refChartsD3js, active: true },
         {
           name: 'ECharts',
           active: true,

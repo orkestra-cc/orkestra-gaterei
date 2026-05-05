@@ -17,7 +17,7 @@ React 19 + Vite 7 + TypeScript 5.9 operator console for Orkestra — the **Tier-
 | State | Redux Toolkit 2.9 + RTK Query (server state lives in RTK Query, not React Query) |
 | UI kit | React Bootstrap 2.10 + Bootstrap 5.3 + Falcon SCSS theme |
 | Forms | React Hook Form + Yup |
-| Charts | ECharts, Chart.js, D3 (lazy-loaded chunks) |
+| Charts | ECharts (lazy-loaded chunks). Chart.js + D3 reference samples were removed — use `echarts-for-react` for any new chart work. |
 | Calendar | FullCalendar |
 | Maps | Google Maps + Leaflet |
 | Tables | TanStack Table v8 |
@@ -78,7 +78,7 @@ frontend-admin/
 │   ├── reference/                 # 📚 Falcon template library (READ-ONLY) — 7 example apps + 60+ samples
 │   │   ├── app-examples/          # calendar, chat, email, events, kanban, social, support-desk
 │   │   ├── components/            # UI showcase (forms, tables, navigation, media, etc.)
-│   │   ├── charts/                # Chart.js, D3, ECharts examples
+│   │   ├── charts/                # ECharts examples only (chartjs/d3js removed — unresolved imports)
 │   │   ├── dashboards/            # 11 complete dashboard layouts
 │   │   ├── pages/                 # Landing, FAQ, pricing, miscellaneous templates
 │   │   └── utilities/             # Bootstrap utility-class examples

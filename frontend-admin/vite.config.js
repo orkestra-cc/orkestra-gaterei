@@ -165,7 +165,6 @@ export default ({ mode }) => {
           './src/pages/user/calendar/UserCalendar.tsx',
           './src/pages/operator/profile/OperatorProfile.tsx',
           './src/pages/admin/user-profile/AdminUserProfile.tsx',
-          './src/pages/admin/settings/AdminSettings.tsx',
         ]
       },
       open: false,

@@ -151,8 +151,6 @@ export interface AppPaths {
   wizard: string;
   validation: string;
   tables: string;
-  chartjs: string;
-  d3js: string;
   echartsHowToUse: string;
   lineCharts: string;
   barCharts: string;
@@ -345,9 +343,7 @@ export interface AppPaths {
   refMapsLeaflet: string;
   // Reference Components - Widgets
   refWidgets: string;
-  // Reference Charts
-  refChartsChartjs: string;
-  refChartsD3js: string;
+  // Reference Charts (echarts only)
   refChartsEchartsHowToUse: string;
   refChartsEchartsLine: string;
   refChartsEchartsBar: string;
@@ -484,8 +480,6 @@ const paths: AppPaths = {
   wizard: `/${rootPaths.formsRoot}/wizard`,
   validation: `/${rootPaths.formsRoot}/validation`,
   tables: `/${rootPaths.tableRoot}`,
-  chartjs: `/${rootPaths.chartsRoot}/chartjs`,
-  d3js: `/${rootPaths.chartsRoot}/d3js`,
   echartsHowToUse: `/${rootPaths.chartsRoot}/${rootPaths.echartsRoot}/how-to-use`,
   lineCharts: `/${rootPaths.chartsRoot}/${rootPaths.echartsRoot}/line-charts`,
   barCharts: `/${rootPaths.chartsRoot}/${rootPaths.echartsRoot}/bar-charts`,
@@ -679,9 +673,7 @@ const paths: AppPaths = {
   refMapsLeaflet: `/${rootPaths.referenceRoot}/maps/leaflet`,
   // Reference Components - Widgets
   refWidgets: `/${rootPaths.referenceRoot}/widgets`,
-  // Reference Charts
-  refChartsChartjs: `/${rootPaths.referenceRoot}/charts/chartjs`,
-  refChartsD3js: `/${rootPaths.referenceRoot}/charts/d3js`,
+  // Reference Charts (echarts only — chartjs and d3js were removed)
   refChartsEchartsHowToUse: `/${rootPaths.referenceRoot}/charts/echarts/how-to-use`,
   refChartsEchartsLine: `/${rootPaths.referenceRoot}/charts/echarts/line-charts`,
   refChartsEchartsBar: `/${rootPaths.referenceRoot}/charts/echarts/bar-charts`,
