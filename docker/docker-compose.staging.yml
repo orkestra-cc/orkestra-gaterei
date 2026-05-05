@@ -207,6 +207,47 @@ services:
       - backend
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
 
+  # Tier-2 (external client) demo SPA — consumes the ADR-0003 client
+  # API surface (staging-api.orkestra.cc, JWT aud=client). Sibling app
+  # to the operator console; lives at frontend-client/. Bind-mounts the
+  # source for hot reload; the browser hits the backend directly so
+  # VITE_API_BASE must be reachable from the user's browser, not from
+  # inside the container network.
+  client-frontend:
+    image: node:24-alpine
+    container_name: orkestra-client-frontend
+    user: "1000:1000"
+    userns_mode: "host"
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "${CLIENT_FRONTEND_PORT:-8081}:5173"
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE: ${VITE_CLIENT_API_BASE:-https://staging-api.orkestra.cc}
+      VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
+      # Hostnames the Vite dev server accepts (DNS-rebinding defence).
+      # Localhost is always allowed; add the deployed hostnames here.
+      VITE_ALLOWED_HOSTS: ${VITE_CLIENT_ALLOWED_HOSTS:-app.orkestra.cc}
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      npm_config_cache: /app/.npm-cache
+    volumes:
+      - ../frontend-client:/app
+      - ../frontend-client/.vite-cache:/app/.vite
+      - ../frontend-client/.npm-cache:/app/.npm-cache
+    networks:
+      - orkestra-network
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+    # Probes the in-process /health endpoint registered by the Vite
+    # plugin in frontend-client/vite.config.ts. start_period covers a
+    # cold-cache npm install (~20-30s on first boot, near-instant after).
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
 volumes:
   orkestra-backend-logs-staging:
     driver: local

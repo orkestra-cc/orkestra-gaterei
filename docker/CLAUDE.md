@@ -360,10 +360,11 @@ The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkest
 
 **Hot-reload stack with staging-like behavior (cookie strict, JWT, CORS, rate limits).** Used as the primary development environment on long-lived VMs that mirror production-style URLs/cookies but still need fast iteration.
 
-| Service           | Host port | Purpose       | Features                                  |
-| ----------------- | --------- | ------------- | ----------------------------------------- |
-| **orkestra-backend**  | 3000      | Go API server | Hot reload (AIR), staging-like env, RS256 JWT |
-| **orkestra-frontend** | 8080      | React web app | Vite dev server, HMR                       |
+| Service                      | Host port | Purpose                              | Features                                                        |
+| ---------------------------- | --------- | ------------------------------------ | --------------------------------------------------------------- |
+| **orkestra-backend**         | 3000      | Go API server                        | Hot reload (AIR), staging-like env, RS256 JWT                   |
+| **orkestra-frontend**        | 8080      | Operator console (Tier-1)            | Vite dev server, HMR; host `staging.orkestra.cc`                |
+| **orkestra-client-frontend** | 8081      | Tier-2 client demo SPA               | Vite dev server, HMR; host `app.orkestra.cc`; consumes `staging-api.*` |
 
 The backend mounts `../backend:/app` and runs AIR from the bind mount — no image rebuild on code change. AIR and the Go module/build cache live under `backend/.go-bin/` and `backend/.go-mod-cache/` (gitignored), pre-installed by the host. To bootstrap on a fresh machine:
 

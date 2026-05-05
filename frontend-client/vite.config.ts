@@ -41,6 +41,16 @@ const healthCheckPlugin = (): Plugin => {
   };
 };
 
+// VITE_ALLOWED_HOSTS — comma-separated list of hosts the dev server will
+// answer to (Vite 5+ blocks unknown Host headers as a DNS-rebinding
+// defence). Localhost is always allowed; this list adds the deployed
+// hostnames (e.g. app.orkestra.cc on staging). Set to `*` to disable
+// the check entirely (acceptable on a private VM, never in prod).
+const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), healthCheckPlugin()],
   resolve: {
@@ -52,9 +62,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    allowedHosts: allowedHosts.includes('*') ? true : allowedHosts,
   },
   preview: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts: allowedHosts.includes('*') ? true : allowedHosts,
   },
 });
