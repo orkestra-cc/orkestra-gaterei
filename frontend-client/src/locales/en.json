@@ -132,7 +132,8 @@
     },
     "subscriptions": {
       "title": "Subscriptions",
-      "placeholder": "Coming in the next phase."
+      "placeholder": "Coming in the next phase.",
+      "cta": "Browse the catalog and start a new subscription."
     },
     "changePassword": {
       "title": "Change password",
@@ -184,6 +185,49 @@
       "backupDownload": "Download .txt",
       "backupAcknowledge": "I have saved these codes somewhere safe",
       "backupContinue": "Done, continue"
+    }
+  },
+  "subscribe": {
+    "title": "Confirm your subscription",
+    "subtitle": "Review the plan and we'll take you to Stripe to save a payment method. The first charge happens at the start of your billing cycle.",
+    "back": "Back to service details",
+    "browseCatalog": "Browse the catalog",
+    "servicePlan": "Service",
+    "plusSetup": "Plus a one-time setup fee of {{fee}}.",
+    "tenantLabel": "Bill this subscription to",
+    "tenantHint": "You're an owner of more than one organization — pick which one this subscription belongs to.",
+    "tenantPlaceholder": "Select an organization…",
+    "cardNotice": "We'll redirect you to Stripe Checkout to securely save a card. We won't charge it now — your first invoice is generated at the start of the billing cycle.",
+    "submit": "Continue to payment",
+    "submitting": "Opening checkout…",
+    "cancel": "Not now",
+    "errorTitle": "Something's missing",
+    "errorMissingTier": "We couldn't find which plan you wanted. Pick one from the catalog.",
+    "errorTierGone": "That plan is no longer available. Browse the catalog for current options.",
+    "noTenantTitle": "We couldn't find your organization",
+    "noTenantBody": "Self-service subscriptions are tied to an organization you own. Create one to continue.",
+    "createOrg": "Create an organization"
+  },
+  "subscribeReturn": {
+    "successTitle": "Subscription confirmed",
+    "successBody": "Your card is saved with Stripe and your subscription is active.",
+    "cancelTitle": "Checkout cancelled",
+    "cancelBody": "We didn't save a payment method. You can return to the catalog anytime to retry.",
+    "errorTitle": "Missing reference",
+    "errorMissing": "We couldn't find which subscription this return URL refers to.",
+    "warnLookup": "We couldn't load the subscription details. Check your account page in a moment.",
+    "browseCatalog": "Back to catalog",
+    "goAccount": "Go to account",
+    "statusLabel": "Status",
+    "tierLabel": "Plan",
+    "nextBillingLabel": "Next billing",
+    "firstChargeNotice": "Your first invoice is generated at the start of your billing cycle and the card you just saved is charged automatically.",
+    "status": {
+      "active": "Active",
+      "past_due": "Past due",
+      "suspended": "Suspended",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
     }
   },
   "lang": {

@@ -132,7 +132,8 @@
     },
     "subscriptions": {
       "title": "Abbonamenti",
-      "placeholder": "Disponibile nella prossima fase."
+      "placeholder": "Disponibile nella prossima fase.",
+      "cta": "Sfoglia il catalogo e avvia un nuovo abbonamento."
     },
     "changePassword": {
       "title": "Cambia password",
@@ -184,6 +185,49 @@
       "backupDownload": "Scarica .txt",
       "backupAcknowledge": "Ho salvato i codici in un luogo sicuro",
       "backupContinue": "Ho fatto, continua"
+    }
+  },
+  "subscribe": {
+    "title": "Conferma il tuo abbonamento",
+    "subtitle": "Controlla il piano e ti porteremo su Stripe per salvare un metodo di pagamento. Il primo addebito avviene all'inizio del ciclo di fatturazione.",
+    "back": "Torna ai dettagli del servizio",
+    "browseCatalog": "Sfoglia il catalogo",
+    "servicePlan": "Servizio",
+    "plusSetup": "Più un costo di attivazione una tantum di {{fee}}.",
+    "tenantLabel": "Fattura questo abbonamento a",
+    "tenantHint": "Sei proprietario di più organizzazioni — scegli a quale collegare questo abbonamento.",
+    "tenantPlaceholder": "Seleziona un'organizzazione…",
+    "cardNotice": "Ti reindirizzeremo a Stripe Checkout per salvare in sicurezza una carta. Non addebiteremo nulla ora — la prima fattura viene generata all'inizio del ciclo di fatturazione.",
+    "submit": "Vai al pagamento",
+    "submitting": "Apertura checkout…",
+    "cancel": "Non ora",
+    "errorTitle": "Manca qualcosa",
+    "errorMissingTier": "Non riusciamo a trovare il piano che hai scelto. Selezionalo dal catalogo.",
+    "errorTierGone": "Questo piano non è più disponibile. Sfoglia il catalogo per vedere le opzioni attuali.",
+    "noTenantTitle": "Non troviamo la tua organizzazione",
+    "noTenantBody": "Gli abbonamenti self-service sono legati a un'organizzazione di cui sei proprietario. Creane una per continuare.",
+    "createOrg": "Crea un'organizzazione"
+  },
+  "subscribeReturn": {
+    "successTitle": "Abbonamento confermato",
+    "successBody": "La tua carta è stata salvata su Stripe e l'abbonamento è attivo.",
+    "cancelTitle": "Checkout annullato",
+    "cancelBody": "Non abbiamo salvato alcun metodo di pagamento. Puoi tornare al catalogo in qualsiasi momento per riprovare.",
+    "errorTitle": "Riferimento mancante",
+    "errorMissing": "Non riusciamo a capire a quale abbonamento si riferisce questo URL di ritorno.",
+    "warnLookup": "Non riusciamo a caricare i dettagli dell'abbonamento. Controlla la pagina account tra qualche istante.",
+    "browseCatalog": "Torna al catalogo",
+    "goAccount": "Vai all'account",
+    "statusLabel": "Stato",
+    "tierLabel": "Piano",
+    "nextBillingLabel": "Prossima fatturazione",
+    "firstChargeNotice": "La prima fattura viene generata all'inizio del ciclo di fatturazione e la carta che hai appena salvato verrà addebitata automaticamente.",
+    "status": {
+      "active": "Attivo",
+      "past_due": "In ritardo",
+      "suspended": "Sospeso",
+      "cancelled": "Annullato",
+      "expired": "Scaduto"
     }
   },
   "lang": {

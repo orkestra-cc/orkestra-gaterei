@@ -64,12 +64,15 @@ export function AccountPage() {
           </h2>
           <p className="text-sm text-slate-600">{t('account.security.cta')}</p>
         </Link>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-6">
+        <Link
+          to="/catalog"
+          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
+        >
           <h2 className="mb-1 text-base font-semibold text-slate-900">
             {t('account.subscriptions.title')}
           </h2>
-          <p className="text-sm text-slate-600">{t('account.subscriptions.placeholder')}</p>
-        </div>
+          <p className="text-sm text-slate-600">{t('account.subscriptions.cta')}</p>
+        </Link>
       </div>
     </section>
   );

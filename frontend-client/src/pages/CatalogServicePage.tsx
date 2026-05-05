@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next';
 
 import { listPublicCatalog, findServiceByCode } from '@/api/catalog';
 import { formatPrice } from '@/lib/format';
+import { useAuth } from '@/auth/useAuth';
 
 export function CatalogServicePage() {
   const { code = '' } = useParams<{ code: string }>();
   const { t, i18n } = useTranslation();
+  const { isAuthenticated } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['catalog'],
@@ -86,7 +88,7 @@ export function CatalogServicePage() {
                   </div>
                 )}
                 <Link
-                  to={`/signup?service=${encodeURIComponent(service.code)}&tier=${encodeURIComponent(tier.code)}`}
+                  to={`${isAuthenticated ? '/subscribe' : '/signup'}?service=${encodeURIComponent(service.code)}&tier=${encodeURIComponent(tier.code)}`}
                   className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
                 >
                   {t('catalog.subscribe')}

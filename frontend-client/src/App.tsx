@@ -12,6 +12,8 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { AccountSecurityPage } from '@/pages/AccountSecurityPage';
 import { MfaEnrolPage } from '@/pages/MfaEnrolPage';
+import { SubscribePage } from '@/pages/SubscribePage';
+import { SubscribeReturnPage } from '@/pages/SubscribeReturnPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 export function App() {
@@ -50,7 +52,22 @@ export function App() {
             </RequireAuth>
           }
         />
-        {/* /subscribe + return URLs land in Phase 4. */}
+        <Route
+          path="/subscribe"
+          element={
+            <RequireAuth>
+              <SubscribePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/subscribe/return"
+          element={
+            <RequireAuth>
+              <SubscribeReturnPage />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
