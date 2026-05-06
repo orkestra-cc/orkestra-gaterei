@@ -164,36 +164,6 @@ func (s *Service) ActivateTenant(ctx context.Context, tenantUUID string) error {
 	return s.MarkTenantActive(ctx, tenantUUID)
 }
 
-// ProvisionExternalTenant is the onboarding entry point for anonymous
-// self-service signup. Delegates to CreateExternalTenant for the
-// Tier-2 bookkeeping (status=provisioning, signupChannel=self_serve,
-// owner membership) and returns the DTO shape so callers crossing the
-// module boundary don't import models.Tenant. Implements
-// iface.TenantProvider.ProvisionExternalTenant.
-//
-// Deprecated for the post-onboarding refactor: anonymous signup no longer
-// creates a tenant. This method survives until the onboarding addon is
-// retired in Phase 1.
-func (s *Service) ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in iface.OnboardingTenantInput) (*iface.Tenant, error) {
-	if ownerUserUUID == "" {
-		return nil, errors.New("tenant: ProvisionExternalTenant requires ownerUserUUID")
-	}
-	if in.Name == "" {
-		return nil, errors.New("tenant: ProvisionExternalTenant requires Name")
-	}
-	t, err := s.CreateExternalTenant(ctx, ownerUserUUID, in.Name, in.Slug, models.SignupChannelSelfServe, nil)
-	if err != nil {
-		return nil, fmt.Errorf("tenant: ProvisionExternalTenant: %w", err)
-	}
-	if in.Plan != "" && t.Plan != in.Plan {
-		if err := s.repo.UpdateTenant(ctx, t.UUID, bson.M{"plan": in.Plan}); err != nil {
-			return nil, fmt.Errorf("tenant: ProvisionExternalTenant: set plan: %w", err)
-		}
-		t.Plan = in.Plan
-	}
-	return tenantToIface(t), nil
-}
-
 // SetTenantStripeCustomerID persists the Stripe customer identifier on the
 // tenant row. Called by the subscriptions renewal service after Stripe mints a
 // customer on the first charge for an external tenant. Idempotent — applying

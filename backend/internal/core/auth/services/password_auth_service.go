@@ -30,19 +30,6 @@ var (
 	ErrMFAEnrollmentRequired  = stderrors.New("mfa enrollment required — grace period expired")
 )
 
-// OnboardingActivator is invoked after a successful email verification so
-// onboarding-adjacent side effects (flipping the owner's tenant from
-// provisioning → active) can run without the auth module importing
-// onboarding or tenant. Set via SetOnboardingActivator at boot — nil by
-// default so flows that do not run the onboarding module (setup wizard,
-// admin-created users) are unaffected.
-//
-// The callback must be best-effort: a failure here is logged but does not
-// roll back the email verification itself. The owner has already proven
-// they control the inbox; we don't want to force them to reclick because
-// of a transient tenant-side failure.
-type OnboardingActivator func(ctx context.Context, userUUID string) error
-
 // FirstAdminClaimer is the contract the password auth service uses to
 // atomically reserve the platform's super_admin seat on a fresh install.
 // shared/systeminit.Repo satisfies it. Inlining the interface here keeps
@@ -100,11 +87,6 @@ type PasswordAuthService struct {
 	appName                  string
 	supportEmail             string
 	logger                   *slog.Logger
-	// onboardingActivator is wired post-construction via SetOnboardingActivator
-	// because the onboarding module initializes after auth. Accessed only
-	// from VerifyEmail — no locking needed as the setter runs once at boot
-	// before the first HTTP request is served.
-	onboardingActivator OnboardingActivator
 	// auditSink is wired post-construction via SetAuditSink by the compliance
 	// module. Nil when compliance is disabled — emit* helpers tolerate that.
 	auditSink iface.AuditSink
@@ -556,13 +538,6 @@ func (s *PasswordAuthService) loadMembershipsAsAuthModel(ctx context.Context, us
 	return out
 }
 
-// SetOnboardingActivator wires the activate-on-verify hook. Called once
-// from the onboarding module's Init, after both auth and tenant are up.
-// Passing nil clears the hook — used by tests that want the bare flow.
-func (s *PasswordAuthService) SetOnboardingActivator(fn OnboardingActivator) {
-	s.onboardingActivator = fn
-}
-
 // SetAuditSink wires the compliance audit sink post-construction. The
 // compliance module is optional, so auth's audit-emission helpers skip
 // silently when sink is nil.
@@ -591,18 +566,6 @@ func (s *PasswordAuthService) VerifyEmail(ctx context.Context, rawToken string) 
 	}
 	if err := s.emailTokenRepo.MarkUsed(ctx, doc.TokenHash); err != nil {
 		return err
-	}
-	// Best-effort onboarding activation. A transient tenant-side failure
-	// here leaves the tenant in `provisioning`; the operator can flip it
-	// manually via /admin/tenants. Do not surface the error to the caller —
-	// the email has been verified, which is the user-visible contract.
-	if s.onboardingActivator != nil {
-		if err := s.onboardingActivator(ctx, doc.UserUUID); err != nil {
-			s.logger.Warn("verify-email: onboarding activator failed",
-				slog.String("userUUID", doc.UserUUID),
-				slog.String("error", err.Error()),
-			)
-		}
 	}
 	s.emitAudit(ctx, iface.AuditEvent{
 		ActorUserID:  doc.UserUUID,

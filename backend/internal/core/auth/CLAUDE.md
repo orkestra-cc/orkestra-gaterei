@@ -71,7 +71,7 @@ Only email tokens and device-trust grants currently have a TTL — refresh token
 7. **Password service**: argon2id hasher with HIBP policy validation (`services/password_service.go`).
 8. **Password auth service**: register/login/verify/reset/change flows, wired to the optional notification sender and a shared `RateLimiter`.
 9. **Handlers**: OAuth, password, MFA, and WebAuthn handlers, each constructed twice (operator + client) and stamped with the matching tier's cookie domain at construction time (`cfg.Auth.Cookie.OperatorDomain` / `ClientDomain`, falling back to the legacy `Domain`). The shared `Cookie.Name` + `Cookie.Secure` are still process-scoped.
-10. **Register services** under `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`, plus the per-tier keys (`ServiceOperator{AuthService,PasswordAuthService,JWTService}` / `ServiceClient{...}`) that audience-aware consumers (onboarding, dev token generator) request directly.
+10. **Register services** under `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`, plus the per-tier keys (`ServiceOperator{AuthService,PasswordAuthService,JWTService}` / `ServiceClient{...}`) that audience-aware consumers (dev token generator, future tier-specific addons) request directly.
 
 `Start / Stop / HealthCheck` inherit from `BaseModule`.
 

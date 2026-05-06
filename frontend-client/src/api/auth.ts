@@ -56,6 +56,32 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
   });
 }
 
+// --- Register ---
+
+export interface RegisterInput {
+  email: string;
+  password: string;
+  fullName: string;
+}
+
+export interface RegisterResult {
+  success: boolean;
+  userUuid: string;
+  message: string;
+  requiresVerification: boolean;
+}
+
+export async function register(input: RegisterInput): Promise<RegisterResult> {
+  const res = await jsonFetch('/v1/auth/client/register', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw await readError(res, 'Registration failed');
+  }
+  return (await res.json()) as RegisterResult;
+}
+
 // --- Login ---
 
 export interface LoginInput {

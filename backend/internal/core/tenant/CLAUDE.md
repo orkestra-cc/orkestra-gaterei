@@ -147,7 +147,6 @@ Frontend routes: `/admin/internal/tenants` (+ `/:tenantId`) renders `frontend/sr
 GetTenant(ctx, tenantUUID) (*Tenant, error)
 ListUserMemberships(ctx, userUUID) ([]TenantMembership, error)
 IsMember(ctx, userUUID, tenantUUID) (bool, error)
-ProvisionExternalTenant(ctx, ownerUserUUID, OnboardingTenantInput) (*Tenant, error)  // deprecated, retired in Phase 1
 ActivateTenant(ctx, tenantUUID) error
 SetTenantStripeCustomerID(ctx, tenantUUID, stripeCustomerID) error
 ```
@@ -170,7 +169,7 @@ Typical consumers:
 - **middleware** — `IsMember` on every protected request that resolves an `X-Org-ID` header; `RequireCapability` consumes `AccessProvider.HasCapability` against the request's polymorphic owner (tenant when `X-Tenant-ID` is set, calling user otherwise) and returns 402 on a miss.
 - **authz (Cedar shadow evaluator)** — `AccessProvider.ListCapabilityIDs(TenantOwner(tenantUUID))` populates `cedar.Principal.Capabilities` so the `capability_grants.cedar` forbid-unless-entitled rule can reason about entitlements.
 - **subscriptions (entitlement syncer)** — `AccessProvider.GrantCapability/RevokeCapability` on every subscription lifecycle transition; the syncer hands an `Owner` derived from the subscription row so user-owned and tenant-owned subscriptions both land grants on the same projection.
-- **onboarding (public signup)** — `ProvisionExternalTenant` was the legacy path; deprecated as part of the post-onboarding refactor and retired in Phase 1 (signup creates a user only).
+- **client signup (`/v1/auth/client/register`)** — creates a user only; tenants are now admin-curated and attached to existing users by an operator (no anonymous tenant provisioning).
 - **tenant handlers themselves** — use the concrete service for richer operations that don't fit on the interface.
 
 ## Key invariants

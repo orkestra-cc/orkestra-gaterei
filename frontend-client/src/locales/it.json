@@ -40,8 +40,6 @@
     "password": "Password",
     "passwordHint": "Almeno 10 caratteri",
     "fullName": "Nome e cognome",
-    "tenantName": "Nome dell'organizzazione",
-    "tenantNameHint": "Sarà visibile a te e ai membri del tuo team",
     "terms": "Accetto i Termini di Servizio e la Privacy Policy",
     "submit": "Crea account",
     "submitting": "Creazione in corso…",
@@ -55,7 +53,6 @@
     "errorPasswordRequired": "La password è obbligatoria",
     "errorPasswordTooShort": "La password deve avere almeno 10 caratteri",
     "errorFullNameRequired": "Il nome è obbligatorio",
-    "errorTenantNameRequired": "Il nome dell'organizzazione è obbligatorio",
     "errorTermsRequired": "Devi accettare i termini per continuare"
   },
   "verify": {

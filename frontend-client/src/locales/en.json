@@ -40,8 +40,6 @@
     "password": "Password",
     "passwordHint": "At least 10 characters",
     "fullName": "Full name",
-    "tenantName": "Organization name",
-    "tenantNameHint": "Visible to you and your team",
     "terms": "I accept the Terms of Service and Privacy Policy",
     "submit": "Create account",
     "submitting": "Creating account…",
@@ -55,7 +53,6 @@
     "errorPasswordRequired": "Password is required",
     "errorPasswordTooShort": "Password must be at least 10 characters",
     "errorFullNameRequired": "Name is required",
-    "errorTenantNameRequired": "Organization name is required",
     "errorTermsRequired": "You must accept the terms to continue"
   },
   "verify": {

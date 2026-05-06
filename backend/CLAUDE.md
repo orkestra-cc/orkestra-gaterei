@@ -54,7 +54,6 @@ backend/
 │   │   ├── sales/                  # AI prospect analysis
 │   │   ├── subscriptions/          # Recurring services catalog, clients, subscriptions
 │   │   ├── payments/               # Stripe gateway, refunds, webhooks
-│   │   ├── onboarding/             # Anonymous self-service signup (external tenant + owner)
 │   │   └── dev/                    # Dev token generator
 │   ├── shared/                     # Infrastructure — used by core and addons
 │   │   ├── module/                 # Module interface, registry, config service

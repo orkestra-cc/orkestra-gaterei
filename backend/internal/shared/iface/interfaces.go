@@ -333,25 +333,11 @@ type TenantProvider interface {
 	GetTenant(ctx context.Context, tenantUUID string) (*Tenant, error)
 	ListUserMemberships(ctx context.Context, userUUID string) ([]TenantMembership, error)
 	IsMember(ctx context.Context, userUUID, tenantUUID string) (bool, error)
-	// ProvisionExternalTenant is the onboarding entry point for anonymous
-	// self-service signup. Creates a Tier-2 tenant owned by the given user
-	// in the provisioning lifecycle state (kind=external, signup=self_serve).
-	// A follow-up activate-on-verify hook flips the status to active after
-	// the owner has completed email verification. Distinct from the
-	// admin-facing CreateTenant surface — different defaults, narrower
-	// input shape.
-	//
-	// Deprecated for the post-onboarding refactor: anonymous signup no
-	// longer creates a tenant. This method survives until the onboarding
-	// addon is retired in Phase 1; new code paths should not call it.
-	ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in OnboardingTenantInput) (*Tenant, error)
 	// ActivateTenant transitions a tenant from `provisioning` to `active`.
 	// Idempotent: calling it on an already-active tenant is a no-op on the
-	// status field. The onboarding activate-on-verify hook uses this after
-	// the owner has completed email verification. Does not validate the
-	// previous state — admin callers can also use it to unsuspend, though
-	// that is not the primary use case and richer transitions live on the
-	// concrete tenant service.
+	// status field. Does not validate the previous state — admin callers
+	// can also use it to unsuspend, though that is not the primary use
+	// case and richer transitions live on the concrete tenant service.
 	ActivateTenant(ctx context.Context, tenantUUID string) error
 	// SetTenantStripeCustomerID persists the Stripe customer identifier the
 	// payment provider returned for the tenant. Called on the first charge
@@ -390,20 +376,6 @@ type AccessProvider interface {
 	// holds active entitlements for, deduplicated and in deterministic
 	// order.
 	ListCapabilityIDs(ctx context.Context, owner Owner) ([]string, error)
-}
-
-// OnboardingTenantInput is the cross-module payload for self-service
-// external-tenant creation. Kept minimal: anonymous signups only carry
-// the bare identifiers; richer fields (legal name, VAT, address) are
-// collected later in the onboarding wizard.
-type OnboardingTenantInput struct {
-	Name string
-	// Slug is optional — when empty, the tenant service derives it from
-	// Name via the same slugifier the authenticated create path uses.
-	Slug string
-	// Plan is optional — defaults to "free" when empty. Entitlements are
-	// driven by subscriptions, not plan name, so this is a label only.
-	Plan string
 }
 
 // GrantCapabilityInput is the cross-module payload for granting a capability

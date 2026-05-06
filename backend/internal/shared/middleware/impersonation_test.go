@@ -70,9 +70,6 @@ func (f *fakeTenantProvider) RevokeCapability(_ context.Context, _, _ string) er
 func (f *fakeTenantProvider) ListCapabilityIDs(_ context.Context, _ string) ([]string, error) {
 	return nil, nil
 }
-func (f *fakeTenantProvider) ProvisionExternalTenant(_ context.Context, _ string, _ iface.OnboardingTenantInput) (*iface.Tenant, error) {
-	return nil, nil
-}
 func (f *fakeTenantProvider) ActivateTenant(_ context.Context, _ string) error { return nil }
 func (f *fakeTenantProvider) SetTenantStripeCustomerID(_ context.Context, _, _ string) error {
 	return nil

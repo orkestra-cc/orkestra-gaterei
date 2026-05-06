@@ -1,45 +1,37 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
-import {
-  registerTenant,
-  type OnboardingError,
-  type OnboardingRegisterInput,
-  type OnboardingRegisterResult,
-} from '@/api/onboarding';
+import { register, type RegisterInput, type RegisterResult } from '@/api/auth';
 import { resendVerificationEmail } from '@/api/verifyEmail';
+
+interface ApiError extends Error {
+  status: number;
+  code?: string;
+}
 
 interface FieldErrors {
   email?: string;
   password?: string;
   fullName?: string;
-  tenantName?: string;
   terms?: string;
 }
 
 export function SignupPage() {
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
-  // service + tier from /catalog/:code → "Subscribe" link. Stored on the
-  // success screen so the SPA can resume the subscribe flow once the
-  // user verifies email + signs in (Phase 4 wires the actual handoff).
-  const intentService = searchParams.get('service') ?? '';
-  const intentTier = searchParams.get('tier') ?? '';
 
   const [form, setForm] = useState({
     email: '',
     password: '',
     fullName: '',
-    tenantName: '',
     terms: false,
   });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
-  const mutation = useMutation<OnboardingRegisterResult, OnboardingError, OnboardingRegisterInput>({
-    mutationFn: registerTenant,
+  const mutation = useMutation<RegisterResult, ApiError, RegisterInput>({
+    mutationFn: register,
     onSuccess: (_data, variables) => {
       setSubmittedEmail(variables.email);
     },
@@ -58,7 +50,6 @@ export function SignupPage() {
       next.password = t('signup.errorPasswordTooShort');
     }
     if (!form.fullName.trim()) next.fullName = t('signup.errorFullNameRequired');
-    if (!form.tenantName.trim()) next.tenantName = t('signup.errorTenantNameRequired');
     if (!form.terms) next.terms = t('signup.errorTermsRequired');
     return next;
   }
@@ -72,11 +63,6 @@ export function SignupPage() {
       email: form.email.trim(),
       password: form.password,
       fullName: form.fullName.trim(),
-      tenantName: form.tenantName.trim(),
-      // Optional informational label — surfaces the subscribe intent to
-      // ops without locking entitlements (those still come from the
-      // subscriptions module post-verify).
-      plan: intentService && intentTier ? `${intentService}/${intentTier}` : undefined,
     });
   }
 
@@ -116,15 +102,6 @@ export function SignupPage() {
           value={form.fullName}
           onChange={(v) => setForm({ ...form, fullName: v })}
           error={errors.fullName}
-        />
-        <Field
-          id="tenantName"
-          label={t('signup.tenantName')}
-          hint={t('signup.tenantNameHint')}
-          autoComplete="organization"
-          value={form.tenantName}
-          onChange={(v) => setForm({ ...form, tenantName: v })}
-          error={errors.tenantName}
         />
 
         <label className="flex items-start gap-2 text-sm text-slate-700">
