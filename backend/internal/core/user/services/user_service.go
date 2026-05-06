@@ -39,6 +39,11 @@ type UserService interface {
 	ClearFailedLogins(ctx context.Context, userUUID string) error
 	UpdateUser(ctx context.Context, id string, input *models.UpdateUserInput) (*models.UserManagementResponse, error)
 	DeleteUser(ctx context.Context, id string) error
+	// SoftDeleteAndAliasEmail soft-deletes the user and renames the
+	// email to a one-shot alias so the unique index no longer collides
+	// with a fresh signup using the original address. Used by the
+	// tenant-cascade hook for orphaned external owners.
+	SoftDeleteAndAliasEmail(ctx context.Context, id string) error
 
 	// Query operations
 	ListUsers(ctx context.Context, filters *models.UserFilters, pagination *models.PaginationParams) (*models.UserManagementListResponse, error)
@@ -269,6 +274,23 @@ func (s *userService) DeleteUser(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
+	return nil
+}
+
+// SoftDeleteAndAliasEmail soft-deletes a user and frees the email by
+// rewriting it to an alias. Idempotent: a missing or already-deleted row
+// is treated as success (the caller's intent — "this email should no
+// longer block signup" — is already satisfied).
+func (s *userService) SoftDeleteAndAliasEmail(ctx context.Context, id string) error {
+	if id == "" {
+		return ErrInvalidInput
+	}
+	if err := s.userRepo.SoftDeleteAndAliasEmail(ctx, id); err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed to soft-delete-and-alias user: %w", err)
+	}
 	return nil
 }
 

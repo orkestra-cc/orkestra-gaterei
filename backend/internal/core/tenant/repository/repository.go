@@ -250,6 +250,19 @@ func (r *Repository) DeleteMembership(ctx context.Context, userUUID, tenantUUID 
 	return err
 }
 
+// DeleteMembershipsByTenant hard-deletes every membership row that belongs
+// to the given tenant. Used by Service.DeleteTenant / PurgeTenant to drop
+// orphaned org_owner and member rows so platform admins can re-use the
+// freed names and so the tenant's owners can re-register without a stale
+// membership pointing at a deleted tenant.
+func (r *Repository) DeleteMembershipsByTenant(ctx context.Context, tenantUUID string) (int64, error) {
+	res, err := r.db.Collection(CollMemberships).DeleteMany(ctx, bson.M{"tenantId": tenantUUID})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
+}
+
 func (r *Repository) ListMembershipsByUser(ctx context.Context, userUUID string) ([]models.TenantMembership, error) {
 	cur, err := r.db.Collection(CollMemberships).Find(ctx, bson.M{
 		"userUUID": userUUID,
@@ -435,6 +448,24 @@ func (r *Repository) ListDescendantUUIDs(ctx context.Context, ancestorUUID strin
 		out = append(out, anc.DescendantUUID)
 	}
 	return out, cur.Err()
+}
+
+// DeleteAncestorsByTenant removes every closure row in which the given
+// tenant appears (either as ancestor or as descendant). Used by the
+// cascade-delete path so a deleted tenant leaves no dangling hierarchy
+// links — both its self-row and the rows linking it to its parent chain
+// are dropped in one call.
+func (r *Repository) DeleteAncestorsByTenant(ctx context.Context, tenantUUID string) (int64, error) {
+	res, err := r.db.Collection(CollAncestors).DeleteMany(ctx, bson.M{
+		"$or": []bson.M{
+			{"descendantUUID": tenantUUID},
+			{"ancestorUUID": tenantUUID},
+		},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return res.DeletedCount, nil
 }
 
 // IsAncestorOf reports whether ancestorUUID is an ancestor (at any depth,

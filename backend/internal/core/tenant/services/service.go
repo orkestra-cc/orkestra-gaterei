@@ -20,10 +20,11 @@ import (
 
 // Service owns tenant lifecycle and implements iface.TenantProvider.
 type Service struct {
-	repo       *repository.Repository
-	auditSink  iface.AuditSink
-	kms        iface.KMSProvider
-	bindOwner  OwnerRoleBinder
+	repo            *repository.Repository
+	auditSink       iface.AuditSink
+	kms             iface.KMSProvider
+	bindOwner       OwnerRoleBinder
+	postDeleteHooks []TenantPostDeleteHook
 }
 
 // OwnerRoleBinder is invoked from CreateTenant after the owner membership
@@ -62,6 +63,53 @@ func (s *Service) SetKMSProvider(kms iface.KMSProvider) { s.kms = kms }
 // inserts the membership without an authz binding — the owner relies
 // on their platform system role to act, which is the legacy behavior.
 func (s *Service) SetOwnerRoleBinder(fn OwnerRoleBinder) { s.bindOwner = fn }
+
+// TenantPostDeleteContext carries the data a cascade hook needs to clean
+// up tenant-adjacent state owned by other modules — authz bindings, the
+// orphaned owner's user account on the per-tier user collections, anything
+// else that points at the tenant. Computed inside DeleteTenant /
+// PurgeTenant before the hooks fire so each subscriber gets a consistent
+// snapshot regardless of execution order.
+type TenantPostDeleteContext struct {
+	TenantUUID string
+	// Kind is "internal" or "external". User-cleanup hooks key on this
+	// because operator users may legitimately outlive a single tenant
+	// (one human, many internal workspaces) while external Tier-2
+	// signups exist solely to hold the client tenant.
+	Kind string
+	// OwnerUserUUID is the tenant's recorded owner. May be empty for
+	// legacy rows that never stamped an owner — hooks must tolerate that.
+	OwnerUserUUID string
+	// OwnerHasOtherTenants is true when the owner still belongs to at
+	// least one tenant after this delete. User-eviction hooks must check
+	// it before reclaiming the email — a user with active memberships
+	// elsewhere cannot have their account aliased away.
+	OwnerHasOtherTenants bool
+	// Hard is true for PurgeTenant (irreversible erasure), false for
+	// DeleteTenant (soft-delete with deletedAt). Hooks may use this to
+	// hard-delete vs soft-delete on their side, though most cascade
+	// targets (memberships, ancestors, bindings) are hard-deleted in
+	// either case because they have no soft-delete pattern.
+	Hard bool
+}
+
+// TenantPostDeleteHook is invoked after the tenant module has finished
+// its own cascade (memberships, ancestors, lifecycle status). Hooks fire
+// in registration order; a non-nil error is logged via the audit sink
+// but does not abort subsequent hooks — best-effort cleanup so a single
+// flaky downstream module doesn't leave the rest of the system in a
+// half-cascaded state.
+type TenantPostDeleteHook func(ctx context.Context, c TenantPostDeleteContext) error
+
+// RegisterPostDeleteHook appends a cascade hook. Called by other modules
+// during their Init (authz wires binding-cleanup, tenant itself wires the
+// orphaned-owner-user evictor via the user iface).
+func (s *Service) RegisterPostDeleteHook(fn TenantPostDeleteHook) {
+	if fn == nil {
+		return
+	}
+	s.postDeleteHooks = append(s.postDeleteHooks, fn)
+}
 
 // emitAudit forwards to the compliance sink when wired; no-op otherwise.
 func (s *Service) emitAudit(ctx context.Context, event iface.AuditEvent) {
@@ -429,6 +477,10 @@ func (s *Service) PurgeTenant(ctx context.Context, tenantUUID string) error {
 	// status — the row is still readable in purged state but carrying
 	// a live keyID would defeat crypto-shred.
 	existing, lookupErr := s.repo.GetTenantByUUID(ctx, tenantUUID)
+	cascadeCtx := s.buildPostDeleteContext(ctx, existing, true)
+	if err := s.cascadeTenantData(ctx, tenantUUID); err != nil {
+		return err
+	}
 	if err := s.repo.UpdateTenantStatus(ctx, tenantUUID, models.TenantStatusPurged); err != nil {
 		return err
 	}
@@ -445,6 +497,7 @@ func (s *Service) PurgeTenant(ctx context.Context, tenantUUID string) error {
 			_ = err
 		}
 	}
+	s.runPostDeleteHooks(ctx, cascadeCtx)
 	s.emitLifecycle(ctx, "tenant.lifecycle.purged", tenantUUID)
 	return nil
 }
@@ -492,11 +545,93 @@ func (s *Service) UpdatePlan(ctx context.Context, tenantUUID string, input model
 }
 
 func (s *Service) DeleteTenant(ctx context.Context, tenantUUID string) error {
+	// Fetch the tenant before mutating so the cascade context
+	// (kind / owner / orphan flag) is computed against the pre-delete
+	// state. A missing row falls through with a nil snapshot — hooks
+	// already tolerate empty fields and the soft-delete below will
+	// surface ErrNotFound the same as before.
+	existing, _ := s.repo.GetTenantByUUID(ctx, tenantUUID)
+	cascadeCtx := s.buildPostDeleteContext(ctx, existing, false)
+	if err := s.cascadeTenantData(ctx, tenantUUID); err != nil {
+		return err
+	}
 	if err := s.repo.SoftDeleteTenant(ctx, tenantUUID); err != nil {
 		return err
 	}
+	s.runPostDeleteHooks(ctx, cascadeCtx)
 	s.emitLifecycle(ctx, "tenant.deleted", tenantUUID)
 	return nil
+}
+
+// cascadeTenantData hard-deletes data the tenant module owns directly:
+// memberships and the closure-table rows. Memberships have no soft-delete
+// pattern (DeleteMembership has always hard-deleted singles) and ancestors
+// are pure derived data, so dropping them outright matches the existing
+// invariants. Cross-module data (authz bindings, the owner's user row) is
+// handled by registered hooks.
+func (s *Service) cascadeTenantData(ctx context.Context, tenantUUID string) error {
+	if _, err := s.repo.DeleteMembershipsByTenant(ctx, tenantUUID); err != nil {
+		return fmt.Errorf("tenant: drop memberships: %w", err)
+	}
+	if _, err := s.repo.DeleteAncestorsByTenant(ctx, tenantUUID); err != nil {
+		return fmt.Errorf("tenant: drop ancestors: %w", err)
+	}
+	return nil
+}
+
+// buildPostDeleteContext snapshots the data hooks need before mutation.
+// The orphan flag is computed against the pre-cascade membership set so
+// "owner has at least one other tenant" stays true even though we are
+// about to drop the membership for THIS tenant — the count check filters
+// the deleting tenant out explicitly.
+func (s *Service) buildPostDeleteContext(ctx context.Context, t *models.Tenant, hard bool) TenantPostDeleteContext {
+	out := TenantPostDeleteContext{Hard: hard}
+	if t == nil {
+		return out
+	}
+	out.TenantUUID = t.UUID
+	out.Kind = string(t.Kind)
+	out.OwnerUserUUID = t.OwnerUserUUID
+	if t.OwnerUserUUID == "" {
+		return out
+	}
+	memberships, err := s.repo.ListMembershipsByUser(ctx, t.OwnerUserUUID)
+	if err != nil {
+		// Be conservative on a lookup failure: assume the owner has
+		// other tenants so we never accidentally evict an account
+		// that's still in use elsewhere.
+		out.OwnerHasOtherTenants = true
+		return out
+	}
+	for i := range memberships {
+		if memberships[i].TenantUUID != t.UUID {
+			out.OwnerHasOtherTenants = true
+			return out
+		}
+	}
+	return out
+}
+
+// runPostDeleteHooks fans out the cascade to subscribers. Hooks are
+// best-effort: an error is recorded as an audit event but does not abort
+// the remaining hooks — leaving the system half-cascaded because hook 2
+// failed would be worse than continuing.
+func (s *Service) runPostDeleteHooks(ctx context.Context, c TenantPostDeleteContext) {
+	for _, hook := range s.postDeleteHooks {
+		if hook == nil {
+			continue
+		}
+		if err := hook(ctx, c); err != nil {
+			s.emitAudit(ctx, iface.AuditEvent{
+				TenantID:     c.TenantUUID,
+				Action:       "tenant.cascade.hook_failed",
+				ResourceType: "tenant",
+				ResourceID:   c.TenantUUID,
+				Outcome:      "failure",
+				Metadata:     map[string]any{"error": err.Error()},
+			})
+		}
+	}
 }
 
 // TenantAdminView is a tenant plus its current member count, used by the

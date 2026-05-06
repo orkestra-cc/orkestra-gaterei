@@ -8,6 +8,9 @@
 package tenant
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra/backend/internal/core/tenant/handlers"
@@ -124,6 +127,31 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	// need to drive post-init setters can resolve it without importing the
 	// tenant package from a second location.
 	deps.Services.Register(module.ServiceTenantService, m.svc)
+
+	// Cascade hook: evict the owner's client_users row when an external
+	// Tier-2 tenant is deleted and the owner has no other live
+	// memberships. Without this, the per-collection unique email index
+	// would block a fresh self-serve signup with the same address even
+	// though the only tenant the account ever belonged to is gone.
+	// Internal tenants are intentionally skipped — operator users
+	// outlive single workspaces (one human can run several internal
+	// admin sessions). The user module loads before tenant in the
+	// topological order, so the client provider is already in the
+	// registry by the time this Init runs.
+	if clientUsers, ok := module.GetTyped[iface.ClientUserProvider](deps.Services, module.ServiceClientUserProvider); ok && clientUsers != nil {
+		m.svc.RegisterPostDeleteHook(func(ctx context.Context, c services.TenantPostDeleteContext) error {
+			if c.Kind != iface.TenantKindExternal {
+				return nil
+			}
+			if c.OwnerUserUUID == "" || c.OwnerHasOtherTenants {
+				return nil
+			}
+			if err := clientUsers.SoftDeleteAndAliasEmail(ctx, c.OwnerUserUUID); err != nil {
+				return fmt.Errorf("tenant: evict orphaned client owner: %w", err)
+			}
+			return nil
+		})
+	}
 	return nil
 }
 

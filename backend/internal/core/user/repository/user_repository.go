@@ -45,6 +45,16 @@ type UserRepository interface {
 	// for right-to-erasure. Distinct from Delete which soft-deletes via a
 	// deletedAt stamp (keeps the row for audit + re-activation).
 	HardDelete(ctx context.Context, id string) error
+	// SoftDeleteAndAliasEmail soft-deletes the row AND renames the email
+	// to a one-shot alias so the per-collection unique email index no
+	// longer collides with a fresh signup using the original address.
+	// Used by the tenant cascade-delete hook: when an external Tier-2
+	// tenant is deleted and its owner has no other live memberships,
+	// this frees the email so the same human can re-register without
+	// hitting "Email already in use". The original email is preserved on
+	// originalEmail for audit. Returns ErrUserNotFound if no live row
+	// matches.
+	SoftDeleteAndAliasEmail(ctx context.Context, id string) error
 
 	// Password-auth operations
 	UpdatePasswordHash(ctx context.Context, userUUID, hash string) error
@@ -300,6 +310,50 @@ func (r *mongoUserRepository) HardDelete(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to hard-delete user: %w", err)
 	}
 	if result.DeletedCount == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// SoftDeleteAndAliasEmail soft-deletes a live user row AND rewrites the
+// email to a one-shot alias of the form "<original>+deleted-<unix>@orphan.local".
+// Both fields are updated atomically so a concurrent read can never see a
+// soft-deleted row that still owns the original email. The unique email
+// index on this collection is full (not partial) so freeing the email
+// requires renaming it — see user/CLAUDE.md "Soft delete only" note.
+func (r *mongoUserRepository) SoftDeleteAndAliasEmail(ctx context.Context, id string) error {
+	now := time.Now()
+	// Read the current email so we can prefix the alias for traceability
+	// without leaking the address in cleartext to any other index.
+	var existing struct {
+		Email string `bson:"email"`
+	}
+	err := r.collection.FindOne(ctx, bson.M{
+		"uuid":      id,
+		"deletedAt": bson.M{"$exists": false},
+	}).Decode(&existing)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read user before soft-delete-and-alias: %w", err)
+	}
+	alias := fmt.Sprintf("%s+deleted-%d@orphan.local", existing.Email, now.UnixNano())
+	res, updateErr := r.collection.UpdateOne(ctx,
+		bson.M{"uuid": id, "deletedAt": bson.M{"$exists": false}},
+		bson.M{"$set": bson.M{
+			"deletedAt":     now,
+			"updatedAt":     now,
+			"originalEmail": existing.Email,
+			"email":         alias,
+		}},
+	)
+	if updateErr != nil {
+		return fmt.Errorf("failed to soft-delete-and-alias user: %w", updateErr)
+	}
+	if res.MatchedCount == 0 {
+		// The row was deleted between the read and the update — treat as
+		// already gone, the caller's intent is satisfied.
 		return ErrUserNotFound
 	}
 	return nil

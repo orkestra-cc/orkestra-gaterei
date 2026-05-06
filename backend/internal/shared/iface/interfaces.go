@@ -48,6 +48,12 @@ type UserProvider interface {
 	UpdateUser(ctx context.Context, id string, input *userModels.UpdateUserInput) (*userModels.UserManagementResponse, error)
 	UpdateUserLastLogin(ctx context.Context, id string) error
 	DeleteUser(ctx context.Context, id string) error
+	// SoftDeleteAndAliasEmail soft-deletes the user and renames the
+	// email to a one-shot alias so the unique email index no longer
+	// blocks a fresh signup. Used by the tenant cascade-delete hook
+	// when an external Tier-2 tenant is dropped and its owner has no
+	// other live memberships. Idempotent.
+	SoftDeleteAndAliasEmail(ctx context.Context, userUUID string) error
 	GetUserOAuthLinks(ctx context.Context, userUUID string) ([]userModels.OAuthLink, error)
 	RemoveOAuthLinkFromUser(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error
 	SetPrimaryOAuthLink(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error

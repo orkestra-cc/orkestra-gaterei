@@ -1015,6 +1015,22 @@ func (s *Service) DeleteBinding(ctx context.Context, uuid string) error {
 	return nil
 }
 
+// RemoveBindingsByTenant drops every binding scoped to the given tenant
+// and flushes the effective-permission cache so any in-flight request can
+// no longer consult a cached entry pointing at a now-deleted tenant.
+// Called by the cascade hook the authz module registers on the tenant
+// service. Returns the number of bindings removed for audit purposes.
+func (s *Service) RemoveBindingsByTenant(ctx context.Context, tenantUUID string) (int64, error) {
+	n, err := s.repo.DeleteBindingsByTenant(ctx, tenantUUID)
+	if err != nil {
+		return 0, err
+	}
+	if n > 0 {
+		s.flushCache(ctx)
+	}
+	return n, nil
+}
+
 func (s *Service) flushCache(ctx context.Context) {
 	if s.redis == nil {
 		return

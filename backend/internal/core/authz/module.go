@@ -226,6 +226,19 @@ func (m *Module) Init(deps *module.Dependencies) error {
 			}
 			return nil
 		})
+		// Cascade hook: when a tenant is deleted or purged, drop every
+		// binding scoped to it. Without this, deleting a tenant leaves
+		// org_owner / org_admin / custom-role rows pointing at a
+		// nonexistent tenant — the next DB scan would surface them as
+		// orphans and the evaluator would still consult them when
+		// resolving permissions for a re-used tenant UUID.
+		svc := m.svc
+		tenantConcrete.RegisterPostDeleteHook(func(ctx context.Context, c tenantServices.TenantPostDeleteContext) error {
+			if _, err := svc.RemoveBindingsByTenant(ctx, c.TenantUUID); err != nil {
+				return fmt.Errorf("authz: remove tenant bindings: %w", err)
+			}
+			return nil
+		})
 	}
 	return nil
 }
