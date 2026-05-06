@@ -77,6 +77,14 @@ const (
 	ServiceWebAuthn ServiceKey = "auth.webauthn"
 
 	ServiceTenantProvider ServiceKey = "tenant.provider"
+	// ServiceAccessProvider is the polymorphic-owner capability-entitlement
+	// surface. Registered by the tenant module alongside ServiceTenantProvider
+	// because the entitlements projection lives in the tenant collection set
+	// today. Consumers (RequireCapability middleware, authz Cedar evaluator,
+	// subscriptions entitlement syncer) ask for this key directly so the
+	// capability check is independent of whether the owner is a user or a
+	// tenant. Value: iface.AccessProvider.
+	ServiceAccessProvider ServiceKey = "access.provider"
 	// ServiceTenantService is the concrete *tenant/services.Service registered
 	// alongside the TenantProvider interface. Compliance consumes it to wire
 	// its audit sink via SetAuditSink — the public provider interface stays

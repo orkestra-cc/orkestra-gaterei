@@ -72,8 +72,9 @@ func (p *Provider) CreateCustomer(ctx context.Context, in iface.CustomerInput) (
 	if in.Country != "" {
 		params.Address = &stripelib.AddressParams{Country: stripelib.String(in.Country)}
 	}
-	if in.TenantUUID != "" {
-		params.AddMetadata("tenantUUID", in.TenantUUID)
+	if !in.Owner.IsZero() {
+		params.AddMetadata("ownerKind", string(in.Owner.Kind))
+		params.AddMetadata("ownerUUID", in.Owner.UUID)
 	}
 	for k, v := range in.Metadata {
 		params.AddMetadata(k, v)

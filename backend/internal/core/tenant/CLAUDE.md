@@ -147,28 +147,37 @@ Frontend routes: `/admin/internal/tenants` (+ `/:tenantId`) renders `frontend/sr
 GetTenant(ctx, tenantUUID) (*Tenant, error)
 ListUserMemberships(ctx, userUUID) ([]TenantMembership, error)
 IsMember(ctx, userUUID, tenantUUID) (bool, error)
-HasCapability(ctx, tenantUUID, capabilityID) (bool, error)
-GrantCapability(ctx, GrantCapabilityInput) error
-RevokeCapability(ctx, tenantUUID, capabilityID) error
-ListCapabilityIDs(ctx, tenantUUID) ([]string, error)
-ProvisionExternalTenant(ctx, ownerUserUUID, OnboardingTenantInput) (*Tenant, error)
+ProvisionExternalTenant(ctx, ownerUserUUID, OnboardingTenantInput) (*Tenant, error)  // deprecated, retired in Phase 1
+ActivateTenant(ctx, tenantUUID) error
+SetTenantStripeCustomerID(ctx, tenantUUID, stripeCustomerID) error
 ```
+
+`iface.AccessProvider` (same file) — polymorphic-owner capability surface. The same concrete `*tenant/services.Service` implements both interfaces; registered separately under `module.ServiceAccessProvider` so consumers ask for the capability surface without the tenant CRUD surface:
+
+```go
+HasCapability(ctx, owner Owner, capabilityID) (bool, error)
+GrantCapability(ctx, GrantCapabilityInput) error            // GrantCapabilityInput.Owner carries kind+uuid
+RevokeCapability(ctx, owner Owner, capabilityID) error
+ListCapabilityIDs(ctx, owner Owner) ([]string, error)
+```
+
+`Owner{Kind, UUID}` is `Kind="user"` for self-registered clients (post-onboarding refactor) and `Kind="tenant"` for admin-attached business members. The `tenant_entitlements` collection is keyed by `(ownerKind, ownerUUID, capabilityID)`.
 
 `Tenant` exposes `UUID, Kind, ParentTenantUUID, Status, Name, Slug, Plan`. `TenantMembership` exposes `TenantUUID, TenantName, TenantSlug, TenantKind, Roles, IsOwner`. Both are intentionally trimmed — anything richer lives in `tenant/models` and is only reachable via the concrete service, not through the provider interface.
 
 Typical consumers:
 - **auth** — `ListUserMemberships` during JWT issuance so memberships are embedded in the access token's `memberships` claim (frontend reads them to build the org switcher without an extra round trip).
-- **middleware** — `IsMember` on every protected request that resolves an `X-Org-ID` header; `HasCapability` on routes gated by `RequireCapability(capID)` (returns 402 on a miss).
-- **authz (Cedar shadow evaluator)** — `ListCapabilityIDs` populates `cedar.Principal.Capabilities` so the `capability_grants.cedar` forbid-unless-entitled rule can reason about entitlements.
-- **subscriptions (entitlement syncer)** — `GrantCapability` / `RevokeCapability` on every subscription lifecycle transition so paid capabilities appear on the tenant's projection.
-- **onboarding (public signup)** — `ProvisionExternalTenant` on the anonymous `POST /v1/onboarding/register` path, creating a Tier-2 tenant in `provisioning` state with `SignupChannel=self_serve`.
+- **middleware** — `IsMember` on every protected request that resolves an `X-Org-ID` header; `RequireCapability` consumes `AccessProvider.HasCapability` against the request's polymorphic owner (tenant when `X-Tenant-ID` is set, calling user otherwise) and returns 402 on a miss.
+- **authz (Cedar shadow evaluator)** — `AccessProvider.ListCapabilityIDs(TenantOwner(tenantUUID))` populates `cedar.Principal.Capabilities` so the `capability_grants.cedar` forbid-unless-entitled rule can reason about entitlements.
+- **subscriptions (entitlement syncer)** — `AccessProvider.GrantCapability/RevokeCapability` on every subscription lifecycle transition; the syncer hands an `Owner` derived from the subscription row so user-owned and tenant-owned subscriptions both land grants on the same projection.
+- **onboarding (public signup)** — `ProvisionExternalTenant` was the legacy path; deprecated as part of the post-onboarding refactor and retired in Phase 1 (signup creates a user only).
 - **tenant handlers themselves** — use the concrete service for richer operations that don't fit on the interface.
 
 ## Key invariants
 
 - **Plan names** (`models/tenant.go`): `free` (default), `pro`, `enterprise`. Plan is an **informational label only** — admin UI display, reporting. It does **not** drive feature access.
-- **Capability entitlements drive access, not plan.** `RequireCapability(capID)` consults `tenant_entitlements` via `HasCapability`. The `subscriptions` module populates entitlements through the entitlement syncer on every lifecycle transition.
-- **Internal-tenant bypass.** `HasCapability` short-circuits to `true` for tenants with `Kind == internal`. Internal (operator) tenants host the platform and don't consume via subscriptions — the capability gate is the external-client monetization seam. External tenants always consult the projection.
+- **Capability entitlements drive access, not plan.** `RequireCapability(capID)` consults the `tenant_entitlements` projection via `AccessProvider.HasCapability`. The `subscriptions` module populates entitlements through the entitlement syncer on every lifecycle transition. Entitlement rows are keyed by polymorphic `(ownerKind, ownerUUID, capabilityID)` so a self-registered user holds capabilities directly without a tenant.
+- **Internal-tenant bypass.** `HasCapability` short-circuits to `true` for `Owner{Kind:"tenant"}` whose tenant is `Kind == internal`. User-owned entitlements always consult the projection (no operator user is granted capabilities by tier). Internal (operator) tenants host the platform and don't consume via subscriptions — the capability gate is the external-client monetization seam.
 - **Owner is auto-enrolled as `org_owner`** on tenant creation (`services/service.go::CreateTenant`) — the first membership is inserted with `Roles: ["org_owner"]` and `IsOwner: true`. The post-membership `OwnerRoleBinder` hook (wired by the authz module) creates a tenant-scoped authz binding so the owner has actual permissions. The org_owner role's permission set excludes everything tagged `System=true`, so the owner cannot manage modules, other tenants, or platform users via this binding. Pre-2026-04-24 tenants whose Roles still says `["administrator"]` are not auto-migrated — operators need a one-shot script that updates those memberships and creates the missing `org_owner` binding.
 - **Slug uniqueness + auto-generation**. Unique sparse index on `slug`. `CreateOrg` falls back to `slugify(input.Name)` when no slug is provided (`services/service.go:88-94`); the slugifier is in `services/service.go:238-255`.
 - **Soft delete only on the tenant row.** `DeleteOrg` sets a `deletedAt` timestamp. Every read query filters these out at the Mongo layer unless `includeDeleted` is explicitly requested (admin list only). The plain `DeleteOrg` has no owner-check today — the platform-admin path reuses it directly.

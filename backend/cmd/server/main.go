@@ -175,6 +175,7 @@ func main() {
 	authMW := authMiddleware.NewAuthMiddlewareWithConfig(jwtService, errorManager, cfg)
 	authMW.SetAuthService(authService)
 	authMW.SetTenantProvider(module.MustGetTyped[iface.TenantProvider](svcRegistry, module.ServiceTenantProvider))
+	authMW.SetAccessProvider(module.MustGetTyped[iface.AccessProvider](svcRegistry, module.ServiceAccessProvider))
 	authMW.SetAuthzProvider(module.MustGetTyped[iface.AuthzProvider](svcRegistry, module.ServiceAuthzProvider))
 	if sink, ok := module.GetTyped[iface.AuditSink](svcRegistry, module.ServiceAuditSink); ok {
 		authMW.SetAuditSink(sink)

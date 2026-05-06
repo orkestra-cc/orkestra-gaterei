@@ -13,48 +13,33 @@ import (
 	"github.com/orkestra/backend/internal/shared/iface"
 )
 
-// stubTenantProvider records Grant/Revoke calls for assertion. It is NOT a
-// complete TenantProvider — only the capability methods used by the syncer
-// are meaningful. The other methods return zero values so compilation
-// passes. Shared across tests via t.Helper idioms rather than subpackages.
-type stubTenantProvider struct {
-	grants  []iface.GrantCapabilityInput
-	revokes []stubRevoke
+// stubAccessProvider records Grant/Revoke calls for assertion. Implements
+// iface.AccessProvider — the polymorphic capability surface the syncer
+// consumes.
+type stubAccessProvider struct {
+	grants   []iface.GrantCapabilityInput
+	revokes  []stubRevoke
 	grantErr error
 }
 
 type stubRevoke struct {
-	tenantUUID   string
+	owner        iface.Owner
 	capabilityID string
 }
 
-func (s *stubTenantProvider) GetTenant(context.Context, string) (*iface.Tenant, error) {
-	return nil, nil
-}
-func (s *stubTenantProvider) ListUserMemberships(context.Context, string) ([]iface.TenantMembership, error) {
-	return nil, nil
-}
-func (s *stubTenantProvider) IsMember(context.Context, string, string) (bool, error) { return false, nil }
-func (s *stubTenantProvider) HasCapability(context.Context, string, string) (bool, error) {
+func (s *stubAccessProvider) HasCapability(context.Context, iface.Owner, string) (bool, error) {
 	return false, nil
 }
-func (s *stubTenantProvider) GrantCapability(_ context.Context, in iface.GrantCapabilityInput) error {
+func (s *stubAccessProvider) GrantCapability(_ context.Context, in iface.GrantCapabilityInput) error {
 	s.grants = append(s.grants, in)
 	return s.grantErr
 }
-func (s *stubTenantProvider) RevokeCapability(_ context.Context, tenantUUID, capabilityID string) error {
-	s.revokes = append(s.revokes, stubRevoke{tenantUUID: tenantUUID, capabilityID: capabilityID})
+func (s *stubAccessProvider) RevokeCapability(_ context.Context, owner iface.Owner, capabilityID string) error {
+	s.revokes = append(s.revokes, stubRevoke{owner: owner, capabilityID: capabilityID})
 	return nil
 }
-func (s *stubTenantProvider) ListCapabilityIDs(context.Context, string) ([]string, error) {
+func (s *stubAccessProvider) ListCapabilityIDs(context.Context, iface.Owner) ([]string, error) {
 	return nil, nil
-}
-func (s *stubTenantProvider) ProvisionExternalTenant(context.Context, string, iface.OnboardingTenantInput) (*iface.Tenant, error) {
-	return nil, nil
-}
-func (s *stubTenantProvider) ActivateTenant(context.Context, string) error { return nil }
-func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
-	return nil
 }
 
 // stubServiceRepo satisfies repository.ServiceRepository with an in-memory map.
@@ -92,29 +77,34 @@ func serviceWithTier(uuid string, caps ...string) *models.Service {
 	}
 }
 
+func tenantSub(uuid, tenantUUID, serviceUUID string) *models.Subscription {
+	return &models.Subscription{
+		UUID:        uuid,
+		OwnerKind:   iface.OwnerKindTenant,
+		OwnerUUID:   tenantUUID,
+		ServiceUUID: serviceUUID,
+		TierCode:    "std",
+	}
+}
+
 func TestSyncer_OnActivateGrantsEveryCapability(t *testing.T) {
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
-	tp := &stubTenantProvider{}
-	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
+	ap := &stubAccessProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
 
 	periodEnd := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	sub := &models.Subscription{
-		UUID:             "sub-1",
-		TenantUUID:       "tenant-1",
-		ServiceUUID:      "svc-1",
-		TierCode:         "std",
-		CurrentPeriodEnd: periodEnd,
-	}
+	sub := tenantSub("sub-1", "tenant-1", "svc-1")
+	sub.CurrentPeriodEnd = periodEnd
 	syncer.OnActivate(context.Background(), sub)
 
-	if len(tp.grants) != 2 {
-		t.Fatalf("want 2 grants, got %d: %+v", len(tp.grants), tp.grants)
+	if len(ap.grants) != 2 {
+		t.Fatalf("want 2 grants, got %d: %+v", len(ap.grants), ap.grants)
 	}
-	for _, g := range tp.grants {
-		if g.TenantUUID != "tenant-1" {
-			t.Errorf("grant tenant: %s", g.TenantUUID)
+	for _, g := range ap.grants {
+		if g.Owner.Kind != iface.OwnerKindTenant || g.Owner.UUID != "tenant-1" {
+			t.Errorf("grant owner: %+v", g.Owner)
 		}
 		if g.Source != CapabilitySourceSubscription {
 			t.Errorf("grant source: %s", g.Source)
@@ -128,15 +118,39 @@ func TestSyncer_OnActivateGrantsEveryCapability(t *testing.T) {
 	}
 }
 
-func TestSyncer_OnActivateSkipsWhenTenantMissing(t *testing.T) {
-	// Subscription row missing TenantUUID — must not panic, must not grant.
-	// GrantCapability rejects empty tenant identifiers, so the syncer
-	// short-circuits at the tenantOfSubscription check.
+func TestSyncer_OnActivateGrantsForUserOwner(t *testing.T) {
+	// Self-registered client subscriptions carry OwnerKind="user" — the
+	// grant must land on Owner{Kind:"user", UUID:userUUID} not on a tenant.
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1", "rag.query"),
 	}}
-	tp := &stubTenantProvider{}
-	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
+	ap := &stubAccessProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+
+	sub := &models.Subscription{
+		UUID:        "sub-1",
+		OwnerKind:   iface.OwnerKindUser,
+		OwnerUUID:   "user-9",
+		ServiceUUID: "svc-1",
+		TierCode:    "std",
+	}
+	syncer.OnActivate(context.Background(), sub)
+
+	if len(ap.grants) != 1 {
+		t.Fatalf("want 1 grant, got %d", len(ap.grants))
+	}
+	if ap.grants[0].Owner.Kind != iface.OwnerKindUser || ap.grants[0].Owner.UUID != "user-9" {
+		t.Errorf("user-owned grant: %+v", ap.grants[0].Owner)
+	}
+}
+
+func TestSyncer_OnActivateSkipsWhenOwnerMissing(t *testing.T) {
+	// Subscription row missing owner — must not panic, must not grant.
+	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
+		"svc-1": serviceWithTier("svc-1", "rag.query"),
+	}}
+	ap := &stubAccessProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
 
 	sub := &models.Subscription{
 		UUID:        "sub-1",
@@ -145,8 +159,8 @@ func TestSyncer_OnActivateSkipsWhenTenantMissing(t *testing.T) {
 	}
 	syncer.OnActivate(context.Background(), sub)
 
-	if len(tp.grants) != 0 {
-		t.Fatalf("expected zero grants when tenantUUID is empty, got %d", len(tp.grants))
+	if len(ap.grants) != 0 {
+		t.Fatalf("expected zero grants when owner is empty, got %d", len(ap.grants))
 	}
 }
 
@@ -154,13 +168,11 @@ func TestSyncer_OnActivateNoopWhenTierHasNoCapabilities(t *testing.T) {
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1"), // empty caps
 	}}
-	tp := &stubTenantProvider{}
-	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
-	syncer.OnActivate(context.Background(), &models.Subscription{
-		UUID: "sub-1", TenantUUID: "tenant-1", ServiceUUID: "svc-1", TierCode: "std",
-	})
-	if len(tp.grants) != 0 {
-		t.Fatalf("expected zero grants, got %d", len(tp.grants))
+	ap := &stubAccessProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
+	if len(ap.grants) != 0 {
+		t.Fatalf("expected zero grants, got %d", len(ap.grants))
 	}
 }
 
@@ -168,28 +180,26 @@ func TestSyncer_OnDeactivateRevokesEveryCapability(t *testing.T) {
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
-	tp := &stubTenantProvider{}
-	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
+	ap := &stubAccessProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
 
-	syncer.OnDeactivate(context.Background(), &models.Subscription{
-		UUID: "sub-1", TenantUUID: "tenant-1", ServiceUUID: "svc-1", TierCode: "std",
-	})
+	syncer.OnDeactivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 
-	if len(tp.revokes) != 2 {
-		t.Fatalf("want 2 revokes, got %d: %+v", len(tp.revokes), tp.revokes)
+	if len(ap.revokes) != 2 {
+		t.Fatalf("want 2 revokes, got %d: %+v", len(ap.revokes), ap.revokes)
 	}
-	if tp.revokes[0].tenantUUID != "tenant-1" {
-		t.Errorf("revoke tenant: %s", tp.revokes[0].tenantUUID)
+	if ap.revokes[0].owner.Kind != iface.OwnerKindTenant || ap.revokes[0].owner.UUID != "tenant-1" {
+		t.Errorf("revoke owner: %+v", ap.revokes[0].owner)
 	}
 }
 
-func TestSyncer_NilTenantProviderIsNoop(t *testing.T) {
+func TestSyncer_NilAccessProviderIsNoop(t *testing.T) {
 	// Degraded mode: no tenant module registered. Syncer must not panic;
 	// subscription lifecycle should continue producing its other side
 	// effects unaffected.
-	syncer := NewEntitlementSyncer(&stubServiceRepo{}, nil, nopLogger())
-	syncer.OnActivate(context.Background(), &models.Subscription{UUID: "sub-1", TenantUUID: "tenant-1"})
-	syncer.OnDeactivate(context.Background(), &models.Subscription{UUID: "sub-1", TenantUUID: "tenant-1"})
+	syncer := NewEntitlementSyncer(&stubServiceRepo{}, nil, nil, nopLogger())
+	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
+	syncer.OnDeactivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 	// No assertions needed — the test passes if we didn't panic.
 }
 
@@ -200,13 +210,11 @@ func TestSyncer_OnActivateContinuesOnIndividualGrantError(t *testing.T) {
 	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
-	tp := &stubTenantProvider{grantErr: errors.New("transient")}
-	syncer := NewEntitlementSyncer(repo, tp, nopLogger())
+	ap := &stubAccessProvider{grantErr: errors.New("transient")}
+	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
 
-	syncer.OnActivate(context.Background(), &models.Subscription{
-		UUID: "sub-1", TenantUUID: "tenant-1", ServiceUUID: "svc-1", TierCode: "std",
-	})
-	if len(tp.grants) != 2 {
-		t.Fatalf("syncer must attempt every grant even when earlier ones fail, got %d", len(tp.grants))
+	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
+	if len(ap.grants) != 2 {
+		t.Fatalf("syncer must attempt every grant even when earlier ones fail, got %d", len(ap.grants))
 	}
 }

@@ -14,18 +14,18 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// GrantCapability creates an active entitlement for the tenant on the
-// capability. If an active entitlement already exists, it is revoked first so
-// the "at most one active row per (tenant, capability)" invariant holds. The
-// replacement pattern lets subscription upgrades/downgrades land as a pair of
-// (revoke old, insert new) rows — the history stays auditable.
+// GrantCapability creates an active entitlement for the owner on the
+// capability. If an active entitlement already exists, it is revoked first
+// so the "at most one active row per (owner, capability)" invariant holds.
+// The replacement pattern lets subscription upgrades/downgrades land as a
+// pair of (revoke old, insert new) rows — the history stays auditable.
 //
-// Signature matches iface.TenantProvider.GrantCapability so any module
+// Signature matches iface.AccessProvider.GrantCapability so any module
 // holding that interface handle can grant entitlements without importing
 // the concrete tenant service.
 func (s *Service) GrantCapability(ctx context.Context, in iface.GrantCapabilityInput) error {
-	if in.TenantUUID == "" {
-		return errors.New("tenant: GrantCapability requires TenantUUID")
+	if in.Owner.IsZero() {
+		return errors.New("tenant: GrantCapability requires Owner.Kind and Owner.UUID")
 	}
 	if in.CapabilityID == "" {
 		return errors.New("tenant: GrantCapability requires CapabilityID")
@@ -38,21 +38,27 @@ func (s *Service) GrantCapability(ctx context.Context, in iface.GrantCapabilityI
 		return errors.New("tenant: trial entitlements must set ExpiresAt")
 	}
 
-	// Confirm the tenant exists so stale grants don't silently accumulate.
-	if _, err := s.repo.GetTenantByUUID(ctx, in.TenantUUID); err != nil {
-		return fmt.Errorf("tenant: GrantCapability: %w", err)
+	// For tenant-owned grants, confirm the tenant exists so stale grants
+	// don't silently accumulate. User-owned grants don't validate the
+	// owner here — the user module is the source of truth and a missing
+	// user would surface at consumption time.
+	if in.Owner.Kind == iface.OwnerKindTenant {
+		if _, err := s.repo.GetTenantByUUID(ctx, in.Owner.UUID); err != nil {
+			return fmt.Errorf("tenant: GrantCapability: %w", err)
+		}
 	}
 
 	now := time.Now()
-	// Revoke any existing active row for the same (tenant, capability).
+	// Revoke any existing active row for the same (owner, capability).
 	// Ignored if none exists (idempotent for first-time grants).
-	if err := s.repo.RevokeActiveEntitlement(ctx, in.TenantUUID, in.CapabilityID, now); err != nil && !errors.Is(err, repository.ErrNotFound) {
+	if err := s.repo.RevokeActiveEntitlement(ctx, in.Owner, in.CapabilityID, now); err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return fmt.Errorf("tenant: GrantCapability: revoke existing: %w", err)
 	}
 
 	ent := &models.Entitlement{
 		UUID:         uuid.NewString(),
-		TenantUUID:   in.TenantUUID,
+		OwnerKind:    in.Owner.Kind,
+		OwnerUUID:    in.Owner.UUID,
 		CapabilityID: in.CapabilityID,
 		Source:       source,
 		SourceRef:    in.SourceRef,
@@ -67,55 +73,55 @@ func (s *Service) GrantCapability(ctx context.Context, in iface.GrantCapabilityI
 	return nil
 }
 
-// RevokeCapability marks the active entitlement for the (tenant, capability)
+// RevokeCapability marks the active entitlement for the (owner, capability)
 // pair as revoked. Returns nil even if no active row exists (idempotent from
 // the caller's point of view — e.g. a double webhook delivery).
-func (s *Service) RevokeCapability(ctx context.Context, tenantUUID, capabilityID string) error {
-	if tenantUUID == "" || capabilityID == "" {
-		return errors.New("tenant: RevokeCapability requires TenantUUID and CapabilityID")
+func (s *Service) RevokeCapability(ctx context.Context, owner iface.Owner, capabilityID string) error {
+	if owner.IsZero() || capabilityID == "" {
+		return errors.New("tenant: RevokeCapability requires Owner and CapabilityID")
 	}
-	err := s.repo.RevokeActiveEntitlement(ctx, tenantUUID, capabilityID, time.Now())
+	err := s.repo.RevokeActiveEntitlement(ctx, owner, capabilityID, time.Now())
 	if errors.Is(err, repository.ErrNotFound) {
 		return nil
 	}
 	return err
 }
 
-// HasCapability reports whether the tenant currently has an active
-// entitlement to the given capability. Implements the
-// iface.TenantProvider.HasCapability contract.
+// HasCapability reports whether the owner currently has an active
+// entitlement to the given capability. Implements
+// iface.AccessProvider.HasCapability.
 //
 // Internal (operator-side) tenants short-circuit to true: capabilities are
-// the monetization seam for external client tenants, and internal tenants
-// host the platform — they don't subscribe. This keeps operator tooling
-// and dev workflows working without minting entitlement rows for every
-// registered capability on internal tenant creation. External tenants
-// always consult the projection.
-func (s *Service) HasCapability(ctx context.Context, tenantUUID, capabilityID string) (bool, error) {
-	if tenantUUID == "" || capabilityID == "" {
+// the monetization seam for external clients, and internal tenants host
+// the platform — they don't subscribe. Per-user owners always consult the
+// projection (no operator user is granted capabilities by tier).
+func (s *Service) HasCapability(ctx context.Context, owner iface.Owner, capabilityID string) (bool, error) {
+	if owner.IsZero() || capabilityID == "" {
 		return false, nil
 	}
-	if t, err := s.repo.GetTenantByUUID(ctx, tenantUUID); err == nil && t.Kind == models.TenantKindInternal {
-		return true, nil
+	if owner.Kind == iface.OwnerKindTenant {
+		if t, err := s.repo.GetTenantByUUID(ctx, owner.UUID); err == nil && t.Kind == models.TenantKindInternal {
+			return true, nil
+		}
 	}
-	return s.repo.HasActiveEntitlement(ctx, tenantUUID, capabilityID)
+	return s.repo.HasActiveEntitlement(ctx, owner, capabilityID)
 }
 
-// ListEntitlements returns the active entitlements held by a tenant.
-func (s *Service) ListEntitlements(ctx context.Context, tenantUUID string) ([]models.Entitlement, error) {
-	return s.repo.ListActiveByTenant(ctx, tenantUUID)
+// ListEntitlements returns the active entitlements held by an owner.
+func (s *Service) ListEntitlements(ctx context.Context, owner iface.Owner) ([]models.Entitlement, error) {
+	return s.repo.ListActiveByOwner(ctx, owner)
 }
 
-// ListCapabilityIDs returns the deduplicated capability IDs the tenant
+// ListCapabilityIDs returns the deduplicated capability IDs the owner
 // currently has active entitlements for, in deterministic (sorted) order.
 // Thin projection over ListEntitlements so Cedar's principal builder does
-// not reason about the entitlement metadata. Implements the
-// iface.TenantProvider.ListCapabilityIDs contract.
-func (s *Service) ListCapabilityIDs(ctx context.Context, tenantUUID string) ([]string, error) {
-	if tenantUUID == "" {
+// not reason about the entitlement metadata. Implements
+// iface.AccessProvider.ListCapabilityIDs.
+func (s *Service) ListCapabilityIDs(ctx context.Context, owner iface.Owner) ([]string, error) {
+	if owner.IsZero() {
 		return nil, nil
 	}
-	ents, err := s.repo.ListActiveByTenant(ctx, tenantUUID)
+	ents, err := s.repo.ListActiveByOwner(ctx, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +170,10 @@ func (s *Service) ActivateTenant(ctx context.Context, tenantUUID string) error {
 // owner membership) and returns the DTO shape so callers crossing the
 // module boundary don't import models.Tenant. Implements
 // iface.TenantProvider.ProvisionExternalTenant.
+//
+// Deprecated for the post-onboarding refactor: anonymous signup no longer
+// creates a tenant. This method survives until the onboarding addon is
+// retired in Phase 1.
 func (s *Service) ProvisionExternalTenant(ctx context.Context, ownerUserUUID string, in iface.OnboardingTenantInput) (*iface.Tenant, error) {
 	if ownerUserUUID == "" {
 		return nil, errors.New("tenant: ProvisionExternalTenant requires ownerUserUUID")

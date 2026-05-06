@@ -24,13 +24,16 @@ func NewTenantSubscriptionAdapter(subs repository.SubscriptionRepository) *Tenan
 	return &TenantSubscriptionAdapter{subs: subs}
 }
 
-// ListByTenant returns every subscription bound to the tenant via TenantUUID.
-// The repository layer already sorts by createdAt desc.
+// ListByTenant returns every subscription owned by the tenant. After the
+// post-onboarding refactor a subscription's owner is polymorphic; the
+// admin aggregator only cares about tenant-owned rows so we filter on
+// Owner{Kind:"tenant", UUID:tenantUUID}. The repository layer already
+// sorts by createdAt desc.
 func (a *TenantSubscriptionAdapter) ListByTenant(ctx context.Context, tenantUUID string) ([]iface.TenantSubscription, error) {
 	if tenantUUID == "" {
 		return []iface.TenantSubscription{}, nil
 	}
-	rows, err := a.subs.FindByTenantUUID(ctx, tenantUUID)
+	rows, err := a.subs.FindByOwner(ctx, iface.TenantOwner(tenantUUID))
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +42,7 @@ func (a *TenantSubscriptionAdapter) ListByTenant(ctx context.Context, tenantUUID
 		r := rows[i]
 		out = append(out, iface.TenantSubscription{
 			UUID:               r.UUID,
-			TenantUUID:         r.TenantUUID,
+			TenantUUID:         r.OwnerUUID,
 			ServiceUUID:        r.ServiceUUID,
 			TierCode:           r.TierCode,
 			Status:             string(r.Status),

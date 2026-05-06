@@ -43,18 +43,20 @@ All reconciler methods are idempotent, so a replayed webhook (same `evt.id`) is 
 
 `PaymentIntent.metadata` must carry `subscriptionUUID` + `invoiceUUID` — those are how webhook handlers find the right subscription/invoice to update. Set in `renewal_service.go:chargeInvoice` and echoed back by Stripe on every related event (succeeded, failed, refunded).
 
-## Tenant scope (ADR-0001)
+## Owner scope (post-onboarding refactor)
 
 Every operator-admin route under the module sits behind `RequireInternalTenant()` — external-tenant tokens cannot hit transaction reads, refunds, payment-method reads, or the webhook audit log. The Stripe webhook endpoint stays public (HMAC-verified inside the handler).
 
-Transaction and PaymentMethod rows are tenant-scoped via `TenantUUID` only — the legacy `SubscriptionClient` indirection was removed. `PaymentService.ChargeSubscription` reads `tenantUUID` from the charge metadata populated by the subscriptions renewal service. A thin `TenantPaymentAdapter` (`services/tenant_provider.go`) implements `iface.TenantPaymentProvider` so `core/tenant` can serve `GET /v1/admin/tenants/{id}/payments` without importing this addon.
+Transaction and PaymentMethod rows are owner-scoped via polymorphic `(ownerKind, ownerUUID)` — `Kind="user"` for self-registered clients, `Kind="tenant"` for admin-attached business members. `PaymentService.ChargeSubscription` reads the owner from the charge struct's `Owner` field (preferred) or from `ownerKind`/`ownerUUID` metadata stamps populated by the subscriptions renewal service. A thin `TenantPaymentAdapter` (`services/tenant_provider.go`) implements `iface.TenantPaymentProvider` so `core/tenant` can serve `GET /v1/admin/tenants/{id}/payments` — the adapter filters by `Owner{Kind:"tenant", UUID:tenantUUID}`.
+
+User-owner support is wire-complete (models, repos, list endpoints) but the Phase 0 checkout path returns 503 `"user billing profile not yet available"` for `Kind="user"` until Phase 2 wires the `client_billing_customers` projection. Tenant-owner checkout works unchanged.
 
 ## Collections
 
 | Collection | Key indexes |
 |---|---|
-| `payments_transactions` | `(provider, providerTxID)` unique, `(subscriptionUUID, createdAt desc)`, `(tenantUUID, createdAt desc)` for the admin aggregator, `status` |
-| `payments_payment_methods` | `(tenantUUID, provider)`, `providerMethodID` unique |
+| `payments_transactions` | `(provider, providerTxID)` unique, `(subscriptionUUID, createdAt desc)`, `(ownerKind, ownerUUID, createdAt desc)` for self-service `/v1/me/transactions` and the admin aggregator, `status` |
+| `payments_payment_methods` | `(ownerKind, ownerUUID, provider)`, `providerMethodID` unique |
 | `payments_webhook_events` | `(provider, providerEventID)` **unique** — the idempotency guard |
 
 ## Config (encrypted secrets)
@@ -68,18 +70,18 @@ defaultProvider       string                             "stripe" in v1
 
 ## Tier-2 self-service routes (ADR-0003 client surface)
 
-Mounted on `ri.Client.ProtectedRouter` behind `RequireGlobal()`; each handler re-checks tenant ownership against `TenantProvider.ListUserMemberships`. Built only when the tenant module is wired (skipped with a Warn log otherwise).
+Mounted on `ri.Client.ProtectedRouter` behind `RequireGlobal()`; each handler re-checks ownership against the calling user's identity and `TenantProvider.ListUserMemberships`. Reads fan out across every owner the caller may act under (always the calling user, plus every tenant they own). The handler is built unconditionally — tenant-owner flows degrade to 503 when the tenant module is missing, user-owner flows still work.
 
 ```
-GET  /v1/me/transactions                      ?tenantUuid&subscriptionUuid&status
-GET  /v1/me/payment-methods                   ?tenantUuid
+GET  /v1/me/transactions                      ?ownerKind&ownerUuid&subscriptionUuid&status   (legacy ?tenantUuid alias)
+GET  /v1/me/payment-methods                   ?ownerKind&ownerUuid                            (legacy ?tenantUuid alias)
 POST /v1/me/payments/checkout-session         { subscriptionUuid, successUrl, cancelUrl }
-POST /v1/me/payments/setup-checkout-session   { tenantUuid, successUrl, cancelUrl }
+POST /v1/me/payments/setup-checkout-session   { ownerKind?, ownerUuid?, successUrl, cancelUrl }   (legacy tenantUuid alias)
 ```
 
-`checkout-session` opens a Stripe Checkout in `mode=payment` for the subscription's most recent pending invoice, with `setup_future_usage=off_session` so the card is saved for next-cycle renewals. Stamps `subscriptionUUID/invoiceUUID/tenantUUID` into the resulting PaymentIntent metadata so the existing webhook reconciler picks it up — no new reconciliation path. Returns 409 when the subscription has no pending invoice.
+`checkout-session` opens a Stripe Checkout in `mode=payment` for the subscription's most recent pending invoice, with `setup_future_usage=off_session` so the card is saved for next-cycle renewals. Stamps `subscriptionUUID/invoiceUUID/ownerKind/ownerUUID` into the resulting PaymentIntent metadata so the existing webhook reconciler picks it up — no new reconciliation path. Returns 409 when the subscription has no pending invoice. The owner is resolved from the planner's `CheckoutPlan.Owner` and re-checked against the caller's owner set.
 
-`setup-checkout-session` opens Stripe Checkout in `mode=setup` (card-only, no charge) so a Tier-2 user can save a card from the account page without going through a billing cycle.
+`setup-checkout-session` opens Stripe Checkout in `mode=setup` (card-only, no charge) so a Tier-2 user can save a card from the account page. Owner defaults to the calling user; pass `ownerKind:"tenant"` + `ownerUuid` to save a card on an owned tenant.
 
 ## Not in v1
 

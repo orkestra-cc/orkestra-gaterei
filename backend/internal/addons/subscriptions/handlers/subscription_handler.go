@@ -18,8 +18,9 @@ type SubscriptionHandler struct {
 	invoices repository.InvoiceRepository
 	activity *services.ActivityService
 	// tenants powers the self-subscribe ownership check. nil in setups that
-	// run subscriptions without the tenant module — self-subscribe returns
-	// 503 in that case (the route refuses to guess ownership from thin air).
+	// run subscriptions without the tenant module — self-subscribe with a
+	// tenant owner returns 503 in that case (the route refuses to guess
+	// ownership from thin air). User-owner self-subscribe still works.
 	tenants iface.TenantProvider
 }
 
@@ -39,11 +40,13 @@ func NewSubscriptionHandler(
 	}
 }
 
-// CreateSubscriptionInput is the operator-admin payload. ADR-0001 Phase 1
-// removed the legacy SubscriptionClient indirection — subscriptions point
-// directly at an external tenant.
+// CreateSubscriptionInput is the operator-admin payload. Subscriptions are
+// owned by a polymorphic principal (a user OR a tenant) — admins can bind
+// either kind. OwnerKind defaults to "tenant" for backward-compatible admin
+// flows; explicit "user" is required for personal client grants.
 type CreateSubscriptionInput struct {
-	TenantUUID  string `json:"tenantUUID" doc:"UUID of the external tenant the subscription is for"`
+	OwnerKind   string `json:"ownerKind,omitempty" enum:"user,tenant" doc:"Polymorphic owner kind (defaults to tenant)"`
+	OwnerUUID   string `json:"ownerUUID" doc:"UUID of the owner — user UUID or tenant UUID per OwnerKind"`
 	ServiceUUID string `json:"serviceUUID"`
 	TierCode    string `json:"tierCode"`
 }
@@ -58,7 +61,8 @@ type GetSubscriptionRequest struct {
 	ID string `path:"id"`
 }
 type ListSubscriptionsRequest struct {
-	TenantUUID  string `query:"tenantUUID"`
+	OwnerKind   string `query:"ownerKind" enum:"user,tenant"`
+	OwnerUUID   string `query:"ownerUuid"`
 	ServiceUUID string `query:"serviceUUID"`
 	Status      string `query:"status" enum:"active,past_due,suspended,cancelled,expired"`
 }
@@ -82,13 +86,14 @@ type RetryChargeRequest struct {
 }
 
 func (h *SubscriptionHandler) Create(ctx context.Context, in *CreateSubscriptionRequest) (*SubscriptionResponse, error) {
-	if in.Body.TenantUUID == "" {
-		return nil, huma.Error400BadRequest("tenantUUID is required")
+	owner, err := parseOwnerInput(in.Body.OwnerKind, in.Body.OwnerUUID)
+	if err != nil {
+		return nil, err
 	}
 	if in.Body.ServiceUUID == "" || in.Body.TierCode == "" {
 		return nil, huma.Error400BadRequest("serviceUUID and tierCode are required")
 	}
-	sub, err := h.subs.Create(ctx, in.Body.TenantUUID, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
+	sub, err := h.subs.Create(ctx, owner, in.Body.ServiceUUID, in.Body.TierCode, actorFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -107,11 +112,18 @@ func (h *SubscriptionHandler) Get(ctx context.Context, in *GetSubscriptionReques
 }
 
 func (h *SubscriptionHandler) List(ctx context.Context, in *ListSubscriptionsRequest) (*ListSubscriptionsResponse, error) {
-	items, err := h.subs.List(ctx, repository.SubscriptionFilters{
-		TenantUUID:  in.TenantUUID,
+	filter := repository.SubscriptionFilters{
 		ServiceUUID: in.ServiceUUID,
 		Status:      models.SubStatus(in.Status),
-	})
+	}
+	if in.OwnerUUID != "" {
+		owner, err := parseOwnerInput(in.OwnerKind, in.OwnerUUID)
+		if err != nil {
+			return nil, err
+		}
+		filter.Owner = owner
+	}
+	items, err := h.subs.List(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -224,12 +236,13 @@ func (h *SubscriptionHandler) ListActivity(ctx context.Context, in *ListActivity
 }
 
 // SelfSubscribeInput is the wire-level payload for the self-service
-// subscribe endpoint. Tenant is identified by UUID (typed by the caller
-// who read it off their own memberships in the JWT) so the route can
-// be used from global context without an X-Tenant-ID header, and the
-// ownership check runs against the same provider the JWT builder does.
+// subscribe endpoint. Owner defaults to the calling user — self-registered
+// clients subscribe as themselves. Admin-attached business members can pass
+// `ownerKind: "tenant"` plus the tenant UUID to subscribe on the
+// organization's behalf (ownership re-checked against the tenant module).
 type SelfSubscribeInput struct {
-	TenantUUID  string `json:"tenantUuid" doc:"UUID of the tenant the caller owns"`
+	OwnerKind   string `json:"ownerKind,omitempty" enum:"user,tenant" doc:"Polymorphic owner kind (defaults to user)"`
+	TenantUUID  string `json:"tenantUuid,omitempty" doc:"Required when ownerKind=tenant — UUID of the tenant the caller owns"`
 	ServiceCode string `json:"serviceCode" doc:"Stable SKU code of a catalog service (e.g. 'pro')"`
 	TierCode    string `json:"tierCode" doc:"Tier code within the service (e.g. 'monthly')"`
 }
@@ -241,40 +254,56 @@ type SelfSubscribeRequest struct {
 	Body SelfSubscribeInput
 }
 
-// SelfSubscribe creates a subscription for a tenant the caller owns.
-// Anonymous self-service checkout (public Stripe checkout session) is
-// deferred — today we require an authenticated caller, gated to owners
-// only. The entitlement syncer grants capabilities on activation so the
-// tenant can hit RequireCapability-gated addons immediately; the first
+// SelfSubscribe creates a subscription owned by the caller's user identity
+// or by a tenant the caller owns. Anonymous self-service checkout (public
+// Stripe checkout session) is deferred — today we require an authenticated
+// caller. The entitlement syncer grants capabilities on activation so the
+// owner can hit RequireCapability-gated addons immediately; the first
 // payment attempt still happens on the next renewal tick.
 func (h *SubscriptionHandler) SelfSubscribe(ctx context.Context, req *SelfSubscribeRequest) (*SubscriptionResponse, error) {
-	if h.tenants == nil {
-		return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
-	}
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
-	if req.Body.TenantUUID == "" || req.Body.ServiceCode == "" || req.Body.TierCode == "" {
-		return nil, huma.Error400BadRequest("tenantUuid, serviceCode and tierCode are required")
+	if req.Body.ServiceCode == "" || req.Body.TierCode == "" {
+		return nil, huma.Error400BadRequest("serviceCode and tierCode are required")
 	}
 
-	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
-	if err != nil {
-		return nil, err
+	kind := req.Body.OwnerKind
+	if kind == "" {
+		kind = string(iface.OwnerKindUser)
 	}
-	ownsTenant := false
-	for _, m := range memberships {
-		if m.TenantUUID == req.Body.TenantUUID && m.IsOwner {
-			ownsTenant = true
-			break
+	var owner iface.Owner
+	switch iface.OwnerKind(kind) {
+	case iface.OwnerKindUser:
+		owner = iface.UserOwner(userUUID)
+	case iface.OwnerKindTenant:
+		if h.tenants == nil {
+			return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
 		}
-	}
-	if !ownsTenant {
-		return nil, huma.Error403Forbidden("caller is not owner of requested tenant")
+		if req.Body.TenantUUID == "" {
+			return nil, huma.Error400BadRequest("tenantUuid is required when ownerKind=tenant")
+		}
+		memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
+		if err != nil {
+			return nil, err
+		}
+		ownsTenant := false
+		for _, m := range memberships {
+			if m.TenantUUID == req.Body.TenantUUID && m.IsOwner {
+				ownsTenant = true
+				break
+			}
+		}
+		if !ownsTenant {
+			return nil, huma.Error403Forbidden("caller is not owner of requested tenant")
+		}
+		owner = iface.TenantOwner(req.Body.TenantUUID)
+	default:
+		return nil, huma.Error400BadRequest("invalid ownerKind")
 	}
 
-	sub, err := h.subs.CreateForTenant(ctx, req.Body.TenantUUID, req.Body.ServiceCode, req.Body.TierCode, userUUID)
+	sub, err := h.subs.CreateForOwner(ctx, owner, req.Body.ServiceCode, req.Body.TierCode, userUUID)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrSubscriptionServiceCode):
@@ -289,59 +318,62 @@ func (h *SubscriptionHandler) SelfSubscribe(ctx context.Context, req *SelfSubscr
 }
 
 // guardSubscriptionOwnership enforces that the request's active tenant
-// matches the subscription's TenantUUID. Subscriptions without a tenant
-// binding are treated as not-owned and visible only to platform admins
+// matches a tenant-owned subscription's owner. User-owned subscriptions are
+// not gated by tenant context — they are visible to platform admins
 // (whose tokens already bypass the X-Tenant-ID match check via the
 // system.tenants.admin permission). Returns 404 on mismatch so existence
 // of out-of-scope records is not leaked.
 func (h *SubscriptionHandler) guardSubscriptionOwnership(ctx context.Context, sub *models.Subscription) error {
-	if sub == nil || sub.TenantUUID == "" {
+	if sub == nil {
+		return nil
+	}
+	if sub.OwnerKind != iface.OwnerKindTenant || sub.OwnerUUID == "" {
 		return nil
 	}
 	tenantID, hasTenant := middleware.GetTenantID(ctx)
 	if !hasTenant {
 		return nil
 	}
-	if sub.TenantUUID != tenantID {
+	if sub.OwnerUUID != tenantID {
 		return huma.Error404NotFound("not found", nil)
 	}
 	return nil
 }
 
-// meOwnedTenants returns the set of TenantUUIDs the calling user owns,
-// resolved by a fresh ListUserMemberships call against TenantProvider.
-// Memberships are read live (not from JWT context) so a freshly granted
-// or revoked ownership is reflected without waiting for token refresh.
-//
-// Returns 401 when the caller is anonymous, 503 when the tenant provider
-// is not wired, and an empty set when the caller owns no tenants.
-func (h *SubscriptionHandler) meOwnedTenants(ctx context.Context) (map[string]struct{}, error) {
-	if h.tenants == nil {
-		return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
-	}
+// callerOwnerSet returns the polymorphic owners the caller may act under:
+// always the caller's own user identity, plus every tenant the caller owns.
+// Returns 401 when anonymous, 503 when the tenant provider is missing for
+// resolution. The empty-tenant case (caller has no memberships) is
+// non-error — the user identity alone is a valid scope for self-service.
+func (h *SubscriptionHandler) callerOwnerSet(ctx context.Context) (map[iface.Owner]struct{}, error) {
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	owned := map[iface.Owner]struct{}{
+		iface.UserOwner(userUUID): {},
+	}
+	if h.tenants == nil {
+		return owned, nil
 	}
 	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
 	if err != nil {
 		return nil, err
 	}
-	owned := make(map[string]struct{}, len(memberships))
 	for _, m := range memberships {
 		if m.IsOwner {
-			owned[m.TenantUUID] = struct{}{}
+			owned[iface.TenantOwner(m.TenantUUID)] = struct{}{}
 		}
 	}
 	return owned, nil
 }
 
 // meGuardSubscription resolves the subscription by UUID and returns it iff
-// the caller owns its bound tenant. Returns 404 (not 403) on ownership
-// mismatch so the existence of out-of-scope subscriptions does not leak
-// to a fishing client.
+// the caller owns it (as user or via a tenant membership). Returns 404 (not
+// 403) on ownership mismatch so the existence of out-of-scope subscriptions
+// does not leak to a fishing client.
 func (h *SubscriptionHandler) meGuardSubscription(ctx context.Context, subscriptionUUID string) (*models.Subscription, error) {
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +381,7 @@ func (h *SubscriptionHandler) meGuardSubscription(ctx context.Context, subscript
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := owned[sub.TenantUUID]; !ok {
+	if _, ok := owned[sub.Owner()]; !ok {
 		return nil, huma.Error404NotFound("not found")
 	}
 	return sub, nil
@@ -358,40 +390,55 @@ func (h *SubscriptionHandler) meGuardSubscription(ctx context.Context, subscript
 // --- Self-service handlers ---
 
 // MeListSubscriptionsRequest filters the caller's subscriptions to one
-// owned tenant when TenantUUID is non-empty; otherwise returns
-// subscriptions across every tenant the caller owns.
+// owner when OwnerUUID is non-empty; otherwise returns subscriptions across
+// every owner (the calling user plus every tenant they own).
 type MeListSubscriptionsRequest struct {
-	TenantUUID string `query:"tenantUuid" doc:"Optional — restrict to one owned tenant"`
+	OwnerKind  string `query:"ownerKind" enum:"user,tenant" doc:"Optional — restrict to one owner kind"`
+	OwnerUUID  string `query:"ownerUuid" doc:"Optional — restrict to one owned principal"`
+	TenantUUID string `query:"tenantUuid" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 	Status     string `query:"status" enum:"active,past_due,suspended,cancelled,expired"`
 }
 
-// MeList returns subscriptions across every tenant the caller owns. The
-// repository is queried per-tenant and the results are merged in memory;
+// MeList returns subscriptions across every owner the caller may act under.
+// The repository is queried per-owner and the results are merged in memory;
 // for the demo MVP a Tier-2 user is rarely an owner of more than a handful
-// of tenants, so a fan-out without an aggregate index is acceptable.
+// of principals, so a fan-out without an aggregate index is acceptable.
 func (h *SubscriptionHandler) MeList(ctx context.Context, in *MeListSubscriptionsRequest) (*ListSubscriptionsResponse, error) {
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
 	resp := &ListSubscriptionsResponse{}
 	resp.Body.Items = []models.Subscription{}
 
-	if in.TenantUUID != "" {
-		if _, ok := owned[in.TenantUUID]; !ok {
-			// Pretend the tenant does not exist rather than confirming
+	// Resolve the optional owner filter from either the explicit
+	// (ownerKind, ownerUuid) pair or the legacy tenantUuid alias.
+	var filterOwner iface.Owner
+	if in.OwnerUUID != "" {
+		owner, err := parseOwnerInput(in.OwnerKind, in.OwnerUUID)
+		if err != nil {
+			return nil, err
+		}
+		filterOwner = owner
+	} else if in.TenantUUID != "" {
+		filterOwner = iface.TenantOwner(in.TenantUUID)
+	}
+
+	if !filterOwner.IsZero() {
+		if _, ok := owned[filterOwner]; !ok {
+			// Pretend the principal does not exist rather than confirming
 			// it does and refusing — same leak-prevention rationale as
 			// the 404 on subscription mismatch.
 			resp.Body.Total = 0
 			return resp, nil
 		}
-		owned = map[string]struct{}{in.TenantUUID: {}}
+		owned = map[iface.Owner]struct{}{filterOwner: {}}
 	}
 
-	for tenantUUID := range owned {
+	for owner := range owned {
 		items, err := h.subs.List(ctx, repository.SubscriptionFilters{
-			TenantUUID: tenantUUID,
-			Status:     models.SubStatus(in.Status),
+			Owner:  owner,
+			Status: models.SubStatus(in.Status),
 		})
 		if err != nil {
 			return nil, err
@@ -474,6 +521,26 @@ func (h *SubscriptionHandler) MeListActivity(ctx context.Context, in *MeListActi
 	resp.Body.Items = items
 	resp.Body.Total = len(items)
 	return resp, nil
+}
+
+// parseOwnerInput validates and normalizes the wire (ownerKind, ownerUUID)
+// pair into an iface.Owner. Empty kind defaults to "tenant" for backward
+// compatibility with admin flows that pre-date the polymorphic-owner
+// refactor.
+func parseOwnerInput(kind, uuid string) (iface.Owner, error) {
+	if uuid == "" {
+		return iface.Owner{}, huma.Error400BadRequest("ownerUUID is required")
+	}
+	k := kind
+	if k == "" {
+		k = string(iface.OwnerKindTenant)
+	}
+	switch iface.OwnerKind(k) {
+	case iface.OwnerKindUser, iface.OwnerKindTenant:
+		return iface.Owner{Kind: iface.OwnerKind(k), UUID: uuid}, nil
+	default:
+		return iface.Owner{}, huma.Error400BadRequest("invalid ownerKind")
+	}
 }
 
 // actorFrom returns the UUID of the authenticated user for audit-log

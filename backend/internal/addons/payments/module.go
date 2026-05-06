@@ -78,14 +78,22 @@ func (m *PaymentsModule) Collections() []module.CollectionSpec {
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{OrderedKeys: []module.IndexKey{{Field: "provider", Direction: 1}, {Field: "providerTxID", Direction: 1}}, Unique: true, Sparse: true},
 			{Keys: map[string]int{"subscriptionUUID": 1, "createdAt": -1}},
-			// Tenant-scoped lookups for the admin aggregator endpoint
-			// GET /v1/admin/tenants/{id}/payments.
-			{OrderedKeys: []module.IndexKey{{Field: "tenantUUID", Direction: 1}, {Field: "createdAt", Direction: -1}}},
+			// Owner-scoped lookups for self-service /v1/me/transactions and
+			// the admin aggregator GET /v1/admin/tenants/{id}/payments.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "ownerKind", Direction: 1},
+				{Field: "ownerUUID", Direction: 1},
+				{Field: "createdAt", Direction: -1},
+			}},
 			{Keys: map[string]int{"status": 1}},
 		}},
 		{Name: models.PaymentMethodsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
-			{Keys: map[string]int{"tenantUUID": 1, "provider": 1}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "ownerKind", Direction: 1},
+				{Field: "ownerUUID", Direction: 1},
+				{Field: "provider", Direction: 1},
+			}},
 			{Keys: map[string]int{"providerMethodID": 1}, Unique: true, Sparse: true},
 		}},
 		{Name: models.WebhookEventsCollection, Indexes: []module.IndexSpec{

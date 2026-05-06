@@ -25,7 +25,8 @@ func (s *ActivityService) Log(ctx context.Context, sub *models.Subscription, act
 	entry := &models.ActivityLog{
 		UUID:             uuid.NewString(),
 		SubscriptionUUID: sub.UUID,
-		TenantUUID:       sub.TenantUUID,
+		OwnerKind:        sub.OwnerKind,
+		OwnerUUID:        sub.OwnerUUID,
 		Type:             t,
 		Actor:            actor,
 		Message:          message,

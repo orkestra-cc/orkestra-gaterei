@@ -76,10 +76,15 @@ func (m *SubscriptionsModule) Collections() []module.CollectionSpec {
 		}},
 		{Name: models.SubscriptionsCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
-			// Tenant-scoped lookups for the admin aggregator endpoint
-			// GET /v1/admin/tenants/{id}/subscriptions and the entitlement
-			// syncer hot path.
-			{Keys: map[string]int{"tenantUUID": 1, "status": 1}},
+			// Owner-scoped lookups for self-service /v1/me/subscriptions and
+			// the admin aggregator GET /v1/admin/tenants/{id}/subscriptions.
+			// Owners are polymorphic: Kind="user" for self-registered clients,
+			// Kind="tenant" for admin-attached business members.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "ownerKind", Direction: 1},
+				{Field: "ownerUUID", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
 			{Keys: map[string]int{"nextBillingAt": 1, "status": 1}},
 			{Keys: map[string]int{"serviceUUID": 1}},
 		}},
@@ -135,7 +140,8 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	// provider — the entitlement syncer degrades to no-ops and the renewal
 	// flow fails fast on missing tenant data.
 	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
-	entitlementSyncer := services.NewEntitlementSyncer(serviceRepo, tenantProvider, deps.Logger)
+	accessProvider, _ := module.GetTyped[iface.AccessProvider](deps.Services, module.ServiceAccessProvider)
+	entitlementSyncer := services.NewEntitlementSyncer(serviceRepo, accessProvider, tenantProvider, deps.Logger)
 
 	subscriptionSvc := services.NewSubscriptionService(subRepo, serviceRepo, activitySvc, entitlementSyncer, tenantProvider, deps.Logger)
 

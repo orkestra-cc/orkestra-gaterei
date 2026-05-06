@@ -24,6 +24,11 @@ const DefaultVATRate = 0.22 // Italian IVA
 //
 // The PaymentProvider is resolved lazily per call so the subscriptions
 // module can initialize before payments without a cyclic dependency.
+//
+// Polymorphic owner: tenant-owned subscriptions resolve their billing
+// identity through TenantProvider. User-owned subscriptions need the
+// client_billing_customers projection wired in Phase 2 — until then a
+// renewal tick on a user-owned subscription returns a clear error.
 type RenewalService struct {
 	subs        repository.SubscriptionRepository
 	services    repository.ServiceRepository
@@ -130,9 +135,9 @@ func (s *RenewalService) ProcessOne(ctx context.Context, sub *models.Subscriptio
 	if tier == nil {
 		return outcomeFailed, ErrSubscriptionTierNotFound
 	}
-	tenant, err := s.loadTenant(ctx, sub.TenantUUID)
+	tenant, err := s.loadOwnerTenant(ctx, sub)
 	if err != nil {
-		return outcomeFailed, fmt.Errorf("load tenant: %w", err)
+		return outcomeFailed, fmt.Errorf("load owner: %w", err)
 	}
 
 	invoice, err := s.createInvoice(ctx, sub, svc, tier)
@@ -176,7 +181,8 @@ func (s *RenewalService) createInvoice(ctx context.Context, sub *models.Subscrip
 		UUID:             uuid.NewString(),
 		Number:           number,
 		SubscriptionUUID: sub.UUID,
-		TenantUUID:       sub.TenantUUID,
+		OwnerKind:        sub.OwnerKind,
+		OwnerUUID:        sub.OwnerUUID,
 		ServiceUUID:      svc.UUID,
 		PeriodStart:      sub.CurrentPeriodStart,
 		PeriodEnd:        sub.CurrentPeriodEnd,
@@ -199,11 +205,11 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 	if stripeCustomerID == "" {
 		// First charge for this tenant — create the Stripe customer on the fly.
 		ref, err := provider.CreateCustomer(ctx, iface.CustomerInput{
-			TenantUUID: tenant.UUID,
-			Email:      tenant.Email,
-			Name:       tenantBillingName(tenant),
-			VATNumber:  tenant.VATNumber,
-			Country:    tenant.Country,
+			Owner:     sub.Owner(),
+			Email:     tenant.Email,
+			Name:      tenantBillingName(tenant),
+			VATNumber: tenant.VATNumber,
+			Country:   tenant.Country,
 		})
 		if err != nil {
 			return s.handleChargeFailure(ctx, sub, tenant, invoice, "", "create_customer_failed", err.Error())
@@ -223,6 +229,7 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 	charge := iface.SubscriptionCharge{
 		SubscriptionUUID: sub.UUID,
 		InvoiceUUID:      invoice.UUID,
+		Owner:            sub.Owner(),
 		Customer:         iface.CustomerRef{Provider: provider.Name(), ID: stripeCustomerID},
 		AmountCents:      invoice.TotalCents,
 		Currency:         invoice.Currency,
@@ -230,7 +237,8 @@ func (s *RenewalService) chargeInvoice(ctx context.Context, provider iface.Payme
 		Metadata: map[string]string{
 			"subscriptionUUID": sub.UUID,
 			"invoiceUUID":      invoice.UUID,
-			"tenantUUID":       sub.TenantUUID,
+			"ownerKind":        string(sub.OwnerKind),
+			"ownerUUID":        sub.OwnerUUID,
 		},
 	}
 	result, err := provider.ChargeSubscription(ctx, charge)
@@ -367,24 +375,36 @@ func (s *RenewalService) paymentProvider() (iface.PaymentProvider, bool) {
 	return module.GetTyped[iface.PaymentProvider](s.registry, module.ServicePaymentProvider)
 }
 
-// loadTenant resolves the tenant DTO for the renewal flow. Returns an error
-// when the tenant provider is not wired or the lookup fails — the renewal
-// cannot drive a Stripe customer without billing details.
-func (s *RenewalService) loadTenant(ctx context.Context, tenantUUID string) (*iface.Tenant, error) {
-	if tenantUUID == "" {
-		return nil, errors.New("subscription has no tenantUUID")
+// loadOwnerTenant resolves a tenant DTO carrying billing details for the
+// subscription's owner. For tenant-owned subscriptions this is a direct
+// TenantProvider lookup. User-owned subscriptions need the
+// client_billing_customers projection (Phase 2) — until that lands the
+// renewal returns an explicit error so a stray user-owned row doesn't
+// silently kill the renewal job.
+func (s *RenewalService) loadOwnerTenant(ctx context.Context, sub *models.Subscription) (*iface.Tenant, error) {
+	if sub == nil || sub.OwnerKind == "" || sub.OwnerUUID == "" {
+		return nil, errors.New("subscription has no owner")
 	}
-	if s.tenants == nil {
-		return nil, errors.New("tenant provider not configured")
+	switch sub.OwnerKind {
+	case iface.OwnerKindTenant:
+		if s.tenants == nil {
+			return nil, errors.New("tenant provider not configured")
+		}
+		t, err := s.tenants.GetTenant(ctx, sub.OwnerUUID)
+		if err != nil {
+			return nil, err
+		}
+		if t == nil {
+			return nil, errors.New("tenant not found")
+		}
+		return t, nil
+	case iface.OwnerKindUser:
+		// Phase 2 wires the user-level billing customer; until then
+		// user-owned subscriptions cannot complete a renewal cycle.
+		return nil, errors.New("user-owned subscription billing profile not yet available")
+	default:
+		return nil, fmt.Errorf("unknown owner kind %q", sub.OwnerKind)
 	}
-	t, err := s.tenants.GetTenant(ctx, tenantUUID)
-	if err != nil {
-		return nil, err
-	}
-	if t == nil {
-		return nil, errors.New("tenant not found")
-	}
-	return t, nil
 }
 
 // tenantBillingName picks the most descriptive label for the tenant when

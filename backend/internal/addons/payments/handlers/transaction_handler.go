@@ -36,7 +36,9 @@ func NewTransactionHandler(
 type ListTransactionsRequest struct {
 	SubscriptionUUID string `query:"subscriptionUUID"`
 	InvoiceUUID      string `query:"invoiceUUID"`
-	TenantUUID       string `query:"tenantUUID"`
+	OwnerKind        string `query:"ownerKind" enum:"user,tenant"`
+	OwnerUUID        string `query:"ownerUuid"`
+	TenantUUID       string `query:"tenantUUID" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 	Status           string `query:"status" enum:"pending,requires_action,succeeded,failed,refunded,partially_refunded"`
 }
 type ListTransactionsResponse struct {
@@ -67,7 +69,9 @@ type RefundResponse struct {
 }
 
 type ListPaymentMethodsRequest struct {
-	TenantUUID string `query:"tenantUUID" required:"true"`
+	OwnerKind  string `query:"ownerKind" enum:"user,tenant"`
+	OwnerUUID  string `query:"ownerUuid"`
+	TenantUUID string `query:"tenantUUID" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 }
 type ListPaymentMethodsResponse struct {
 	Body struct {
@@ -88,10 +92,14 @@ type ListWebhookEventsResponse struct {
 }
 
 func (h *TransactionHandler) List(ctx context.Context, in *ListTransactionsRequest) (*ListTransactionsResponse, error) {
+	owner, err := adminOwnerFilter(in.OwnerKind, in.OwnerUUID, in.TenantUUID)
+	if err != nil {
+		return nil, err
+	}
 	items, err := h.txRepo.List(ctx, repository.TransactionFilters{
 		SubscriptionUUID: in.SubscriptionUUID,
 		InvoiceUUID:      in.InvoiceUUID,
-		TenantUUID:       in.TenantUUID,
+		Owner:            owner,
 		Status:           models.TransactionStatus(in.Status),
 	})
 	if err != nil {
@@ -108,7 +116,7 @@ func (h *TransactionHandler) Get(ctx context.Context, in *GetTransactionRequest)
 	if err != nil {
 		return nil, err
 	}
-	if err := assertTenantScope(ctx, t.TenantUUID); err != nil {
+	if err := assertOwnerTenantScope(ctx, t.Owner()); err != nil {
 		return nil, err
 	}
 	return &TransactionResponse{Body: *t}, nil
@@ -119,7 +127,7 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 	if err != nil {
 		return nil, huma.Error404NotFound("transaction not found", err)
 	}
-	if err := assertTenantScope(ctx, tx.TenantUUID); err != nil {
+	if err := assertOwnerTenantScope(ctx, tx.Owner()); err != nil {
 		return nil, err
 	}
 	if in.Body.AmountCents < 0 {
@@ -153,10 +161,17 @@ func (h *TransactionHandler) Refund(ctx context.Context, in *RefundRequest) (*Re
 }
 
 func (h *TransactionHandler) ListPaymentMethods(ctx context.Context, in *ListPaymentMethodsRequest) (*ListPaymentMethodsResponse, error) {
-	if err := assertTenantScope(ctx, in.TenantUUID); err != nil {
+	owner, err := adminOwnerFilter(in.OwnerKind, in.OwnerUUID, in.TenantUUID)
+	if err != nil {
 		return nil, err
 	}
-	items, err := h.pmRepo.ListByTenant(ctx, in.TenantUUID)
+	if owner.IsZero() {
+		return nil, huma.Error400BadRequest("ownerUuid (or tenantUUID) is required", nil)
+	}
+	if err := assertOwnerTenantScope(ctx, owner); err != nil {
+		return nil, err
+	}
+	items, err := h.pmRepo.ListByOwner(ctx, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -177,23 +192,44 @@ func (h *TransactionHandler) ListWebhookEvents(ctx context.Context, in *ListWebh
 	return resp, nil
 }
 
-// assertTenantScope enforces that the request's active tenant matches the
-// row's TenantUUID. Rows without a tenant binding (legacy/orphan) are
-// always allowed — platform admins use the impersonation bypass to inspect
-// arbitrary tenants. Returns 404 on mismatch so existence of out-of-scope
-// records is not leaked.
-func assertTenantScope(ctx context.Context, tenantUUID string) error {
-	if tenantUUID == "" {
+// assertOwnerTenantScope enforces that the request's active tenant matches
+// a tenant-owned row. User-owned rows are not gated by tenant context —
+// platform admins inspect them via the impersonation bypass. Returns 404
+// on mismatch so existence of out-of-scope records is not leaked.
+func assertOwnerTenantScope(ctx context.Context, owner iface.Owner) error {
+	if owner.Kind != iface.OwnerKindTenant || owner.UUID == "" {
 		return nil
 	}
 	requestTenant, hasTenant := middleware.GetTenantID(ctx)
 	if !hasTenant {
 		return nil
 	}
-	if tenantUUID != requestTenant {
+	if owner.UUID != requestTenant {
 		return huma.Error404NotFound("not found", nil)
 	}
 	return nil
+}
+
+// adminOwnerFilter parses the wire (ownerKind, ownerUUID, tenantUUID)
+// triple into an iface.Owner. Empty input yields a zero Owner (no filter).
+// tenantUUID is the legacy alias for ownerKind=tenant + ownerUUID.
+func adminOwnerFilter(kind, ownerUUID, tenantUUID string) (iface.Owner, error) {
+	if ownerUUID == "" && tenantUUID == "" {
+		return iface.Owner{}, nil
+	}
+	if ownerUUID != "" {
+		k := kind
+		if k == "" {
+			k = string(iface.OwnerKindTenant)
+		}
+		switch iface.OwnerKind(k) {
+		case iface.OwnerKindUser, iface.OwnerKindTenant:
+			return iface.Owner{Kind: iface.OwnerKind(k), UUID: ownerUUID}, nil
+		default:
+			return iface.Owner{}, huma.Error400BadRequest("invalid ownerKind", nil)
+		}
+	}
+	return iface.TenantOwner(tenantUUID), nil
 }
 
 // Compile-time check that PaymentService satisfies iface.PaymentProvider.

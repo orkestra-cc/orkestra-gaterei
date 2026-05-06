@@ -11,7 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/metrics"
 )
 
-// EntitlementSyncer keeps the tenant capability projection aligned with
+// EntitlementSyncer keeps the capability projection aligned with
 // subscription lifecycle changes. Subscription services and the webhook
 // reconciler both invoke it on state transitions:
 //
@@ -24,21 +24,24 @@ import (
 // on every call so an admin rewriting a service catalog is reflected on the
 // next activation without a migration.
 //
-// TenantProvider may be nil in degraded deployments (e.g. a test rig that
+// AccessProvider may be nil in degraded deployments (e.g. a test rig that
 // boots subscriptions without the tenant module). In that case every method
 // is a no-op — subscription state still updates, just without the
 // entitlement side-effect. Callers must not rely on the syncer for
 // correctness of the subscription state machine itself.
 type EntitlementSyncer struct {
 	services repository.ServiceRepository
+	access   iface.AccessProvider
 	tenant   iface.TenantProvider
 	logger   *slog.Logger
 }
 
-// NewEntitlementSyncer constructs a syncer. Pass a nil TenantProvider for
+// NewEntitlementSyncer constructs a syncer. Pass a nil AccessProvider for
 // setups that do not run the tenant module; the syncer degrades to no-ops.
-func NewEntitlementSyncer(services repository.ServiceRepository, tenant iface.TenantProvider, logger *slog.Logger) *EntitlementSyncer {
-	return &EntitlementSyncer{services: services, tenant: tenant, logger: logger}
+// The TenantProvider is optional and used only for tenant-kind labelling
+// in metrics.
+func NewEntitlementSyncer(services repository.ServiceRepository, access iface.AccessProvider, tenant iface.TenantProvider, logger *slog.Logger) *EntitlementSyncer {
+	return &EntitlementSyncer{services: services, access: access, tenant: tenant, logger: logger}
 }
 
 // OnActivate grants every capability listed on the subscription's tier to
@@ -51,11 +54,11 @@ func NewEntitlementSyncer(services repository.ServiceRepository, tenant iface.Te
 // transient tenant-side failure on one capability should not prevent the
 // other capabilities from landing.
 func (s *EntitlementSyncer) OnActivate(ctx context.Context, sub *models.Subscription) {
-	if s == nil || s.tenant == nil || sub == nil {
+	if s == nil || s.access == nil || sub == nil {
 		return
 	}
-	tenantUUID := tenantOfSubscription(sub)
-	if tenantUUID == "" {
+	owner := ownerOfSubscription(sub)
+	if owner.IsZero() {
 		return
 	}
 	svc, err := s.services.GetByUUID(ctx, sub.ServiceUUID)
@@ -77,8 +80,8 @@ func (s *EntitlementSyncer) OnActivate(ctx context.Context, sub *models.Subscrip
 		expires = &t
 	}
 	for _, capID := range tier.Capabilities {
-		err := s.tenant.GrantCapability(ctx, iface.GrantCapabilityInput{
-			TenantUUID:   tenantUUID,
+		err := s.access.GrantCapability(ctx, iface.GrantCapabilityInput{
+			Owner:        owner,
 			CapabilityID: capID,
 			Source:       CapabilitySourceSubscription,
 			SourceRef:    sub.UUID,
@@ -98,23 +101,23 @@ func (s *EntitlementSyncer) OnActivate(ctx context.Context, sub *models.Subscrip
 			continue
 		}
 		// Phase 5.3: mark the projection as freshly applied so the
-		// projection-lag gauge resets. Labeled by tier so internal
-		// operator tenants and external client tenants show up as
-		// separate time series in dashboards.
-		metrics.Default().RecordEntitlementApply(s.tenantKindOf(ctx, tenantUUID))
+		// projection-lag gauge resets. Labeled by owner-kind so user-
+		// owned and tenant-owned subscriptions show up as separate
+		// time series in dashboards.
+		metrics.Default().RecordEntitlementApply(s.ownerLabel(ctx, owner))
 	}
 }
 
 // OnDeactivate revokes every capability listed on the subscription's tier
-// for its tenant. Revoke is idempotent at the tenant side — revoking a
-// non-active entitlement is a no-op — so double-invocation on repeated
+// for its owner. Revoke is idempotent at the access-provider side — revoking
+// a non-active entitlement is a no-op — so double-invocation on repeated
 // webhooks is safe.
 func (s *EntitlementSyncer) OnDeactivate(ctx context.Context, sub *models.Subscription) {
-	if s == nil || s.tenant == nil || sub == nil {
+	if s == nil || s.access == nil || sub == nil {
 		return
 	}
-	tenantUUID := tenantOfSubscription(sub)
-	if tenantUUID == "" {
+	owner := ownerOfSubscription(sub)
+	if owner.IsZero() {
 		return
 	}
 	svc, err := s.services.GetByUUID(ctx, sub.ServiceUUID)
@@ -131,7 +134,7 @@ func (s *EntitlementSyncer) OnDeactivate(ctx context.Context, sub *models.Subscr
 		return
 	}
 	for _, capID := range tier.Capabilities {
-		if err := s.tenant.RevokeCapability(ctx, tenantUUID, capID); err != nil {
+		if err := s.access.RevokeCapability(ctx, owner, capID); err != nil {
 			s.logger.Warn("entitlement syncer: revoke failed",
 				slog.String("subscription", sub.UUID),
 				slog.String("capability", capID),
@@ -139,19 +142,25 @@ func (s *EntitlementSyncer) OnDeactivate(ctx context.Context, sub *models.Subscr
 			)
 			continue
 		}
-		metrics.Default().RecordEntitlementApply(s.tenantKindOf(ctx, tenantUUID))
+		metrics.Default().RecordEntitlementApply(s.ownerLabel(ctx, owner))
 	}
 }
 
-// tenantKindOf resolves the current tenant's tier ("internal" | "external")
-// for metric labeling. Returns an empty string on lookup failure, which
-// RecordEntitlementApply ignores — callers must not block on telemetry
-// classification.
-func (s *EntitlementSyncer) tenantKindOf(ctx context.Context, tenantUUID string) string {
-	if s == nil || s.tenant == nil || tenantUUID == "" {
+// ownerLabel returns a metric label for the owner — "user" for user-owned
+// entitlements, the tenant kind ("internal" | "external") for tenant-owned
+// ones. Empty on lookup failure; RecordEntitlementApply ignores empty
+// labels.
+func (s *EntitlementSyncer) ownerLabel(ctx context.Context, owner iface.Owner) string {
+	if s == nil || owner.IsZero() {
 		return ""
 	}
-	t, err := s.tenant.GetTenant(ctx, tenantUUID)
+	if owner.Kind == iface.OwnerKindUser {
+		return "user"
+	}
+	if s.tenant == nil {
+		return string(owner.Kind)
+	}
+	t, err := s.tenant.GetTenant(ctx, owner.UUID)
 	if err != nil || t == nil {
 		return ""
 	}
@@ -163,11 +172,14 @@ func (s *EntitlementSyncer) tenantKindOf(ctx context.Context, tenantUUID string)
 // dependency into addons).
 const CapabilitySourceSubscription = "subscription"
 
-// tenantOfSubscription returns the owning tenant UUID for a subscription.
-// Every row carries TenantUUID after ADR-0001 Phase 1 — the legacy
-// ClientUUID indirection has been removed. Callers treat an empty return as
-// "no tenant on this row, skip sync" rather than forcing a grant against
-// the wrong aggregate.
-func tenantOfSubscription(sub *models.Subscription) string {
-	return sub.TenantUUID
+// ownerOfSubscription returns the polymorphic principal that holds the
+// subscription. Subscriptions are owned by either a user (self-registered
+// client) or a tenant (admin-attached business) after the post-onboarding
+// refactor. Callers treat a zero return as "no owner, skip sync" rather
+// than forcing a grant against the wrong aggregate.
+func ownerOfSubscription(sub *models.Subscription) iface.Owner {
+	if sub == nil {
+		return iface.Owner{}
+	}
+	return iface.Owner{Kind: sub.OwnerKind, UUID: sub.OwnerUUID}
 }

@@ -37,7 +37,7 @@ func (m *Module) Description() string {
 func (m *Module) Dependencies() []string { return []string{"user"} }
 
 func (m *Module) ProvidedServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceTenantProvider, module.ServiceTenantService}
+	return []module.ServiceKey{module.ServiceTenantProvider, module.ServiceAccessProvider, module.ServiceTenantService}
 }
 
 func (m *Module) Collections() []module.CollectionSpec {
@@ -76,15 +76,16 @@ func (m *Module) Collections() []module.CollectionSpec {
 			}, Unique: true},
 			{Keys: map[string]int{"ancestorUUID": 1}},
 		}},
-		// Capability entitlements projection (Phase 2). Tenants may hold
-		// many historical rows per capability (revoked + re-granted, or
+		// Capability entitlements projection. Owners (users or tenants) may
+		// hold many historical rows per capability (revoked + re-granted, or
 		// expired); at most one is active at a time — that invariant is
 		// enforced in the service (Grant revokes any existing active row
 		// before inserting). Indexes here accelerate the common reads.
 		{Name: repository.CollEntitlements, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true, Sparse: true},
 			{OrderedKeys: []module.IndexKey{
-				{Field: "tenantId", Direction: 1},
+				{Field: "ownerKind", Direction: 1},
+				{Field: "ownerUUID", Direction: 1},
 				{Field: "capabilityId", Direction: 1},
 			}},
 			{Keys: map[string]int{"capabilityId": 1}},
@@ -123,6 +124,9 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	m.svc = services.New(repo)
 	m.handler = handlers.New(m.svc, deps.Services)
 	deps.Services.Register(module.ServiceTenantProvider, iface.TenantProvider(m.svc))
+	// Polymorphic-owner capability surface lives on the same concrete
+	// Service so the entitlement projection has one writer.
+	deps.Services.Register(module.ServiceAccessProvider, iface.AccessProvider(m.svc))
 	// Also publish the concrete service so addon modules (compliance) that
 	// need to drive post-init setters can resolve it without importing the
 	// tenant package from a second location.

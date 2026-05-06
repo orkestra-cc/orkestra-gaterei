@@ -28,6 +28,7 @@ type JWTValidator struct {
 	publicKey         *rsa.PublicKey
 	expectedIssuer    string
 	tenant            iface.TenantProvider
+	access            iface.AccessProvider
 	authz             iface.AuthzProvider
 	sessionRevocation SessionRevocationChecker
 }
@@ -78,6 +79,10 @@ func NewJWTValidator(publicKeyPath, env string) (*JWTValidator, error) {
 
 // SetTenantProvider wires the tenant provider for entitlement checks.
 func (v *JWTValidator) SetTenantProvider(t iface.TenantProvider) { v.tenant = t }
+
+// SetAccessProvider wires the polymorphic-owner capability surface.
+// RequireCapability uses it instead of TenantProvider.HasCapability.
+func (v *JWTValidator) SetAccessProvider(a iface.AccessProvider) { v.access = a }
 
 // SetAuthzProvider wires the authz provider for permission evaluation.
 func (v *JWTValidator) SetAuthzProvider(a iface.AuthzProvider) { v.authz = a }
@@ -286,32 +291,34 @@ func (v *JWTValidator) RequireSystemPermission(permission string) func(http.Hand
 }
 
 // RequireCapability mirrors AuthMiddleware.RequireCapability for the AI
-// sidecar. When the sidecar has no TenantProvider wired the monolith's
+// sidecar. When the sidecar has no AccessProvider wired the monolith's
 // upstream enforcement is trusted and the request passes through. When a
-// provider is wired, the capability projection is consulted directly and
-// a miss returns 402.
+// provider is wired, the capability projection is consulted directly with
+// the request's polymorphic owner (tenant when X-Tenant-ID is present,
+// otherwise the calling user) and a miss returns 402.
 func (v *JWTValidator) RequireCapability(capabilityID string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if v.tenant == nil {
+			if v.access == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
-			tenantID, ok := GetTenantID(r.Context())
+			owner, ok := capabilityOwnerFromRequest(r)
 			if !ok {
-				writeErr(w, http.StatusForbidden, "tenant context required")
+				writeErr(w, http.StatusForbidden, "authentication required")
 				return
 			}
-			allowed, err := v.tenant.HasCapability(r.Context(), tenantID, capabilityID)
+			allowed, err := v.access.HasCapability(r.Context(), owner, capabilityID)
 			if err != nil || !allowed {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusPaymentRequired)
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"status":     http.StatusPaymentRequired,
 					"title":      "capability required",
-					"detail":     "tenant is not entitled to this capability",
+					"detail":     "owner is not entitled to this capability",
 					"capability": capabilityID,
-					"tenantId":   tenantID,
+					"ownerKind":  string(owner.Kind),
+					"ownerId":    owner.UUID,
 					"code":       "capability_required",
 				})
 				return

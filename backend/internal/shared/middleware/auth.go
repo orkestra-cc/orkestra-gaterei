@@ -70,6 +70,7 @@ type AuthMiddleware struct {
 	jwtService        services.JWTService
 	authService       services.AuthService
 	tenant            iface.TenantProvider
+	access            iface.AccessProvider
 	authz             iface.AuthzProvider
 	auditSink         iface.AuditSink
 	sessionRevocation services.SessionRevocationService
@@ -119,6 +120,14 @@ func (m *AuthMiddleware) SetAuthService(authService services.AuthService) {
 // and entitlement checks. Called from main.go after all modules initialize.
 func (m *AuthMiddleware) SetTenantProvider(t iface.TenantProvider) {
 	m.tenant = t
+}
+
+// SetAccessProvider wires the polymorphic-owner capability surface.
+// RequireCapability uses it to evaluate entitlements for either a tenant
+// (X-Tenant-ID present) or the calling user (no tenant context). Called
+// from main.go after the tenant module initializes.
+func (m *AuthMiddleware) SetAccessProvider(a iface.AccessProvider) {
+	m.access = a
 }
 
 // SetAuthzProvider wires the authz provider for permission evaluation.
@@ -793,11 +802,16 @@ func (m *AuthMiddleware) RequireSystemPermission(permission string) func(http.Ha
 	}
 }
 
-// RequireCapability blocks the request unless the current tenant holds an
+// RequireCapability blocks the request unless the current owner holds an
 // active entitlement to the given capability ID in the tenant_entitlements
-// projection (Phase 2). Returns 402 Payment Required — distinct from 403
-// Forbidden — so the frontend can branch on the error and surface a
-// subscription / upgrade prompt rather than an access-denied screen.
+// projection. Returns 402 Payment Required — distinct from 403 Forbidden —
+// so the frontend can branch on the error and surface a subscription /
+// upgrade prompt rather than an access-denied screen.
+//
+// Owner resolution: when X-Tenant-ID is present (and the caller is a member
+// per the existing membership check), the owner is the tenant. Otherwise it
+// is the calling user — self-registered clients hold entitlements on their
+// own user UUID after the post-onboarding refactor.
 //
 // Typical use: apply this AFTER RequirePermission so RBAC runs first and
 // a 403 wins over a 402 when neither gate passes. The order does not affect
@@ -806,19 +820,19 @@ func (m *AuthMiddleware) RequireSystemPermission(permission string) func(http.Ha
 func (m *AuthMiddleware) RequireCapability(capabilityID string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if m.tenant == nil {
-				m.sendErrorResponse(w, r, errors.InternalError("tenant service not ready").
+			if m.access == nil {
+				m.sendErrorResponse(w, r, errors.InternalError("access service not ready").
 					WithOperation("require_capability").Build())
 				return
 			}
-			tenantID, ok := GetTenantID(r.Context())
+			owner, ok := capabilityOwnerFromRequest(r)
 			if !ok {
-				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
+				m.sendErrorResponse(w, r, errors.AuthorizationError("authentication required").
 					WithOperation("require_capability").
 					WithDetail("capability", capabilityID).Build())
 				return
 			}
-			allowed, err := m.tenant.HasCapability(r.Context(), tenantID, capabilityID)
+			allowed, err := m.access.HasCapability(r.Context(), owner, capabilityID)
 			if err != nil {
 				m.sendErrorResponse(w, r, errors.InternalError("capability check failed").
 					WithOperation("require_capability").
@@ -827,16 +841,31 @@ func (m *AuthMiddleware) RequireCapability(capabilityID string) func(http.Handle
 			}
 			if !allowed {
 				// Phase 5.3: count every 402 so operators can see
-				// which capabilities generate the most tenant
+				// which capabilities generate the most owner
 				// friction. Label is the capability ID (bounded by
 				// the Capabilities() catalog cardinality).
 				metrics.Default().RecordCapabilityDenied(capabilityID)
-				m.sendCapabilityRequiredResponse(w, r, capabilityID, tenantID)
+				m.sendCapabilityRequiredResponse(w, r, capabilityID, owner.UUID)
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// capabilityOwnerFromRequest derives the polymorphic owner the capability
+// gate evaluates against. Tenant context wins when present (X-Tenant-ID
+// already verified by middleware-level RequireAuth membership checks);
+// otherwise the calling user is the owner. Returns false when neither
+// context is set — the caller is unauthenticated.
+func capabilityOwnerFromRequest(r *http.Request) (iface.Owner, bool) {
+	if tenantID, ok := GetTenantID(r.Context()); ok && tenantID != "" {
+		return iface.TenantOwner(tenantID), true
+	}
+	if userUUID, ok := GetUserUUID(r.Context()); ok && userUUID != "" {
+		return iface.UserOwner(userUUID), true
+	}
+	return iface.Owner{}, false
 }
 
 // RequireGlobal is a pass-through for routes that don't need an org context

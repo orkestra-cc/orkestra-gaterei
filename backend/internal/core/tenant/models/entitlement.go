@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/orkestra/backend/internal/shared/iface"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -33,20 +34,22 @@ func (s EntitlementSource) Valid() bool {
 	return false
 }
 
-// Entitlement is a projection row: a single record that a given tenant is
-// entitled to a specific capability, coming from a named source. A tenant may
-// historically hold many rows for the same capability (superseded grants,
-// previous subscription cycles), but at most one active row at any given
-// time — enforced in the service layer (Grant revokes any existing active
-// row before inserting the replacement).
+// Entitlement is a projection row: a single record that a given owner
+// (a user OR a tenant) is entitled to a specific capability, coming from a
+// named source. An owner may historically hold many rows for the same
+// capability (superseded grants, previous subscription cycles), but at most
+// one active row at any given time — enforced in the service layer
+// (Grant revokes any existing active row before inserting the replacement).
 //
-// The row is intentionally flat (no embedded subscription detail) so the
-// projection stays simple to rebuild from an event log. Richer context lives
-// on the SourceRef pointer.
+// The owner is polymorphic: self-registered clients carry OwnerKind="user"
+// and a userUUID; admin-attached business clients carry OwnerKind="tenant"
+// and a tenantUUID. Consumers branch on Kind only when they need to render
+// an admin / billing breadcrumb — the capability check itself is uniform.
 type Entitlement struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"-"`
 	UUID         string             `bson:"uuid" json:"uuid"`
-	TenantUUID   string             `bson:"tenantId" json:"tenantId"`
+	OwnerKind    iface.OwnerKind    `bson:"ownerKind" json:"ownerKind"`
+	OwnerUUID    string             `bson:"ownerUUID" json:"ownerUUID"`
 	CapabilityID string             `bson:"capabilityId" json:"capabilityId"`
 	Source       EntitlementSource  `bson:"source" json:"source"`
 	// SourceRef is the opaque identifier of the thing that created this
@@ -61,6 +64,11 @@ type Entitlement struct {
 	// Metadata is a free-form blob for provider-specific breadcrumbs
 	// (e.g. Stripe invoice ID, plan tier code). Opaque to the projection.
 	Metadata map[string]any `bson:"metadata,omitempty"`
+}
+
+// Owner returns the polymorphic principal that holds this entitlement.
+func (e Entitlement) Owner() iface.Owner {
+	return iface.Owner{Kind: e.OwnerKind, UUID: e.OwnerUUID}
 }
 
 // IsActive reports whether the entitlement is currently effective — not

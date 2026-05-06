@@ -1,14 +1,15 @@
 // Package handlers — client_handler.go hosts the Tier-2 self-service
 // payment endpoints mounted on the ADR-0003 client API surface
 // (api.orkestra.com / api.localhost). Each route is gated by
-// RequireGlobal() at mount time AND re-checks tenant ownership in the
-// handler against TenantProvider.ListUserMemberships, mirroring the
-// SubscriptionHandler.SelfSubscribe pattern in subscriptions.
+// RequireGlobal() at mount time AND re-checks ownership in the handler
+// against the caller's identity (user) and TenantProvider memberships
+// (tenant), mirroring the SubscriptionHandler pattern.
 package handlers
 
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/addons/payments/models"
@@ -19,9 +20,9 @@ import (
 )
 
 // ClientHandler bundles the Tier-2 self-service payment routes. Constructed
-// in payments/module.go's Init only when the tenant module is wired —
-// without TenantProvider there is no way to enforce ownership, so the
-// routes are simply not mounted.
+// in payments/module.go's Init when the tenant module is wired so that
+// tenant-owner flows can be reached. User-owner flows degrade gracefully
+// when the tenant module is missing.
 type ClientHandler struct {
 	payment *services.PaymentService
 	txRepo  repository.TransactionRepository
@@ -32,8 +33,9 @@ type ClientHandler struct {
 	planner iface.SelfServiceCheckoutPlanner
 }
 
-// NewClientHandler constructs the handler. tenants is required (call site
-// must skip mount if nil); planner is optional.
+// NewClientHandler constructs the handler. tenants may be nil — tenant-
+// owner routes return 503 in that case; user-owner routes still work.
+// planner is optional in the same shape as the legacy contract.
 func NewClientHandler(
 	payment *services.PaymentService,
 	txRepo repository.TransactionRepository,
@@ -50,78 +52,121 @@ func NewClientHandler(
 	}
 }
 
-// meOwnedTenants returns the set of TenantUUIDs the caller owns. Read live
-// from TenantProvider so a freshly granted/revoked ownership is reflected
-// without waiting for a token refresh. 401 when anonymous, 503 when the
-// provider is missing (defensive — payments/module.go should have
-// short-circuited the mount in that case).
-func (h *ClientHandler) meOwnedTenants(ctx context.Context) (map[string]struct{}, error) {
-	if h.tenants == nil {
-		return nil, huma.Error503ServiceUnavailable("tenant provider not configured")
-	}
+// callerOwnerSet returns the polymorphic owners the caller may act under:
+// always the caller's own user identity, plus every tenant the caller
+// owns. 401 when anonymous; the empty-tenant case is non-error — the user
+// identity alone is a valid scope for self-service.
+func (h *ClientHandler) callerOwnerSet(ctx context.Context) (map[iface.Owner]struct{}, error) {
 	userUUID, ok := middleware.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	owned := map[iface.Owner]struct{}{
+		iface.UserOwner(userUUID): {},
+	}
+	if h.tenants == nil {
+		return owned, nil
 	}
 	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
 	if err != nil {
 		return nil, err
 	}
-	owned := make(map[string]struct{}, len(memberships))
 	for _, m := range memberships {
 		if m.IsOwner {
-			owned[m.TenantUUID] = struct{}{}
+			owned[iface.TenantOwner(m.TenantUUID)] = struct{}{}
 		}
 	}
 	return owned, nil
 }
 
-// ensureCustomer returns the Stripe (or future PayPal) customer reference
-// for the tenant, creating it on the gateway side if missing and persisting
-// the resulting id back onto the tenant record so subsequent calls skip
-// the round-trip. Mirrors the lazy-creation path in
-// renewal_service.chargeInvoice — kept here as a duplicate to avoid making
-// the renewal package importable from payments (would create a cycle).
-func (h *ClientHandler) ensureCustomer(ctx context.Context, tenantUUID string) (iface.CustomerRef, error) {
-	t, err := h.tenants.GetTenant(ctx, tenantUUID)
-	if err != nil {
-		return iface.CustomerRef{}, err
+// ensureCustomerForOwner returns the gateway customer reference for the
+// owner, creating one on the gateway side if missing and persisting the
+// id back onto the underlying record so subsequent calls skip the
+// round-trip.
+//
+// Tenant-owner: reuses the existing tenant.StripeCustomerID seam.
+// User-owner: requires the Phase 2 client_billing_customers projection.
+// Until that lands, user-owner checkout returns 503 with a clear hint.
+func (h *ClientHandler) ensureCustomerForOwner(ctx context.Context, owner iface.Owner) (iface.CustomerRef, string, error) {
+	switch owner.Kind {
+	case iface.OwnerKindTenant:
+		if h.tenants == nil {
+			return iface.CustomerRef{}, "", huma.Error503ServiceUnavailable("tenant provider not configured")
+		}
+		t, err := h.tenants.GetTenant(ctx, owner.UUID)
+		if err != nil {
+			return iface.CustomerRef{}, "", err
+		}
+		if t == nil {
+			return iface.CustomerRef{}, "", huma.Error404NotFound("tenant not found")
+		}
+		if t.StripeCustomerID != "" {
+			return iface.CustomerRef{Provider: "stripe", ID: t.StripeCustomerID}, t.Email, nil
+		}
+		name := t.LegalName
+		if name == "" {
+			name = t.Name
+		}
+		ref, err := h.payment.CreateCustomer(ctx, iface.CustomerInput{
+			Owner:     owner,
+			Email:     t.Email,
+			Name:      name,
+			VATNumber: t.VATNumber,
+			Country:   t.Country,
+		})
+		if err != nil {
+			return iface.CustomerRef{}, "", err
+		}
+		// Persistence is best-effort — the customer exists on Stripe and
+		// the renewal job's metadata-keyed lookup will reuse it.
+		_ = h.tenants.SetTenantStripeCustomerID(ctx, t.UUID, ref.ID)
+		return ref, t.Email, nil
+	case iface.OwnerKindUser:
+		// Phase 2 will wire client_billing_customers; until then the
+		// user-owner checkout path needs that projection to know which
+		// VAT/CF/email to stamp on the Stripe customer.
+		return iface.CustomerRef{}, "", huma.Error503ServiceUnavailable("user billing profile not yet available")
+	default:
+		return iface.CustomerRef{}, "", fmt.Errorf("unknown owner kind %q", owner.Kind)
 	}
-	if t == nil {
-		return iface.CustomerRef{}, huma.Error404NotFound("tenant not found")
-	}
-	if t.StripeCustomerID != "" {
-		return iface.CustomerRef{Provider: "stripe", ID: t.StripeCustomerID}, nil
-	}
+}
 
-	name := t.LegalName
-	if name == "" {
-		name = t.Name
+// resolveOwnerFilter decodes the wire (ownerKind, ownerUUID, tenantUuid)
+// triple into a single iface.Owner, validating it against the caller's
+// owner set. tenantUuid is the legacy alias kept for transitional clients.
+// Returns iface.Owner{} when no filter is requested. A filter naming a
+// principal the caller does not own returns ok=false (handlers reply 0 rows).
+func (h *ClientHandler) resolveOwnerFilter(owned map[iface.Owner]struct{}, kind, ownerUUID, tenantUUID string) (iface.Owner, bool, error) {
+	if ownerUUID == "" && tenantUUID == "" {
+		return iface.Owner{}, true, nil
 	}
-	ref, err := h.payment.CreateCustomer(ctx, iface.CustomerInput{
-		TenantUUID: t.UUID,
-		Email:      t.Email,
-		Name:       name,
-		VATNumber:  t.VATNumber,
-		Country:    t.Country,
-	})
-	if err != nil {
-		return iface.CustomerRef{}, err
+	var target iface.Owner
+	if ownerUUID != "" {
+		k := kind
+		if k == "" {
+			k = string(iface.OwnerKindTenant)
+		}
+		switch iface.OwnerKind(k) {
+		case iface.OwnerKindUser, iface.OwnerKindTenant:
+			target = iface.Owner{Kind: iface.OwnerKind(k), UUID: ownerUUID}
+		default:
+			return iface.Owner{}, false, huma.Error400BadRequest("invalid ownerKind")
+		}
+	} else {
+		target = iface.TenantOwner(tenantUUID)
 	}
-	if err := h.tenants.SetTenantStripeCustomerID(ctx, t.UUID, ref.ID); err != nil {
-		// Persist failure is logged but not fatal — the customer exists
-		// on Stripe and the renewal job will find/reuse it via metadata
-		// lookup. Worst case we create a duplicate customer next time.
-		// Return ref so the caller can still open Checkout.
-		return ref, nil //nolint:nilerr // intentional: persistence is best-effort here
+	if _, ok := owned[target]; !ok {
+		return target, false, nil
 	}
-	return ref, nil
+	return target, true, nil
 }
 
 // --- Transactions ---
 
 type MeListTransactionsRequest struct {
-	TenantUUID       string `query:"tenantUuid" doc:"Optional — restrict to one owned tenant"`
+	OwnerKind        string `query:"ownerKind" enum:"user,tenant" doc:"Optional — restrict to one owner kind"`
+	OwnerUUID        string `query:"ownerUuid" doc:"Optional — restrict to one owned principal"`
+	TenantUUID       string `query:"tenantUuid" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 	SubscriptionUUID string `query:"subscriptionUuid" doc:"Optional — restrict to one subscription"`
 	Status           string `query:"status" enum:"pending,requires_action,succeeded,failed,refunded,partially_refunded"`
 }
@@ -132,29 +177,33 @@ type MeListTransactionsResponse struct {
 	}
 }
 
-// MeListTransactions returns transactions across every tenant the caller
-// owns. Per-tenant fan-out (same rationale as MeListSubscriptions) — the
-// repository's tenantUUID filter is the only available index, and Tier-2
-// users typically own one or two tenants in the demo MVP shape.
+// MeListTransactions returns transactions across every owner the caller
+// may act under. Per-owner fan-out — the repository's owner index is the
+// only one available, and a Tier-2 user typically acts under one or two
+// principals (themselves + one or two tenants) in the demo MVP shape.
 func (h *ClientHandler) MeListTransactions(ctx context.Context, in *MeListTransactionsRequest) (*MeListTransactionsResponse, error) {
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
 	resp := &MeListTransactionsResponse{}
 	resp.Body.Items = []models.Transaction{}
 
-	if in.TenantUUID != "" {
-		if _, ok := owned[in.TenantUUID]; !ok {
+	target, ok, err := h.resolveOwnerFilter(owned, in.OwnerKind, in.OwnerUUID, in.TenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	if !target.IsZero() {
+		if !ok {
 			resp.Body.Total = 0
 			return resp, nil
 		}
-		owned = map[string]struct{}{in.TenantUUID: {}}
+		owned = map[iface.Owner]struct{}{target: {}}
 	}
 
-	for tenantUUID := range owned {
+	for owner := range owned {
 		items, err := h.txRepo.List(ctx, repository.TransactionFilters{
-			TenantUUID:       tenantUUID,
+			Owner:            owner,
 			SubscriptionUUID: in.SubscriptionUUID,
 			Status:           models.TransactionStatus(in.Status),
 		})
@@ -170,7 +219,9 @@ func (h *ClientHandler) MeListTransactions(ctx context.Context, in *MeListTransa
 // --- Payment methods ---
 
 type MeListPaymentMethodsRequest struct {
-	TenantUUID string `query:"tenantUuid" doc:"Optional — restrict to one owned tenant"`
+	OwnerKind  string `query:"ownerKind" enum:"user,tenant"`
+	OwnerUUID  string `query:"ownerUuid"`
+	TenantUUID string `query:"tenantUuid" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 }
 type MeListPaymentMethodsResponse struct {
 	Body struct {
@@ -180,23 +231,27 @@ type MeListPaymentMethodsResponse struct {
 }
 
 func (h *ClientHandler) MeListPaymentMethods(ctx context.Context, in *MeListPaymentMethodsRequest) (*MeListPaymentMethodsResponse, error) {
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
 	resp := &MeListPaymentMethodsResponse{}
 	resp.Body.Items = []models.PaymentMethod{}
 
-	if in.TenantUUID != "" {
-		if _, ok := owned[in.TenantUUID]; !ok {
+	target, ok, err := h.resolveOwnerFilter(owned, in.OwnerKind, in.OwnerUUID, in.TenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	if !target.IsZero() {
+		if !ok {
 			resp.Body.Total = 0
 			return resp, nil
 		}
-		owned = map[string]struct{}{in.TenantUUID: {}}
+		owned = map[iface.Owner]struct{}{target: {}}
 	}
 
-	for tenantUUID := range owned {
-		items, err := h.pmRepo.ListByTenant(ctx, tenantUUID)
+	for owner := range owned {
+		items, err := h.pmRepo.ListByOwner(ctx, owner)
 		if err != nil {
 			return nil, err
 		}
@@ -230,8 +285,8 @@ type MeCheckoutSessionResponse struct {
 // MeCreateCheckoutSession opens a Stripe Checkout session in payment mode
 // for the subscription's most recent pending invoice. The webhook
 // reconciler picks up the resulting PaymentIntent via the metadata stamp
-// (subscriptionUUID + invoiceUUID + tenantUUID) — the same path the
-// renewal job's off-session charges follow.
+// (subscriptionUUID + invoiceUUID + ownerKind + ownerUUID) — the same path
+// the renewal job's off-session charges follow.
 //
 // 409 when the subscription has no pending invoice — the SPA can prompt
 // the user to wait for the next renewal tick (or, post-MVP, hit a
@@ -247,7 +302,7 @@ func (h *ClientHandler) MeCreateCheckoutSession(ctx context.Context, in *MeCreat
 		return nil, huma.Error400BadRequest("successUrl and cancelUrl are required")
 	}
 
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -262,21 +317,15 @@ func (h *ClientHandler) MeCreateCheckoutSession(ctx context.Context, in *MeCreat
 		}
 	}
 
-	if _, ok := owned[plan.TenantUUID]; !ok {
+	if _, ok := owned[plan.Owner]; !ok {
 		// 404 (not 403) so the existence of out-of-scope subscriptions
-		// does not leak to a fishing client. Same rationale as
-		// SubscriptionHandler.meGuardSubscription.
+		// does not leak to a fishing client.
 		return nil, huma.Error404NotFound("not found")
 	}
 
-	customer, err := h.ensureCustomer(ctx, plan.TenantUUID)
+	customer, customerEmail, err := h.ensureCustomerForOwner(ctx, plan.Owner)
 	if err != nil {
 		return nil, err
-	}
-
-	tenantEmail := ""
-	if t, gerr := h.tenants.GetTenant(ctx, plan.TenantUUID); gerr == nil && t != nil {
-		tenantEmail = t.Email
 	}
 
 	res, err := h.payment.CreateCheckoutSession(ctx, iface.CheckoutSessionInput{
@@ -286,11 +335,12 @@ func (h *ClientHandler) MeCreateCheckoutSession(ctx context.Context, in *MeCreat
 		Description:   plan.Description,
 		SuccessURL:    in.Body.SuccessURL,
 		CancelURL:     in.Body.CancelURL,
-		CustomerEmail: tenantEmail,
+		CustomerEmail: customerEmail,
 		Metadata: map[string]string{
 			"subscriptionUUID": plan.SubscriptionUUID,
 			"invoiceUUID":      plan.InvoiceUUID,
-			"tenantUUID":       plan.TenantUUID,
+			"ownerKind":        string(plan.Owner.Kind),
+			"ownerUUID":        plan.Owner.UUID,
 		},
 	})
 	if err != nil {
@@ -311,45 +361,66 @@ func (h *ClientHandler) MeCreateCheckoutSession(ctx context.Context, in *MeCreat
 
 type MeCreateSetupCheckoutRequest struct {
 	Body struct {
-		TenantUUID string `json:"tenantUuid" doc:"UUID of a tenant the caller owns"`
+		OwnerKind  string `json:"ownerKind,omitempty" enum:"user,tenant" doc:"Polymorphic owner kind (defaults to user)"`
+		OwnerUUID  string `json:"ownerUuid,omitempty" doc:"Owner UUID — user UUID or tenant UUID per ownerKind. Defaults to the calling user when omitted."`
+		TenantUUID string `json:"tenantUuid,omitempty" doc:"Deprecated alias for ownerKind=tenant + ownerUuid"`
 		SuccessURL string `json:"successUrl" doc:"Absolute URL Stripe redirects to on success"`
 		CancelURL  string `json:"cancelUrl" doc:"Absolute URL Stripe redirects to on cancel"`
 	}
 }
 
 func (h *ClientHandler) MeCreateSetupCheckoutSession(ctx context.Context, in *MeCreateSetupCheckoutRequest) (*MeCheckoutSessionResponse, error) {
-	if in.Body.TenantUUID == "" {
-		return nil, huma.Error400BadRequest("tenantUuid is required")
-	}
 	if in.Body.SuccessURL == "" || in.Body.CancelURL == "" {
 		return nil, huma.Error400BadRequest("successUrl and cancelUrl are required")
 	}
 
-	owned, err := h.meOwnedTenants(ctx)
+	owned, err := h.callerOwnerSet(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := owned[in.Body.TenantUUID]; !ok {
+
+	// Resolve the owner from the input or default to the calling user.
+	var owner iface.Owner
+	switch {
+	case in.Body.OwnerUUID != "":
+		k := in.Body.OwnerKind
+		if k == "" {
+			k = string(iface.OwnerKindUser)
+		}
+		switch iface.OwnerKind(k) {
+		case iface.OwnerKindUser, iface.OwnerKindTenant:
+			owner = iface.Owner{Kind: iface.OwnerKind(k), UUID: in.Body.OwnerUUID}
+		default:
+			return nil, huma.Error400BadRequest("invalid ownerKind")
+		}
+	case in.Body.TenantUUID != "":
+		owner = iface.TenantOwner(in.Body.TenantUUID)
+	default:
+		// Default: the calling user.
+		userUUID, ok := middleware.GetUserUUID(ctx)
+		if !ok || userUUID == "" {
+			return nil, huma.Error401Unauthorized("authentication required")
+		}
+		owner = iface.UserOwner(userUUID)
+	}
+
+	if _, ok := owned[owner]; !ok {
 		return nil, huma.Error404NotFound("not found")
 	}
 
-	customer, err := h.ensureCustomer(ctx, in.Body.TenantUUID)
+	customer, customerEmail, err := h.ensureCustomerForOwner(ctx, owner)
 	if err != nil {
 		return nil, err
-	}
-
-	tenantEmail := ""
-	if t, gerr := h.tenants.GetTenant(ctx, in.Body.TenantUUID); gerr == nil && t != nil {
-		tenantEmail = t.Email
 	}
 
 	res, err := h.payment.CreateSetupCheckoutSession(ctx, iface.SetupCheckoutInput{
 		Customer:      customer,
 		SuccessURL:    in.Body.SuccessURL,
 		CancelURL:     in.Body.CancelURL,
-		CustomerEmail: tenantEmail,
+		CustomerEmail: customerEmail,
 		Metadata: map[string]string{
-			"tenantUUID": in.Body.TenantUUID,
+			"ownerKind": string(owner.Kind),
+			"ownerUUID": owner.UUID,
 		},
 	})
 	if err != nil {

@@ -234,7 +234,7 @@ Section B item #4 of the auth roadmap (2026-04-24) plumbs attribute-based signal
 |-----------|-------------------|--------------|--------|
 | principal | `system_role`     | String       | user module, present when non-empty |
 | principal | `tenant_roles`    | Set<String>  | TenantMembership.Roles, present when non-empty |
-| principal | `capabilities`    | Set<String>  | TenantProvider.ListCapabilityIDs, present when non-empty |
+| principal | `capabilities`    | Set<String>  | AccessProvider.ListCapabilityIDs(TenantOwner(tenantUUID)), present when non-empty |
 | principal | `mfa_enrolled`    | Bool         | JWT `amr` claim → middleware.IsMFAEnrolled — always stamped |
 | principal | `amr`             | Set<String>  | JWT `amr` claim, present when non-empty |
 | resource  | `kind`            | String       | TenantProvider.GetTenant.Kind (internal/external) |

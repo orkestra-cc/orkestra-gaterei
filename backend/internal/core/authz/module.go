@@ -128,10 +128,15 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	// registered (boot ordering) the Cedar principal simply has an empty
 	// capability set and the resource falls back to status="active".
 	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
+	accessProvider, _ := module.GetTyped[iface.AccessProvider](deps.Services, module.ServiceAccessProvider)
 	var lookupCaps services.TenantCapabilityLookup
 	var lookupTenantStatus services.TenantStatusLookup
+	if accessProvider != nil {
+		lookupCaps = func(ctx context.Context, tenantUUID string) ([]string, error) {
+			return accessProvider.ListCapabilityIDs(ctx, iface.TenantOwner(tenantUUID))
+		}
+	}
 	if tenantProvider != nil {
-		lookupCaps = tenantProvider.ListCapabilityIDs
 		lookupTenantStatus = func(ctx context.Context, tenantUUID string) (string, error) {
 			t, err := tenantProvider.GetTenant(ctx, tenantUUID)
 			if err != nil {
