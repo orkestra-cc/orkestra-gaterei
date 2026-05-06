@@ -141,8 +141,15 @@
     },
     "subscriptions": {
       "title": "Abbonamenti",
-      "placeholder": "Disponibile nella prossima fase.",
-      "cta": "Sfoglia il catalogo e avvia un nuovo abbonamento."
+      "cta": "Vedi gli abbonamenti attivi, le fatture e l'attività."
+    },
+    "transactions": {
+      "title": "Transazioni",
+      "cta": "Addebiti, rimborsi e cronologia delle transazioni Stripe."
+    },
+    "paymentMethods": {
+      "title": "Metodi di pagamento",
+      "cta": "Carte salvate per i rinnovi e le fatture in sospeso."
     },
     "changePassword": {
       "title": "Cambia password",
@@ -270,6 +277,106 @@
       "suspended": "Sospeso",
       "cancelled": "Annullato",
       "expired": "Scaduto"
+    }
+  },
+  "ownerScope": {
+    "label": "Visualizza",
+    "all": "Tutti gli account",
+    "personal": "Solo personale",
+    "tenantOption": "Organizzazione · {{id}}"
+  },
+  "dashboard": {
+    "subscriptions": {
+      "title": "Abbonamenti",
+      "subtitle": "Abbonamenti attivi e passati per i tuoi account.",
+      "startNew": "Avvia un nuovo abbonamento",
+      "browseCatalog": "Sfoglia il catalogo",
+      "empty": "Ancora nessun abbonamento. Scegli un servizio per iniziare.",
+      "ownerPersonal": "Personale",
+      "ownerTenant": "Organizzazione · {{id}}",
+      "serviceRef": "Servizio · {{id}}…",
+      "periodStart": "Inizio periodo",
+      "periodEnd": "Fine periodo",
+      "nextBilling": "Prossima fatturazione",
+      "willEnd": "Termina il"
+    },
+    "subscriptionDetail": {
+      "errorMissing": "Non riusciamo a capire a quale abbonamento si riferisce questo link.",
+      "errorLoad": "Impossibile caricare l'abbonamento. Riprova tra poco.",
+      "cancel": "Annulla abbonamento",
+      "cancelPrompt": "Come vuoi annullare? Mantieni l'accesso fino alla fine del periodo o blocca subito?",
+      "cancelAtPeriodEnd": "Termina a fine periodo",
+      "cancelImmediately": "Annulla subito",
+      "cancelKeep": "Mantieni",
+      "reactivate": "Riattiva",
+      "reactivating": "Riattivazione…",
+      "invoicesTitle": "Fatture",
+      "invoicesEmpty": "Ancora nessuna fattura — la prima viene generata all'inizio del ciclo di fatturazione.",
+      "invoicesError": "Impossibile caricare le fatture.",
+      "invoiceNumber": "Numero",
+      "invoicePeriod": "Periodo",
+      "invoiceAmount": "Importo",
+      "invoiceStatus": "Stato",
+      "invoiceIssued": "Emessa",
+      "invoiceStatusValue": {
+        "pending": "In attesa",
+        "paid": "Pagata",
+        "failed": "Fallita",
+        "refunded": "Rimborsata",
+        "void": "Annullata",
+        "awaiting_manual_payment": "In attesa di pagamento manuale"
+      },
+      "payNow": "Paga ora",
+      "paying": "Apertura checkout…",
+      "payNoPending": "Niente da pagare al momento — il prossimo addebito verrà generato automaticamente al rinnovo.",
+      "paySuccess": "Pagamento ricevuto. Lo stato della fattura si aggiornerà appena Stripe lo conferma.",
+      "payCancel": "Checkout annullato. Nessun addebito eseguito.",
+      "activityTitle": "Attività",
+      "activityEmpty": "Nessuna attività registrata.",
+      "activityError": "Impossibile caricare l'attività."
+    },
+    "activity": {
+      "actor": "Da {{actor}}",
+      "type": {
+        "created": "Abbonamento creato",
+        "charged": "Addebito riuscito",
+        "charge_failed": "Addebito fallito",
+        "refunded": "Rimborso eseguito",
+        "cancelled": "Annullato",
+        "reactivated": "Riattivato",
+        "suspended": "Sospeso",
+        "tier_changed": "Piano cambiato",
+        "invoice_issued": "Fattura emessa",
+        "manual_payment_required": "Pagamento manuale richiesto"
+      }
+    },
+    "transactions": {
+      "title": "Transazioni",
+      "subtitle": "Tutti gli addebiti, i tentativi e i rimborsi attribuiti ai tuoi account.",
+      "empty": "Nessuna transazione. Il primo addebito apparirà qui dopo il prossimo ciclo di fatturazione.",
+      "date": "Data",
+      "amount": "Importo",
+      "status": "Stato",
+      "provider": "Gateway",
+      "reference": "Riferimento",
+      "refundedAmount": "({{amount}} rimborsati)",
+      "statusValue": {
+        "pending": "In attesa",
+        "requires_action": "Richiede azione",
+        "succeeded": "Completata",
+        "failed": "Fallita",
+        "refunded": "Rimborsata",
+        "partially_refunded": "Parzialmente rimborsata"
+      }
+    },
+    "paymentMethods": {
+      "title": "Metodi di pagamento",
+      "subtitle": "Carte salvate su Stripe e usate per i rinnovi automatici.",
+      "empty": "Nessun metodo di pagamento salvato. Aggiungi una carta per i rinnovi automatici.",
+      "addCard": "Aggiungi una carta",
+      "adding": "Apertura Stripe…",
+      "defaultBadge": "Predefinita",
+      "expires": "Scade {{date}}"
     }
   },
   "lang": {

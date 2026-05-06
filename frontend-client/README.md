@@ -96,7 +96,7 @@ src/
 | 2 | Anonymous catalog browse + signup + email verification | ✅ done |
 | 3 | Login / account / profile / password change / MFA enrol | ✅ done |
 | 4 | Self-subscribe + Stripe Checkout (setup mode) + return URL | ✅ done |
-| 5 | Account dashboard (subscriptions, invoices, transactions, payment methods) | next |
+| 5 | Account dashboard — subscriptions list + detail (invoices, activity, cancel/reactivate, pay-outstanding), transactions, payment methods. Polymorphic-owner aware; owner switcher renders only when the caller has at least one owned tenant | ✅ done |
 
 Phase E AI runtime endpoints (deferred per ADR-0003) stay stubbed — the dashboard renders "Open service" placeholders until those routes land.
 

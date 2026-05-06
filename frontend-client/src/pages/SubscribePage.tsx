@@ -50,8 +50,8 @@ import { formatPrice } from '@/lib/format';
 // already exist (planner returns ErrCheckoutNoPendingInvoice → 409).
 // At cold-subscribe time no invoice exists yet, so payment-mode is
 // not viable here — it's the right tool for paying outstanding
-// invoices from the dashboard (Phase 5). Setup mode covers the cold
-// path without backend changes.
+// invoices from the subscription detail page. Setup mode covers the
+// cold path without backend changes.
 const PERSONAL_OPTION = '__personal__';
 
 export function SubscribePage() {

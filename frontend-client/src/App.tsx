@@ -15,6 +15,10 @@ import { BillingProfilePage } from '@/pages/BillingProfilePage';
 import { MfaEnrolPage } from '@/pages/MfaEnrolPage';
 import { SubscribePage } from '@/pages/SubscribePage';
 import { SubscribeReturnPage } from '@/pages/SubscribeReturnPage';
+import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
+import { SubscriptionDetailPage } from '@/pages/SubscriptionDetailPage';
+import { TransactionsPage } from '@/pages/TransactionsPage';
+import { PaymentMethodsPage } from '@/pages/PaymentMethodsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 export function App() {
@@ -58,6 +62,38 @@ export function App() {
           element={
             <RequireAuth>
               <BillingProfilePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account/subscriptions"
+          element={
+            <RequireAuth>
+              <SubscriptionsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account/subscriptions/:id"
+          element={
+            <RequireAuth>
+              <SubscriptionDetailPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account/transactions"
+          element={
+            <RequireAuth>
+              <TransactionsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account/payment-methods"
+          element={
+            <RequireAuth>
+              <PaymentMethodsPage />
             </RequireAuth>
           }
         />

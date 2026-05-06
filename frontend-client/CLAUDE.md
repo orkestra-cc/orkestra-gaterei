@@ -157,7 +157,7 @@ Two modes are available:
 | Mode | Endpoint | When to use |
 |---|---|---|
 | **setup** | `POST /v1/me/payments/setup-checkout-session` | Cold subscribe — user picks a tier, we create the subscription (status `active`, NextBillingAt now), open setup-mode Checkout to save the card. The renewal job (~1h cadence) generates the first invoice and charges off-session. |
-| **payment** | `POST /v1/me/payments/checkout-session` | Pay an already-pending invoice from the dashboard (Phase 5). Returns 409 if no pending invoice exists for the subscription — the planner does **not** generate one on demand. |
+| **payment** | `POST /v1/me/payments/checkout-session` | Pay an already-pending invoice from the subscription detail page. Returns 409 if no pending invoice exists for the subscription — the planner does **not** generate one on demand. |
 
 Return URL: `/subscribe/return?sub={uuid}&result=success|cancel`. Stripe is told the `success_url` and `cancel_url` at session-creation time; the SPA reads `result` from the query string to render the right state. There is no polling needed — the subscription is `active` at creation and entitlements are granted synchronously by the entitlement syncer.
 
@@ -229,7 +229,19 @@ The Vite dev server runs inside Docker; if you need to rebuild outside Docker (e
 
 ## Phase status
 
-Tracked in [README.md § Roadmap](README.md). At time of writing: phases 1–4 done (scaffold, anonymous catalog + signup, auth + account + MFA, self-subscribe + Stripe Checkout). Phase 5 (account dashboard — subscriptions, invoices, transactions, payment methods) is next.
+Tracked in [README.md § Roadmap](README.md). At time of writing all five phases are done: scaffold, anonymous catalog + signup, auth + account + MFA, self-subscribe + Stripe Checkout, and the polymorphic-owner-aware account dashboard (subscriptions list + detail with invoices/activity/cancel/reactivate/pay-outstanding, transactions, payment methods).
+
+### Dashboard owner scope
+
+Every `/v1/me/*` read is polymorphic — the backend's `callerOwnerSet` fans out across the calling user **plus** every tenant the caller owns. The SPA narrows that fan-out via `useOwnerScope()` (in `src/auth/ownerScope.ts`), which exposes a tri-state choice persisted to `localStorage`:
+
+- `{ kind: 'all' }` — default; no filter, the backend fans out
+- `{ kind: 'user' }` — only the calling user's principal
+- `{ kind: 'tenant', uuid }` — one specific owned tenant
+
+`<OwnerScopeSwitcher />` renders **only when the caller has at least one owned tenant** — single-owner clients (the typical Tier-2 shape) see no UI clutter and stay in implicit "personal" mode. The switcher is mounted on every dashboard page (subscriptions list, transactions, payment methods); the subscription detail page reads its scope from the persisted store too. The hook auto-resets to `{ kind: 'all' }` when the JWT no longer carries a previously selected tenant (token rotated, admin revoked the grant) — that path is exercised by the `useEffect` in `useOwnerScope`.
+
+The "Add card" button on `/account/payment-methods` resolves the owner from the active scope: tenant-scope routes the new card to the selected org, while both `all` and `user` route to the calling user (the most common Tier-2 case). The pay-outstanding flow on `/account/subscriptions/:id` opens **payment-mode** Checkout against the subscription's most recent pending or failed invoice — the planner returns 409 when nothing is due, and the UI surfaces a friendly hint pointing at the next renewal tick.
 
 ## Related
 

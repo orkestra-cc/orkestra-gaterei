@@ -5,9 +5,10 @@ import { useMe } from '@/auth/useMe';
 import { useAuth } from '@/auth/useAuth';
 
 // Authenticated landing — profile snapshot from /v1/auth/client/me plus
-// quick links to security and (Phase 5) the account dashboard.
-// useMe reads from the cache the AuthProvider populated on signIn so
-// the page renders synchronously after a fresh login.
+// quick links to security, billing details, and the dashboard surfaces
+// (subscriptions / transactions / payment methods). useMe reads from
+// the cache the AuthProvider populated on signIn so the page renders
+// synchronously after a fresh login.
 export function AccountPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -74,13 +75,31 @@ export function AccountPage() {
           <p className="text-sm text-slate-600">{t('account.billing.cta')}</p>
         </Link>
         <Link
-          to="/catalog"
+          to="/account/subscriptions"
           className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
         >
           <h2 className="mb-1 text-base font-semibold text-slate-900">
             {t('account.subscriptions.title')}
           </h2>
           <p className="text-sm text-slate-600">{t('account.subscriptions.cta')}</p>
+        </Link>
+        <Link
+          to="/account/transactions"
+          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
+        >
+          <h2 className="mb-1 text-base font-semibold text-slate-900">
+            {t('account.transactions.title')}
+          </h2>
+          <p className="text-sm text-slate-600">{t('account.transactions.cta')}</p>
+        </Link>
+        <Link
+          to="/account/payment-methods"
+          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
+        >
+          <h2 className="mb-1 text-base font-semibold text-slate-900">
+            {t('account.paymentMethods.title')}
+          </h2>
+          <p className="text-sm text-slate-600">{t('account.paymentMethods.cta')}</p>
         </Link>
       </div>
     </section>

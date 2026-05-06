@@ -141,8 +141,15 @@
     },
     "subscriptions": {
       "title": "Subscriptions",
-      "placeholder": "Coming in the next phase.",
-      "cta": "Browse the catalog and start a new subscription."
+      "cta": "View active subscriptions, invoices, and activity."
+    },
+    "transactions": {
+      "title": "Transactions",
+      "cta": "Charges, refunds, and Stripe transaction history."
+    },
+    "paymentMethods": {
+      "title": "Payment methods",
+      "cta": "Saved cards used for renewals and outstanding invoices."
     },
     "changePassword": {
       "title": "Change password",
@@ -270,6 +277,106 @@
       "suspended": "Suspended",
       "cancelled": "Cancelled",
       "expired": "Expired"
+    }
+  },
+  "ownerScope": {
+    "label": "Showing",
+    "all": "All accounts",
+    "personal": "Personal only",
+    "tenantOption": "Organization · {{id}}"
+  },
+  "dashboard": {
+    "subscriptions": {
+      "title": "Subscriptions",
+      "subtitle": "Active and past subscriptions across your accounts.",
+      "startNew": "Start a new subscription",
+      "browseCatalog": "Browse the catalog",
+      "empty": "No subscriptions yet. Pick a service to get started.",
+      "ownerPersonal": "Personal",
+      "ownerTenant": "Organization · {{id}}",
+      "serviceRef": "Service · {{id}}…",
+      "periodStart": "Period start",
+      "periodEnd": "Period end",
+      "nextBilling": "Next billing",
+      "willEnd": "Ends on"
+    },
+    "subscriptionDetail": {
+      "errorMissing": "We couldn't find which subscription this link refers to.",
+      "errorLoad": "Couldn't load this subscription. Try again in a moment.",
+      "cancel": "Cancel subscription",
+      "cancelPrompt": "How should we cancel? Keep access until the period ends, or stop right away?",
+      "cancelAtPeriodEnd": "End on period end",
+      "cancelImmediately": "Cancel now",
+      "cancelKeep": "Keep it",
+      "reactivate": "Reactivate",
+      "reactivating": "Reactivating…",
+      "invoicesTitle": "Invoices",
+      "invoicesEmpty": "No invoices yet — your first one is generated at the start of the billing cycle.",
+      "invoicesError": "Couldn't load invoices.",
+      "invoiceNumber": "Number",
+      "invoicePeriod": "Period",
+      "invoiceAmount": "Amount",
+      "invoiceStatus": "Status",
+      "invoiceIssued": "Issued",
+      "invoiceStatusValue": {
+        "pending": "Pending",
+        "paid": "Paid",
+        "failed": "Failed",
+        "refunded": "Refunded",
+        "void": "Void",
+        "awaiting_manual_payment": "Awaiting manual payment"
+      },
+      "payNow": "Pay now",
+      "paying": "Opening checkout…",
+      "payNoPending": "Nothing to pay right now — the renewal job will generate the next invoice automatically.",
+      "paySuccess": "Payment received. The invoice status will update once Stripe confirms it.",
+      "payCancel": "Checkout cancelled. Nothing was charged.",
+      "activityTitle": "Activity",
+      "activityEmpty": "No activity recorded yet.",
+      "activityError": "Couldn't load activity."
+    },
+    "activity": {
+      "actor": "By {{actor}}",
+      "type": {
+        "created": "Subscription created",
+        "charged": "Charge succeeded",
+        "charge_failed": "Charge failed",
+        "refunded": "Refunded",
+        "cancelled": "Cancelled",
+        "reactivated": "Reactivated",
+        "suspended": "Suspended",
+        "tier_changed": "Plan changed",
+        "invoice_issued": "Invoice issued",
+        "manual_payment_required": "Manual payment required"
+      }
+    },
+    "transactions": {
+      "title": "Transactions",
+      "subtitle": "Every charge, retry, and refund attributed to your accounts.",
+      "empty": "No transactions yet. Your first charge will appear here after the next billing cycle.",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "provider": "Gateway",
+      "reference": "Reference",
+      "refundedAmount": "({{amount}} refunded)",
+      "statusValue": {
+        "pending": "Pending",
+        "requires_action": "Awaiting action",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "refunded": "Refunded",
+        "partially_refunded": "Partially refunded"
+      }
+    },
+    "paymentMethods": {
+      "title": "Payment methods",
+      "subtitle": "Cards saved with Stripe and used for off-session renewals.",
+      "empty": "No saved payment methods. Add a card to power automatic renewals.",
+      "addCard": "Add a card",
+      "adding": "Opening Stripe…",
+      "defaultBadge": "Default",
+      "expires": "Expires {{date}}"
     }
   },
   "lang": {
