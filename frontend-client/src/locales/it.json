@@ -89,6 +89,14 @@
       "submit": "Verifica",
       "submitting": "Verifica in corso…",
       "cancel": "Annulla"
+    },
+    "notVerified": {
+      "title": "Indirizzo email non verificato",
+      "body": "Ti abbiamo inviato un link di verifica al momento della registrazione. Se non lo trovi, richiedine uno nuovo.",
+      "resendCta": "Reinvia email di verifica",
+      "resendSending": "Invio in corso…",
+      "resendCooldown": "Reinvio disponibile tra {{seconds}}s",
+      "resendDone": "Se l'indirizzo è registrato e non ancora verificato, ti abbiamo inviato una nuova email."
     }
   },
   "forgot": {

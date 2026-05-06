@@ -158,7 +158,7 @@ export function SignupPage() {
 
         <p className="text-center text-sm text-slate-600">
           {t('signup.haveAccount')}{' '}
-          <Link to="/signin" className="font-medium text-slate-900 underline">
+          <Link to="/login" className="font-medium text-slate-900 underline">
             {t('signup.signinLink')}
           </Link>
         </p>

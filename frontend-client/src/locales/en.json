@@ -89,6 +89,14 @@
       "submit": "Verify",
       "submitting": "Verifying…",
       "cancel": "Cancel"
+    },
+    "notVerified": {
+      "title": "Email address not verified",
+      "body": "We sent a verification link when you signed up. If you can't find it, request a new one.",
+      "resendCta": "Resend verification email",
+      "resendSending": "Sending…",
+      "resendCooldown": "Resend available in {{seconds}}s",
+      "resendDone": "If that address is registered and not yet verified, we've sent a new email."
     }
   },
   "forgot": {

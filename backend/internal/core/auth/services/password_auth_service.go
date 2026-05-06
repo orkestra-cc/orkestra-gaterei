@@ -616,18 +616,35 @@ func (s *PasswordAuthService) VerifyEmail(ctx context.Context, rawToken string) 
 }
 
 // ResendVerification issues a new verification email.
+//
+// Always returns nil regardless of outcome so callers cannot distinguish
+// "address unknown", "already verified", "rate-limited", or "sent" — the
+// public-facing 200 response stays neutral. Rate limiting shares the
+// same per-IP and per-email buckets as Login/ForgotPassword so an
+// attacker can't bypass one surface by hitting another.
 func (s *PasswordAuthService) ResendVerification(ctx context.Context, email, ip string) error {
 	email = strings.ToLower(strings.TrimSpace(email))
+	if s.rateLimiter != nil {
+		if s.rateLimiter.IsBlocked(ctx, "ip:"+ip) || s.rateLimiter.IsBlocked(ctx, "email:"+email) {
+			return nil
+		}
+	}
 	user, err := s.userService.GetUserForAuth(ctx, email)
 	if err != nil {
-		// Always return success to avoid enumeration.
 		return nil
 	}
 	if user.EmailVerified {
 		return nil
 	}
 	_ = s.emailTokenRepo.InvalidateByUserAndPurpose(ctx, user.UUID, authModels.EmailTokenPurposeVerifyEmail)
-	return s.sendVerificationEmail(ctx, user, ip)
+	if err := s.sendVerificationEmail(ctx, user, ip); err != nil {
+		return err
+	}
+	// Each successful send counts toward the shared limiter so a script
+	// spamming the endpoint from one IP / against one address trips the
+	// same lockout window that protects login.
+	s.recordFailed(ctx, ip, email)
+	return nil
 }
 
 // ForgotPassword issues a reset token and emails it. Always returns nil

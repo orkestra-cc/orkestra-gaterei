@@ -44,9 +44,12 @@ export function VerifyEmailPage() {
       )}
 
       {status === 'missing' && (
-        <p className="text-red-700" role="alert">
-          {t('verify.missingToken')}
-        </p>
+        <>
+          <p className="mb-8 text-slate-600" role="alert">
+            {t('verify.missingToken')}
+          </p>
+          <ResendForm />
+        </>
       )}
 
       {status === 'success' && (
@@ -54,7 +57,7 @@ export function VerifyEmailPage() {
           <p className="mb-6 text-lg font-medium text-emerald-700">{t('verify.successTitle')}</p>
           <p className="mb-8 text-slate-600">{t('verify.successBody')}</p>
           <Link
-            to="/signin"
+            to="/login"
             className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700"
           >
             {t('verify.signinCta')}

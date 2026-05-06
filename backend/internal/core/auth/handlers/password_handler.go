@@ -284,12 +284,32 @@ func buildRefreshCookie(name, value, domain string, secure bool) string {
 	return c.String()
 }
 
+// codedError is a huma.StatusError that adds a stable machine-readable
+// `code` field on top of the standard problem+json shape, so SPAs can
+// discriminate specific error cases without parsing the localized
+// `detail` text. Mirrors the convention used by the step_up_required
+// 401 envelope in shared/middleware/auth.go.
+type codedError struct {
+	Status int    `json:"status"`
+	Title  string `json:"title,omitempty"`
+	Detail string `json:"detail"`
+	Code   string `json:"code,omitempty"`
+}
+
+func (e *codedError) Error() string  { return e.Detail }
+func (e *codedError) GetStatus() int { return e.Status }
+
 func mapPasswordError(err error) error {
 	switch {
 	case errors.Is(err, services.ErrInvalidCredentials):
 		return huma.Error401Unauthorized("Invalid email or password")
 	case errors.Is(err, services.ErrEmailNotVerified):
-		return huma.Error403Forbidden("Email address not verified. Please check your inbox for the verification email.")
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Email address not verified. Please check your inbox for the verification email.",
+			Code:   "email_not_verified",
+		}
 	case errors.Is(err, services.ErrAccountLocked):
 		return huma.Error429TooManyRequests("Too many failed attempts. Please try again later.")
 	case errors.Is(err, services.ErrUserInactive):
