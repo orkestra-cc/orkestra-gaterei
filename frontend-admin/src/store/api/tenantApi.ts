@@ -463,6 +463,25 @@ export const tenantApi = baseApi.injectEndpoints({
       providesTags: (_, __, tenantId) => [{ type: 'Membership', id: tenantId }],
     }),
 
+    attachOrgMemberAdmin: builder.mutation<
+      { member: MembershipRecord },
+      {
+        tenantId: string;
+        body: { userUuid?: string; userEmail?: string; role: string; isOwner?: boolean };
+      }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/tenants/${tenantId}/members`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'Membership', id: tenantId },
+        { type: 'AdminOrg', id: tenantId },
+        { type: 'AdminOrg', id: 'LIST' },
+      ],
+    }),
+
     removeOrgMemberAdmin: builder.mutation<void, { tenantId: string; userUUID: string }>({
       query: ({ tenantId, userUUID }) => ({
         url: `/v1/admin/tenants/${tenantId}/members/${userUUID}`,
@@ -527,6 +546,7 @@ export const {
   usePurgeOrgAdminMutation,
   useUpdateOrgPlanAdminMutation,
   useListOrgMembersAdminQuery,
+  useAttachOrgMemberAdminMutation,
   useRemoveOrgMemberAdminMutation,
   useListOrgInvitesAdminQuery,
   useCreateOrgInviteAdminMutation,

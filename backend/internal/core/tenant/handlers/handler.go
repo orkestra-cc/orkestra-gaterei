@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/core/tenant/models"
@@ -350,6 +352,92 @@ func (h *Handler) removeMember(ctx context.Context, in *removeMemberInput) (*str
 	return &struct{}{}, nil
 }
 
+// attachMemberAdminInput is the wire shape for the admin direct-grant flow.
+// Either UserUUID or UserEmail must be supplied; UserUUID wins when both are
+// provided. Role is the authz role name to grant (typically org_owner /
+// org_admin / org_member); IsOwner stamps the denormalized owner flag on the
+// membership row but does not change the tenant's primary owner.
+type attachMemberAdminInput struct {
+	TenantID string `path:"tenantId"`
+	Body     struct {
+		UserUUID  string `json:"userUuid,omitempty" doc:"UUID of the existing user to attach (preferred over userEmail when both are supplied)"`
+		UserEmail string `json:"userEmail,omitempty" doc:"Email of the existing user; resolved against the tier-aware UserProvider"`
+		Role      string `json:"role" doc:"authz role name to grant (e.g. org_owner, org_admin, org_member)"`
+		IsOwner   bool   `json:"isOwner,omitempty" doc:"Stamp the denormalized owner flag on the membership row"`
+	}
+}
+
+type attachMemberAdminOutput struct {
+	Body struct {
+		Member membershipRow `json:"member"`
+	}
+}
+
+// attachMemberAdmin resolves the target user (by UUID or by email through
+// the tier-appropriate UserProvider), validates the tenant exists, and
+// delegates the membership write + authz binding to services.AttachMember.
+// The handler maps service errors to HTTP status codes verbatim — the
+// service layer is the single place that owns the validation taxonomy.
+func (h *Handler) attachMemberAdmin(ctx context.Context, in *attachMemberAdminInput) (*attachMemberAdminOutput, error) {
+	if in.Body.Role == "" {
+		return nil, huma.Error400BadRequest("role is required")
+	}
+	if in.Body.UserUUID == "" && in.Body.UserEmail == "" {
+		return nil, huma.Error400BadRequest("userUuid or userEmail is required")
+	}
+
+	t, err := h.svc.GetTenant(ctx, in.TenantID)
+	if err != nil || t == nil {
+		return nil, huma.Error404NotFound("tenant not found")
+	}
+
+	userUUID := strings.TrimSpace(in.Body.UserUUID)
+	resolvedEmail := ""
+	if userUUID == "" {
+		// Resolve by email via the tier-matched UserProvider. Internal
+		// tenants get operator users; external tenants get client users —
+		// admin-attach must not silently mix audiences.
+		providerKey := module.ServiceOperatorUserProvider
+		if t.Kind == iface.TenantKindExternal {
+			providerKey = module.ServiceClientUserProvider
+		}
+		provider, ok := module.GetTyped[iface.UserProvider](h.registry, providerKey)
+		if !ok || provider == nil {
+			return nil, huma.Error503ServiceUnavailable("user provider not configured for tenant tier")
+		}
+		u, err := provider.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(in.Body.UserEmail)))
+		if err != nil || u == nil {
+			return nil, huma.Error404NotFound("user not found")
+		}
+		userUUID = u.ID
+		resolvedEmail = u.Email
+	}
+
+	mbr, err := h.svc.AttachMember(ctx, in.TenantID, userUUID, in.Body.Role, in.Body.IsOwner)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrAttachInput):
+			return nil, huma.Error400BadRequest(err.Error())
+		case errors.Is(err, services.ErrMembershipExists):
+			return nil, huma.Error409Conflict("user is already a member of this tenant")
+		case errors.Is(err, repository.ErrNotFound):
+			return nil, huma.Error404NotFound("tenant not found")
+		default:
+			return nil, huma.Error500InternalServerError("attach failed", err)
+		}
+	}
+
+	out := &attachMemberAdminOutput{}
+	out.Body.Member = membershipRow{TenantMembership: *mbr, Email: resolvedEmail}
+	if out.Body.Member.Email == "" {
+		// Email was not resolved upfront (UUID-only request) — best-effort
+		// enrich for the response so the operator UI can render the row
+		// without an extra round trip.
+		h.enrichMemberEmails(ctx, in.TenantID, []membershipRow{out.Body.Member})
+	}
+	return out, nil
+}
+
 func (h *Handler) createInvite(ctx context.Context, in *inviteInput) (*inviteOutput, error) {
 	userUUID, _ := middleware.GetUserUUID(ctx)
 	inv, err := h.svc.CreateInvite(ctx, in.TenantID, userUUID, in.Body)
@@ -471,6 +559,15 @@ func (h *Handler) RegisterAdminRoutes(api huma.API) {
 		Summary:     "List tenant members (platform admin)",
 		Tags:        []string{"Tenants Admin"},
 	}, h.listMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "attach-tenant-member-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/tenants/{tenantId}/members",
+		Summary:     "Attach an existing user to a tenant (platform admin direct grant)",
+		Description: "Direct-grant alternative to the email invite flow. Looks up the target user by UUID or email (tier-aware), then inserts a membership row and creates the matching authz binding so the user can act in the tenant immediately. 404 when the tenant or user is missing, 409 when the user is already a member.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.attachMemberAdmin)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-tenant-member-admin",

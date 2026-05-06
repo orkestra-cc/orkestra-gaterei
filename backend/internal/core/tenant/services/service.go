@@ -696,6 +696,18 @@ func (s *Service) IsDescendantOf(ctx context.Context, ancestorUUID, descendantUU
 
 // --- Memberships ---
 
+// ErrMembershipExists is returned by AttachMember when (userUUID, tenantUUID)
+// already has a membership row. Admin-attach is intentionally not a "re-bind
+// with a different role" path — separating create-vs-update at the service
+// boundary keeps the authz binding mutation explicit (callers must use
+// SetMemberRoles + a separate authz binding update to change role).
+var ErrMembershipExists = errors.New("tenant: user is already a member of tenant")
+
+// ErrAttachInput is returned when the inputs to AttachMember are missing or
+// blank. The handler maps this to 400 — the callers are admins, not anonymous
+// clients, so a clear validation error is appropriate.
+var ErrAttachInput = errors.New("tenant: attach requires non-empty tenantUUID, userUUID, role")
+
 func (s *Service) ListMembers(ctx context.Context, tenantUUID string) ([]models.TenantMembership, error) {
 	return s.repo.ListMembershipsByTenant(ctx, tenantUUID)
 }
@@ -706,6 +718,80 @@ func (s *Service) RemoveMember(ctx context.Context, tenantUUID, userUUID string)
 
 func (s *Service) SetMemberRoles(ctx context.Context, tenantUUID, userUUID string, roles []string) error {
 	return s.repo.UpdateMembershipRoles(ctx, userUUID, tenantUUID, roles)
+}
+
+// AttachMember binds an existing user to an existing tenant with a single
+// tenant-scoped role. Used by the operator-admin direct-grant flow that
+// replaces the retired token-based invite (Phase 5 of the polymorphic-owner
+// refactor) — operators curate which clients aggregate under which tenants
+// without going through an email-invite handshake.
+//
+// Behavior:
+//   - 404 (repository.ErrNotFound) when the tenant is missing or soft-deleted
+//   - 409 (ErrMembershipExists) when the user is already a member; admins
+//     change roles via the (future) SetMemberRoles route, not by re-attach
+//   - the membership is inserted with Roles=[roleName], IsOwner=isOwner
+//   - the OwnerRoleBinder hook (wired by authz) creates the authz binding
+//     for the named role using granter="system" so the cascade rule does
+//     not block platform-issued grants. Without authz wired the membership
+//     still persists — the role name on Membership.Roles is informational
+//     and the user has no extra permissions until a binding lands later.
+//
+// Idempotency: not idempotent on input — each call requires a clean state.
+// The tenant lookup happens before the membership write so a missing tenant
+// 404s cleanly without a half-attached row.
+func (s *Service) AttachMember(ctx context.Context, tenantUUID, userUUID, roleName string, isOwner bool) (*models.TenantMembership, error) {
+	if strings.TrimSpace(tenantUUID) == "" || strings.TrimSpace(userUUID) == "" || strings.TrimSpace(roleName) == "" {
+		return nil, ErrAttachInput
+	}
+	t, err := s.repo.GetTenantByUUID(ctx, tenantUUID)
+	if err != nil {
+		return nil, err
+	}
+	if t.DeletedAt != nil {
+		return nil, repository.ErrNotFound
+	}
+	if existing, err := s.repo.GetMembership(ctx, userUUID, tenantUUID); err == nil && existing != nil {
+		return nil, ErrMembershipExists
+	} else if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return nil, err
+	}
+	membership := &models.TenantMembership{
+		UUID:       uuid.Must(uuid.NewV7()).String(),
+		UserUUID:   userUUID,
+		TenantUUID: tenantUUID,
+		TenantKind: t.Kind,
+		Roles:      []string{roleName},
+		IsOwner:    isOwner,
+	}
+	if err := s.repo.CreateMembership(ctx, membership); err != nil {
+		return nil, err
+	}
+	if s.bindOwner != nil {
+		if err := s.bindOwner(ctx, userUUID, tenantUUID, roleName); err != nil {
+			// Roll back the membership so the operator sees a clean failure
+			// rather than a half-attached row with no authz binding.
+			_ = s.repo.DeleteMembership(ctx, userUUID, tenantUUID)
+			return nil, fmt.Errorf("tenant: bind role on attach: %w", err)
+		}
+	}
+	actor, _, _ := actorFromContext(ctx)
+	if actor == "" {
+		actor = "system"
+	}
+	s.emitAudit(ctx, iface.AuditEvent{
+		TenantID:     tenantUUID,
+		ActorUserID:  actor,
+		Action:       "tenant.member.attached",
+		ResourceType: "tenant_membership",
+		ResourceID:   membership.UUID,
+		Metadata: map[string]any{
+			"userUUID": userUUID,
+			"role":     roleName,
+			"isOwner":  isOwner,
+		},
+	})
+	return membership, nil
 }
 
 // --- Invites ---

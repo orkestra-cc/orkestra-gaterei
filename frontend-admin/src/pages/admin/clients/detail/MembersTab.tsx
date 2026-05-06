@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, Spinner, Table } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import SubtleBadge from 'components/common/SubtleBadge';
@@ -7,6 +8,7 @@ import {
   useRemoveOrgMemberAdminMutation,
 } from 'store/api/tenantApi';
 import { Button } from 'react-bootstrap';
+import AttachMemberModal from './AttachMemberModal';
 
 interface Props {
   org: Org;
@@ -20,6 +22,7 @@ interface Props {
 const MembersTab: React.FC<Props> = ({ org }) => {
   const { data, isLoading, error } = useListOrgMembersAdminQuery(org.id);
   const [removeMember] = useRemoveOrgMemberAdminMutation();
+  const [attachOpen, setAttachOpen] = useState(false);
 
   const onRemove = async (userUUID: string) => {
     try {
@@ -49,11 +52,21 @@ const MembersTab: React.FC<Props> = ({ org }) => {
 
   return (
     <>
-      <Alert variant="info" className="fs-10 py-2">
-        Role assignments are managed on the{' '}
-        <a href="/admin/roles">Role Management page</a>. This tab shows current
-        memberships and lets you remove non-owner rows.
-      </Alert>
+      <div className="d-flex justify-content-between align-items-start mb-2 gap-3">
+        <Alert variant="info" className="fs-10 py-2 mb-0 flex-grow-1">
+          Direct-attach a user as a member, or remove non-owner rows. Custom
+          role assignments still live on the{' '}
+          <a href="/admin/roles">Role Management page</a>.
+        </Alert>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setAttachOpen(true)}
+          className="flex-shrink-0"
+        >
+          Attach Member
+        </Button>
+      </div>
       <Table size="sm" className="fs-10 mb-0">
         <thead className="bg-body-tertiary">
           <tr>
@@ -104,6 +117,11 @@ const MembersTab: React.FC<Props> = ({ org }) => {
           )}
         </tbody>
       </Table>
+      <AttachMemberModal
+        org={org}
+        show={attachOpen}
+        onHide={() => setAttachOpen(false)}
+      />
     </>
   );
 };
