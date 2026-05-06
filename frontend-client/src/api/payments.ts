@@ -52,8 +52,15 @@ async function authedJson(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+// Owner is polymorphic per the post-onboarding refactor: tenant-owned
+// when the user picks an admin-attached organization, user-owned for
+// the personal default. The backend defaults `ownerKind` to "user" when
+// the body omits both ownerUuid and tenantUuid, so a personal subscribe
+// only needs the success/cancel URLs.
 export interface CreateSetupCheckoutInput {
-  tenantUuid: string;
+  ownerKind?: 'user' | 'tenant';
+  ownerUuid?: string;
+  tenantUuid?: string;
   successUrl: string;
   cancelUrl: string;
 }

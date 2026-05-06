@@ -46,7 +46,8 @@ frontend-client/
 │   │   ├── catalog.ts          # /v1/public/catalog/services (anonymous)
 │   │   ├── verifyEmail.ts      # /v1/auth/client/verify-email{,/resend}
 │   │   ├── subscriptions.ts    # /v1/me/subscriptions self-service
-│   │   └── payments.ts         # /v1/me/payments/{,setup-}checkout-session
+│   │   ├── payments.ts         # /v1/me/payments/{,setup-}checkout-session
+│   │   └── billingProfile.ts   # /v1/me/billing-profile (user-owner billing identity)
 │   ├── auth/
 │   │   ├── AuthProvider.tsx    # React context: in-memory access token + signIn/signOut
 │   │   ├── authContext.ts      # Context shape
@@ -161,6 +162,10 @@ Two modes are available:
 Return URL: `/subscribe/return?sub={uuid}&result=success|cancel`. Stripe is told the `success_url` and `cancel_url` at session-creation time; the SPA reads `result` from the query string to render the right state. There is no polling needed — the subscription is `active` at creation and entitlements are granted synchronously by the entitlement syncer.
 
 If you add a third Stripe flow (refunds UI, customer portal redirect, etc.), follow the same pattern: backend creates the session, frontend redirects via `window.location.href`. Never embed Stripe Elements without explicit sign-off — the MVP design call is hosted-only to minimize PCI scope.
+
+### Owner & billing-profile gate
+
+Subscribes are polymorphic: `SubscribePage` defaults to **personal** (`ownerKind:"user"` — the calling user is the owner) and only renders an organization picker when `useOwnedTenants()` returns rows. Personal subscribes require a row in `clientbilling_customers` (Phase 2 of the polymorphic-owner refactor) — without it, the payments handler returns 409 `"complete your billing profile before checkout"`. The SPA pre-flights `GET /v1/me/billing-profile` before opening Checkout and bounces to `/account/billing?next=/subscribe?...` if `hasBillingProfile()` is false; the same redirect runs as a fallback when the post-create checkout-session call still 409s. Tenant-owner subscribes reuse the existing `tenant.StripeCustomerID` seam and do not need the billing-profile form.
 
 ## Path aliases
 

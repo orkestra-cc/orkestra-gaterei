@@ -65,6 +65,15 @@ export function AccountPage() {
           <p className="text-sm text-slate-600">{t('account.security.cta')}</p>
         </Link>
         <Link
+          to="/account/billing"
+          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
+        >
+          <h2 className="mb-1 text-base font-semibold text-slate-900">
+            {t('account.billing.title')}
+          </h2>
+          <p className="text-sm text-slate-600">{t('account.billing.cta')}</p>
+        </Link>
+        <Link
           to="/catalog"
           className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:border-slate-300 hover:shadow-md"
         >

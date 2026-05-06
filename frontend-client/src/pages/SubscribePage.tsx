@@ -4,25 +4,46 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import { listPublicCatalog, findServiceByCode } from '@/api/catalog';
-import { selfSubscribe, type Subscription } from '@/api/subscriptions';
-import { createSetupCheckoutSession } from '@/api/payments';
+import {
+  selfSubscribe,
+  type SelfSubscribeInput,
+  type Subscription,
+} from '@/api/subscriptions';
+import {
+  createSetupCheckoutSession,
+  type CreateSetupCheckoutInput,
+  type PaymentApiError,
+} from '@/api/payments';
+import { getBillingProfile, hasBillingProfile } from '@/api/billingProfile';
 import { useOwnedTenants } from '@/auth/memberships';
 import { formatPrice } from '@/lib/format';
 
-// Subscribe orchestration page (Phase 4):
+// Subscribe orchestration page (Phase 3 polymorphic-owner update):
+//
 //   1. Read service+tier from query string (set by /catalog/:code).
-//   2. Resolve a tenant the caller owns (auto-select when there is only
-//      one, picker when several). The backend re-checks ownership on
-//      every /v1/me/* call so this is a UX hint, not a security gate.
-//   3. POST /v1/me/subscriptions — the backend creates the subscription
-//      with Status=active and NextBillingAt=now (entitlements granted
+//   2. Resolve the owner. Default is "personal" — owner = the calling
+//      user, no tenant required. If the caller owns one or more tenants
+//      they pick "Personal" or one of those tenants from a dropdown.
+//      The backend re-checks ownership on every /v1/me/* call so this is
+//      a UX hint, not a security gate.
+//   3. For user-owner subscribes the caller must have a billing profile
+//      (Phase 2 of the polymorphic-owner refactor). We GET it first; if
+//      missing, redirect to /account/billing?next=/subscribe?... so the
+//      flow returns here once the form is saved. Tenant-owner subscribes
+//      reuse the existing tenant.StripeCustomerID seam — no profile
+//      check needed.
+//   4. POST /v1/me/subscriptions — backend creates the subscription with
+//      Status=active and NextBillingAt=now (entitlements granted
 //      synchronously by the entitlement syncer).
-//   4. POST /v1/me/payments/setup-checkout-session — opens hosted
-//      Stripe Checkout in setup mode so the card is saved without
-//      charging. The renewal job (default 1h cadence) generates the
-//      first invoice and charges the saved card off-session via the
-//      same metadata stamp the existing webhook reconciler matches on.
-//   5. Redirect to Stripe via window.location.href. Return URL is
+//   5. POST /v1/me/payments/setup-checkout-session — opens hosted Stripe
+//      Checkout in setup mode so the card is saved without charging. The
+//      renewal job (default 1h cadence) generates the first invoice and
+//      charges the saved card off-session via the existing webhook
+//      reconciler metadata stamp. If the backend returns 409 ("complete
+//      your billing profile") we still bounce to the billing form — the
+//      pre-flight GET should make this rare but not impossible (e.g. a
+//      mid-flow profile reset).
+//   6. Redirect to Stripe via window.location.href. Return URL is
 //      /subscribe/return?sub={uuid}&result=success|cancel.
 //
 // Design note: payment-mode Checkout requires a pending invoice to
@@ -31,6 +52,8 @@ import { formatPrice } from '@/lib/format';
 // not viable here — it's the right tool for paying outstanding
 // invoices from the dashboard (Phase 5). Setup mode covers the cold
 // path without backend changes.
+const PERSONAL_OPTION = '__personal__';
+
 export function SubscribePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -39,7 +62,10 @@ export function SubscribePage() {
   const tierCode = params.get('tier') ?? '';
 
   const ownedTenants = useOwnedTenants();
-  const [selectedTenant, setSelectedTenant] = useState<string>('');
+  // Default the owner to "personal" — every authenticated client can
+  // subscribe as themselves regardless of tenant memberships.
+  const [selectedOwner, setSelectedOwner] = useState<string>(PERSONAL_OPTION);
+  const [profileGate, setProfileGate] = useState<'idle' | 'checking'>('idle');
 
   const catalog = useQuery({
     queryKey: ['catalog'],
@@ -53,43 +79,76 @@ export function SubscribePage() {
   const tier = service?.pricingTiers.find((t) => t.code === tierCode);
   const language = i18n.resolvedLanguage ?? 'it';
 
-  // Auto-select the only owned tenant once memberships resolve. Skip
-  // when the user has manually changed the picker so a token rotation
-  // mid-session doesn't yank the selection back.
+  // If the user has no owned tenants the dropdown is hidden and the
+  // owner stays "personal". Reset to personal whenever the membership
+  // set changes so a stale tenant id doesn't linger after a token
+  // rotation removes ownership.
   useEffect(() => {
-    if (selectedTenant) return;
-    if (ownedTenants.length === 1) setSelectedTenant(ownedTenants[0].tenantUuid);
-  }, [ownedTenants, selectedTenant]);
+    if (selectedOwner === PERSONAL_OPTION) return;
+    const stillOwned = ownedTenants.some((m) => m.tenantUuid === selectedOwner);
+    if (!stillOwned) setSelectedOwner(PERSONAL_OPTION);
+  }, [ownedTenants, selectedOwner]);
 
   const subscribeMutation = useMutation<
     { sub: Subscription; checkoutUrl: string },
     Error,
-    { tenantUuid: string }
+    { ownerKind: 'user' | 'tenant'; tenantUuid?: string }
   >({
-    mutationFn: async ({ tenantUuid }) => {
+    mutationFn: async ({ ownerKind, tenantUuid }) => {
       if (!serviceCode || !tierCode) throw new Error(t('subscribe.errorMissingTier'));
-      const sub = await selfSubscribe({ tenantUuid, serviceCode, tierCode });
+      const subInput: SelfSubscribeInput = { serviceCode, tierCode, ownerKind };
+      if (ownerKind === 'tenant') subInput.tenantUuid = tenantUuid;
+      const sub = await selfSubscribe(subInput);
       const origin = window.location.origin;
       const successUrl = `${origin}/subscribe/return?sub=${encodeURIComponent(sub.uuid)}&result=success`;
       const cancelUrl = `${origin}/subscribe/return?sub=${encodeURIComponent(sub.uuid)}&result=cancel`;
-      const session = await createSetupCheckoutSession({
-        tenantUuid,
+      const checkoutInput: CreateSetupCheckoutInput = {
+        ownerKind,
         successUrl,
         cancelUrl,
-      });
+      };
+      if (ownerKind === 'tenant') checkoutInput.tenantUuid = tenantUuid;
+      const session = await createSetupCheckoutSession(checkoutInput);
       return { sub, checkoutUrl: session.url };
     },
     onSuccess: ({ checkoutUrl }) => {
       // Stripe-hosted Checkout — full-page navigation. The browser
-      // returns to /subscribe/return after the user enters card
-      // details (success) or hits cancel.
+      // returns to /subscribe/return after the user enters card details
+      // (success) or hits cancel.
       window.location.href = checkoutUrl;
+    },
+    onError: (e) => {
+      const apiErr = e as PaymentApiError;
+      // Backend signals "user has not filled billing profile" with 409.
+      // The pre-flight GET below should make this rare, but a stale
+      // profile (e.g. cleared between tabs) would still land here.
+      if (apiErr.status === 409) {
+        const here = `/subscribe?service=${encodeURIComponent(serviceCode)}&tier=${encodeURIComponent(tierCode)}`;
+        navigate(`/account/billing?next=${encodeURIComponent(here)}`);
+      }
     },
   });
 
-  function handleSubscribe() {
-    if (!selectedTenant) return;
-    subscribeMutation.mutate({ tenantUuid: selectedTenant });
+  async function handleSubscribe() {
+    if (subscribeMutation.isPending || profileGate === 'checking') return;
+    if (selectedOwner === PERSONAL_OPTION) {
+      // Pre-flight check: only the user-owner branch needs a billing
+      // profile. Tenant-owner uses the tenant's existing details.
+      setProfileGate('checking');
+      try {
+        const profile = await getBillingProfile();
+        if (!hasBillingProfile(profile)) {
+          const here = `/subscribe?service=${encodeURIComponent(serviceCode)}&tier=${encodeURIComponent(tierCode)}`;
+          navigate(`/account/billing?next=${encodeURIComponent(here)}`);
+          return;
+        }
+      } finally {
+        setProfileGate('idle');
+      }
+      subscribeMutation.mutate({ ownerKind: 'user' });
+      return;
+    }
+    subscribeMutation.mutate({ ownerKind: 'tenant', tenantUuid: selectedOwner });
   }
 
   if (!serviceCode || !tierCode) {
@@ -134,28 +193,6 @@ export function SubscribePage() {
     );
   }
 
-  if (ownedTenants.length === 0) {
-    // Tier-2 self-service implicitly assumes single-owner tenants —
-    // a fresh signup flow always provisions one. If the user landed
-    // here with no owned tenant something is off (their tenant was
-    // archived, or they signed up out-of-band). Surface a clear path
-    // back through the onboarding form rather than a blank screen.
-    return (
-      <section className="mx-auto max-w-2xl px-6 py-16 text-center">
-        <h1 className="mb-3 text-3xl font-semibold tracking-tight">
-          {t('subscribe.noTenantTitle')}
-        </h1>
-        <p className="mb-8 text-slate-600">{t('subscribe.noTenantBody')}</p>
-        <Link
-          to={`/signup?service=${encodeURIComponent(serviceCode)}&tier=${encodeURIComponent(tierCode)}`}
-          className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          {t('subscribe.createOrg')}
-        </Link>
-      </section>
-    );
-  }
-
   const price = formatPrice(tier.amountCents, tier.currency, language);
   const setupFee = service.setupFeeCents
     ? formatPrice(service.setupFeeCents, tier.currency, language)
@@ -186,25 +223,25 @@ export function SubscribePage() {
         )}
       </div>
 
-      {ownedTenants.length > 1 && (
+      {ownedTenants.length > 0 && (
         <div className="mb-6">
-          <label htmlFor="tenant" className="mb-1 block text-sm font-medium text-slate-700">
-            {t('subscribe.tenantLabel')}
+          <label htmlFor="owner" className="mb-1 block text-sm font-medium text-slate-700">
+            {t('subscribe.ownerLabel')}
           </label>
           <select
-            id="tenant"
-            value={selectedTenant}
-            onChange={(e) => setSelectedTenant(e.target.value)}
+            id="owner"
+            value={selectedOwner}
+            onChange={(e) => setSelectedOwner(e.target.value)}
             className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
           >
-            <option value="">{t('subscribe.tenantPlaceholder')}</option>
+            <option value={PERSONAL_OPTION}>{t('subscribe.ownerPersonal')}</option>
             {ownedTenants.map((m) => (
               <option key={m.tenantUuid} value={m.tenantUuid}>
                 {m.tenantUuid}
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-slate-500">{t('subscribe.tenantHint')}</p>
+          <p className="mt-1 text-xs text-slate-500">{t('subscribe.ownerHint')}</p>
         </div>
       )}
 
@@ -219,10 +256,12 @@ export function SubscribePage() {
       <button
         type="button"
         onClick={handleSubscribe}
-        disabled={subscribeMutation.isPending || !selectedTenant}
+        disabled={subscribeMutation.isPending || profileGate === 'checking'}
         className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
       >
-        {subscribeMutation.isPending ? t('subscribe.submitting') : t('subscribe.submit')}
+        {subscribeMutation.isPending || profileGate === 'checking'
+          ? t('subscribe.submitting')
+          : t('subscribe.submit')}
       </button>
 
       <button

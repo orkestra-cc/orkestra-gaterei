@@ -12,10 +12,14 @@ export type SubscriptionStatus =
   | 'cancelled'
   | 'expired';
 
+// Wire shape matches backend/internal/addons/subscriptions/models/subscription.go.
+// Polymorphic owner is exposed as ownerKind + ownerUUID; tenant-owned
+// subs carry Kind="tenant", personal subs carry Kind="user".
 export interface Subscription {
   uuid: string;
-  tenantUuid: string;
-  serviceUuid: string;
+  ownerKind: 'user' | 'tenant';
+  ownerUUID: string;
+  serviceUUID: string;
   tierCode: string;
   status: SubscriptionStatus;
   startedAt: string;
@@ -23,6 +27,7 @@ export interface Subscription {
   currentPeriodEnd: string;
   nextBillingAt?: string;
   cancelledAt?: string;
+  cancelAtPeriodEnd?: boolean;
 }
 
 export interface SubscriptionApiError extends Error {
@@ -60,8 +65,14 @@ async function authedJson(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+// Owner is polymorphic per the post-onboarding refactor: when ownerKind
+// is omitted (or set to "user") the subscription is created on the
+// calling user's personal scope; tenant-owned subscribes pass
+// ownerKind:"tenant" plus a tenantUuid the caller owns. Backend default
+// is "user", so a personal subscribe only needs serviceCode + tierCode.
 export interface SelfSubscribeInput {
-  tenantUuid: string;
+  ownerKind?: 'user' | 'tenant';
+  tenantUuid?: string;
   serviceCode: string;
   tierCode: string;
 }

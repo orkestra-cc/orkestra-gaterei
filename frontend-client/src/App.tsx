@@ -11,6 +11,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { AccountSecurityPage } from '@/pages/AccountSecurityPage';
+import { BillingProfilePage } from '@/pages/BillingProfilePage';
 import { MfaEnrolPage } from '@/pages/MfaEnrolPage';
 import { SubscribePage } from '@/pages/SubscribePage';
 import { SubscribeReturnPage } from '@/pages/SubscribeReturnPage';
@@ -49,6 +50,14 @@ export function App() {
           element={
             <RequireAuth>
               <MfaEnrolPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/account/billing"
+          element={
+            <RequireAuth>
+              <BillingProfilePage />
             </RequireAuth>
           }
         />
