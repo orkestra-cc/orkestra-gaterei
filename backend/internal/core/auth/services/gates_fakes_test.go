@@ -256,16 +256,24 @@ type fakeNotFoundErr struct{}
 
 func (*fakeNotFoundErr) Error() string { return "user not found" }
 
-// gateRefreshRepo is a no-op refresh-token repository. Only
-// CreateRefreshToken is exercised by the tested paths; everything
-// else panics.
+// gateRefreshRepo is an in-memory refresh-token repository. Light
+// enough that the gate tests never reach beyond CreateRefreshToken;
+// rich enough that the Phase-16 orchestration tests can exercise the
+// full RotateWithFamily / GetByTokenAny / RevokeFamily lineage. Other
+// methods stay as panics so a refactor that takes a new dependency
+// surfaces immediately.
 type gateRefreshRepo struct {
 	mu      sync.Mutex
 	created []*authModels.RefreshTokenDoc
 	revoked []string // userUUIDs that hit RevokeTokensByUser
+	// byHash mirrors the production repo's "primary lookup" path.
+	// Tests can pre-seed via seedRefreshDoc for the orchestration paths.
+	byHash map[string]*authModels.RefreshTokenDoc
 }
 
-func newGateRefreshRepo() *gateRefreshRepo { return &gateRefreshRepo{} }
+func newGateRefreshRepo() *gateRefreshRepo {
+	return &gateRefreshRepo{byHash: map[string]*authModels.RefreshTokenDoc{}}
+}
 
 func (r *gateRefreshRepo) CreateRefreshToken(_ context.Context, doc *authModels.RefreshTokenDoc) error {
 	r.mu.Lock()
@@ -280,12 +288,65 @@ func (r *gateRefreshRepo) RevokeTokensByUser(_ context.Context, userUUID, _ stri
 	return nil
 }
 
+// seedRefreshDoc lets orchestration tests load a known token row
+// keyed by its hashed-token primary key so RefreshTokensWithRiskAssessment
+// can find it.
+func (r *gateRefreshRepo) seedRefreshDoc(tokenHash string, doc *authModels.RefreshTokenDoc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	c := *doc
+	r.byHash[tokenHash] = &c
+}
+
+func (r *gateRefreshRepo) GetByTokenAny(_ context.Context, tokenHash string) (*authModels.RefreshTokenDoc, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if d, ok := r.byHash[tokenHash]; ok {
+		c := *d
+		return &c, nil
+	}
+	return nil, nil
+}
+
+func (r *gateRefreshRepo) RotateWithFamily(_ context.Context, oldHash string, newDoc *authModels.RefreshTokenDoc) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	old, ok := r.byHash[oldHash]
+	if !ok || old.IsRevoked {
+		return repository.ErrTokenAlreadyRotated
+	}
+	now := time.Now()
+	old.IsRevoked = true
+	old.RevokedAt = &now
+	old.RevokedReason = authModels.RevokeReasonRotated
+	old.SucceededBy = newDoc.UUID
+	c := *newDoc
+	r.byHash[newDoc.Token] = &c
+	return nil
+}
+
+func (r *gateRefreshRepo) RevokeFamily(_ context.Context, familyID, reason string) (int64, error) {
+	if familyID == "" {
+		return 0, nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	var n int64
+	for _, d := range r.byHash {
+		if d.FamilyID == familyID && !d.IsRevoked {
+			d.IsRevoked = true
+			d.RevokedAt = &now
+			d.RevokedReason = reason
+			n++
+		}
+	}
+	return n, nil
+}
+
 // Methods we never reach — panic loudly if a refactor crosses the line.
 func (r *gateRefreshRepo) GetByToken(context.Context, string) (*authModels.RefreshTokenDoc, error) {
 	panic("gateRefreshRepo.GetByToken not used by gate tests")
-}
-func (r *gateRefreshRepo) GetByTokenAny(context.Context, string) (*authModels.RefreshTokenDoc, error) {
-	panic("not used")
 }
 func (r *gateRefreshRepo) GetBySessionUUID(context.Context, string) (*authModels.RefreshTokenDoc, error) {
 	panic("not used")
@@ -301,18 +362,12 @@ func (r *gateRefreshRepo) UpdateRiskScore(context.Context, string, float64, []st
 	panic("not used")
 }
 func (r *gateRefreshRepo) RotateToken(context.Context, string, string) error { panic("not used") }
-func (r *gateRefreshRepo) RotateWithFamily(context.Context, string, *authModels.RefreshTokenDoc) error {
-	panic("not used")
-}
 func (r *gateRefreshRepo) RevokeToken(context.Context, string, string) error      { panic("not used") }
 func (r *gateRefreshRepo) RevokeTokenByUUID(context.Context, string, string) error { panic("not used") }
 func (r *gateRefreshRepo) RevokeTokensBySession(context.Context, string, string) error {
 	panic("not used")
 }
 func (r *gateRefreshRepo) RevokeTokensByDevice(context.Context, string, string, string) error {
-	panic("not used")
-}
-func (r *gateRefreshRepo) RevokeFamily(context.Context, string, string) (int64, error) {
 	panic("not used")
 }
 func (r *gateRefreshRepo) CleanupExpiredTokens(context.Context) (int64, error) { panic("not used") }
