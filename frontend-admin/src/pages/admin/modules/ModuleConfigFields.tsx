@@ -103,9 +103,38 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
           );
         }
 
+        if (field.type === 'enum') {
+          const enumValue = configValues[key] ?? field.default ?? '';
+          const options = field.options ?? [];
+          return (
+            <Form.Group key={key} className="mb-3">
+              <Form.Label className="fs-10 fw-semibold">
+                {field.label}
+                {field.required && <span className="text-danger ms-1">*</span>}
+              </Form.Label>
+              <Form.Select
+                size="sm"
+                value={enumValue}
+                onChange={(e) => onConfigChange(key, e.target.value)}
+              >
+                {!field.required && <option value="">—</option>}
+                {options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </Form.Select>
+              {field.description && (
+                <Form.Text className="text-muted">{field.description}</Form.Text>
+              )}
+            </Form.Group>
+          );
+        }
+
         const value = configValues[key] || '';
         const isEmpty = field.required && !value;
         const isDurationInvalid = field.type === 'duration' && value !== '' && !/^\d+[smh]$/.test(value);
+        const isStringList = field.type === 'stringList';
 
         return (
           <Form.Group key={key} className="mb-3">
@@ -113,14 +142,26 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
               {field.label}
               {field.required && <span className="text-danger ms-1">*</span>}
             </Form.Label>
-            <Form.Control
-              type={field.type === 'int' ? 'number' : 'text'}
-              size="sm"
-              placeholder={field.default || ''}
-              value={value}
-              onChange={(e) => onConfigChange(key, e.target.value)}
-              isInvalid={isEmpty || isDurationInvalid}
-            />
+            {isStringList ? (
+              <Form.Control
+                as="textarea"
+                rows={2}
+                size="sm"
+                placeholder={field.default || 'comma,separated,values'}
+                value={value}
+                onChange={(e) => onConfigChange(key, e.target.value)}
+                isInvalid={isEmpty}
+              />
+            ) : (
+              <Form.Control
+                type={field.type === 'int' ? 'number' : 'text'}
+                size="sm"
+                placeholder={field.default || ''}
+                value={value}
+                onChange={(e) => onConfigChange(key, e.target.value)}
+                isInvalid={isEmpty || isDurationInvalid}
+              />
+            )}
             {isEmpty && (
               <Form.Control.Feedback type="invalid">
                 This field is required.

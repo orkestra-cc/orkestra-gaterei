@@ -117,6 +117,158 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 		{Key: "discordClientId", Label: "Client ID", Group: "Discord", Type: module.FieldString, EnvVar: "OAUTH_DISCORD_CLIENT_ID"},
 		{Key: "discordClientSecret", Label: "Client Secret", Group: "Discord", Type: module.FieldSecret, EnvVar: "OAUTH_DISCORD_CLIENT_SECRET"},
 		{Key: "discordRedirectURL", Label: "Redirect URL", Group: "Discord", Type: module.FieldString, EnvVar: "OAUTH_DISCORD_REDIRECT_URL"},
+
+		// Registration — tier-aware site-wide signup policy. Read at
+		// request time by AuthPolicyService; edits via the admin UI take
+		// effect on the next signup with no restart.
+		{
+			Key: "registrationEnabledAdmin", Label: "Allow signups on operator console", Group: "Registration",
+			Description: "When off, POST /v1/auth/operator/register returns 403. Operator accounts must be invited or created via /admin.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "registrationEnabledClient", Label: "Allow signups on client app", Group: "Registration",
+			Description: "When off, POST /v1/auth/client/register returns 403. Tier-2 clients can no longer self-register.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "defaultRoleClient", Label: "Default role for new client signups", Group: "Registration",
+			Description: "System role assigned to a Tier-2 client account on signup. Lower-privilege roles are recommended.",
+			Type:        module.FieldEnum, Default: "operator",
+			Options:     []string{"operator", "manager", "guest"},
+		},
+		{
+			Key: "allowedEmailDomainsAdmin", Label: "Allowed email domains (operator)", Group: "Registration",
+			Description: "Comma-separated allowlist (e.g. acme.com, ops.acme.com). Empty = any domain. Applied only to /v1/auth/operator/register.",
+			Type:        module.FieldStringList,
+		},
+		{
+			Key: "allowedEmailDomainsClient", Label: "Allowed email domains (client)", Group: "Registration",
+			Description: "Comma-separated allowlist applied only to /v1/auth/client/register. Empty = any domain.",
+			Type:        module.FieldStringList,
+		},
+
+		// Login & Sessions — per-surface kill switches + lockout policy.
+		// Read at request time by AuthPolicyService; lockout values flow
+		// into shared/errors.RateLimiter via SetAuthFailedConfig before
+		// each login attempt so admin edits take effect on the next try.
+		{
+			Key: "loginEnabledAdmin", Label: "Allow logins on operator console", Group: "Login & Sessions",
+			Description: "When off, POST /v1/auth/operator/login returns 403. Use during maintenance to lock out the operator console without taking the backend offline.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "loginEnabledClient", Label: "Allow logins on client app", Group: "Login & Sessions",
+			Description: "When off, POST /v1/auth/client/login returns 403. Affects /v1/auth/client/* only.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "accountLockoutThreshold", Label: "Failed login attempts before lockout", Group: "Login & Sessions",
+			Description: "Number of failed login attempts (per IP and per email) before the account is temporarily locked. Default 5.",
+			Type:        module.FieldInt, Default: "5",
+		},
+		{
+			Key: "accountLockoutDuration", Label: "Lockout duration", Group: "Login & Sessions",
+			Description: "Go duration string (e.g. 15m, 1h) — how long an IP/email stays locked after exceeding the threshold. Default 15m.",
+			Type:        module.FieldDuration, Default: "15m",
+		},
+
+		// Password Policy — site-wide rules enforced by passwordService.
+		// ValidatePolicy on signup / change-password / reset. Defaults
+		// match the legacy hardcoded behaviour (10..128 chars, no
+		// complexity, HIBP on) so existing deployments observe no change
+		// after the migration.
+		{
+			Key: "passwordMinLength", Label: "Minimum length", Group: "Password Policy",
+			Description: "Minimum number of characters in a new password. Default 10. Recommend 12+.",
+			Type:        module.FieldInt, Default: "10",
+		},
+		{
+			Key: "passwordMaxLength", Label: "Maximum length", Group: "Password Policy",
+			Description: "Upper bound on password length. Argon2id is not a bottleneck; raise this only if you have a concrete reason.",
+			Type:        module.FieldInt, Default: "128",
+		},
+		{
+			Key: "passwordRequireUpper", Label: "Require an uppercase letter", Group: "Password Policy",
+			Type: module.FieldBool, Default: "false",
+		},
+		{
+			Key: "passwordRequireLower", Label: "Require a lowercase letter", Group: "Password Policy",
+			Type: module.FieldBool, Default: "false",
+		},
+		{
+			Key: "passwordRequireDigit", Label: "Require a digit", Group: "Password Policy",
+			Type: module.FieldBool, Default: "false",
+		},
+		{
+			Key: "passwordRequireSymbol", Label: "Require a symbol", Group: "Password Policy",
+			Description: "Any non-alphanumeric character.",
+			Type:        module.FieldBool, Default: "false",
+		},
+		{
+			Key: "breachedPasswordCheck", Label: "Reject breached passwords (HIBP)", Group: "Password Policy",
+			Description: "k-anonymity lookup against haveibeenpwned.com — only the first 5 chars of the SHA-1 hash leave the server. Disable for air-gapped deployments.",
+			Type:        module.FieldBool, Default: "true",
+		},
+
+		// OAuth Providers — per-surface enable. The credential fields
+		// stay where they are (one set per provider, shared across
+		// audiences) but each provider can be exposed only on the
+		// surfaces that should accept it. A provider that is configured
+		// but disabled for a surface is filtered out of GET
+		// /v1/auth/{tier}/providers and returns 403 oauth_disabled
+		// from the start endpoints.
+		{
+			Key: "googleEnabledAdmin", Label: "Google on operator console", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "googleEnabledClient", Label: "Google on client app", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "appleEnabledAdmin", Label: "Apple on operator console", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "appleEnabledClient", Label: "Apple on client app", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "githubEnabledAdmin", Label: "GitHub on operator console", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "githubEnabledClient", Label: "GitHub on client app", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "discordEnabledAdmin", Label: "Discord on operator console", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+		{
+			Key: "discordEnabledClient", Label: "Discord on client app", Group: "OAuth Providers",
+			Type: module.FieldBool, Default: "true",
+		},
+
+		// MFA — global feature flag + grace window. The privileged-role
+		// list (super_admin / administrator / org_owner / org_admin) is
+		// still hardcoded in services/mfa_policy.go; that's a follow-up
+		// once we agree on UX for editing it. For today, operators can:
+		//   - flip the master switch off in an emergency (existing
+		//     enrollments stay intact; users can still verify
+		//     voluntarily, but RoleRequiresMFA returns false)
+		//   - tune how long a freshly-promoted admin has to enroll
+		{
+			Key: "mfaEnabled", Label: "Require MFA for privileged users", Group: "MFA",
+			Description: "Master switch. When off, RoleRequiresMFA returns false — privileged users can sign in without a second factor. Existing TOTP/passkey enrollments are not deleted; users can still use them.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "mfaEnrollmentGraceDays", Label: "Enrollment grace period (days)", Group: "MFA",
+			Description: "How many days a newly privileged user has to enroll a second factor before login returns 403 mfa_enrollment_required. Default 7.",
+			Type:        module.FieldInt, Default: "7",
+		},
 	}
 }
 
@@ -327,6 +479,15 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// mounts since the underlying collection is single.
 	m.deviceTrustHandler = handlers.NewDeviceTrustHandler(deviceTrustSvc)
 
+	// Shared admin-policy reader. Both tier bundles consume the same
+	// instance — schema keys carry their own Admin/Client suffix so a
+	// single ConfigService read disambiguates by audience.
+	authPolicy := services.NewAuthPolicyService(deps.ConfigService)
+	// Hand the policy to the (already-constructed) shared password
+	// service so length / complexity / HIBP rules can be edited live
+	// at /admin/modules/auth without a restart.
+	passwordSvc.SetPolicy(authPolicy)
+
 	commonTierDeps := tierBundleDeps{
 		db:                       deps.DB,
 		logger:                   logger,
@@ -346,6 +507,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		supportEmail:             os.Getenv("SUPPORT_EMAIL"),
 		mfaIssuer:                mfaIssuer,
 		webauthnRP:               webauthnRP,
+		authPolicy:               authPolicy,
 	}
 
 	// ADR-0003 PR-D D-9: per-audience refresh-cookie domains. Each
@@ -400,6 +562,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	m.operatorAuthHandler.SetSessionRevocation(sessionRevocationSvc)
 	m.operatorAuthHandler.SetStateSecret(oauthStateSecret)
 	m.operatorAuthHandler.SetTier(services.AudienceOperator)
+	m.operatorAuthHandler.SetPolicy(authPolicy)
 
 	m.operatorMFAHandler = handlers.NewMFAHandler(
 		opBundle.mfaSvc,
@@ -412,6 +575,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Secure,
 	)
 	m.operatorMFAHandler.SetDeviceTrust(deviceTrustSvc)
+	m.operatorMFAHandler.SetPolicy(authPolicy)
 	if opBundle.webauthnSvc != nil {
 		m.operatorMFAHandler.SetWebAuthn(opBundle.webauthnSvc)
 		m.operatorWebAuthnHandler = handlers.NewWebAuthnHandler(
@@ -481,6 +645,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	m.clientAuthHandler.SetSessionRevocation(sessionRevocationSvc)
 	m.clientAuthHandler.SetStateSecret(oauthStateSecret)
 	m.clientAuthHandler.SetTier(services.AudienceClient)
+	m.clientAuthHandler.SetPolicy(authPolicy)
 
 	m.clientMFAHandler = handlers.NewMFAHandler(
 		clBundle.mfaSvc,
@@ -493,6 +658,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		cfg.Auth.Cookie.Secure,
 	)
 	m.clientMFAHandler.SetDeviceTrust(deviceTrustSvc)
+	m.clientMFAHandler.SetPolicy(authPolicy)
 	if clBundle.webauthnSvc != nil {
 		m.clientMFAHandler.SetWebAuthn(clBundle.webauthnSvc)
 		m.clientWebAuthnHandler = handlers.NewWebAuthnHandler(

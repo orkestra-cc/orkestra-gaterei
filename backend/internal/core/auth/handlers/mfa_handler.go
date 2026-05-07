@@ -32,6 +32,7 @@ type MFAHandler struct {
 	tokens       LoginTokenIssuer
 	webauthn     services.WebAuthnService // optional — populated when WebAuthn is configured
 	deviceTrust  services.DeviceTrustService // optional — Section C item #3
+	policy       *services.AuthPolicyService // optional — admin-managed mfaEnabled + grace-window source
 	cookieName   string
 	cookieDomain string
 	cookieSecure bool
@@ -75,6 +76,14 @@ func (h *MFAHandler) SetWebAuthn(wa services.WebAuthnService) {
 // Optional — nil leaves the handler's trust-granting path inert.
 func (h *MFAHandler) SetDeviceTrust(dt services.DeviceTrustService) {
 	h.deviceTrust = dt
+}
+
+// SetPolicy wires the admin-managed AuthPolicyService so the Status
+// endpoint reports the configured grace deadline (instead of the
+// hardcoded 7-day fallback) and honours the master mfaEnabled flag.
+// Optional — nil falls back to legacy hardcoded values.
+func (h *MFAHandler) SetPolicy(p *services.AuthPolicyService) {
+	h.policy = p
 }
 
 // --- Enrollment ---
@@ -186,9 +195,9 @@ func (h *MFAHandler) Status(ctx context.Context, _ *struct{}) (*MFAStatusRespons
 		if claims, ok := ctx.Value("claims").(*authModels.JWTClaims); ok && claims != nil {
 			memberships = claims.Memberships
 		}
-		if services.RoleRequiresMFA(user, memberships) {
+		if h.policy.MFARequired(user, memberships) {
 			resp.Body.RequiresMFA = true
-			if deadline := services.GraceExpiresAt(user); !deadline.IsZero() {
+			if deadline := h.policy.MFAGraceExpiresAt(ctx, user); !deadline.IsZero() {
 				resp.Body.GraceExpiresAt = &deadline
 			}
 		}

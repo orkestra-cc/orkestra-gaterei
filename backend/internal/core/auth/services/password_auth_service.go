@@ -28,6 +28,9 @@ var (
 	ErrPasswordReused         = stderrors.New("new password must differ from the current one")
 	ErrNotificationDown       = stderrors.New("notifications disabled — cannot send email")
 	ErrMFAEnrollmentRequired  = stderrors.New("mfa enrollment required — grace period expired")
+	ErrRegistrationDisabled   = stderrors.New("registration disabled for this surface")
+	ErrEmailDomainNotAllowed  = stderrors.New("email domain not allowed")
+	ErrLoginDisabled          = stderrors.New("login disabled for this surface")
 )
 
 // FirstAdminClaimer is the contract the password auth service uses to
@@ -62,6 +65,15 @@ type PasswordAuthConfig struct {
 	AppName                  string
 	SupportEmail             string
 	Logger                   *slog.Logger
+	// Policy resolves admin-managed signup policy (registration on/off,
+	// email-domain allowlist, default client role) at request time. Nil
+	// is allowed: the service falls back to the legacy "always-on,
+	// any domain, role=operator" behaviour.
+	Policy *AuthPolicyService
+	// Audience identifies which surface this service instance serves.
+	// Empty defaults to operator semantics (preserves legacy behaviour
+	// when the policy service is not wired).
+	Audience PolicyAudience
 }
 
 // PasswordAuthService handles the register / login / verify / reset / change
@@ -87,6 +99,10 @@ type PasswordAuthService struct {
 	appName                  string
 	supportEmail             string
 	logger                   *slog.Logger
+	// policy resolves admin-managed signup policy. Nil = legacy fallback
+	// (registration always allowed, any domain, role=operator).
+	policy   *AuthPolicyService
+	audience PolicyAudience
 	// auditSink is wired post-construction via SetAuditSink by the compliance
 	// module. Nil when compliance is disabled — emit* helpers tolerate that.
 	auditSink iface.AuditSink
@@ -134,6 +150,8 @@ func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 		appName:                  cfg.AppName,
 		supportEmail:             cfg.SupportEmail,
 		logger:                   cfg.Logger,
+		policy:                   cfg.Policy,
+		audience:                 cfg.Audience,
 	}
 }
 
@@ -150,6 +168,26 @@ func (s *PasswordAuthService) Register(ctx context.Context, in RegisterInput) (*
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	if email == "" || in.Password == "" || in.FullName == "" {
 		return nil, fmt.Errorf("email, password and name are required")
+	}
+
+	// Admin-managed registration policy. Bypass for the very first
+	// account on a fresh install — otherwise an operator who flips
+	// "registrationEnabledAdmin=false" before any user exists locks
+	// themselves out. Bypass detection: ask the user count; the
+	// firstAdminClaimer's atomic claim later still races correctly.
+	if s.policy != nil {
+		isFirstUser := false
+		if count, err := s.userService.GetUserCount(ctx, nil); err == nil && count == 0 {
+			isFirstUser = true
+		}
+		if !isFirstUser {
+			if !s.policy.RegistrationAllowed(ctx, s.audience) {
+				return nil, ErrRegistrationDisabled
+			}
+			if !s.policy.EmailDomainAllowed(ctx, s.audience, email) {
+				return nil, ErrEmailDomainNotAllowed
+			}
+		}
 	}
 
 	// Reject signups up-front if verification is required but the
@@ -170,11 +208,15 @@ func (s *PasswordAuthService) Register(ctx context.Context, in RegisterInput) (*
 	// Atomic first-admin claim. Previous implementation checked
 	// GetUserCount()==0 and then created the user, racing with concurrent
 	// signups. Now the first caller to upsert the system_init sentinel wins
-	// super_admin; losers fall through to operator. The userUUID is minted
-	// up front so we can hand it to both the claimer and the user-create
-	// call.
+	// super_admin; losers fall through to a tier-default role (operator
+	// for tier-1, admin-policy-controlled for tier-2). The userUUID is
+	// minted up front so we can hand it to both the claimer and the
+	// user-create call.
 	proposedUUID := uuid.New().String()
 	role := "operator"
+	if s.audience == PolicyAudienceClient && s.policy != nil {
+		role = s.policy.DefaultClientRole(ctx)
+	}
 	claimed := false
 	if s.firstAdminClaimer != nil {
 		claimed, err = s.firstAdminClaimer.ClaimFirstAdmin(ctx, proposedUUID)
@@ -320,6 +362,26 @@ func (s *PasswordAuthService) Login(ctx context.Context, in LoginInput) (*authMo
 		return nil, ErrInvalidCredentials
 	}
 
+	// Admin-managed kill switch — same shape as the registration check
+	// in Register. Returns 403 to make the disabled state visible to
+	// the caller (the maintenance UI relies on this to render a banner)
+	// rather than silently failing as if credentials were wrong.
+	if s.policy != nil && !s.policy.LoginAllowed(ctx, s.audience) {
+		return nil, ErrLoginDisabled
+	}
+
+	// Refresh the rate limiter's lockout config from the live policy so
+	// admin edits take effect on the next login attempt without a
+	// restart. New buckets pick up the updated values immediately;
+	// already-running buckets ride out their existing window, which is
+	// fine — the next refill cycle reflects the new policy.
+	if s.policy != nil && s.rateLimiter != nil {
+		s.rateLimiter.SetAuthFailedConfig(
+			s.policy.LockoutThreshold(ctx),
+			s.policy.LockoutDuration(ctx),
+		)
+	}
+
 	// Combined IP + email bucket so that a single credential-stuffer rotating
 	// IPs still trips the per-account lock.
 	if s.rateLimiter != nil {
@@ -427,7 +489,7 @@ func (s *PasswordAuthService) emitLoginFailed(ctx context.Context, email, userUU
 //   - ErrMFAEnrollmentRequired (privileged user, no factor, grace expired)
 func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModels.User, in LoginInput, sourceAMR []string) (*authModels.TokenResponse, error) {
 	memberships := s.loadMembershipsAsAuthModel(ctx, user.UUID)
-	requires := RoleRequiresMFA(user, memberships)
+	requires := s.policy.MFARequired(user, memberships)
 	if !requires {
 		return s.issueTokens(ctx, user, in, sourceAMR, 0)
 	}
@@ -497,7 +559,7 @@ func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModel
 
 	// Privileged, no factor → grace logic.
 	now := time.Now()
-	if GraceExpired(user, now) {
+	if s.policy.MFAGraceExpired(ctx, user, now) {
 		return nil, ErrMFAEnrollmentRequired
 	}
 	if user.MFAGraceStartedAt == nil {
@@ -512,8 +574,7 @@ func (s *PasswordAuthService) completeLogin(ctx context.Context, user *userModel
 		return nil, err
 	}
 	resp.MFAEnrollmentRequired = true
-	if user.MFAGraceStartedAt != nil {
-		deadline := user.MFAGraceStartedAt.Add(MFAEnrollmentGraceWindow)
+	if deadline := s.policy.MFAGraceExpiresAt(ctx, user); !deadline.IsZero() {
 		resp.MFAGraceExpiresAt = &deadline
 	}
 	return resp, nil

@@ -79,6 +79,11 @@ type AuthService interface {
 	// PasswordAuthService — both login paths must surface the field uniformly.
 	SetWebAuthnAvailability(c HasWebAuthnCredentials)
 
+	// SetPolicy wires the admin-managed policy reader. Optional — the
+	// OAuth login MFA evaluation falls back to legacy hardcoded values
+	// when the receiver is nil.
+	SetPolicy(p *AuthPolicyService)
+
 	// Enhanced OAuth callback handling with account linking
 	HandleOAuthCallbackWithLinking(ctx context.Context, provider models.OAuthProvider, userInfo map[string]interface{}, oauthTokens *models.OAuthProviderTokens, securityCtx *models.SecurityContext, deviceInfo *models.DeviceInfo) (*models.TokenResponse, error)
 }
@@ -116,6 +121,10 @@ type authService struct {
 	// branch can flag passkey availability on the partial response. Nil
 	// when WebAuthn is disabled — falls back to TOTP-only behavior.
 	webauthnAvailability HasWebAuthnCredentials
+	// policy is the admin-managed kill switches + grace-window source
+	// for the OAuth login MFA evaluation. Nil falls back to legacy
+	// hardcoded values (mfaEnabled=true, grace=7d).
+	policy *AuthPolicyService
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -123,6 +132,13 @@ type authService struct {
 // WebAuthnAvailable identically.
 func (s *authService) SetWebAuthnAvailability(c HasWebAuthnCredentials) {
 	s.webauthnAvailability = c
+}
+
+// SetPolicy wires the admin-managed AuthPolicyService so the OAuth
+// login path honours the same MFA kill switch + grace window the
+// password login path consults.
+func (s *authService) SetPolicy(p *AuthPolicyService) {
+	s.policy = p
 }
 
 // NewAuthService creates a new auth service
@@ -1017,7 +1033,7 @@ func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.
 		return nil, false, nil
 	}
 	memberships := s.loadMembershipsAsAuthModel(ctx, user.UUID)
-	if !RoleRequiresMFA(user, memberships) {
+	if !s.policy.MFARequired(user, memberships) {
 		return nil, false, nil
 	}
 
@@ -1059,7 +1075,7 @@ func (s *authService) evaluateMFAForOAuth(ctx context.Context, user *userModels.
 
 	// Privileged user without a factor → grace window.
 	now := time.Now()
-	if GraceExpired(user, now) {
+	if s.policy.MFAGraceExpired(ctx, user, now) {
 		return nil, true, ErrMFAEnrollmentRequired
 	}
 	if user.MFAGraceStartedAt == nil {

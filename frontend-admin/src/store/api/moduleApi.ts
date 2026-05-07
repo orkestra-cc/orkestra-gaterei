@@ -7,10 +7,11 @@ export interface ConfigField {
   label: string;
   group?: string;
   description: string;
-  type: 'string' | 'bool' | 'int' | 'duration' | 'secret';
+  type: 'string' | 'bool' | 'int' | 'duration' | 'secret' | 'enum' | 'stringList';
   required: boolean;
   default: string;
   envVar: string;
+  options?: string[];
 }
 
 export interface InfraContainerStatus {

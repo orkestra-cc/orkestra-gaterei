@@ -85,6 +85,9 @@ type tierBundleDeps struct {
 	// passkeys are disabled at boot — buildAuthTierBundle then leaves
 	// webauthnSvc nil to match the legacy module.go nil-gating.
 	webauthnRP *gowebauthn.WebAuthn
+	// authPolicy is the shared policy reader; both bundles consume the
+	// same instance. Nil = legacy "always-on" semantics.
+	authPolicy *services.AuthPolicyService
 }
 
 // buildAuthTierBundle constructs the per-tier repos + RiskAssessment +
@@ -133,7 +136,15 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Hand the shared admin-policy reader to the OAuth login path so it
+	// honours the same mfaEnabled / grace-window the password login path
+	// already consults via PasswordAuthService.
+	authSvc.SetPolicy(d.authPolicy)
 
+	policyAudience := services.PolicyAudienceOperator
+	if d.tier == tierClient {
+		policyAudience = services.PolicyAudienceClient
+	}
 	passSvc := services.NewPasswordAuthService(services.PasswordAuthConfig{
 		UserService:              d.userProvider,
 		TenantProvider:           d.tenantProvider,
@@ -155,6 +166,8 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 		AppName:                  d.appName,
 		SupportEmail:             d.supportEmail,
 		Logger:                   d.logger,
+		Policy:                   d.authPolicy,
+		Audience:                 policyAudience,
 	})
 
 	mfaSvc := services.NewMFAService(mfaRepo, d.mfaChallengeService, d.passwordService, d.mfaIssuer, d.logger)

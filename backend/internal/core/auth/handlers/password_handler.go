@@ -320,10 +320,35 @@ func mapPasswordError(err error) error {
 		return huma.Error503ServiceUnavailable("Email delivery is not configured — signups are temporarily unavailable. Please contact an administrator.")
 	case errors.Is(err, services.ErrMFAEnrollmentRequired):
 		return huma.Error403Forbidden("MFA enrollment required — the grace period for this account has expired. Please complete MFA setup via an admin before signing in.")
+	case errors.Is(err, services.ErrRegistrationDisabled):
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Self-service registration is disabled for this surface. Contact an administrator.",
+			Code:   "registration_disabled",
+		}
+	case errors.Is(err, services.ErrEmailDomainNotAllowed):
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Registrations from this email domain are not allowed.",
+			Code:   "email_domain_not_allowed",
+		}
+	case errors.Is(err, services.ErrLoginDisabled):
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Login is temporarily disabled for this surface. Contact an administrator.",
+			Code:   "login_disabled",
+		}
 	case errors.Is(err, services.ErrPasswordTooShort),
 		errors.Is(err, services.ErrPasswordTooLong),
 		errors.Is(err, services.ErrPasswordContainsEmail),
-		errors.Is(err, services.ErrPasswordBreached):
+		errors.Is(err, services.ErrPasswordBreached),
+		errors.Is(err, services.ErrPasswordMissingUpper),
+		errors.Is(err, services.ErrPasswordMissingLower),
+		errors.Is(err, services.ErrPasswordMissingDigit),
+		errors.Is(err, services.ErrPasswordMissingSymbol):
 		return huma.Error400BadRequest(err.Error())
 	default:
 		slog.Default().Warn("password auth error", slog.String("error", err.Error()))

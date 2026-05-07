@@ -68,6 +68,12 @@ type AuthHandler struct {
 	// matching handler so the tokens are minted by the audience's
 	// authService and stamped with the audience's JWT aud claim.
 	tierDispatch map[string]*AuthHandler
+
+	// policy resolves admin-managed login policy. Nil = legacy "always
+	// allow" semantics. Currently consulted only for the LoginAllowed
+	// kill switch on OAuth start endpoints; later phases will plumb
+	// this into MFA / session-limit decisions.
+	policy *services.AuthPolicyService
 }
 
 // SetSessionRevocation wires the revoked-session store so logout can
@@ -84,6 +90,56 @@ func (h *AuthHandler) SetSessionRevocation(s services.SessionRevocationService) 
 // dispatch back to the matching authService.
 func (h *AuthHandler) SetTier(t string) {
 	h.tier = t
+}
+
+// SetPolicy wires the admin-managed auth policy reader. Optional —
+// nil leaves the kill switch always-allow (legacy behaviour).
+func (h *AuthHandler) SetPolicy(p *services.AuthPolicyService) {
+	h.policy = p
+}
+
+// loginAllowed returns false when the kill switch is active for this
+// handler's tier. Empty tier (legacy mount) inherits operator semantics
+// so a kill on the operator surface also pauses the legacy callback.
+func (h *AuthHandler) loginAllowed(ctx context.Context) bool {
+	if h.policy == nil {
+		return true
+	}
+	return h.policy.LoginAllowed(ctx, h.policyAudience())
+}
+
+// policyAudience maps the handler's tier string to the PolicyAudience
+// enum AuthPolicyService consumes. Empty tier inherits operator
+// semantics — same as loginAllowed.
+func (h *AuthHandler) policyAudience() services.PolicyAudience {
+	if h.tier == services.AudienceClient {
+		return services.PolicyAudienceClient
+	}
+	return services.PolicyAudienceOperator
+}
+
+// oauthProviderAllowed combines two checks: the kill switch on the
+// surface, and the per-provider per-surface enable flag. Both must
+// be true. Returns nil on success, a 403 codedError otherwise so
+// callers can return it directly.
+func (h *AuthHandler) oauthProviderAllowed(ctx context.Context, provider string) error {
+	if !h.loginAllowed(ctx) {
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Login is temporarily disabled for this surface. Contact an administrator.",
+			Code:   "login_disabled",
+		}
+	}
+	if h.policy != nil && !h.policy.OAuthProviderEnabled(ctx, h.policyAudience(), provider) {
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "This OAuth provider is not enabled for this surface. Contact an administrator.",
+			Code:   "oauth_provider_disabled",
+		}
+	}
+	return nil
 }
 
 // SetStateSecret wires the HMAC secret used to sign and validate the
@@ -163,12 +219,18 @@ type ListOAuthProvidersResponse struct {
 
 // ListOAuthProviders returns the set of OAuth providers configured in the
 // admin panel. Public endpoint — no auth required — because it's used by
-// the unauthenticated login screen.
+// the unauthenticated login screen. The result is filtered by the
+// handler's audience: a provider that's configured but disabled for
+// this surface (per the OAuth Providers tab on /admin/modules/auth)
+// is omitted so the login UI never offers a button it can't honor.
 func (h *AuthHandler) ListOAuthProviders(ctx context.Context, _ *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
 	configured := h.oauthResolver.ConfiguredProviders(ctx)
 	resp := &ListOAuthProvidersResponse{}
 	resp.Body.Providers = make([]string, 0, len(configured))
 	for _, p := range configured {
+		if h.policy != nil && !h.policy.OAuthProviderEnabled(ctx, h.policyAudience(), string(p)) {
+			continue
+		}
 		resp.Body.Providers = append(resp.Body.Providers, string(p))
 	}
 	return resp, nil
@@ -196,6 +258,10 @@ func (h *AuthHandler) InitiateOAuthLogin(ctx context.Context, req *OAuthLoginReq
 		slog.String("provider", string(req.Body.Provider)),
 		slog.String("tier", h.tier),
 	)
+
+	if err := h.oauthProviderAllowed(ctx, string(req.Body.Provider)); err != nil {
+		return nil, err
+	}
 
 	if len(h.stateSecret) == 0 {
 		// ADR-0003 PR-D D-6: every monolith-issued state JWT must be
@@ -1254,6 +1320,10 @@ type MobileGoogleAuthResponse struct {
 func (h *AuthHandler) HandleMobileGoogleAuth(ctx context.Context, req *MobileGoogleAuthRequest) (*MobileGoogleAuthResponse, error) {
 	logger := slog.Default()
 
+	if err := h.oauthProviderAllowed(ctx, "google"); err != nil {
+		return nil, err
+	}
+
 	// Extract device info from context
 	var deviceInfo *models.DeviceInfo
 	var ipAddress string = "unknown"
@@ -1360,6 +1430,10 @@ type MobileAppleAuthResponse = MobileGoogleAuthResponse
 // HandleMobileAppleAuth handles Apple authentication from mobile apps
 func (h *AuthHandler) HandleMobileAppleAuth(ctx context.Context, req *MobileAppleAuthRequest) (*MobileAppleAuthResponse, error) {
 	logger := slog.Default()
+
+	if err := h.oauthProviderAllowed(ctx, "apple"); err != nil {
+		return nil, err
+	}
 
 	// Extract device info from context
 	var deviceInfo *models.DeviceInfo

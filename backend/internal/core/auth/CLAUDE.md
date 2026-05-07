@@ -85,6 +85,29 @@ OAuth provider settings are admin-managed through `ConfigSchema()` — stored in
 
 Schema keys below are what handlers and the resolver look up. The `EnvVar` column is the one-time seed source — once the document exists, editing the env var has no effect without a wipe.
 
+#### Auth Policy tabs (added 2026-05-07)
+
+The `auth` module config document also carries five admin-managed
+policy tabs that drive runtime behaviour without a restart. All values
+are read through `services.AuthPolicyService` (nil-tolerant — accessors
+fall back to the legacy hardcoded defaults when the service or its
+ConfigService is missing).
+
+| Group | Keys | Effect |
+|---|---|---|
+| Registration | `registrationEnabledAdmin/Client`, `defaultRoleClient`, `allowedEmailDomainsAdmin/Client` | `Register` returns 403 `registration_disabled` / `email_domain_not_allowed` per surface; `defaultRoleClient` overrides the role assigned to a new Tier-2 signup. The very first user on a fresh install bypasses the kill switch so a misconfigured flag can't lock everyone out. |
+| Login & Sessions | `loginEnabledAdmin/Client`, `accountLockoutThreshold`, `accountLockoutDuration` | `Login` returns 403 `login_disabled` per surface; OAuth start endpoints (`InitiateOAuthLogin`, `HandleMobile{Google,Apple}Auth`) honour the same gate. The lockout pair is plumbed into `RateLimiter.SetAuthFailedConfig` on every login attempt — admin edits take effect on the next try. |
+| Password Policy | `passwordMinLength`, `passwordMaxLength`, `passwordRequireUpper/Lower/Digit/Symbol`, `breachedPasswordCheck` | `passwordService.ValidatePolicy` reads the live policy on every signup / change-password / reset. Defaults match the legacy hardcoded values (10..128 chars, no complexity, HIBP on). New errors: `ErrPasswordMissing{Upper,Lower,Digit,Symbol}`. An inverted min/max range is swapped on read so a misedit can't reject every password. |
+| OAuth Providers | `{google,apple,github,discord}Enabled{Admin,Client}` | `ListOAuthProviders` filters its return per audience; `InitiateOAuthLogin` + mobile handlers return 403 `oauth_provider_disabled` for a disabled surface. Credentials still live one-set-per-provider in the existing tabs. |
+| MFA | `mfaEnabled`, `mfaEnrollmentGraceDays` | `mfaEnabled=false` short-circuits `MFARequired` to false (existing enrollments are not deleted; voluntary verification still works). `mfaEnrollmentGraceDays` overrides the legacy 7-day `MFAEnrollmentGraceWindow` constant — new value takes effect on the next login. |
+
+The privileged-role list itself (`super_admin`, `administrator`,
+`org_owner`, `org_admin`) is still hardcoded in
+`services/mfa_policy.go`. Making it admin-managed is a deliberate
+follow-up — the change is security-sensitive and worth a PR diff.
+
+### OAuth provider credentials (admin-managed)
+
 | Provider | Key | Type | Seed env var |
 |---|---|---|---|
 | Google | `googleClientId` | string | `OAUTH_GOOGLE_CLIENT_ID` |
@@ -210,7 +233,7 @@ And a public endpoint that completes a login after a partial response:
 ### MFA implementation notes
 
 - **Privilege policy** lives in `services/mfa_policy.go`. `RoleRequiresMFA(user, memberships)` returns true for `super_admin`, `administrator`, and any org membership carrying `org_owner`/`org_admin`. `developer` is intentionally excluded — its prod downgrade to read-only covers the risk.
-- **Grace period is 7 days** (`MFAEnrollmentGraceWindow`). A privileged user logging in without a factor has `User.MFAGraceStartedAt` stamped on that login (idempotent via `UserProvider.StartMFAGraceIfUnset`). Past the window, login returns 403 `mfa_enrollment_required`. Granting a privileged role via authz `CreateBinding` also eagerly starts the clock so the 7 days begin at promotion, not next login.
+- **Grace period defaults to 7 days** (legacy `MFAEnrollmentGraceWindow` constant; runtime value comes from `mfaEnrollmentGraceDays` on the MFA policy tab). A privileged user logging in without a factor has `User.MFAGraceStartedAt` stamped on that login (idempotent via `UserProvider.StartMFAGraceIfUnset`). Past the window, login returns 403 `mfa_enrollment_required`. Granting a privileged role via authz `CreateBinding` also eagerly starts the clock so the configured window begins at promotion, not next login. The master `mfaEnabled` flag short-circuits the requirement entirely without deleting existing enrollments.
 - **Login state machine** (`PasswordAuthService.completeLogin`; OAuth mirrors via `AuthService.evaluateMFAForOAuth`): (a) non-privileged → full token with `amr:["pwd"]`/`["oauth"]`; (b) privileged with factor → partial 200 response `{requiresMfa: true, mfaToken: <challengeId>}` and no access token — client must call `/v1/auth/mfa/login/verify`; (c) privileged without factor within grace → full token + `mfaEnrollmentRequired:true` + `mfaGraceExpiresAt`; (d) privileged without factor past grace → `ErrMFAEnrollmentRequired` → 403.
 - Factor secrets are AES-256-GCM encrypted with `MFA_SECRET_ENCRYPTION_KEY` (falls back to `OAUTH_TOKEN_ENCRYPTION_KEY` for single-key dev setups). Backup codes are argon2id hashed via the existing `PasswordService`.
 - Challenge state lives in Redis under `mfa:challenge:<uuid>` with a 5-minute TTL; after 5 failed verifications the challenge is deleted. Login challenges additionally carry `DeviceID`/`Platform`/`IPAddress`/`Fingerprint`/`SourceAMR` so the public login-verify endpoint can mint a token pair without re-posting the user's password.
@@ -241,7 +264,7 @@ Everything else (`services.AuthService`, `services.JWTService`, `services.Passwo
 - **OAuth state is 10 minutes in Redis.** Validated before code exchange in every provider's callback handler.
 - **Rate limiting** lives in `shared/errors.RateLimiter` and is shared across `Register`, `Login`, `ForgotPassword`, `VerifyEmailResend`. Current defaults are hardcoded — when you need to tune them, do it in `password_auth_service.go` and not in the handler.
 - **Notification idempotency.** Verification and reset emails always carry an idempotency key like `verify:<userUUID>:<tokenUUID>` and `reset:<userUUID>:<tokenUUID>` so retries don't dispatch duplicates.
-- **Password policy.** Minimum 10 characters, HIBP breach check via the password service. The service rejects `"password has appeared in a known data breach"` — observed in dev when the initial admin used a common test string.
+- **Password policy.** Length bounds, complexity requirements, and the HIBP toggle are admin-managed via the Password Policy tab; defaults match the legacy hardcoded values (10..128 chars, no complexity, HIBP on). The service still rejects `"password has appeared in a known data breach"` — observed in dev when the initial admin used a common test string.
 
 ## What this module does NOT do
 
