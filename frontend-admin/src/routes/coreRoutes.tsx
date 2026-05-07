@@ -29,7 +29,10 @@ const InternalTenantDetail = lazy(
   () => import('pages/admin/internal-tenants/detail'),
 );
 const ClientManagement = lazy(() => import('pages/admin/clients'));
-const ClientDetail = lazy(() => import('pages/admin/clients/detail'));
+const ClientUserDetail = lazy(() => import('pages/admin/clients/detail'));
+const ExternalTenantDetail = lazy(
+  () => import('pages/admin/external-tenants/detail'),
+);
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
@@ -233,7 +236,7 @@ export function buildCoreRoutes(
                   ),
                 },
                 {
-                  path: 'clients/:clientId',
+                  path: 'clients/:userId',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
@@ -241,10 +244,27 @@ export function buildCoreRoutes(
                       ]}
                     >
                       <Suspense
-                        key="admin-client-detail"
+                        key="admin-client-user-detail"
                         fallback={<FalconLoader />}
                       >
-                        <ClientDetail />
+                        <ClientUserDetail />
+                      </Suspense>
+                    </ProtectedRoute>
+                  ),
+                },
+                {
+                  path: 'external-tenants/:tenantId',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[
+                        ['super_admin', 'administrator', 'developer'],
+                      ]}
+                    >
+                      <Suspense
+                        key="admin-external-tenant-detail"
+                        fallback={<FalconLoader />}
+                      >
+                        <ExternalTenantDetail />
                       </Suspense>
                     </ProtectedRoute>
                   ),

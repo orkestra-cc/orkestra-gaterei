@@ -13,7 +13,8 @@ import (
 
 type UserModule struct {
 	module.BaseModule
-	handler *handlers.UserHandler
+	handler            *handlers.UserHandler
+	adminClientHandler *handlers.AdminClientUserHandler
 }
 
 func NewModule() *UserModule { return &UserModule{} }
@@ -82,6 +83,7 @@ func (m *UserModule) Init(deps *module.Dependencies) error {
 	canonical := operatorSvc
 	canonicalRepo := operatorRepo
 	m.handler = handlers.NewUserHandler(canonical)
+	m.adminClientHandler = handlers.NewAdminClientUserHandler(clientSvc, deps.Services)
 	deps.Services.Register(module.ServiceUserService, canonical)
 
 	// Register the user PII producer with the DSR registry pre-created in
@@ -101,5 +103,6 @@ func (m *UserModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)
+		RegisterAdminClientRoutes(api, m.adminClientHandler)
 	})
 }

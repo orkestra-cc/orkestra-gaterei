@@ -72,8 +72,13 @@ All routes are behind `RequireSystemPermission("system.users.admin")` (`module.g
 | GET | `/v1/users/expiring-soon-documents?days=N` | Users with documents expiring within N days |
 | PATCH | `/v1/users/{id}/documents` | Update only document fields (license, CQC, ADR, etc.) |
 | GET | `/v1/users/{id}/check-expiry` | Return which of one user's documents are currently expired |
+| GET | `/v1/admin/client-users` | List Tier-2 client users with tenant memberships joined (powers `/admin/clients`) |
+| GET | `/v1/admin/client-users/{id}` | Single Tier-2 client user with memberships + OAuth providers |
+| POST | `/v1/admin/client-users` | Admin-direct create of a client_users row, password hashed against the live policy, EmailVerified=true |
+| PATCH | `/v1/admin/client-users/{id}` | Update name / username / email / phone / role / isActive on a client user |
+| DELETE | `/v1/admin/client-users/{id}` | Soft-delete + email alias on a client user (reuses `SoftDeleteAndAliasEmail`) |
 
-Full registration in `routes.go:11-134`.
+Full registration in `routes.go`. The `/v1/admin/client-users[/{id}]` family is implemented by `handlers/admin_client_handler.go` (the `AdminClientUserHandler`). It binds to the **client-tier** `UserService` directly, looks up `iface.TenantProvider` lazily from the registry to join memberships, and looks up `iface.PasswordHasher` lazily on create so it can hash the supplied password without importing auth's package.
 
 ## Service contract
 

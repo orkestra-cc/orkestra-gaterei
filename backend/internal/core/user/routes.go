@@ -132,3 +132,56 @@ func RegisterRoutes(api huma.API, userHandler *handlers.UserHandler) {
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, userHandler.CheckDocumentExpiry)
 }
+
+// RegisterAdminClientRoutes mounts the admin endpoints that operate on
+// the client_users tier — list / get / create / update / delete behind
+// the same system.users.admin gate as the legacy /v1/users surface.
+func RegisterAdminClientRoutes(api huma.API, h *handlers.AdminClientUserHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-client-users-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/client-users",
+		Summary:     "List Tier-2 client users with their tenant memberships",
+		Description: "Returns every client_users row joined with tenant memberships. Self-registered users with no memberships are included with an empty memberships array.",
+		Tags:        []string{"Users Admin"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.ListClientUsersAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-client-user-admin",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/client-users/{id}",
+		Summary:     "Get a single Tier-2 client user with tenant memberships",
+		Tags:        []string{"Users Admin"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.GetClientUserAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-client-user-admin",
+		Method:      http.MethodPatch,
+		Path:        "/v1/admin/client-users/{id}",
+		Summary:     "Update profile, role, or active status of a Tier-2 client user",
+		Tags:        []string{"Users Admin"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.UpdateClientUserAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-client-user-admin",
+		Method:      http.MethodDelete,
+		Path:        "/v1/admin/client-users/{id}",
+		Summary:     "Soft-delete a Tier-2 client user and free its email",
+		Description: "Calls SoftDeleteAndAliasEmail so the original address can be reused for a fresh signup. The original email is preserved on the user document for audit.",
+		Tags:        []string{"Users Admin"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.DeleteClientUserAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-client-user-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/client-users",
+		Summary:     "Admin-direct create of a Tier-2 client user",
+		Description: "Inserts a client_users row with the supplied password (validated against the live policy) and EmailVerified=true so the user can log in immediately. Phase 3 will add an alternate invite-token flow.",
+		Tags:        []string{"Users Admin"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.CreateClientUserAdmin)
+}

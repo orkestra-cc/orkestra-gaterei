@@ -126,6 +126,79 @@ export interface UserListParams {
   pageSize?: number;
 }
 
+// AdminClientUserMembership mirrors the backend's AdminUserMembership —
+// the trimmed projection of a tenant_memberships row that the admin
+// /admin/clients page renders as a per-row badge column.
+export interface AdminClientUserMembership {
+  tenantUUID: string;
+  tenantName: string;
+  tenantSlug?: string;
+  tenantKind: string;
+  roles?: string[];
+  isOwner?: boolean;
+}
+
+// AdminClientUserItem is one row of the admin client-users list — a
+// client_users record with its tenant memberships joined in. Users with
+// no membership return an empty array (self-registered, not yet attached).
+//
+// `providers` is populated by the single-user GET endpoint and left
+// empty by the list endpoint (the list does not show OAuth links).
+export interface AdminClientUserItem {
+  id: string;
+  email: string;
+  username?: string;
+  fullName?: string;
+  avatar?: string;
+  role: string;
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLogin?: string;
+  createdAt: string;
+  memberships: AdminClientUserMembership[];
+  providers?: UserOAuthProviderInfo[];
+}
+
+// UpdateClientUserAdminInput is the slim PATCH payload for the admin
+// client-user mutation endpoint. Only set the fields you intend to
+// change — omitted fields stay untouched server-side.
+export interface UpdateClientUserAdminInput {
+  fullName?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+  isActive?: boolean;
+}
+
+// CreateClientUserAdminInput drives admin-direct creation of a Tier-2
+// client user. The new user is pre-verified and active.
+export interface CreateClientUserAdminInput {
+  email: string;
+  fullName: string;
+  username?: string;
+  phone?: string;
+  role: string;
+  password: string;
+}
+
+export interface AdminClientUserListResponse {
+  users: AdminClientUserItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AdminClientUserListParams {
+  role?: string;
+  isActive?: boolean;
+  emailVerified?: boolean;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // User management API slice
 export const userApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -211,6 +284,80 @@ export const userApi = baseApi.injectEndpoints({
         { type: 'User' as const, id: `metrics-${userId}` }
       ],
     }),
+
+    // Admin — list Tier-2 client users with tenant memberships joined.
+    // Powers the /admin/clients page (user-centric view of client_users).
+    listClientUsersAdmin: builder.query<AdminClientUserListResponse, AdminClientUserListParams | undefined>({
+      query: (params) => {
+        const sp = new URLSearchParams();
+        if (params?.role) sp.append('role', params.role);
+        if (params?.isActive !== undefined) sp.append('isActive', String(params.isActive));
+        if (params?.emailVerified !== undefined) sp.append('emailVerified', String(params.emailVerified));
+        if (params?.search) sp.append('search', params.search);
+        if (params?.page !== undefined) sp.append('page', String(params.page));
+        if (params?.pageSize !== undefined) sp.append('pageSize', String(params.pageSize));
+        const qs = sp.toString();
+        return {
+          url: qs ? `/v1/admin/client-users?${qs}` : '/v1/admin/client-users',
+          method: 'GET',
+        };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.users.map(({ id }) => ({ type: 'User' as const, id })),
+              { type: 'User', id: 'CLIENT_LIST' },
+            ]
+          : [{ type: 'User', id: 'CLIENT_LIST' }],
+    }),
+
+    // Admin — single Tier-2 client user with tenant memberships and
+    // OAuth providers joined in. Powers /admin/clients/:userId.
+    getClientUserAdmin: builder.query<AdminClientUserItem, string>({
+      query: (id) => `/v1/admin/client-users/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'User', id }],
+    }),
+
+    // Admin — patch profile / role / active status for a client user.
+    updateClientUserAdmin: builder.mutation<
+      AdminClientUserItem,
+      { id: string; data: UpdateClientUserAdminInput }
+    >({
+      query: ({ id, data }) => ({
+        url: `/v1/admin/client-users/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: 'User', id },
+        { type: 'User', id: 'CLIENT_LIST' },
+      ],
+    }),
+
+    // Admin — soft-delete a client user with email aliasing.
+    deleteClientUserAdmin: builder.mutation<{ message: string }, string>({
+      query: (id) => ({
+        url: `/v1/admin/client-users/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, id) => [
+        { type: 'User', id },
+        { type: 'User', id: 'CLIENT_LIST' },
+      ],
+    }),
+
+    // Admin — create a Tier-2 client user directly (pre-verified).
+    createClientUserAdmin: builder.mutation<
+      AdminClientUserItem,
+      CreateClientUserAdminInput
+    >({
+      query: (data) => ({
+        url: '/v1/admin/client-users',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }],
+    }),
   }),
 });
 
@@ -224,4 +371,9 @@ export const {
   useDeleteUserMutation,
 
   useGetUserMetricsQuery,
+  useListClientUsersAdminQuery,
+  useGetClientUserAdminQuery,
+  useUpdateClientUserAdminMutation,
+  useDeleteClientUserAdminMutation,
+  useCreateClientUserAdminMutation,
 } = userApi;

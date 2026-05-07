@@ -6,17 +6,27 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
 import { useGetOrgAdminQuery } from 'store/api/tenantApi';
 
-// Reuse the Overview and Members tabs from the external-tenants detail
-// folder — they only take an `org` prop and are equally valid for
-// internal tenants. The Divisions/Subscriptions/Payments tabs stay
-// external-only.
-const OverviewTab = lazy(() => import('pages/admin/external-tenants/detail/OverviewTab'));
-const MembersTab = lazy(() => import('pages/admin/external-tenants/detail/MembersTab'));
+const OverviewTab = lazy(() => import('./OverviewTab'));
+const MembersTab = lazy(() => import('./MembersTab'));
+const DivisionsTab = lazy(() => import('./DivisionsTab'));
+const SubscriptionsTab = lazy(() => import('./SubscriptionsTab'));
+const PaymentsTab = lazy(() => import('./PaymentsTab'));
+const ActivityTab = lazy(() => import('./ActivityTab'));
 
-const TAB_KEYS = ['overview', 'members'] as const;
+const TAB_KEYS = [
+  'overview',
+  'members',
+  'divisions',
+  'subscriptions',
+  'payments',
+  'activity',
+] as const;
 type TabKey = (typeof TAB_KEYS)[number];
+
 const DEFAULT_TAB: TabKey = 'overview';
 
+// URL-tabs convention: active tab persists to ?tab=X so the page is
+// shareable and bookmarkable. Unknown ?tab values fall back to Overview.
 function readTab(param: string | null): TabKey {
   const candidate = (param ?? DEFAULT_TAB) as TabKey;
   return TAB_KEYS.includes(candidate) ? candidate : DEFAULT_TAB;
@@ -28,7 +38,7 @@ const planColors: Record<string, BadgeColor> = {
   enterprise: 'success',
 };
 
-const InternalTenantDetailPage: React.FC = () => {
+const ExternalTenantDetailPage: React.FC = () => {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
@@ -51,7 +61,7 @@ const InternalTenantDetailPage: React.FC = () => {
   }, [org]);
 
   if (!tenantId) {
-    return <Navigate to="/admin/internal/tenants" replace />;
+    return <Navigate to="/admin/clients" replace />;
   }
 
   if (isLoading) {
@@ -66,15 +76,16 @@ const InternalTenantDetailPage: React.FC = () => {
     return (
       <Alert variant="danger">
         Tenant not found or you lack permission to view it.{' '}
-        <Link to="/admin/internal/tenants">Back to internal tenants</Link>
+        <Link to="/admin/clients">Back to clients</Link>
       </Alert>
     );
   }
 
-  // External-tenant deep links land on the external-tenant detail page
-  // — this page is operator-side only.
-  if (org.kind === 'external') {
-    return <Navigate to={`/admin/external-tenants/${tenantId}`} replace />;
+  // Defence-in-depth: an internal tenant deep-linked into the external
+  // detail route renders the wrong tabs (Divisions, Subscriptions,
+  // Payments). Bounce to the operator-side page.
+  if (org.kind === 'internal') {
+    return <Navigate to={`/admin/internal/tenants/${tenantId}`} replace />;
   }
 
   const onTabChange = (key: string | null) => {
@@ -88,8 +99,8 @@ const InternalTenantDetailPage: React.FC = () => {
   return (
     <>
       <Breadcrumb className="mb-3 fs-10">
-        <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/admin/internal/tenants' }}>
-          Internal Tenants
+        <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/admin/clients' }}>
+          Clients
         </Breadcrumb.Item>
         <Breadcrumb.Item active>{org.name}</Breadcrumb.Item>
       </Breadcrumb>
@@ -98,7 +109,7 @@ const InternalTenantDetailPage: React.FC = () => {
         <Card.Body className="d-flex justify-content-between align-items-start flex-wrap gap-3">
           <div>
             <h3 className="fw-normal mb-1">
-              <FontAwesomeIcon icon="building" className="text-primary me-2" />
+              <FontAwesomeIcon icon="users" className="text-primary me-2" />
               {org.name}
             </h3>
             <div className="d-flex align-items-center gap-2 flex-wrap fs-10 text-muted">
@@ -111,8 +122,8 @@ const InternalTenantDetailPage: React.FC = () => {
               <SubtleBadge bg={planColors[org.plan] || 'secondary'} pill>
                 {org.plan}
               </SubtleBadge>
-              <SubtleBadge bg="primary" pill>
-                internal
+              <SubtleBadge bg="info" pill>
+                external
               </SubtleBadge>
             </div>
           </div>
@@ -137,6 +148,18 @@ const InternalTenantDetailPage: React.FC = () => {
               <Nav.Item>
                 <Nav.Link eventKey="members">Members</Nav.Link>
               </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="divisions">Divisions</Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="subscriptions">Subscriptions</Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="payments">Payments</Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="activity">Activity</Nav.Link>
+              </Nav.Item>
             </Nav>
           </Card.Header>
           <Card.Body>
@@ -154,6 +177,18 @@ const InternalTenantDetailPage: React.FC = () => {
                 <Tab.Pane eventKey="members">
                   <MembersTab org={org} />
                 </Tab.Pane>
+                <Tab.Pane eventKey="divisions">
+                  <DivisionsTab org={org} />
+                </Tab.Pane>
+                <Tab.Pane eventKey="subscriptions">
+                  <SubscriptionsTab org={org} />
+                </Tab.Pane>
+                <Tab.Pane eventKey="payments">
+                  <PaymentsTab org={org} />
+                </Tab.Pane>
+                <Tab.Pane eventKey="activity">
+                  <ActivityTab />
+                </Tab.Pane>
               </Tab.Content>
             </Suspense>
           </Card.Body>
@@ -163,4 +198,4 @@ const InternalTenantDetailPage: React.FC = () => {
   );
 };
 
-export default InternalTenantDetailPage;
+export default ExternalTenantDetailPage;

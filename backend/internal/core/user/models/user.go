@@ -216,6 +216,52 @@ type UserManagementListResponse struct {
 	TotalPages int                      `json:"totalPages"`
 }
 
+// AdminUserMembership is the trimmed tenant-membership row embedded on
+// admin user-list responses. Mirrors iface.TenantMembership shape so the
+// admin frontend can render a "Tenants" column without a per-row fetch.
+type AdminUserMembership struct {
+	TenantUUID string   `json:"tenantUUID"`
+	TenantName string   `json:"tenantName"`
+	TenantSlug string   `json:"tenantSlug,omitempty"`
+	TenantKind string   `json:"tenantKind"`
+	Roles      []string `json:"roles,omitempty"`
+	IsOwner    bool     `json:"isOwner,omitempty"`
+}
+
+// AdminClientUserItem is the row shape for the admin "Clients" page —
+// a client_users row with its tenant memberships joined in. Self-registered
+// users that are not yet attached to any tenant return an empty Memberships
+// array so the frontend can render an "unattached" pill.
+//
+// Providers is populated only by the single-user GET path (the detail
+// endpoint enriches with OAuth links via UserService). The list path
+// leaves it empty to avoid an N+1 over the OAuth provider repo — the
+// list does not need that column.
+type AdminClientUserItem struct {
+	ID            string                  `json:"id"`
+	Email         string                  `json:"email"`
+	Username      string                  `json:"username,omitempty"`
+	FullName      string                  `json:"fullName,omitempty"`
+	Avatar        string                  `json:"avatar,omitempty"`
+	Role          string                  `json:"role"`
+	IsActive      bool                    `json:"isActive"`
+	EmailVerified bool                    `json:"emailVerified"`
+	LastLogin     *time.Time              `json:"lastLogin,omitempty"`
+	CreatedAt     time.Time               `json:"createdAt"`
+	Memberships   []AdminUserMembership   `json:"memberships"`
+	Providers     []UserOAuthProviderInfo `json:"providers,omitempty"`
+}
+
+// AdminClientUserListResponse is the paginated payload for the admin
+// client-users endpoint.
+type AdminClientUserListResponse struct {
+	Users      []AdminClientUserItem `json:"users"`
+	Total      int64                 `json:"total"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalPages int                   `json:"totalPages"`
+}
+
 // UserFilters represents filters for user queries
 type UserFilters struct {
 	Role           string `json:"role,omitempty" validate:"omitempty,oneof=super_admin administrator developer manager operator guest"`

@@ -109,6 +109,18 @@ type JWTProvider interface {
 }
 
 // ---------------------------------------------------------------------------
+// PasswordHasher — consumed by: user (admin-direct client-user create)
+// Slim view of auth.PasswordService for callers that only need to hash
+// and policy-check a plaintext password. Auth's PasswordService satisfies
+// this via structural typing.
+// ---------------------------------------------------------------------------
+
+type PasswordHasher interface {
+	Hash(plaintext string) (string, error)
+	ValidatePolicy(ctx context.Context, plaintext, email string) error
+}
+
+// ---------------------------------------------------------------------------
 // PDFProvider — consumed by: billing
 // Only the methods billing's invoice service calls.
 // ---------------------------------------------------------------------------

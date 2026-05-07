@@ -475,11 +475,17 @@ export const tenantApi = baseApi.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_, __, { tenantId }) => [
-        { type: 'Membership', id: tenantId },
-        { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+      invalidatesTags: (result, _error, { tenantId, body }) => {
+        const tags: Array<{ type: 'Membership' | 'AdminOrg' | 'User'; id?: string }> = [
+          { type: 'Membership', id: tenantId },
+          { type: 'AdminOrg', id: tenantId },
+          { type: 'AdminOrg', id: 'LIST' },
+          { type: 'User', id: 'CLIENT_LIST' },
+        ];
+        const uid = body.userUuid ?? result?.member?.userUUID;
+        if (uid) tags.push({ type: 'User', id: uid });
+        return tags;
+      },
     }),
 
     removeOrgMemberAdmin: builder.mutation<void, { tenantId: string; userUUID: string }>({
@@ -487,10 +493,12 @@ export const tenantApi = baseApi.injectEndpoints({
         url: `/v1/admin/tenants/${tenantId}/members/${userUUID}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (_, __, { tenantId }) => [
+      invalidatesTags: (_, __, { tenantId, userUUID }) => [
         { type: 'Membership', id: tenantId },
         { type: 'AdminOrg', id: tenantId },
         { type: 'AdminOrg', id: 'LIST' },
+        { type: 'User', id: userUUID },
+        { type: 'User', id: 'CLIENT_LIST' },
       ],
     }),
 
