@@ -1253,6 +1253,184 @@ func hashEmailToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// ---------------------------------------------------------------------------
+// Admin-triggered flows (Phase 3 of the /admin/clients management surface)
+//
+// These complement the public-facing Resend/Forgot variants. They surface
+// real errors instead of the enumeration-proof silent return — the admin
+// already knows the user exists, so signalling "not found" or "notifier
+// unavailable" is information they're entitled to.
+// ---------------------------------------------------------------------------
+
+// AdminSendInvite issues an admin_invite email-token for the given user
+// and emails the auth.admin_invite template. Used both by the
+// invite-create flow (when the user has no password yet) and as a
+// "resend invite" affordance from the user-detail page. Invalidates any
+// prior unused invite token for the same user before minting the new
+// one. Returns ErrNotificationDown if the notifier is missing.
+func (s *PasswordAuthService) AdminSendInvite(ctx context.Context, userUUID, inviterName string) error {
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	_ = s.emailTokenRepo.InvalidateByUserAndPurpose(ctx, userUUID, authModels.EmailTokenPurposeAdminInvite)
+
+	raw, hash, err := generateEmailToken()
+	if err != nil {
+		return err
+	}
+	doc := &authModels.EmailTokenDoc{
+		UUID:      uuid.Must(uuid.NewV7()).String(),
+		UserUUID:  userUUID,
+		TokenHash: hash,
+		Purpose:   authModels.EmailTokenPurposeAdminInvite,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	if err := s.emailTokenRepo.Create(ctx, doc); err != nil {
+		return err
+	}
+
+	if s.notifier == nil || !s.notifier.IsConfigured(ctx) {
+		return ErrNotificationDown
+	}
+
+	inviteURL := s.frontendURL + "/accept-invite?token=" + raw
+	_, err = s.notifier.SendTemplated(ctx, iface.TemplatedNotificationRequest{
+		Channel:    "email",
+		Type:       "transactional",
+		Category:   notifModels.CategoryAuthAdminInvite,
+		TemplateID: notifModels.CategoryAuthAdminInvite,
+		Recipients: []iface.Recipient{{
+			UserUUID: userUUID,
+			Address:  user.Email,
+			Name:     user.FullName,
+		}},
+		Data: map[string]any{
+			"UserName":     coalesce(user.FullName, user.Email),
+			"InviteURL":    inviteURL,
+			"ExpiresIn":    "7 days",
+			"InviterName":  inviterName,
+			"AppName":      s.appName,
+			"SupportEmail": s.supportEmail,
+		},
+		IdempotencyKey: "invite:" + userUUID + ":" + doc.UUID,
+	})
+	return err
+}
+
+// AdminResendVerification re-sends a verification email on behalf of an
+// admin. Unlike the public ResendVerification it surfaces concrete
+// errors and skips rate-limiting (the admin operator is implicitly
+// trusted; the operator host is already privileged).
+func (s *PasswordAuthService) AdminResendVerification(ctx context.Context, userUUID string) error {
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	if user.EmailVerified {
+		return nil
+	}
+	_ = s.emailTokenRepo.InvalidateByUserAndPurpose(ctx, user.UUID, authModels.EmailTokenPurposeVerifyEmail)
+	return s.sendVerificationEmail(ctx, user, "")
+}
+
+// AdminTriggerPasswordReset emits a reset-password token + email on
+// behalf of an admin. Surfaces real errors (404 on missing user,
+// 503 ErrNotificationDown). The redemption path is the same
+// /v1/auth/{tier}/reset-password the public flow uses.
+func (s *PasswordAuthService) AdminTriggerPasswordReset(ctx context.Context, userUUID string) error {
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	_ = s.emailTokenRepo.InvalidateByUserAndPurpose(ctx, userUUID, authModels.EmailTokenPurposeResetPassword)
+
+	raw, hash, err := generateEmailToken()
+	if err != nil {
+		return err
+	}
+	doc := &authModels.EmailTokenDoc{
+		UUID:      uuid.Must(uuid.NewV7()).String(),
+		UserUUID:  userUUID,
+		TokenHash: hash,
+		Purpose:   authModels.EmailTokenPurposeResetPassword,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+	if err := s.emailTokenRepo.Create(ctx, doc); err != nil {
+		return err
+	}
+
+	if s.notifier == nil || !s.notifier.IsConfigured(ctx) {
+		return ErrNotificationDown
+	}
+
+	resetURL := s.frontendURL + "/reset-password?token=" + raw
+	_, err = s.notifier.SendTemplated(ctx, iface.TemplatedNotificationRequest{
+		Channel:    "email",
+		Type:       "transactional",
+		Category:   authModels.EmailTokenPurposeResetPassword,
+		TemplateID: notifModels.CategoryAuthResetPassword,
+		Recipients: []iface.Recipient{{
+			UserUUID: userUUID,
+			Address:  user.Email,
+			Name:     user.FullName,
+		}},
+		Data: map[string]any{
+			"UserName":     coalesce(user.FullName, user.Email),
+			"ResetURL":     resetURL,
+			"ExpiresIn":    "30 minutes",
+			"RequestIP":    "(admin-triggered)",
+			"AppName":      s.appName,
+			"SupportEmail": s.supportEmail,
+		},
+		IdempotencyKey: "reset:" + userUUID + ":" + doc.UUID,
+	})
+	return err
+}
+
+// ConsumeInvite redeems an admin_invite token: validates the token,
+// validates the new password against live policy, hashes it, sets it on
+// the target user, and marks the email verified. Used by the
+// /v1/auth/client/accept-invite redemption endpoint.
+func (s *PasswordAuthService) ConsumeInvite(ctx context.Context, rawToken, newPassword string) error {
+	doc, err := s.lookupEmailToken(ctx, rawToken, authModels.EmailTokenPurposeAdminInvite)
+	if err != nil {
+		return err
+	}
+	user, err := s.userService.GetUserByID(ctx, doc.UserUUID)
+	if err != nil {
+		return err
+	}
+	if err := s.passwordService.ValidatePolicy(ctx, newPassword, user.Email); err != nil {
+		return err
+	}
+	hash, err := s.passwordService.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.userService.UpdatePasswordHash(ctx, user.UUID, hash); err != nil {
+		return err
+	}
+	// Admin vouched for the address by typing it — invite redemption
+	// implies the recipient controls the inbox, so mark the email
+	// verified in the same step.
+	if err := s.userService.MarkEmailVerified(ctx, user.UUID); err != nil {
+		// Non-fatal: password is set, user can log in. Log + continue
+		// so a verify-mark hiccup doesn't strand a freshly-onboarded
+		// account at "set password again".
+		if s.logger != nil {
+			s.logger.Warn("invite consume: mark email verified failed",
+				slog.String("user_uuid", user.UUID),
+				slog.String("error", err.Error()))
+		}
+	}
+	_ = s.emailTokenRepo.MarkUsed(ctx, doc.TokenHash)
+	_ = s.userService.ClearFailedLogins(ctx, user.UUID)
+	return nil
+}
+
 func coalesce(values ...string) string {
 	for _, v := range values {
 		if v != "" {

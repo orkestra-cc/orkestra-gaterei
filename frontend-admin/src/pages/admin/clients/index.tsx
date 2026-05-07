@@ -81,7 +81,7 @@ const ClientManagementPage: React.FC = () => {
       <div className="d-flex justify-content-end mb-3">
         <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>
           <FontAwesomeIcon icon="plus" className="me-1" />
-          New client user
+          Invite or create user
         </Button>
       </div>
       <Row className="g-3 mb-4">

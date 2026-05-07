@@ -75,10 +75,16 @@ All routes are behind `RequireSystemPermission("system.users.admin")` (`module.g
 | GET | `/v1/admin/client-users` | List Tier-2 client users with tenant memberships joined (powers `/admin/clients`) |
 | GET | `/v1/admin/client-users/{id}` | Single Tier-2 client user with memberships + OAuth providers |
 | POST | `/v1/admin/client-users` | Admin-direct create of a client_users row, password hashed against the live policy, EmailVerified=true |
+| POST | `/v1/admin/client-users/invite` | Invite-flow create: row with no password, 7-day `admin_invite` email-token sent. Recipient redeems via `/v1/auth/client/accept-invite` |
+| POST | `/v1/admin/client-users/{id}/invite/resend` | Re-emit the invite email (invalidates prior unused invite token) |
+| POST | `/v1/admin/client-users/{id}/resend-verification` | Admin-trigger variant of resend verification — surfaces real errors instead of the public flow's silent return |
+| POST | `/v1/admin/client-users/{id}/send-password-reset` | Admin-trigger variant of forgot-password — same enumeration-safe primitive but signals 404 / 503 directly to the operator |
 | PATCH | `/v1/admin/client-users/{id}` | Update name / username / email / phone / role / isActive on a client user |
 | DELETE | `/v1/admin/client-users/{id}` | Soft-delete + email alias on a client user (reuses `SoftDeleteAndAliasEmail`) |
 
-Full registration in `routes.go`. The `/v1/admin/client-users[/{id}]` family is implemented by `handlers/admin_client_handler.go` (the `AdminClientUserHandler`). It binds to the **client-tier** `UserService` directly, looks up `iface.TenantProvider` lazily from the registry to join memberships, and looks up `iface.PasswordHasher` lazily on create so it can hash the supplied password without importing auth's package.
+Full registration in `routes.go`. The `/v1/admin/client-users[/{id}]` family is implemented by `handlers/admin_client_handler.go` (the `AdminClientUserHandler`). It binds to the **client-tier** `UserService` directly, looks up `iface.TenantProvider` lazily from the registry to join memberships, looks up `iface.PasswordHasher` lazily on create so it can hash the supplied password without importing auth's package, and looks up `iface.AdminAuthInviter` (satisfied by the client-tier `*services.PasswordAuthService`) for the invite / resend-verification / send-password-reset endpoints.
+
+The companion tier-aware MFA reset is mounted by the auth module at `POST /v1/admin/client-users/{userId}/mfa/reset` — see [`../auth/CLAUDE.md`](../auth/CLAUDE.md).
 
 ## Service contract
 

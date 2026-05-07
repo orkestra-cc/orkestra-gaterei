@@ -9,6 +9,7 @@ import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { AccountPage } from '@/pages/AccountPage';
 import { AccountSecurityPage } from '@/pages/AccountSecurityPage';
 import { BillingProfilePage } from '@/pages/BillingProfilePage';
@@ -33,6 +34,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route
           path="/account"
           element={

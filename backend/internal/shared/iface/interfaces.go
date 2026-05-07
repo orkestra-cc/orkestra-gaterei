@@ -121,6 +121,21 @@ type PasswordHasher interface {
 }
 
 // ---------------------------------------------------------------------------
+// AdminAuthInviter — consumed by: user (admin-triggered Tier-2 flows)
+// Slim view of auth.PasswordAuthService for the admin "Resend
+// verification" / "Send password reset" / "Send invite" buttons on the
+// client-user detail page. Each tier's *services.PasswordAuthService
+// satisfies this via structural typing — the user module fetches the
+// client-tier instance from the registry by key.
+// ---------------------------------------------------------------------------
+
+type AdminAuthInviter interface {
+	AdminSendInvite(ctx context.Context, userUUID, inviterName string) error
+	AdminResendVerification(ctx context.Context, userUUID string) error
+	AdminTriggerPasswordReset(ctx context.Context, userUUID string) error
+}
+
+// ---------------------------------------------------------------------------
 // PDFProvider — consumed by: billing
 // Only the methods billing's invoice service calls.
 // ---------------------------------------------------------------------------

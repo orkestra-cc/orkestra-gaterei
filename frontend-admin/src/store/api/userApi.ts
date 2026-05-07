@@ -182,6 +182,24 @@ export interface CreateClientUserAdminInput {
   password: string;
 }
 
+// InviteClientUserAdminInput drives the alternate "send an invite email"
+// flow — the new user has no password until they redeem the token.
+export interface InviteClientUserAdminInput {
+  email: string;
+  fullName: string;
+  username?: string;
+  phone?: string;
+  role: string;
+  inviterName?: string;
+}
+
+// AdminTriggerResponse mirrors the no-body confirmation shape used by
+// resend-verification, send-password-reset, and resend-invite.
+export interface AdminTriggerResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface AdminClientUserListResponse {
   users: AdminClientUserItem[];
   total: number;
@@ -358,6 +376,49 @@ export const userApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }],
     }),
+
+    // Admin — invite a new Tier-2 client user. Server creates the row
+    // with no password and emails an admin_invite token.
+    inviteClientUserAdmin: builder.mutation<
+      AdminClientUserItem,
+      InviteClientUserAdminInput
+    >({
+      query: (data) => ({
+        url: '/v1/admin/client-users/invite',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }],
+    }),
+
+    // Admin — re-send the invite email for an existing user.
+    resendInviteClientUserAdmin: builder.mutation<
+      AdminTriggerResponse,
+      { id: string; inviterName?: string }
+    >({
+      query: ({ id, inviterName }) => ({
+        url: `/v1/admin/client-users/${id}/invite/resend`,
+        method: 'POST',
+        body: { inviterName },
+      }),
+    }),
+
+    // Admin — re-send the email-verification link.
+    resendVerificationClientUserAdmin: builder.mutation<AdminTriggerResponse, string>({
+      query: (id) => ({
+        url: `/v1/admin/client-users/${id}/resend-verification`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, id) => [{ type: 'User', id }],
+    }),
+
+    // Admin — trigger a password-reset email.
+    sendPasswordResetClientUserAdmin: builder.mutation<AdminTriggerResponse, string>({
+      query: (id) => ({
+        url: `/v1/admin/client-users/${id}/send-password-reset`,
+        method: 'POST',
+      }),
+    }),
   }),
 });
 
@@ -376,4 +437,8 @@ export const {
   useUpdateClientUserAdminMutation,
   useDeleteClientUserAdminMutation,
   useCreateClientUserAdminMutation,
+  useInviteClientUserAdminMutation,
+  useResendInviteClientUserAdminMutation,
+  useResendVerificationClientUserAdminMutation,
+  useSendPasswordResetClientUserAdminMutation,
 } = userApi;

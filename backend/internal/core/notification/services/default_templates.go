@@ -252,4 +252,45 @@ The user has been notified. Review activity: {{.AccountActivityURL}}
 </body>
 </html>`,
 	},
+	{
+		TemplateID:  models.CategoryAuthAdminInvite,
+		Locale:      "en",
+		Subject:     "You've been invited to {{.AppName}}",
+		Description: "Sent when an admin operator invites a new Tier-2 client user. The recipient redeems the token on the client SPA's /accept-invite page; redemption sets their password and marks the email verified.",
+		Variables:   []string{"AppName", "UserName", "InviteURL", "ExpiresIn", "InviterName", "SupportEmail", "UnsubscribeURL", "PreferencesURL"},
+		BodyText: `Hi {{.UserName}},
+
+{{if .InviterName}}{{.InviterName}} has invited you{{else}}You've been invited{{end}} to join {{.AppName}}.
+
+Use the link below within {{.ExpiresIn}} to set your password and finish setting up your account:
+
+{{.InviteURL}}
+
+If you weren't expecting this invitation you can safely ignore this email.
+
+Need help? Contact {{.SupportEmail}}.
+
+— The {{.AppName}} team
+
+---
+Manage preferences: {{.PreferencesURL}}
+You will still receive security-related emails.`,
+		BodyHTML: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>You've been invited</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#333;">
+  <h2 style="color:#2c3e50;">You've been invited to {{.AppName}}</h2>
+  <p>Hi {{.UserName}},</p>
+  <p>{{if .InviterName}}<strong>{{.InviterName}}</strong> has invited you{{else}}You've been invited{{end}} to join {{.AppName}}. Use the button below to set your password and finish setting up your account.</p>
+  <p style="margin:32px 0;">
+    <a href="{{.InviteURL}}" style="background:#2c7be5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;font-weight:600;">Accept invitation</a>
+  </p>
+  <p style="color:#6c757d;font-size:14px;">This link expires in {{.ExpiresIn}}.</p>
+  <p style="color:#6c757d;font-size:14px;">If the button doesn't work, paste this URL in your browser:<br><span style="word-break:break-all;">{{.InviteURL}}</span></p>
+  <p style="color:#6c757d;font-size:14px;">If you weren't expecting this invitation, you can safely ignore this email.</p>
+  <hr style="border:none;border-top:1px solid #e0e0e0;margin:32px 0;">
+  <p style="color:#9ca3af;font-size:12px;"><a href="{{.PreferencesURL}}" style="color:#9ca3af;">Manage preferences</a><br>You will still receive security-related emails.</p>
+</body>
+</html>`,
+	},
 }

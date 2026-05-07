@@ -348,3 +348,176 @@ func (h *AdminClientUserHandler) CreateClientUserAdmin(ctx context.Context, req 
 	}
 	return &CreateClientUserAdminResponse{Body: *item}, nil
 }
+
+// inviteAuthOps fetches the client-tier admin auth surface lazily —
+// auth depends on user, so this lookup must happen at request time.
+// Returns (nil, false) when the auth module is disabled or its
+// PasswordAuthService is missing; callers translate that to 503.
+func (h *AdminClientUserHandler) inviteAuthOps() (iface.AdminAuthInviter, bool) {
+	return module.GetTyped[iface.AdminAuthInviter](h.services, module.ServiceClientPasswordAuthService)
+}
+
+// InviteClientUserAdminBody powers POST /v1/admin/client-users/invite.
+// Creates the user record with no password and emails an admin_invite
+// token. The recipient redeems on the client SPA's /accept-invite page.
+type InviteClientUserAdminBody struct {
+	Email       string `json:"email" validate:"required,email"`
+	FullName    string `json:"fullName" validate:"required,min=1,max=100"`
+	Username    string `json:"username,omitempty" validate:"omitempty,min=3,max=50"`
+	Phone       string `json:"phone,omitempty" validate:"omitempty,e164"`
+	Role        string `json:"role" validate:"required,oneof=super_admin administrator developer manager operator guest"`
+	InviterName string `json:"inviterName,omitempty" doc:"Free-text label rendered into the invite email — typically the operator's display name"`
+}
+
+// InviteClientUserAdminRequest carries the body.
+type InviteClientUserAdminRequest struct {
+	Body InviteClientUserAdminBody `json:"body"`
+}
+
+// InviteClientUserAdminResponse echoes the freshly-created item — the
+// admin UI navigates to its detail page after success.
+type InviteClientUserAdminResponse struct {
+	Body models.AdminClientUserItem `json:"body"`
+}
+
+// InviteClientUserAdmin handles POST /v1/admin/client-users/invite. The
+// new client_users row carries an empty password hash and EmailVerified
+// stays false — those fields are populated when the recipient redeems
+// the invite via /v1/auth/client/accept-invite.
+func (h *AdminClientUserHandler) InviteClientUserAdmin(ctx context.Context, req *InviteClientUserAdminRequest) (*InviteClientUserAdminResponse, error) {
+	auth, ok := h.inviteAuthOps()
+	if !ok || auth == nil {
+		return nil, huma.Error503ServiceUnavailable("Auth service unavailable — cannot send invite")
+	}
+
+	input := &models.CreateUserInput{
+		Email:    req.Body.Email,
+		FullName: req.Body.FullName,
+		Username: req.Body.Username,
+		Phone:    req.Body.Phone,
+		Role:     req.Body.Role,
+	}
+	resp, err := h.clientUserService.CreateUser(ctx, input)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrEmailNotUnique):
+			return nil, huma.Error409Conflict("Email already in use", err)
+		case errors.Is(err, services.ErrInvalidInput):
+			return nil, huma.Error400BadRequest("Invalid input", err)
+		default:
+			return nil, huma.Error500InternalServerError("Failed to create client user", err)
+		}
+	}
+
+	if err := auth.AdminSendInvite(ctx, resp.ID, req.Body.InviterName); err != nil {
+		// Best-effort: the user row exists, the admin can resend the
+		// invite from the detail page. Surface a 502 so the client
+		// knows the email failed but doesn't roll the user back.
+		slog.WarnContext(ctx, "admin invite: send failed",
+			"userId", resp.ID, "error", err)
+		return nil, huma.Error502BadGateway("User created but invite email failed to send", err)
+	}
+
+	item, err := h.buildAdminItem(ctx, resp.ID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("Failed to load created client user", err)
+	}
+	return &InviteClientUserAdminResponse{Body: *item}, nil
+}
+
+// ResendInviteClientUserAdminRequest re-emits an admin_invite token for
+// an existing user. Path-only.
+type ResendInviteClientUserAdminRequest struct {
+	ID   string `path:"id" doc:"Client user UUID"`
+	Body struct {
+		InviterName string `json:"inviterName,omitempty"`
+	} `json:"body"`
+}
+
+// AdminTriggerResponse is the no-body confirmation shape shared by the
+// resend / reset / invite-resend admin actions.
+type AdminTriggerResponse struct {
+	Body struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+}
+
+// ResendInviteClientUserAdmin handles POST /v1/admin/client-users/{id}/invite/resend.
+func (h *AdminClientUserHandler) ResendInviteClientUserAdmin(ctx context.Context, req *ResendInviteClientUserAdminRequest) (*AdminTriggerResponse, error) {
+	auth, ok := h.inviteAuthOps()
+	if !ok || auth == nil {
+		return nil, huma.Error503ServiceUnavailable("Auth service unavailable")
+	}
+	if err := auth.AdminSendInvite(ctx, req.ID, req.Body.InviterName); err != nil {
+		return nil, mapInviteErr(err, "Failed to resend invite")
+	}
+	out := &AdminTriggerResponse{}
+	out.Body.Success = true
+	out.Body.Message = "Invite email re-sent"
+	return out, nil
+}
+
+// ResendVerificationClientUserAdminRequest is path-only.
+type ResendVerificationClientUserAdminRequest struct {
+	ID string `path:"id" doc:"Client user UUID"`
+}
+
+// ResendVerificationClientUserAdmin handles
+// POST /v1/admin/client-users/{id}/resend-verification. No-op if the
+// user is already verified (returns 200 with success=true so the UI
+// can flash a friendly toast).
+func (h *AdminClientUserHandler) ResendVerificationClientUserAdmin(ctx context.Context, req *ResendVerificationClientUserAdminRequest) (*AdminTriggerResponse, error) {
+	auth, ok := h.inviteAuthOps()
+	if !ok || auth == nil {
+		return nil, huma.Error503ServiceUnavailable("Auth service unavailable")
+	}
+	if err := auth.AdminResendVerification(ctx, req.ID); err != nil {
+		return nil, mapInviteErr(err, "Failed to resend verification email")
+	}
+	out := &AdminTriggerResponse{}
+	out.Body.Success = true
+	out.Body.Message = "Verification email re-sent"
+	return out, nil
+}
+
+// SendPasswordResetClientUserAdminRequest is path-only.
+type SendPasswordResetClientUserAdminRequest struct {
+	ID string `path:"id" doc:"Client user UUID"`
+}
+
+// SendPasswordResetClientUserAdmin handles
+// POST /v1/admin/client-users/{id}/send-password-reset.
+func (h *AdminClientUserHandler) SendPasswordResetClientUserAdmin(ctx context.Context, req *SendPasswordResetClientUserAdminRequest) (*AdminTriggerResponse, error) {
+	auth, ok := h.inviteAuthOps()
+	if !ok || auth == nil {
+		return nil, huma.Error503ServiceUnavailable("Auth service unavailable")
+	}
+	if err := auth.AdminTriggerPasswordReset(ctx, req.ID); err != nil {
+		return nil, mapInviteErr(err, "Failed to send password reset email")
+	}
+	out := &AdminTriggerResponse{}
+	out.Body.Success = true
+	out.Body.Message = "Password reset email sent"
+	return out, nil
+}
+
+// mapInviteErr translates the auth service's sentinel errors into Huma
+// HTTP responses. A bare error becomes 500 with the generic msg.
+func mapInviteErr(err error, generic string) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, services.ErrUserNotFound):
+		return huma.Error404NotFound("Client user not found", err)
+	case errors.Is(err, services.ErrInvalidInput):
+		return huma.Error400BadRequest("Invalid user id", err)
+	}
+	// ErrNotificationDown lives in auth/services and we don't import it
+	// from here — match by message so we still surface 503 cleanly.
+	if msg := err.Error(); msg == "notifications disabled — cannot send email" {
+		return huma.Error503ServiceUnavailable("Notifications disabled", err)
+	}
+	return huma.Error500InternalServerError(generic, err)
+}

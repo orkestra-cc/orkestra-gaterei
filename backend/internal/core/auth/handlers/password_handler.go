@@ -227,6 +227,27 @@ func (h *PasswordAuthHandler) ResetPassword(ctx context.Context, req *ResetPassw
 	return resp, nil
 }
 
+// AcceptInviteRequest is the redemption payload for the admin_invite
+// flow — same shape as ResetPassword but a different purpose claim.
+type AcceptInviteRequest struct {
+	Body struct {
+		Token       string `json:"token" doc:"Invite token from the admin invite email"`
+		NewPassword string `json:"newPassword" doc:"Password the new user picks"`
+	}
+}
+
+// AcceptInvite redeems an admin_invite email token: sets the user's
+// password and marks the email verified in one step.
+func (h *PasswordAuthHandler) AcceptInvite(ctx context.Context, req *AcceptInviteRequest) (*ForgotPasswordResponse, error) {
+	if err := h.svc.ConsumeInvite(ctx, req.Body.Token, req.Body.NewPassword); err != nil {
+		return nil, mapPasswordError(err)
+	}
+	resp := &ForgotPasswordResponse{}
+	resp.Body.Success = true
+	resp.Body.Message = "Welcome — your account is ready. You can now sign in."
+	return resp, nil
+}
+
 // --- Change password (authenticated) ---
 
 type ChangePasswordRequest struct {
@@ -419,6 +440,14 @@ func (h *PasswordAuthHandler) RegisterPublicRoutes(api huma.API, mount RouteMoun
 		Summary:     "Reset a password with a token",
 		Tags:        []string{"Authentication"},
 	}, h.ResetPassword)
+
+	huma.Register(api, huma.Operation{
+		OperationID: mount.OpIDPrefix + "password-accept-invite",
+		Method:      http.MethodPost,
+		Path:        "/v1/auth" + mount.PathPrefix + "/accept-invite",
+		Summary:     "Redeem an admin invite token: set password + verify email",
+		Tags:        []string{"Authentication"},
+	}, h.AcceptInvite)
 }
 
 // RegisterProtectedRoutes registers the change-password endpoint. See

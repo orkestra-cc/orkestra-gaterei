@@ -583,7 +583,26 @@ func (h *MFAHandler) RegisterAdminRoutes(api huma.API) {
 		OperationID: "mfa-admin-reset",
 		Method:      http.MethodPost,
 		Path:        "/v1/admin/users/{userId}/mfa/reset",
-		Summary:     "Admin: delete another user's MFA factor and restart their enrollment grace",
+		Summary:     "Admin: delete an operator user's MFA factor and restart their enrollment grace",
+		Tags:        []string{"Administration", "MFA"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.AdminReset)
+}
+
+// RegisterClientAdminRoutes mounts the same AdminReset action under the
+// /v1/admin/client-users path so an operator (mounted on the operator
+// host) can reset a Tier-2 client user's MFA factor. Callers wire the
+// **client-tier** MFAHandler instance here so the reset operates against
+// client_mfa_factors and the client UserService — preventing an
+// operator-tier handler from accidentally targeting client tables.
+// Same RequireSystemPermission + RequireStepUp gating as the operator
+// admin route.
+func (h *MFAHandler) RegisterClientAdminRoutes(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "mfa-admin-reset-client",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/client-users/{userId}/mfa/reset",
+		Summary:     "Admin: delete a Tier-2 client user's MFA factor and restart their enrollment grace",
 		Tags:        []string{"Administration", "MFA"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.AdminReset)

@@ -123,6 +123,21 @@
     "errorTooShort": "La password deve avere almeno 10 caratteri",
     "errorMismatch": "Le password non corrispondono"
   },
+  "invite": {
+    "title": "Accetta l'invito",
+    "subtitle": "Scegli una password per attivare il tuo account.",
+    "newPassword": "Scegli una password",
+    "confirmPassword": "Conferma password",
+    "passwordHint": "Almeno 10 caratteri",
+    "submit": "Attiva account",
+    "submitting": "Attivazione…",
+    "successTitle": "Benvenuto",
+    "successBody": "Il tuo account è pronto. Accedi per iniziare.",
+    "signinCta": "Vai al login",
+    "missingToken": "Token mancante. Apri il link dall'email di invito.",
+    "errorTooShort": "La password deve avere almeno 10 caratteri",
+    "errorMismatch": "Le password non corrispondono"
+  },
   "account": {
     "title": "Account",
     "subtitle": "Gestisci il tuo profilo e la sicurezza.",

@@ -1019,6 +1019,10 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 		api := humachi.New(r, ri.APIConfig)
 		m.operatorMFAHandler.RegisterAdminRoutes(api)
+		// Tier-aware client-user MFA reset — same gate, different
+		// path, different handler instance. Mounted on the operator
+		// router because admins act from the operator console.
+		m.clientMFAHandler.RegisterClientAdminRoutes(api)
 	})
 
 	// Operator WebAuthn — public/protected/step-up halves mirror the

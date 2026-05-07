@@ -262,6 +262,18 @@ export async function resetPassword(token: string, newPassword: string): Promise
   if (!res.ok) throw await readError(res, 'Password reset failed');
 }
 
+// acceptInvite redeems an admin_invite token: sets the user's password
+// and marks the email verified server-side. Same shape as resetPassword
+// but a different purpose claim — the backend rejects a reset token
+// posted here and vice versa.
+export async function acceptInvite(token: string, newPassword: string): Promise<void> {
+  const res = await jsonFetch('/v1/auth/client/accept-invite', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  });
+  if (!res.ok) throw await readError(res, 'Invite redemption failed');
+}
+
 // --- Change password (authenticated) ---
 
 export async function changePassword(

@@ -111,6 +111,21 @@ export const mfaApi = baseApi.injectEndpoints({
       transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
     }),
 
+    // Admin — same surface as adminResetUserMfa but routed at the
+    // client-tier admin path so the backend's clientMFAHandler operates
+    // against client_users + client_mfa_factors.
+    adminResetClientUserMfa: builder.mutation<{ success: boolean }, { userId: string }>({
+      query: ({ userId }) => ({
+        url: `v1/admin/client-users/${encodeURIComponent(userId)}/mfa/reset`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, { userId }) => [
+        { type: 'User', id: userId },
+        { type: 'User', id: 'CLIENT_LIST' },
+      ],
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+    }),
+
     // Public — completes a login that was paused with requiresMfa. Unlike
     // /mfa/verify this endpoint has no bearer token yet; the challengeId
     // ties the code back to the paused login so the same user UUID is used.
@@ -264,6 +279,7 @@ export const {
   useRemoveMfaMutation,
   useLoginVerifyMfaMutation,
   useAdminResetUserMfaMutation,
+  useAdminResetClientUserMfaMutation,
   useWebAuthnRegisterBeginMutation,
   useWebAuthnRegisterFinishMutation,
   useWebAuthnListQuery,

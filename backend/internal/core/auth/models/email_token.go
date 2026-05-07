@@ -10,6 +10,11 @@ import (
 const (
 	EmailTokenPurposeVerifyEmail   = "verify_email"
 	EmailTokenPurposeResetPassword = "reset_password"
+	// EmailTokenPurposeAdminInvite is issued by the admin-direct invite
+	// flow (POST /v1/admin/client-users/invite). Redemption sets the
+	// user's password AND marks the email verified — the admin
+	// implicitly vouches for the address by typing it.
+	EmailTokenPurposeAdminInvite = "admin_invite"
 )
 
 // EmailTokenDoc is a single-use signed token for email verification or

@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Alert, Button, Form, Modal } from 'react-bootstrap';
 import {
+  useAdminResetClientUserMfaMutation,
   useAdminResetUserMfaMutation,
   useVerifyMfaMutation,
 } from 'store/api/mfaApi';
@@ -8,8 +9,12 @@ import type { User } from 'store/api/userApi';
 
 interface Props {
   show: boolean;
-  user: User | null;
+  user: User | { id: string; email: string; fullName?: string } | null;
   onHide: () => void;
+  // Target tier — "operator" hits /v1/admin/users/.../mfa/reset, "client"
+  // hits /v1/admin/client-users/.../mfa/reset. Defaults to operator so
+  // the existing operator-side users page keeps its behaviour.
+  tier?: 'operator' | 'client';
 }
 
 /**
@@ -19,13 +24,18 @@ interface Props {
  * last_otp_at, then the reset call succeeds immediately. One linear flow,
  * no round-trip through the step-up toast.
  */
-const AdminResetMfaModal = ({ show, user, onHide }: Props) => {
+const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) => {
   const [code, setCode] = useState('');
   const [useBackup, setUseBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [verify, { isLoading: verifyLoading }] = useVerifyMfaMutation();
-  const [reset, { isLoading: resetLoading }] = useAdminResetUserMfaMutation();
+  // Both mutation hooks are unconditionally instantiated (rules of hooks);
+  // only the one matching `tier` is invoked when the form submits.
+  const [resetOperator, { isLoading: resetOperatorLoading }] = useAdminResetUserMfaMutation();
+  const [resetClient, { isLoading: resetClientLoading }] = useAdminResetClientUserMfaMutation();
+  const reset = tier === 'client' ? resetClient : resetOperator;
+  const resetLoading = resetOperatorLoading || resetClientLoading;
   const busy = verifyLoading || resetLoading;
 
   const handleSubmit = async (event: FormEvent) => {

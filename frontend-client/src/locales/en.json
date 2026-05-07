@@ -123,6 +123,21 @@
     "errorTooShort": "Password must be at least 10 characters",
     "errorMismatch": "Passwords do not match"
   },
+  "invite": {
+    "title": "Accept your invitation",
+    "subtitle": "Pick a password to finish setting up your account.",
+    "newPassword": "Choose a password",
+    "confirmPassword": "Confirm password",
+    "passwordHint": "At least 10 characters",
+    "submit": "Activate account",
+    "submitting": "Activating…",
+    "successTitle": "Welcome aboard",
+    "successBody": "Your account is ready. Sign in to get started.",
+    "signinCta": "Go to sign in",
+    "missingToken": "Missing token. Open the link from the invitation email.",
+    "errorTooShort": "Password must be at least 10 characters",
+    "errorMismatch": "Passwords do not match"
+  },
   "account": {
     "title": "Account",
     "subtitle": "Manage your profile and security.",

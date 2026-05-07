@@ -38,6 +38,12 @@ const (
 	// metadata up front. Gated by notifyAdminOnSuspiciousLogin +
 	// suspiciousLoginRecipients. Transactional.
 	CategoryAuthAdminSuspiciousLogin = "auth.admin_suspicious_login"
+	// CategoryAuthAdminInvite is the email an operator sends to invite a
+	// new Tier-2 client user to the platform. Carries an invite token
+	// the recipient redeems on the client SPA's /accept-invite page,
+	// where they pick a password; redemption marks the email verified.
+	// Transactional.
+	CategoryAuthAdminInvite = "auth.admin_invite"
 )
 
 // Notification types — drives whether preferences are honoured.
