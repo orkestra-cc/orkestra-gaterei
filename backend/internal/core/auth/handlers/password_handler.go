@@ -341,6 +341,13 @@ func mapPasswordError(err error) error {
 			Detail: "Login is temporarily disabled for this surface. Contact an administrator.",
 			Code:   "login_disabled",
 		}
+	case errors.Is(err, services.ErrCountryBlocked):
+		return &codedError{
+			Status: http.StatusForbidden,
+			Title:  "Forbidden",
+			Detail: "Access from your country is not permitted.",
+			Code:   "country_blocked",
+		}
 	case errors.Is(err, services.ErrPasswordTooShort),
 		errors.Is(err, services.ErrPasswordTooLong),
 		errors.Is(err, services.ErrPasswordContainsEmail),

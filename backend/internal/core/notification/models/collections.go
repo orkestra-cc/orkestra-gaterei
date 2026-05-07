@@ -27,6 +27,17 @@ const (
 	// (Section C of the auth roadmap) flags a session at or above the
 	// "high" bucket (>= 0.5). Transactional, cannot be opted out of.
 	CategoryAuthSuspiciousLogin = "auth.suspicious_login"
+	// CategoryAuthNewDeviceLogin is sent the first time a user logs in
+	// from a (deviceId, userUUID) pair the system has not seen before.
+	// Helps users notice unauthorised access. Gated by the
+	// notifyUserOnNewDeviceLogin admin policy. Transactional.
+	CategoryAuthNewDeviceLogin = "auth.new_device_login"
+	// CategoryAuthAdminSuspiciousLogin is the admin-side counterpart of
+	// CategoryAuthSuspiciousLogin — same risk threshold, but addressed
+	// to a configurable admin recipient list with the affected user's
+	// metadata up front. Gated by notifyAdminOnSuspiciousLogin +
+	// suspiciousLoginRecipients. Transactional.
+	CategoryAuthAdminSuspiciousLogin = "auth.admin_suspicious_login"
 )
 
 // Notification types — drives whether preferences are honoured.

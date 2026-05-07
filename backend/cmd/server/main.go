@@ -220,6 +220,17 @@ func main() {
 
 	operatorMux := chi.NewRouter()
 	setupMiddleware(operatorMux, cfg, errorManager, deviceMW, string(module.AudienceOperator), cfg.Server.Operator)
+	// Phase 7: admin-managed IP allow/block gate on the operator host
+	// only. Reads ipAllowlistAdmin / ipBlocklistAdmin live from
+	// AuthPolicyService on every request — admin edits take effect
+	// immediately. Skipped silently when the policy isn't wired.
+	if policy, ok := module.GetTyped[*services.AuthPolicyService](svcRegistry, module.ServiceAuthPolicy); ok && policy != nil {
+		gate := authMiddleware.NewIPGate(func() (allow []string, block []string) {
+			ctx := context.Background()
+			return policy.IPAllowlistOperator(ctx), policy.IPBlocklistOperator(ctx)
+		})
+		operatorMux.Use(gate.Middleware)
+	}
 	operatorAPI := humachi.New(operatorMux, apiConfig)
 	operatorProtected := chi.NewRouter()
 	operatorProtected.Use(authMW.RequireAuth)

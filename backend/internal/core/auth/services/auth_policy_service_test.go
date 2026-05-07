@@ -420,6 +420,137 @@ func TestMFARequired_OrgRoleHonoursKillSwitch(t *testing.T) {
 	}
 }
 
+// Phase 7: Anti-abuse & Notifications policy accessors.
+
+func TestNotifyUserOnNewDeviceLogin_DefaultsTrue(t *testing.T) {
+	var p *AuthPolicyService
+	if !p.NotifyUserOnNewDeviceLogin(context.Background()) {
+		t.Fatalf("nil policy must default to notify=true")
+	}
+	if !newPolicy(nil).NotifyUserOnNewDeviceLogin(context.Background()) {
+		t.Fatalf("empty config must default to notify=true")
+	}
+	off := newPolicy(map[string]string{"notifyUserOnNewDeviceLogin": "false"})
+	if off.NotifyUserOnNewDeviceLogin(context.Background()) {
+		t.Fatalf("explicit false must disable")
+	}
+}
+
+func TestNotifyAdminOnSuspiciousLogin_DefaultsFalse(t *testing.T) {
+	var p *AuthPolicyService
+	if p.NotifyAdminOnSuspiciousLogin(context.Background()) {
+		t.Fatalf("nil policy must default to false (no admin emails)")
+	}
+	on := newPolicy(map[string]string{"notifyAdminOnSuspiciousLogin": "yes"})
+	if !on.NotifyAdminOnSuspiciousLogin(context.Background()) {
+		t.Fatalf("yes must enable admin emails")
+	}
+}
+
+func TestSuspiciousLoginRecipients_LowercasedAndTrimmed(t *testing.T) {
+	p := newPolicy(map[string]string{
+		"suspiciousLoginRecipients": "Alice@Example.com,  ,bob@beta.io  ",
+	})
+	got := p.SuspiciousLoginRecipients(context.Background())
+	want := []string{"alice@example.com", "bob@beta.io"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d (%v)", len(got), len(want), got)
+	}
+	for i, v := range want {
+		if got[i] != v {
+			t.Errorf("entry %d: got %q want %q", i, got[i], v)
+		}
+	}
+}
+
+func TestSuspiciousLoginRecipients_NilWhenUnset(t *testing.T) {
+	if got := newPolicy(nil).SuspiciousLoginRecipients(context.Background()); len(got) != 0 {
+		t.Fatalf("unset must return empty, got %v", got)
+	}
+}
+
+func TestIPLists_TrimAndDropEmpty(t *testing.T) {
+	p := newPolicy(map[string]string{
+		"ipAllowlistAdmin": " 10.0.0.0/8 ,, 192.0.2.5/32",
+		"ipBlocklistAdmin": "203.0.113.0/24",
+	})
+	allow := p.IPAllowlistOperator(context.Background())
+	block := p.IPBlocklistOperator(context.Background())
+	if len(allow) != 2 || allow[0] != "10.0.0.0/8" || allow[1] != "192.0.2.5/32" {
+		t.Errorf("allow: got %v", allow)
+	}
+	if len(block) != 1 || block[0] != "203.0.113.0/24" {
+		t.Errorf("block: got %v", block)
+	}
+}
+
+func TestGeoBlockCountries_UppercasedAndTrimmed(t *testing.T) {
+	p := newPolicy(map[string]string{
+		"geoBlockCountries": " ru, kp ,, Cn ",
+	})
+	got := p.GeoBlockCountries(context.Background())
+	want := []string{"RU", "KP", "CN"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i, v := range want {
+		if got[i] != v {
+			t.Errorf("entry %d: got %q want %q", i, got[i], v)
+		}
+	}
+}
+
+func TestCountryBlocked(t *testing.T) {
+	p := newPolicy(map[string]string{"geoBlockCountries": "ru, kp"})
+	ctx := context.Background()
+	cases := []struct {
+		input string
+		want  bool
+	}{
+		{"RU", true},
+		{"ru", true}, // case-insensitive
+		{" RU ", true},
+		{"US", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := p.CountryBlocked(ctx, tc.input); got != tc.want {
+			t.Errorf("CountryBlocked(%q) = %v want %v", tc.input, got, tc.want)
+		}
+	}
+	// Nil policy and empty list both fail open.
+	var nilP *AuthPolicyService
+	if nilP.CountryBlocked(ctx, "RU") {
+		t.Errorf("nil policy must not block")
+	}
+	if newPolicy(nil).CountryBlocked(ctx, "RU") {
+		t.Errorf("empty list must not block")
+	}
+}
+
+func TestInactiveAccountAutoDisableDays(t *testing.T) {
+	cases := []struct {
+		name string
+		set  map[string]string
+		want int
+	}{
+		{"unset → 0 (disabled)", nil, 0},
+		{"empty → 0", map[string]string{"inactiveAccountAutoDisableDays": ""}, 0},
+		{"valid 30", map[string]string{"inactiveAccountAutoDisableDays": "30"}, 30},
+		{"non-numeric → 0", map[string]string{"inactiveAccountAutoDisableDays": "abc"}, 0},
+		{"zero → 0", map[string]string{"inactiveAccountAutoDisableDays": "0"}, 0},
+		{"negative → 0", map[string]string{"inactiveAccountAutoDisableDays": "-5"}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPolicy(tc.set)
+			if got := p.InactiveAccountAutoDisableDays(context.Background()); got != tc.want {
+				t.Errorf("got %d want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDefaultClientRole_FallbackAndOverride(t *testing.T) {
 	cases := []struct {
 		name string

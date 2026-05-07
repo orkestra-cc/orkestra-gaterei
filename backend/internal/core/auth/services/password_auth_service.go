@@ -15,9 +15,11 @@ import (
 	"github.com/google/uuid"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
-	sharederrors "github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
+	notifModels "github.com/orkestra/backend/internal/core/notification/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
+	sharederrors "github.com/orkestra/backend/internal/shared/errors"
+	"github.com/orkestra/backend/internal/shared/geoip"
+	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 var (
@@ -31,6 +33,10 @@ var (
 	ErrRegistrationDisabled   = stderrors.New("registration disabled for this surface")
 	ErrEmailDomainNotAllowed  = stderrors.New("email domain not allowed")
 	ErrLoginDisabled          = stderrors.New("login disabled for this surface")
+	// ErrCountryBlocked is returned when geoBlockCountries is configured
+	// and the request IP resolves to a blocked country. Translated to
+	// 403 country_blocked at the handler boundary.
+	ErrCountryBlocked = stderrors.New("country blocked by policy")
 )
 
 // FirstAdminClaimer is the contract the password auth service uses to
@@ -74,6 +80,10 @@ type PasswordAuthConfig struct {
 	// Empty defaults to operator semantics (preserves legacy behaviour
 	// when the policy service is not wired).
 	Audience PolicyAudience
+	// GeoResolver resolves a request IP to an ISO-3166-1 country code so
+	// the geoBlockCountries policy can reject login attempts. Nil
+	// (geoip disabled) makes the geo-block half a no-op.
+	GeoResolver geoip.Resolver
 }
 
 // PasswordAuthService handles the register / login / verify / reset / change
@@ -101,8 +111,9 @@ type PasswordAuthService struct {
 	logger                   *slog.Logger
 	// policy resolves admin-managed signup policy. Nil = legacy fallback
 	// (registration always allowed, any domain, role=operator).
-	policy   *AuthPolicyService
-	audience PolicyAudience
+	policy      *AuthPolicyService
+	audience    PolicyAudience
+	geoResolver geoip.Resolver
 	// auditSink is wired post-construction via SetAuditSink by the compliance
 	// module. Nil when compliance is disabled — emit* helpers tolerate that.
 	auditSink iface.AuditSink
@@ -152,6 +163,7 @@ func NewPasswordAuthService(cfg PasswordAuthConfig) *PasswordAuthService {
 		logger:                   cfg.Logger,
 		policy:                   cfg.Policy,
 		audience:                 cfg.Audience,
+		geoResolver:              cfg.GeoResolver,
 	}
 }
 
@@ -370,6 +382,22 @@ func (s *PasswordAuthService) Login(ctx context.Context, in LoginInput) (*authMo
 		return nil, ErrLoginDisabled
 	}
 
+	// Geo block — checked before the rate-limiter and password lookup so
+	// a blocked country never spends a token from the per-IP bucket and
+	// never lights up the audit log with a noisy rejected-login row.
+	// Skipped when the policy is unwired, the resolver is nil (geoip
+	// disabled), or the IP can't be resolved (private/loopback) — the
+	// gate must fail open on degraded geoip lookups so an outage can't
+	// lock everyone out.
+	if s.policy != nil && s.geoResolver != nil && in.IP != "" {
+		if loc, err := s.geoResolver.Lookup(ctx, in.IP); err == nil && loc != nil && loc.Country != "" {
+			if s.policy.CountryBlocked(ctx, loc.Country) {
+				s.emitLoginFailed(ctx, email, "", in.IP, "country_blocked")
+				return nil, ErrCountryBlocked
+			}
+		}
+	}
+
 	// Refresh the rate limiter's lockout config from the live policy so
 	// admin edits take effect on the next login attempt without a
 	// restart. New buckets pick up the updated values immediately;
@@ -398,6 +426,39 @@ func (s *PasswordAuthService) Login(ctx context.Context, in LoginInput) (*authMo
 		s.recordFailed(ctx, in.IP, email)
 		s.emitLoginFailed(ctx, email, "", in.IP, "unknown_user")
 		return nil, ErrInvalidCredentials
+	}
+
+	// Inactive-account auto-disable: if the policy is configured and
+	// the user's lastLogin is older than the threshold, flip
+	// isActive=false before the IsActive check below so the next branch
+	// returns ErrInvalidCredentials and emits the standard
+	// user_inactive audit event. We skip users who never logged in at
+	// all — disabling those would brick fresh signups whose initial
+	// login hasn't completed yet.
+	if days := s.inactiveAccountThresholdDays(ctx); days > 0 && user.LastLogin != nil {
+		threshold := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+		if user.LastLogin.Before(threshold) && user.IsActive {
+			isActive := false
+			if _, uerr := s.userService.UpdateUser(ctx, user.UUID, &userModels.UpdateUserInput{IsActive: &isActive}); uerr == nil {
+				user.IsActive = false
+				s.emitAudit(ctx, iface.AuditEvent{
+					ActorUserID: user.UUID,
+					ActorEmail:  user.Email,
+					ActorType:   "system",
+					Action:      "auth.account.auto_disabled",
+					Outcome:     "success",
+					IPAddress:   in.IP,
+					Metadata: map[string]any{
+						"thresholdDays": days,
+						"lastLogin":     user.LastLogin.UTC().Format(time.RFC3339),
+					},
+				})
+			} else if s.logger != nil {
+				s.logger.Warn("auth: failed to auto-disable inactive account",
+					slog.String("user_uuid", user.UUID),
+					slog.String("error", uerr.Error()))
+			}
+		}
 	}
 
 	if !user.IsActive {
@@ -982,6 +1043,18 @@ func (s *PasswordAuthService) createSessionDoc(ctx context.Context, user *userMo
 		return nil
 	}
 	now := time.Now()
+	// Detect a never-before-seen (userUUID, deviceID) pair before
+	// CreateSession so the just-inserted row doesn't count as its own
+	// "prior history". A nil error + zero-length list means new — any
+	// repo error degrades to "treat as known" so a flaky lookup never
+	// spams the user with a false-positive new-device email.
+	newDevice := false
+	if deviceID != "" {
+		history, err := s.authSessionRepo.GetDeviceSessionHistory(ctx, user.UUID, deviceID, 1)
+		if err == nil && len(history) == 0 {
+			newDevice = true
+		}
+	}
 	// Compute login risk against the user's session history BEFORE
 	// inserting the new row — otherwise the just-created session would
 	// count as its own "prior" and the counts come back ≥1 for every
@@ -1062,7 +1135,87 @@ func (s *PasswordAuthService) createSessionDoc(ctx context.Context, user *userMo
 			UserAgent:  userAgent,
 		})
 	}
+	// Phase 7: new-device-login email. Independent of the risk score
+	// so even a low-risk login from a brand-new (deviceId, userUUID)
+	// pair surfaces. Gated by the notifyUserOnNewDeviceLogin policy
+	// toggle. Best-effort — a notification failure leaves the session
+	// intact.
+	if newDevice {
+		s.notifyNewDeviceLogin(ctx, user, doc, deviceID, platform, ip, userAgent)
+	}
 	return nil
+}
+
+// inactiveAccountThresholdDays is a small wrapper that returns 0 when
+// the policy is unwired, so callers don't have to repeat the nil-check.
+func (s *PasswordAuthService) inactiveAccountThresholdDays(ctx context.Context) int {
+	if s.policy == nil {
+		return 0
+	}
+	return s.policy.InactiveAccountAutoDisableDays(ctx)
+}
+
+// notifyNewDeviceLogin sends the auth.new_device_login template when
+// notifyUserOnNewDeviceLogin is enabled and the notification module is
+// wired. Idempotency key includes the session UUID so a retry of the
+// same login can't dispatch duplicates.
+func (s *PasswordAuthService) notifyNewDeviceLogin(
+	ctx context.Context,
+	user *userModels.User,
+	session *authModels.AuthSessionDoc,
+	deviceID, platform, ip, userAgent string,
+) {
+	if s.notifier == nil || !s.notifier.IsConfigured(ctx) {
+		return
+	}
+	if s.policy != nil && !s.policy.NotifyUserOnNewDeviceLogin(ctx) {
+		return
+	}
+	if user == nil || user.Email == "" || session == nil {
+		return
+	}
+	deviceSummary := platform
+	if deviceSummary == "" {
+		deviceSummary = "Unknown device"
+	}
+	userName := user.FullName
+	if userName == "" {
+		userName = user.Email
+	}
+	loginAt := session.CreatedAt
+	if loginAt.IsZero() {
+		loginAt = time.Now()
+	}
+	accountActivityURL := strings.TrimRight(s.frontendURL, "/") + "/account/security"
+	vars := map[string]any{
+		"AppName":            s.appName,
+		"UserName":           userName,
+		"LoginAt":            loginAt.UTC().Format("2006-01-02 15:04 UTC"),
+		"LoginIP":            ip,
+		"LoginDevice":        deviceSummary,
+		"LoginLocation":      "",
+		"AccountActivityURL": accountActivityURL,
+		"SupportEmail":       s.supportEmail,
+	}
+	req := iface.TemplatedNotificationRequest{
+		Channel:  notifModels.ChannelEmail,
+		Type:     notifModels.TypeTransactional,
+		Category: notifModels.CategoryAuthNewDeviceLogin,
+		Recipients: []iface.Recipient{{
+			UserUUID: user.UUID,
+			Address:  user.Email,
+			Name:     userName,
+		}},
+		TemplateID:     notifModels.CategoryAuthNewDeviceLogin,
+		Data:           vars,
+		IdempotencyKey: fmt.Sprintf("new-device:%s:%s:%s", user.UUID, deviceID, session.UUID),
+	}
+	if _, err := s.notifier.SendTemplated(ctx, req); err != nil && s.logger != nil {
+		s.logger.Warn("auth: new-device-login email failed",
+			slog.String("user_uuid", user.UUID),
+			slog.String("session_uuid", session.UUID),
+			slog.String("error", err.Error()))
+	}
 }
 
 func generateEmailToken() (raw, hash string, err error) {

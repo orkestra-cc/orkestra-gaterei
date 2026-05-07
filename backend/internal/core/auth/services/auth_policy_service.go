@@ -345,6 +345,145 @@ func (s *AuthPolicyService) OAuthProviderEnabled(ctx context.Context, audience P
 	return readBool(s.cs.GetValue(ctx, "auth", key), true)
 }
 
+// NotifyUserOnNewDeviceLogin reports whether the user should be
+// emailed the first time we see a (deviceId, userUUID) pair. Default
+// true so deployments that don't touch the toggle still inherit the
+// safer-by-default posture.
+func (s *AuthPolicyService) NotifyUserOnNewDeviceLogin(ctx context.Context) bool {
+	if s == nil || s.cs == nil {
+		return true
+	}
+	return readBool(s.cs.GetValue(ctx, "auth", "notifyUserOnNewDeviceLogin"), true)
+}
+
+// NotifyAdminOnSuspiciousLogin reports whether admins should be
+// emailed in addition to the user when the risk scorer flags a login
+// as high-risk. Default false so the admin email half stays inert
+// until recipients are explicitly configured.
+func (s *AuthPolicyService) NotifyAdminOnSuspiciousLogin(ctx context.Context) bool {
+	if s == nil || s.cs == nil {
+		return false
+	}
+	return readBool(s.cs.GetValue(ctx, "auth", "notifyAdminOnSuspiciousLogin"), false)
+}
+
+// SuspiciousLoginRecipients returns the lowercased list of admin email
+// addresses to notify on high-risk login. Empty when the list is
+// unset — the admin-email half short-circuits in that case so a stray
+// toggle without a recipient list never silently swallows alerts.
+func (s *AuthPolicyService) SuspiciousLoginRecipients(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	return splitTrimLower(s.cs.GetValue(ctx, "auth", "suspiciousLoginRecipients"))
+}
+
+// IPAllowlistOperator returns the configured CIDR allowlist for the
+// operator host. The middleware compiles these strings to net.IPNet
+// values; empty here means the allowlist is open (every IP is
+// accepted unless caught by the blocklist).
+func (s *AuthPolicyService) IPAllowlistOperator(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	return splitTrim(s.cs.GetValue(ctx, "auth", "ipAllowlistAdmin"))
+}
+
+// IPBlocklistOperator returns the configured CIDR blocklist for the
+// operator host. Evaluated after the allowlist — a blocked entry
+// rejects regardless of allowlist membership.
+func (s *AuthPolicyService) IPBlocklistOperator(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	return splitTrim(s.cs.GetValue(ctx, "auth", "ipBlocklistAdmin"))
+}
+
+// GeoBlockCountries returns the uppercased ISO-3166-1 alpha-2 country
+// codes that should be denied at login time. Returns an empty slice
+// when unset or when the policy or its config-service is missing — the
+// caller treats that as "no geo gate".
+func (s *AuthPolicyService) GeoBlockCountries(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	raw := splitTrim(s.cs.GetValue(ctx, "auth", "geoBlockCountries"))
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, r := range raw {
+		c := strings.ToUpper(r)
+		if c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// CountryBlocked reports whether the given ISO country code is on the
+// configured blocklist. Empty input or empty list always returns
+// false (= not blocked) so an unresolved IP doesn't lock anyone out.
+func (s *AuthPolicyService) CountryBlocked(ctx context.Context, country string) bool {
+	c := strings.ToUpper(strings.TrimSpace(country))
+	if c == "" {
+		return false
+	}
+	for _, b := range s.GeoBlockCountries(ctx) {
+		if b == c {
+			return true
+		}
+	}
+	return false
+}
+
+// InactiveAccountAutoDisableDays returns the configured stale-login
+// threshold in days. 0 (or unset / negative / malformed) means the
+// inactive-account-disable feature is off.
+func (s *AuthPolicyService) InactiveAccountAutoDisableDays(ctx context.Context) int {
+	if s == nil || s.cs == nil {
+		return 0
+	}
+	v := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "inactiveAccountAutoDisableDays"))
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return 0
+	}
+	return n
+}
+
+// splitTrim splits a comma-separated config value, trims whitespace,
+// and drops empty entries. Used for stringList accessors that don't
+// need case folding.
+func splitTrim(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		v := strings.TrimSpace(p)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// splitTrimLower is splitTrim plus ToLower — used for case-insensitive
+// list values like email addresses where Acme.com and acme.com must
+// compare equal.
+func splitTrimLower(raw string) []string {
+	out := splitTrim(raw)
+	for i := range out {
+		out[i] = strings.ToLower(out[i])
+	}
+	return out
+}
+
 // DefaultClientRole returns the system role assigned to a new Tier-2
 // client signup. Falls back to "operator" (today's hard-coded default
 // in PasswordAuthService.Register) when unset or invalid.

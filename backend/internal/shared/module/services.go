@@ -76,6 +76,13 @@ const (
 	// Value: auth/services.WebAuthnService.
 	ServiceWebAuthn ServiceKey = "auth.webauthn"
 
+	// ServiceAuthPolicy publishes the shared *services.AuthPolicyService so
+	// non-auth callers (the operator IP-gate middleware in main.go,
+	// future admin tooling) can read the live admin-managed policy
+	// without reaching into auth-module internals. Phase 7 of the
+	// auth-policy roadmap. Value: *auth/services.AuthPolicyService.
+	ServiceAuthPolicy ServiceKey = "auth.policy"
+
 	ServiceTenantProvider ServiceKey = "tenant.provider"
 	// ServiceAccessProvider is the polymorphic-owner capability-entitlement
 	// surface. Registered by the tenant module alongside ServiceTenantProvider

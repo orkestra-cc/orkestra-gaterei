@@ -168,6 +168,7 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 		Logger:                   d.logger,
 		Policy:                   d.authPolicy,
 		Audience:                 policyAudience,
+		GeoResolver:              d.geoResolver,
 	})
 
 	mfaSvc := services.NewMFAService(mfaRepo, d.mfaChallengeService, d.passwordService, d.mfaIssuer, d.logger)

@@ -269,6 +269,52 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Description: "How many days a newly privileged user has to enroll a second factor before login returns 403 mfa_enrollment_required. Default 7.",
 			Type:        module.FieldInt, Default: "7",
 		},
+
+		// Anti-abuse & Notifications — Tab 7. Operational guardrails on
+		// top of the per-tier login/registration kill switches: who gets
+		// emailed on suspicious logins, which IPs/countries are
+		// allowed/blocked at the operator host, and when to retire stale
+		// accounts. Read at request time by AuthPolicyService; admin
+		// edits take effect immediately. The IP and geo gates are
+		// scoped to the operator surface only — Tier-2 client traffic
+		// is far broader and gating it by IP/country would lock real
+		// customers out, while operator console access is already a
+		// privileged surface where allow/blocklists make sense.
+		{
+			Key: "notifyUserOnNewDeviceLogin", Label: "Email user on first login from a new device", Group: "Anti-abuse & Notifications",
+			Description: "When on, sends an auth.new_device_login transactional email the first time a user logs in from a (deviceId, userUUID) pair the system has not seen before. Helps users notice unauthorised access on the same day it happens.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "notifyAdminOnSuspiciousLogin", Label: "Email admins on high-risk login", Group: "Anti-abuse & Notifications",
+			Description: "When on, every high-risk login (risk score ≥ 0.5) emails each address in the recipients list below in addition to notifying the user. Default off — recipients must be explicitly configured first.",
+			Type:        module.FieldBool, Default: "false",
+		},
+		{
+			Key: "suspiciousLoginRecipients", Label: "Suspicious-login admin recipients", Group: "Anti-abuse & Notifications",
+			Description: "Comma-separated list of admin email addresses notified on high-risk logins. Empty disables the admin email half regardless of the toggle above.",
+			Type:        module.FieldStringList,
+		},
+		{
+			Key: "ipAllowlistAdmin", Label: "IP allowlist (operator console)", Group: "Anti-abuse & Notifications",
+			Description: "Comma-separated list of CIDR ranges allowed to reach the operator host. Empty = open. Applied only to operator host traffic — the client API is unaffected. Example: 10.0.0.0/8, 192.0.2.5/32.",
+			Type:        module.FieldStringList,
+		},
+		{
+			Key: "ipBlocklistAdmin", Label: "IP blocklist (operator console)", Group: "Anti-abuse & Notifications",
+			Description: "Comma-separated list of CIDR ranges denied at the operator host. Evaluated after the allowlist — a blocked entry rejects the request even if it also matches the allowlist.",
+			Type:        module.FieldStringList,
+		},
+		{
+			Key: "geoBlockCountries", Label: "Country blocklist", Group: "Anti-abuse & Notifications",
+			Description: "Comma-separated ISO-3166-1 alpha-2 country codes (e.g. RU, KP) that cannot complete login on either tier. Requires the GeoIP resolver (AUTH_GEOIP_DB_PATH) — empty when GeoIP is disabled has no effect.",
+			Type:        module.FieldStringList,
+		},
+		{
+			Key: "inactiveAccountAutoDisableDays", Label: "Auto-disable inactive accounts after (days)", Group: "Anti-abuse & Notifications",
+			Description: "Disables a user account when its lastLogin is older than the configured number of days. Checked at login time so a stale account is denied at the next attempt without a periodic job. 0 = disabled.",
+			Type:        module.FieldInt, Default: "0",
+		},
 	}
 }
 
@@ -423,22 +469,13 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 
 	// Suspicious-login notifier shares one SecurityEventService
 	// instance with the PII producer below so user-facing security
-	// history and GDPR DSR export read the same rows.
+	// history and GDPR DSR export read the same rows. The policy
+	// pointer below is constructed further down — wire it on the
+	// notifier after `authPolicy` exists.
 	securityEventSvc, securityEventErr := services.NewSecurityEventService(deps.DB)
 	if securityEventErr != nil {
 		logger.Warn("auth: security event service init failed; suspicious-login notifier disabled",
 			slog.String("error", securityEventErr.Error()))
-	}
-	var suspiciousLoginNotifierSvc services.SuspiciousLoginNotifier
-	if securityEventSvc != nil {
-		suspiciousLoginNotifierSvc = services.NewSuspiciousLoginNotifier(services.NotifierConfig{
-			Events:       securityEventSvc,
-			Notifier:     notifier,
-			AppName:      getEnvOrDefault("APP_NAME", "Orkestra"),
-			SupportEmail: os.Getenv("SUPPORT_EMAIL"),
-			FrontendURL:  cfg.Server.FrontendURL,
-			Logger:       logger,
-		})
 	}
 
 	rateLimiter := sharederrors.NewRateLimiter()
@@ -487,6 +524,22 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// service so length / complexity / HIBP rules can be edited live
 	// at /admin/modules/auth without a restart.
 	passwordSvc.SetPolicy(authPolicy)
+
+	// Suspicious-login notifier — constructed here (after authPolicy)
+	// so the admin-email half can read notifyAdminOnSuspiciousLogin /
+	// suspiciousLoginRecipients live on every OnLogin call.
+	var suspiciousLoginNotifierSvc services.SuspiciousLoginNotifier
+	if securityEventSvc != nil {
+		suspiciousLoginNotifierSvc = services.NewSuspiciousLoginNotifier(services.NotifierConfig{
+			Events:       securityEventSvc,
+			Notifier:     notifier,
+			AppName:      getEnvOrDefault("APP_NAME", "Orkestra"),
+			SupportEmail: os.Getenv("SUPPORT_EMAIL"),
+			FrontendURL:  cfg.Server.FrontendURL,
+			Logger:       logger,
+			Policy:       authPolicy,
+		})
+	}
 
 	commonTierDeps := tierBundleDeps{
 		db:                       deps.DB,
@@ -706,6 +759,10 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServiceOperatorPasswordAuthService, opBundle.passwordSvc)
 	deps.Services.Register(module.ServiceClientAuthService, clBundle.authService)
 	deps.Services.Register(module.ServiceClientPasswordAuthService, clBundle.passwordSvc)
+	// Phase 7: publish the policy reader so non-auth callers (operator
+	// IP-gate middleware, future admin tooling) can hit the live
+	// admin-managed config without reaching into auth-module internals.
+	deps.Services.Register(module.ServiceAuthPolicy, authPolicy)
 
 	// Session-risk lookup: resolves the most recent risk score for a
 	// sid against the auth_sessions collections. Sessions are tier-
