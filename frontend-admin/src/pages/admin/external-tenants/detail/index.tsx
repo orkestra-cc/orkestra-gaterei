@@ -140,8 +140,8 @@ const ExternalTenantDetailPage: React.FC = () => {
 
       <Card className="shadow-none border">
         <Tab.Container activeKey={tab} onSelect={onTabChange}>
-          <Card.Header className="border-bottom border-200 p-0">
-            <Nav variant="tabs" className="fs-10">
+          <Card.Header className="border-bottom border-200">
+            <Nav variant="tabs" className="card-header-tabs fs-10">
               <Nav.Item>
                 <Nav.Link eventKey="overview">Overview</Nav.Link>
               </Nav.Item>
