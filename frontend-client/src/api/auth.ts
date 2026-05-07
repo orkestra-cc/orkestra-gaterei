@@ -56,6 +56,31 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
   });
 }
 
+// --- Public auth policy ---
+
+export interface AuthPolicy {
+  registrationEnabled: boolean;
+  loginEnabled: boolean;
+  passwordMinLength: number;
+}
+
+// fetchAuthPolicy reads the public policy slice the unauthenticated
+// login + signup pages need so kill switches hide the CTA instead of
+// surfacing as a raw 403 on submit. Falls open (everything enabled,
+// legacy 10-char password floor) on network failure — the backend
+// re-validates on submit anyway.
+export async function fetchAuthPolicy(): Promise<AuthPolicy> {
+  try {
+    const res = await jsonFetch('/v1/auth/client/policy', { method: 'GET' });
+    if (!res.ok) {
+      return { registrationEnabled: true, loginEnabled: true, passwordMinLength: 10 };
+    }
+    return (await res.json()) as AuthPolicy;
+  } catch {
+    return { registrationEnabled: true, loginEnabled: true, passwordMinLength: 10 };
+  }
+}
+
 // --- Register ---
 
 export interface RegisterInput {

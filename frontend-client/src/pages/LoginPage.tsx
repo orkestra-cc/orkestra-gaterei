@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import {
+  fetchAuthPolicy,
   login,
   mfaLoginVerify,
   type LoginResult,
@@ -44,6 +45,17 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Public policy: drives the maintenance banner and hides the signup
+  // link when self-service registration is also off. Falls open on any
+  // network failure inside fetchAuthPolicy itself.
+  const { data: policy } = useQuery({
+    queryKey: ['authPolicy'],
+    queryFn: fetchAuthPolicy,
+    staleTime: 30_000,
+  });
+  const loginEnabled = policy?.loginEnabled ?? true;
+  const registrationEnabled = policy?.registrationEnabled ?? true;
+
   function complete(token: string) {
     signIn(token);
     navigate(decodeURIComponent(next), { replace: true });
@@ -74,6 +86,15 @@ export function LoginPage() {
     <section className="mx-auto max-w-md px-6 py-16">
       <h1 className="mb-2 text-3xl font-semibold tracking-tight">{t('login.title')}</h1>
       <p className="mb-8 text-slate-600">{t('login.subtitle')}</p>
+
+      {!loginEnabled && stage.name === 'credentials' && (
+        <div
+          className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          role="alert"
+        >
+          {t('login.disabled')}
+        </div>
+      )}
 
       {stage.name === 'credentials' ? (
         <form onSubmit={onSubmitCredentials} noValidate className="space-y-5">
@@ -118,7 +139,7 @@ export function LoginPage() {
 
           <button
             type="submit"
-            disabled={loginMutation.isPending}
+            disabled={loginMutation.isPending || !loginEnabled}
             className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
             {loginMutation.isPending ? t('login.submitting') : t('login.submit')}
@@ -128,9 +149,11 @@ export function LoginPage() {
             <Link to="/forgot-password" className="text-slate-600 underline hover:text-slate-900">
               {t('login.forgot')}
             </Link>
-            <Link to="/signup" className="text-slate-600 underline hover:text-slate-900">
-              {t('login.signupLink')}
-            </Link>
+            {registrationEnabled && (
+              <Link to="/signup" className="text-slate-600 underline hover:text-slate-900">
+                {t('login.signupLink')}
+              </Link>
+            )}
           </div>
         </form>
       ) : (

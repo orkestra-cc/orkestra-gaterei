@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Alert, Button, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch } from 'store/hooks';
-import { useLoginMutation } from 'store/api/authApi';
+import { useGetAuthPolicyQuery, useLoginMutation } from 'store/api/authApi';
 import { login as loginAction } from 'store/slices/authSlice';
 
 const EmailPasswordForm = () => {
@@ -12,6 +12,13 @@ const EmailPasswordForm = () => {
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [login, { isLoading }] = useLoginMutation();
+  // Surface admin-managed kill switches — hide the signup CTA when
+  // self-service registration is off, show a maintenance banner when
+  // login itself is paused. Falls open (everything enabled) on error
+  // so a degraded /policy fetch doesn't block legitimate users.
+  const { data: policy } = useGetAuthPolicyQuery();
+  const loginEnabled = policy?.loginEnabled ?? true;
+  const registrationEnabled = policy?.registrationEnabled ?? true;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -61,6 +68,11 @@ const EmailPasswordForm = () => {
 
   return (
     <Form onSubmit={handleSubmit}>
+      {!loginEnabled && (
+        <Alert variant="warning" className="mb-3">
+          Login is temporarily disabled by an administrator. Please try again later.
+        </Alert>
+      )}
       {localError && (
         <Alert variant="danger" className="mb-3" onClose={() => setLocalError(null)} dismissible>
           {localError}
@@ -99,16 +111,18 @@ const EmailPasswordForm = () => {
       </Form.Group>
 
       <div className="d-grid mb-3">
-        <Button type="submit" variant="primary" size="lg" disabled={isLoading}>
+        <Button type="submit" variant="primary" size="lg" disabled={isLoading || !loginEnabled}>
           {isLoading ? 'Signing in…' : 'Sign in'}
         </Button>
       </div>
 
-      <div className="text-center">
-        <small className="text-muted">
-          Don&apos;t have an account? <Link to="/register">Create one</Link>
-        </small>
-      </div>
+      {registrationEnabled && (
+        <div className="text-center">
+          <small className="text-muted">
+            Don&apos;t have an account? <Link to="/register">Create one</Link>
+          </small>
+        </div>
+      )}
     </Form>
   );
 };

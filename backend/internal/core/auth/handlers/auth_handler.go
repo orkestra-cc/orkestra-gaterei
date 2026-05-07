@@ -204,6 +204,40 @@ func (h *AuthHandler) resolveProvider(ctx context.Context, p models.OAuthProvide
 	return provider, cfg, nil
 }
 
+// GetAuthPolicyRequest is the empty input for the public policy endpoint —
+// declared as a struct so Huma generates the correct zero-arg operation.
+type GetAuthPolicyRequest struct{}
+
+// GetAuthPolicyResponse returns the slice of admin-managed auth policy
+// the unauthenticated SPA needs to know about so it can hide signup /
+// login CTAs and surface password requirements without round-tripping
+// through a 403. Audience is implicit in the route prefix.
+type GetAuthPolicyResponse struct {
+	Body struct {
+		RegistrationEnabled bool `json:"registrationEnabled" doc:"Whether self-service signup is currently accepted on this surface"`
+		LoginEnabled        bool `json:"loginEnabled" doc:"Whether interactive login is currently accepted on this surface"`
+		PasswordMinLength   int  `json:"passwordMinLength" doc:"Minimum password length the signup form should advertise"`
+	}
+}
+
+// GetAuthPolicy returns the public-facing slice of the admin-managed
+// auth policy for this handler's audience. Public endpoint — no auth
+// required — so the unauthenticated login + signup pages can render a
+// maintenance banner / hide the CTA before the user types anything.
+//
+// Read-through: the same AuthPolicyService that gates Register / Login
+// already provides nil-safe defaults (registration on, login on,
+// passwordMinLength 10). This handler just projects those values into a
+// shape the SPA can consume.
+func (h *AuthHandler) GetAuthPolicy(ctx context.Context, _ *GetAuthPolicyRequest) (*GetAuthPolicyResponse, error) {
+	resp := &GetAuthPolicyResponse{}
+	audience := h.policyAudience()
+	resp.Body.RegistrationEnabled = h.policy.RegistrationAllowed(ctx, audience)
+	resp.Body.LoginEnabled = h.policy.LoginAllowed(ctx, audience)
+	resp.Body.PasswordMinLength = h.policy.PasswordPolicy(ctx).MinLength
+	return resp, nil
+}
+
 // ListOAuthProvidersRequest is the empty input for the providers endpoint —
 // declared as a struct so Huma generates the correct zero-arg operation.
 type ListOAuthProvidersRequest struct{}
@@ -1908,6 +1942,15 @@ func (h *AuthHandler) RegisterOAuthStartRoutes(publicAPI huma.API, mount RouteMo
 		Description: "Returns the set of OAuth providers that currently have a client ID configured in the admin panel.",
 		Tags:        []string{"Authentication"},
 	}, h.ListOAuthProviders)
+
+	huma.Register(publicAPI, huma.Operation{
+		OperationID: mount.OpIDPrefix + "get-auth-policy",
+		Method:      http.MethodGet,
+		Path:        "/v1/auth" + mount.PathPrefix + "/policy",
+		Summary:     "Read the public auth policy for this surface",
+		Description: "Public endpoint that exposes the slice of admin-managed auth policy the SPA needs before the user authenticates: whether registration / login are accepted on this surface, and the password minimum length to advertise. Audience is implicit in the path prefix.",
+		Tags:        []string{"Authentication"},
+	}, h.GetAuthPolicy)
 
 	huma.Register(publicAPI, huma.Operation{
 		OperationID: mount.OpIDPrefix + "initiate-oauth-login",

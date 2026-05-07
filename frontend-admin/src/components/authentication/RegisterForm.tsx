@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Alert, Button, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import { useRegisterMutation } from 'store/api/authApi';
+import { useGetAuthPolicyQuery, useRegisterMutation } from 'store/api/authApi';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
@@ -12,6 +12,13 @@ const RegisterForm = () => {
   const [confirm, setConfirm] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  // Read the admin-managed signup policy. registrationEnabled drives
+  // the kill-switch banner + submit gating; passwordMinLength replaces
+  // the hardcoded 10-char check so the form stays in sync with what the
+  // backend will actually accept.
+  const { data: policy } = useGetAuthPolicyQuery();
+  const registrationEnabled = policy?.registrationEnabled ?? true;
+  const passwordMinLength = policy?.passwordMinLength ?? 10;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -21,8 +28,8 @@ const RegisterForm = () => {
       setLocalError('Please fill in all required fields.');
       return;
     }
-    if (password.length < 10) {
-      setLocalError('Password must be at least 10 characters.');
+    if (password.length < passwordMinLength) {
+      setLocalError(`Password must be at least ${passwordMinLength} characters.`);
       return;
     }
     if (password !== confirm) {
@@ -55,6 +62,12 @@ const RegisterForm = () => {
 
   return (
     <Form onSubmit={handleSubmit}>
+      {!registrationEnabled && (
+        <Alert variant="warning" className="mb-3">
+          Self-service registration is currently disabled. Please contact an administrator
+          if you need an account.
+        </Alert>
+      )}
       {localError && (
         <Alert variant="danger" className="mb-3" dismissible onClose={() => setLocalError(null)}>
           {localError}
@@ -90,10 +103,10 @@ const RegisterForm = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"
-          minLength={10}
+          minLength={passwordMinLength}
           required
         />
-        <Form.Text className="text-muted">Use at least 10 characters.</Form.Text>
+        <Form.Text className="text-muted">Use at least {passwordMinLength} characters.</Form.Text>
       </Form.Group>
 
       <Form.Group className="mb-3">
@@ -123,7 +136,7 @@ const RegisterForm = () => {
       </Form.Group>
 
       <div className="d-grid mb-3">
-        <Button type="submit" variant="primary" size="lg" disabled={isLoading}>
+        <Button type="submit" variant="primary" size="lg" disabled={isLoading || !registrationEnabled}>
           {isLoading ? 'Creating account…' : 'Create account'}
         </Button>
       </div>

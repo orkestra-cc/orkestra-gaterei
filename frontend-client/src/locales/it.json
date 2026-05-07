@@ -53,7 +53,8 @@
     "errorPasswordRequired": "La password è obbligatoria",
     "errorPasswordTooShort": "La password deve avere almeno 10 caratteri",
     "errorFullNameRequired": "Il nome è obbligatorio",
-    "errorTermsRequired": "Devi accettare i termini per continuare"
+    "errorTermsRequired": "Devi accettare i termini per continuare",
+    "disabled": "La registrazione self-service è momentaneamente disabilitata. Contattaci se hai bisogno di un account."
   },
   "verify": {
     "title": "Verifica email",
@@ -78,6 +79,7 @@
     "submitting": "Accesso in corso…",
     "forgot": "Password dimenticata?",
     "signupLink": "Crea un account",
+    "disabled": "L'accesso è momentaneamente disabilitato da un amministratore. Riprova più tardi.",
     "mfa": {
       "prompt": "Inserisci il codice a 6 cifre del tuo autenticatore.",
       "code": "Codice di verifica",

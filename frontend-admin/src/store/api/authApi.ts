@@ -107,9 +107,42 @@ export interface SessionResponse {
   success: boolean;
 }
 
+// Public auth-policy slice — exposes the admin-managed flags the
+// unauthenticated login + signup pages need before the user types
+// anything. Audience is implicit in the route prefix.
+export interface AuthPolicy {
+  registrationEnabled: boolean;
+  loginEnabled: boolean;
+  passwordMinLength: number;
+}
+
 // Auth API slice
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    // Public auth policy — read by the login + register pages before
+    // the user types anything so a maintenance kill switch hides the
+    // CTA instead of making the user discover it via a 403.
+    getAuthPolicy: builder.query<AuthPolicy, void>({
+      queryFn: async (_arg, _api, _extraOptions, baseQuery) => {
+        const result = await baseQuery('v1/auth/operator/policy');
+        if (result.error) {
+          // Network failure / 404 → assume "everything enabled" so a
+          // misconfigured deployment doesn't block legitimate users.
+          // The backend re-validates on submit anyway.
+          return {
+            data: {
+              registrationEnabled: true,
+              loginEnabled: true,
+              passwordMinLength: 10,
+            },
+          };
+        }
+        const wrapper = result.data as AuthPolicy;
+        return { data: wrapper };
+      },
+      keepUnusedDataFor: 30,
+    }),
+
     // Check authentication status - returns backend user data directly
     getCurrentUser: builder.query<BackendUser | null, void>({
       providesTags: ['Auth', 'User'],
@@ -354,6 +387,7 @@ export const authApi = baseApi.injectEndpoints({
 
 // Export hooks
 export const {
+  useGetAuthPolicyQuery,
   useGetCurrentUserQuery,
   useLoginMutation,
   useRegisterMutation,

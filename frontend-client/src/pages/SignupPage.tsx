@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
-import { register, type RegisterInput, type RegisterResult } from '@/api/auth';
+import { fetchAuthPolicy, register, type RegisterInput, type RegisterResult } from '@/api/auth';
 import { resendVerificationEmail } from '@/api/verifyEmail';
 
 interface ApiError extends Error {
@@ -30,6 +30,16 @@ export function SignupPage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
+  // Public policy drives the kill-switch banner + min-length floor.
+  // Falls open on any error inside fetchAuthPolicy itself.
+  const { data: policy } = useQuery({
+    queryKey: ['authPolicy'],
+    queryFn: fetchAuthPolicy,
+    staleTime: 30_000,
+  });
+  const registrationEnabled = policy?.registrationEnabled ?? true;
+  const passwordMinLength = policy?.passwordMinLength ?? 10;
+
   const mutation = useMutation<RegisterResult, ApiError, RegisterInput>({
     mutationFn: register,
     onSuccess: (_data, variables) => {
@@ -46,7 +56,7 @@ export function SignupPage() {
     }
     if (!form.password) {
       next.password = t('signup.errorPasswordRequired');
-    } else if (form.password.length < 10) {
+    } else if (form.password.length < passwordMinLength) {
       next.password = t('signup.errorPasswordTooShort');
     }
     if (!form.fullName.trim()) next.fullName = t('signup.errorFullNameRequired');
@@ -74,6 +84,15 @@ export function SignupPage() {
     <section className="mx-auto max-w-md px-6 py-16">
       <h1 className="mb-2 text-3xl font-semibold tracking-tight">{t('signup.title')}</h1>
       <p className="mb-8 text-slate-600">{t('signup.subtitle')}</p>
+
+      {!registrationEnabled && (
+        <div
+          className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          role="alert"
+        >
+          {t('signup.disabled')}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} noValidate className="space-y-5">
         <Field
@@ -127,7 +146,7 @@ export function SignupPage() {
 
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || !registrationEnabled}
           className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
           {mutation.isPending ? t('signup.submitting') : t('signup.submit')}

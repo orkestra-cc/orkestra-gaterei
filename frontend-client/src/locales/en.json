@@ -53,7 +53,8 @@
     "errorPasswordRequired": "Password is required",
     "errorPasswordTooShort": "Password must be at least 10 characters",
     "errorFullNameRequired": "Name is required",
-    "errorTermsRequired": "You must accept the terms to continue"
+    "errorTermsRequired": "You must accept the terms to continue",
+    "disabled": "Self-service registration is currently disabled. Please contact us if you need an account."
   },
   "verify": {
     "title": "Verify email",
@@ -78,6 +79,7 @@
     "submitting": "Signing in…",
     "forgot": "Forgot password?",
     "signupLink": "Create an account",
+    "disabled": "Login is temporarily disabled by an administrator. Please try again later.",
     "mfa": {
       "prompt": "Enter the 6-digit code from your authenticator app.",
       "code": "Verification code",
