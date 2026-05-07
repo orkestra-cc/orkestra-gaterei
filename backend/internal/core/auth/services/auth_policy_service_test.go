@@ -402,6 +402,100 @@ func TestMFAGraceExpiresAt_NilUser(t *testing.T) {
 	}
 }
 
+// Phase 9: oauth-signup gate + admin-managed MFA role list.
+
+func TestOAuthAllowSignup_DefaultsTrue(t *testing.T) {
+	var p *AuthPolicyService
+	if !p.OAuthAllowSignup(context.Background(), PolicyAudienceOperator) {
+		t.Fatalf("nil policy must default to true")
+	}
+	if !newPolicy(nil).OAuthAllowSignup(context.Background(), PolicyAudienceClient) {
+		t.Fatalf("empty config must default to true")
+	}
+}
+
+func TestOAuthAllowSignup_PerAudience(t *testing.T) {
+	p := newPolicy(map[string]string{
+		"oauthAllowSignupAdmin":  "false",
+		"oauthAllowSignupClient": "true",
+	})
+	if p.OAuthAllowSignup(context.Background(), PolicyAudienceOperator) {
+		t.Fatalf("operator audience must be off")
+	}
+	if !p.OAuthAllowSignup(context.Background(), PolicyAudienceClient) {
+		t.Fatalf("client audience must be on")
+	}
+}
+
+func TestMFARequiredRoles_LowercasedAndTrimmed(t *testing.T) {
+	p := newPolicy(map[string]string{
+		"mfaRequiredForRoles": " Super_Admin , administrator ,, MANAGER ",
+	})
+	got := p.MFARequiredRoles(context.Background())
+	want := []string{"super_admin", "administrator", "manager"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i, v := range want {
+		if got[i] != v {
+			t.Errorf("entry %d: got %q want %q", i, got[i], v)
+		}
+	}
+}
+
+func TestMFARequired_AdminRoleListExtendsBuiltIn(t *testing.T) {
+	// "manager" is NOT in the built-in privileged list; the admin can
+	// add it via the policy. Existing privileged users (administrator)
+	// stay covered when the list overrides the default.
+	manager := &userModels.User{Role: "manager"}
+	admin := &userModels.User{Role: SystemRoleAdministrator}
+
+	// Without the policy override → manager doesn't require MFA.
+	var nilP *AuthPolicyService
+	if nilP.MFARequired(manager, nil) {
+		t.Fatalf("nil policy: manager should NOT require MFA")
+	}
+
+	// Policy overrides built-in: manager now requires MFA.
+	p := newPolicy(map[string]string{"mfaRequiredForRoles": "manager"})
+	if !p.MFARequired(manager, nil) {
+		t.Fatalf("policy override: manager must require MFA")
+	}
+	// Administrator no longer covered because the override replaces
+	// (not extends) the default — the operator must list every role
+	// they want gated. This is the documented behaviour.
+	if p.MFARequired(admin, nil) {
+		t.Fatalf("policy override: administrator NOT in list, must NOT require MFA")
+	}
+}
+
+func TestMFARequired_AdminRoleListEmptyFallsBackToBuiltIn(t *testing.T) {
+	admin := &userModels.User{Role: SystemRoleAdministrator}
+	manager := &userModels.User{Role: "manager"}
+	// Empty list = "use the built-in (super_admin / administrator / org_*)".
+	p := newPolicy(map[string]string{"mfaRequiredForRoles": ""})
+	if !p.MFARequired(admin, nil) {
+		t.Fatalf("empty list must fall back to built-in (administrator → MFA)")
+	}
+	if p.MFARequired(manager, nil) {
+		t.Fatalf("empty list must fall back to built-in (manager → no MFA)")
+	}
+}
+
+func TestMFARequired_KillSwitchBeatsRoleList(t *testing.T) {
+	// Even with a configured list that names the user's role, the kill
+	// switch wins. Mirrors the existing kill-switch test for the
+	// built-in role list.
+	manager := &userModels.User{Role: "manager"}
+	p := newPolicy(map[string]string{
+		"mfaEnabled":          "false",
+		"mfaRequiredForRoles": "manager",
+	})
+	if p.MFARequired(manager, nil) {
+		t.Fatalf("mfaEnabled=false must override the role list")
+	}
+}
+
 // TestMFARequired_OrgRoleStillRequiresMFA pins behaviour: even when only
 // an org_owner membership grants the privilege, the kill switch must
 // still suppress the requirement — guards against a regression where

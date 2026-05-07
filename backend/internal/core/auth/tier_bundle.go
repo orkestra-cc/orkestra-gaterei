@@ -140,11 +140,13 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 	// honours the same mfaEnabled / grace-window the password login path
 	// already consults via PasswordAuthService.
 	authSvc.SetPolicy(d.authPolicy)
-
-	policyAudience := services.PolicyAudienceOperator
+	policyAudienceForBundle := services.PolicyAudienceOperator
 	if d.tier == tierClient {
-		policyAudience = services.PolicyAudienceClient
+		policyAudienceForBundle = services.PolicyAudienceClient
 	}
+	authSvc.SetAudience(policyAudienceForBundle)
+
+	policyAudience := policyAudienceForBundle
 	passSvc := services.NewPasswordAuthService(services.PasswordAuthConfig{
 		UserService:              d.userProvider,
 		TenantProvider:           d.tenantProvider,

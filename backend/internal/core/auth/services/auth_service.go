@@ -31,6 +31,11 @@ var (
 	// again after its successor already existed — a textbook replay attack.
 	// The whole family is revoked before this error is returned.
 	ErrRefreshTokenReplay = errors.New("refresh token replay detected — session revoked")
+	// ErrOAuthSignupDisabled signals that an OAuth callback resolved to
+	// an unknown email but the audience-scoped oauthAllowSignup policy
+	// is off, so we refuse to provision a new account. Translated to
+	// 403 oauth_signup_disabled at the handler boundary.
+	ErrOAuthSignupDisabled = errors.New("oauth signup disabled by policy")
 )
 
 // AuthService extends the basic auth service with UUID support and OAuth linking
@@ -84,6 +89,12 @@ type AuthService interface {
 	// when the receiver is nil.
 	SetPolicy(p *AuthPolicyService)
 
+	// SetAudience wires the surface this service serves so policy
+	// reads can fetch audience-scoped values (oauthAllowSignup, etc.)
+	// without callers having to thread the audience through every
+	// signature. Empty falls back to operator semantics.
+	SetAudience(a PolicyAudience)
+
 	// Enhanced OAuth callback handling with account linking
 	HandleOAuthCallbackWithLinking(ctx context.Context, provider models.OAuthProvider, userInfo map[string]interface{}, oauthTokens *models.OAuthProviderTokens, securityCtx *models.SecurityContext, deviceInfo *models.DeviceInfo) (*models.TokenResponse, error)
 }
@@ -125,6 +136,10 @@ type authService struct {
 	// for the OAuth login MFA evaluation. Nil falls back to legacy
 	// hardcoded values (mfaEnabled=true, grace=7d).
 	policy *AuthPolicyService
+	// audience names the surface this service serves. Used so OAuth
+	// signup gating can read the audience-scoped oauthAllowSignup
+	// policy without needing the caller to pass it explicitly.
+	audience PolicyAudience
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -139,6 +154,12 @@ func (s *authService) SetWebAuthnAvailability(c HasWebAuthnCredentials) {
 // password login path consults.
 func (s *authService) SetPolicy(p *AuthPolicyService) {
 	s.policy = p
+}
+
+// SetAudience records the surface this service serves so policy
+// reads can fetch audience-scoped knobs.
+func (s *authService) SetAudience(a PolicyAudience) {
+	s.audience = a
 }
 
 // NewAuthService creates a new auth service
@@ -750,6 +771,15 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 		fmt.Printf("[AUTH_DEBUG] No existing provider link found, checking for user by email: %s\n", email)
 		userResponse, err := s.userService.GetUserByEmail(ctx, email)
 		if err != nil {
+			// Phase 9: oauthAllowSignup gate. When the policy is wired
+			// and the audience-scoped toggle is off, an unknown email
+			// must NOT be auto-provisioned via OAuth — keeps signups
+			// invitation-only while OAuth login still works for
+			// existing accounts.
+			if s.policy != nil && !s.policy.OAuthAllowSignup(ctx, s.audience) {
+				fmt.Printf("[AUTH_DEBUG] OAuth signup disabled by policy for audience %q, refusing to create user\n", s.audience)
+				return nil, ErrOAuthSignupDisabled
+			}
 			fmt.Printf("[AUTH_DEBUG] User not found in database, creating new user\n")
 			// Create new user via UserService
 			newUUID := models.GenerateUUIDv7()

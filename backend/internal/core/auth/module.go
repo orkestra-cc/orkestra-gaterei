@@ -328,6 +328,35 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Description: "When on, Tier-2 client users can call POST /v1/me/dsr/erase to irreversibly wipe their personal data across every PII producer. When off (default), client tier returns 403 self_service_deletion_disabled and erasure must be triggered through the operator console. Operator-side erasure is unaffected.",
 			Type:        module.FieldBool, Default: "false",
 		},
+
+		// OAuth signup allowance — Phase 9 small backlog. The OAuth
+		// provider tabs above gate which buttons appear; this pair gates
+		// what happens when an OAuth login arrives for an unknown email.
+		// When off, the callback returns 403 oauth_signup_disabled
+		// instead of provisioning a new account — useful when an
+		// operator wants to allow existing users to sign in via OAuth
+		// while keeping signups invitation-only.
+		{
+			Key: "oauthAllowSignupAdmin", Label: "Allow OAuth signups on operator console", Group: "OAuth Providers",
+			Description: "When off, OAuth callbacks on the operator host that resolve to an unknown email return 403 instead of creating a new operator account. Existing users can still sign in.",
+			Type:        module.FieldBool, Default: "true",
+		},
+		{
+			Key: "oauthAllowSignupClient", Label: "Allow OAuth signups on client app", Group: "OAuth Providers",
+			Description: "When off, OAuth callbacks on the client host that resolve to an unknown email return 403 instead of creating a new client account.",
+			Type:        module.FieldBool, Default: "true",
+		},
+
+		// MFA — admin-managed list of roles that mandate a second factor.
+		// Phase 9 small backlog. Empty falls back to the legacy hardcoded
+		// list (super_admin, administrator, org_owner, org_admin) so an
+		// unset value preserves today's behaviour. Adding a role here is
+		// security-sensitive — broaden carefully.
+		{
+			Key: "mfaRequiredForRoles", Label: "Roles that require MFA", Group: "MFA",
+			Description: "Comma-separated list of role names that mandate a second factor. Recognised system roles: super_admin, administrator, developer, manager, operator, guest. Recognised org roles: org_owner, org_admin, org_member. Empty restores the built-in default (super_admin, administrator, org_owner, org_admin).",
+			Type:        module.FieldStringList,
+		},
 	}
 }
 

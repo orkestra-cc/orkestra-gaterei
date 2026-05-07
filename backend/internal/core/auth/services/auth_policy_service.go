@@ -279,22 +279,59 @@ func (s *AuthPolicyService) MFAGraceWindow(ctx context.Context) time.Duration {
 	return time.Duration(days) * 24 * time.Hour
 }
 
-// MFARequired combines the master mfaEnabled flag with the legacy
-// privileged-role check. Callers replace direct uses of the
-// RoleRequiresMFA free function with this so the kill switch is
-// centrally honoured. Nil receiver inherits legacy behaviour
+// MFARequired combines the master mfaEnabled flag with the configured
+// privileged-role list. Callers replace direct uses of the
+// RoleRequiresMFA free function with this so the kill switch + admin
+// list are centrally honoured. Nil receiver inherits legacy behaviour
 // (master switch on, role list unchanged).
+//
+// Phase 9: when the admin sets `mfaRequiredForRoles` to a non-empty
+// list, that overrides the built-in (super_admin, administrator,
+// org_owner, org_admin) list. Empty falls back to the built-in.
 func (s *AuthPolicyService) MFARequired(user *userModels.User, memberships []authModels.OrgMembership) bool {
+	if user == nil {
+		return false
+	}
+	ctx := context.Background()
 	if s != nil && s.cs != nil {
 		// Use a Background context — this method is called from hot
 		// paths that already cache the policy read via the live
 		// service. Keeping the call cheap matters more than honouring
 		// per-request cancellation for a config lookup.
-		if !s.MFAEnabled(context.Background()) {
+		if !s.MFAEnabled(ctx) {
 			return false
+		}
+		if configured := s.MFARequiredRoles(ctx); len(configured) > 0 {
+			return userHoldsAnyRole(user, memberships, configured)
 		}
 	}
 	return RoleRequiresMFA(user, memberships)
+}
+
+// userHoldsAnyRole reports whether the user's system role or any of
+// their org-membership roles match one of the configured names.
+// Comparison is case-insensitive — the admin list is lowercased on
+// read, and we lowercase the user's roles here so a typo'd casing
+// in the role catalog doesn't silently bypass the gate.
+func userHoldsAnyRole(user *userModels.User, memberships []authModels.OrgMembership, want []string) bool {
+	if user == nil || len(want) == 0 {
+		return false
+	}
+	wantSet := make(map[string]struct{}, len(want))
+	for _, r := range want {
+		wantSet[strings.ToLower(strings.TrimSpace(r))] = struct{}{}
+	}
+	if _, ok := wantSet[strings.ToLower(strings.TrimSpace(user.Role))]; ok {
+		return true
+	}
+	for _, m := range memberships {
+		for _, r := range m.Roles {
+			if _, ok := wantSet[strings.ToLower(strings.TrimSpace(r))]; ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // MFAGraceExpired wraps GraceExpired with the configured grace window.
@@ -435,6 +472,34 @@ func (s *AuthPolicyService) CountryBlocked(ctx context.Context, country string) 
 		}
 	}
 	return false
+}
+
+// OAuthAllowSignup reports whether an OAuth callback resolving to an
+// unknown email should provision a new account on the given audience.
+// Default true preserves today's behaviour; an admin can flip it off
+// to keep signups invitation-only while OAuth login still works for
+// existing accounts.
+func (s *AuthPolicyService) OAuthAllowSignup(ctx context.Context, audience PolicyAudience) bool {
+	if s == nil || s.cs == nil {
+		return true
+	}
+	key := "oauthAllowSignupAdmin"
+	if audience == PolicyAudienceClient {
+		key = "oauthAllowSignupClient"
+	}
+	return readBool(s.cs.GetValue(ctx, "auth", key), true)
+}
+
+// MFARequiredRoles returns the admin-managed list of role names that
+// mandate a second factor. Each entry is lowercased + trimmed so the
+// caller can do a direct case-insensitive comparison. Empty (the
+// default when unset) signals "fall back to the built-in role list" —
+// callers should treat it as a "policy not configured" signal.
+func (s *AuthPolicyService) MFARequiredRoles(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	return splitTrimLower(s.cs.GetValue(ctx, "auth", "mfaRequiredForRoles"))
 }
 
 // RevokeSessionsOnPasswordChange reports whether a successful password

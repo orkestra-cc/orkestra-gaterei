@@ -189,6 +189,27 @@ func currentSessionID(ctx context.Context) string {
 	return sid
 }
 
+// oauthSignupDisabled is a thin errors.Is wrapper kept inline so each
+// provider's callback can branch on the policy outcome without
+// duplicating the import. Phase 9 of the auth-policy roadmap.
+func oauthSignupDisabled(err error) bool {
+	return errors.Is(err, services.ErrOAuthSignupDisabled)
+}
+
+// redirectOAuthSignupDisabled bounces the caller back to the frontend
+// callback URL with success=false + error=oauth_signup_disabled. The
+// SPA renders a friendly "Sign-up is currently invitation-only" page
+// instead of a generic 500. Falls through to a plain 403 when the
+// frontend URL isn't configured.
+func redirectOAuthSignupDisabled(w http.ResponseWriter, r *http.Request, frontendURL string) {
+	if frontendURL == "" {
+		http.Error(w, "OAuth signup is disabled", http.StatusForbidden)
+		return
+	}
+	dest := fmt.Sprintf("%s/auth/callback?success=false&error=oauth_signup_disabled", frontendURL)
+	http.Redirect(w, r, dest, http.StatusFound)
+}
+
 // resolveProvider fetches the current config for an OAuth provider from the
 // resolver and constructs a provider instance. Returns a 400 equivalent error
 // when the provider is not configured in the admin panel.
@@ -214,9 +235,16 @@ type GetAuthPolicyRequest struct{}
 // through a 403. Audience is implicit in the route prefix.
 type GetAuthPolicyResponse struct {
 	Body struct {
-		RegistrationEnabled bool `json:"registrationEnabled" doc:"Whether self-service signup is currently accepted on this surface"`
-		LoginEnabled        bool `json:"loginEnabled" doc:"Whether interactive login is currently accepted on this surface"`
-		PasswordMinLength   int  `json:"passwordMinLength" doc:"Minimum password length the signup form should advertise"`
+		RegistrationEnabled    bool `json:"registrationEnabled" doc:"Whether self-service signup is currently accepted on this surface"`
+		LoginEnabled           bool `json:"loginEnabled" doc:"Whether interactive login is currently accepted on this surface"`
+		OAuthSignupAllowed     bool `json:"oauthSignupAllowed" doc:"Whether an unknown email returning from an OAuth flow may be auto-provisioned on this surface"`
+		MFAEnabled             bool `json:"mfaEnabled" doc:"Whether the master MFA switch is on — a user MFA settings page should render an inert badge when this is false"`
+		PasswordMinLength      int  `json:"passwordMinLength" doc:"Minimum password length the signup form should advertise"`
+		PasswordMaxLength      int  `json:"passwordMaxLength" doc:"Maximum password length the signup form should accept"`
+		PasswordRequireUpper   bool `json:"passwordRequireUpper" doc:"Whether the signup form should advertise an uppercase requirement"`
+		PasswordRequireLower   bool `json:"passwordRequireLower" doc:"Whether the signup form should advertise a lowercase requirement"`
+		PasswordRequireDigit   bool `json:"passwordRequireDigit" doc:"Whether the signup form should advertise a digit requirement"`
+		PasswordRequireSymbol  bool `json:"passwordRequireSymbol" doc:"Whether the signup form should advertise a symbol requirement"`
 	}
 }
 
@@ -234,7 +262,15 @@ func (h *AuthHandler) GetAuthPolicy(ctx context.Context, _ *GetAuthPolicyRequest
 	audience := h.policyAudience()
 	resp.Body.RegistrationEnabled = h.policy.RegistrationAllowed(ctx, audience)
 	resp.Body.LoginEnabled = h.policy.LoginAllowed(ctx, audience)
-	resp.Body.PasswordMinLength = h.policy.PasswordPolicy(ctx).MinLength
+	resp.Body.OAuthSignupAllowed = h.policy.OAuthAllowSignup(ctx, audience)
+	resp.Body.MFAEnabled = h.policy.MFAEnabled(ctx)
+	pp := h.policy.PasswordPolicy(ctx)
+	resp.Body.PasswordMinLength = pp.MinLength
+	resp.Body.PasswordMaxLength = pp.MaxLength
+	resp.Body.PasswordRequireUpper = pp.RequireUpper
+	resp.Body.PasswordRequireLower = pp.RequireLower
+	resp.Body.PasswordRequireDigit = pp.RequireDigit
+	resp.Body.PasswordRequireSymbol = pp.RequireSymbol
 	return resp, nil
 }
 
@@ -596,6 +632,10 @@ func (h *AuthHandler) HandleGoogleCallbackHTTP(w http.ResponseWriter, r *http.Re
 	// Use enhanced auth service for proper user creation and token management
 	tokenResponse, err := target.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderGoogle, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
+		if oauthSignupDisabled(err) {
+			redirectOAuthSignupDisabled(w, r, target.config.Server.FrontendURL)
+			return
+		}
 		logger.Error("Failed to process OAuth callback", slog.String("error", err.Error()))
 		http.Error(w, "Failed to process OAuth callback", http.StatusInternalServerError)
 		return
