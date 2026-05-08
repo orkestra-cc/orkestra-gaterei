@@ -1,5 +1,14 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, type RouteObject } from 'react-router';
+import { Navigate, useParams, type RouteObject } from 'react-router';
+
+// Phase 6 redirect for the previous /admin/external-tenants/:tenantId
+// surface. Lives at module scope so it can be referenced from the route
+// table without a circular lazy import.
+const ExternalTenantToClientsRedirect: React.FC = () => {
+  const { tenantId } = useParams<{ tenantId: string }>();
+  if (!tenantId) return <Navigate to="/admin/clients" replace />;
+  return <Navigate to={`/admin/clients/${tenantId}`} replace />;
+};
 import App from 'App';
 import paths from './paths';
 import MainLayout from 'layouts/MainLayout';
@@ -29,10 +38,7 @@ const InternalTenantDetail = lazy(
   () => import('pages/admin/internal-tenants/detail'),
 );
 const ClientManagement = lazy(() => import('pages/admin/clients'));
-const ClientUserDetail = lazy(() => import('pages/admin/clients/detail'));
-const ExternalTenantDetail = lazy(
-  () => import('pages/admin/external-tenants/detail'),
-);
+const ClientDetail = lazy(() => import('pages/admin/clients/detail'));
 const AdminUserProfile = lazy(
   () => import('pages/admin/user-profile/AdminUserProfile')
 );
@@ -236,7 +242,14 @@ export function buildCoreRoutes(
                   ),
                 },
                 {
-                  path: 'clients/:userId',
+                  // Phase 6 (Unified Client Aggregate): the legacy
+                  // /admin/clients/:userId user-detail route and the
+                  // /admin/external-tenants/:tenantId tenant-detail route
+                  // collapsed into one tenant-centric surface. The page
+                  // resolves the param as a tenantUUID first and falls back
+                  // to a user → primary-external-tenant lookup so
+                  // bookmarks survive.
+                  path: 'clients/:tenantUUID',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
@@ -244,30 +257,20 @@ export function buildCoreRoutes(
                       ]}
                     >
                       <Suspense
-                        key="admin-client-user-detail"
+                        key="admin-client-detail"
                         fallback={<FalconLoader />}
                       >
-                        <ClientUserDetail />
+                        <ClientDetail />
                       </Suspense>
                     </ProtectedRoute>
                   ),
                 },
                 {
+                  // 301-style redirect — preserves any deep links that
+                  // referenced /admin/external-tenants/:tenantId before the
+                  // URL merge.
                   path: 'external-tenants/:tenantId',
-                  element: (
-                    <ProtectedRoute
-                      requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
-                      ]}
-                    >
-                      <Suspense
-                        key="admin-external-tenant-detail"
-                        fallback={<FalconLoader />}
-                      >
-                        <ExternalTenantDetail />
-                      </Suspense>
-                    </ProtectedRoute>
-                  ),
+                  element: <ExternalTenantToClientsRedirect />,
                 },
                 {
                   path: 'user/profile/:userId',

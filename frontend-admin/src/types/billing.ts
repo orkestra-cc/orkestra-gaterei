@@ -650,6 +650,12 @@ export interface Invoice {
   date: string;
   currency: string;
   supplierId?: string;
+  /**
+   * Phase 5 unified-clients: invoices now key onto a Tier-2 Tenant UUID.
+   * `customerId` survives only as a forensics safety belt for invoices issued
+   * before migration 0003 ran; do not write it from new code.
+   */
+  tenantUUID?: string;
   customerId?: string;
   cedentePrestatore?: PartyData;
   cessionarioCommittente?: PartyData;
@@ -729,7 +735,13 @@ export interface CreateInvoiceInput {
   date: string;
   currency?: string;
   companyId?: string;
-  customerId?: string;
+  /**
+   * Tier-2 tenant the invoice is issued to. Phase 5 of the Unified Client
+   * Aggregate refactor: backend resolves the FatturaPA recipient party from
+   * the tenant's billing-identity sub-document (vat number, fiscal code,
+   * billing address, FatturaPA routing) at send time.
+   */
+  tenantUUID: string;
   // FatturaPA specific data
   datiRitenuta?: DatiRitenuta[]; // Withholding tax
   datiBollo?: DatiBollo; // Stamp duty
@@ -768,7 +780,7 @@ export interface InvoiceListParams {
   direction?: InvoiceDirection;
   status?: InvoiceStatus;
   sdiStatus?: SDIStatus;
-  customerId?: string;
+  tenantUUID?: string;
   supplierId?: string;
   fromDate?: string;
   toDate?: string;

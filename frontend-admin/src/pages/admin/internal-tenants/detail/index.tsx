@@ -6,12 +6,12 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
 import { useGetOrgAdminQuery } from 'store/api/tenantApi';
 
-// Reuse the Overview and Members tabs from the external-tenants detail
-// folder — they only take an `org` prop and are equally valid for
-// internal tenants. The Divisions/Subscriptions/Payments tabs stay
+// Reuse the Overview and Members tabs from the clients detail folder —
+// they only take an `org` prop and are equally valid for internal tenants.
+// The Divisions/Subscriptions/Payments/BillingIdentity tabs stay
 // external-only.
-const OverviewTab = lazy(() => import('pages/admin/external-tenants/detail/OverviewTab'));
-const MembersTab = lazy(() => import('pages/admin/external-tenants/detail/MembersTab'));
+const OverviewTab = lazy(() => import('pages/admin/clients/detail/OverviewTab'));
+const MembersTab = lazy(() => import('pages/admin/clients/detail/MembersTab'));
 
 const TAB_KEYS = ['overview', 'members'] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -71,10 +71,10 @@ const InternalTenantDetailPage: React.FC = () => {
     );
   }
 
-  // External-tenant deep links land on the external-tenant detail page
-  // — this page is operator-side only.
+  // External-tenant deep links land on the clients detail page — this
+  // page is operator-side only.
   if (org.kind === 'external') {
-    return <Navigate to={`/admin/external-tenants/${tenantId}`} replace />;
+    return <Navigate to={`/admin/clients/${tenantId}`} replace />;
   }
 
   const onTabChange = (key: string | null) => {

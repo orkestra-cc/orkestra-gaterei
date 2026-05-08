@@ -24,11 +24,11 @@ import {
 import {
   useCreateInvoiceMutation,
   useSendInvoiceMutation,
-  useGetCustomersQuery,
   useGetCompaniesQuery,
   useGetDefaultCompanyQuery,
   useGetInvoiceQuery
 } from 'store/api/billingApi';
+import { useListAllOrgsAdminQuery } from 'store/api/tenantApi';
 import type {
   CreateInvoiceInput,
   CreateInvoiceLineInput,
@@ -190,7 +190,11 @@ const NewIssuedInvoice: React.FC = () => {
 
   const [createInvoice, { isLoading: isCreating }] = useCreateInvoiceMutation();
   const [sendInvoice, { isLoading: isSending }] = useSendInvoiceMutation();
-  const { data: customersData } = useGetCustomersQuery({ pageSize: 100 });
+  // Phase 5 unified-clients: invoice recipients are Tier-2 tenants, not the
+  // soon-to-be-deleted billing.Customer rows. The form picks an external
+  // tenant; backend resolves the FatturaPA recipient via
+  // BillingTenantProvider.ResolveBillingParty(tenantUUID) at send time.
+  const { data: tenantsData } = useListAllOrgsAdminQuery({ kind: 'external' });
   const { data: companiesData } = useGetCompaniesQuery({ pageSize: 100 });
   const { data: defaultCompany } = useGetDefaultCompanyQuery();
 
@@ -211,7 +215,7 @@ const NewIssuedInvoice: React.FC = () => {
   const [number, setNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [companyId, setCompanyId] = useState('');
-  const [customerId, setCustomerId] = useState('');
+  const [tenantUUID, setTenantUUID] = useState('');
   const [lines, setLines] = useState<CreateInvoiceLineInput[]>([
     createEmptyLine()
   ]);
@@ -294,8 +298,8 @@ const NewIssuedInvoice: React.FC = () => {
     setDate(new Date().toISOString().split('T')[0]);
     setNumber('');
 
-    if (sourceInvoice.customerId) {
-      setCustomerId(sourceInvoice.customerId);
+    if (sourceInvoice.tenantUUID) {
+      setTenantUUID(sourceInvoice.tenantUUID);
     }
 
     // Copy lines
@@ -597,7 +601,7 @@ const NewIssuedInvoice: React.FC = () => {
       return false;
     }
 
-    if (!customerId) {
+    if (!tenantUUID) {
       setError('Selezionare un cliente');
       setActiveTab('document');
       return false;
@@ -659,7 +663,7 @@ const NewIssuedInvoice: React.FC = () => {
       date: toRFC3339(date),
       currency: 'EUR',
       companyId,
-      customerId,
+      tenantUUID,
       // FatturaPA specific data
       datiRitenuta: enableRitenuta ? [datiRitenuta] : undefined,
       datiBollo: enableBollo ? datiBollo : undefined,
@@ -725,8 +729,8 @@ const NewIssuedInvoice: React.FC = () => {
     }
   };
 
-  const selectedCustomer = customersData?.customers?.find(
-    c => c.id === customerId
+  const selectedTenant = tenantsData?.tenants?.find(
+    (t) => t.id === tenantUUID
   );
 
   return (
@@ -907,34 +911,52 @@ const NewIssuedInvoice: React.FC = () => {
                         Cliente <span className="text-danger">*</span>
                       </Form.Label>
                       <Form.Select
-                        value={customerId}
-                        onChange={e => setCustomerId(e.target.value)}
+                        value={tenantUUID}
+                        onChange={(e) => setTenantUUID(e.target.value)}
                       >
                         <option value="">Seleziona cliente...</option>
-                        {customersData?.customers?.map(customer => (
-                          <option key={customer.id} value={customer.id}>
-                            {customer.isCompany
-                              ? customer.denomination
-                              : `${customer.name} ${customer.surname}`}{' '}
-                            - {customer.fiscalIdCode}
-                          </option>
-                        ))}
+                        {tenantsData?.tenants?.map((tenant) => {
+                          const fiscal =
+                            tenant.vatNumber || tenant.fiscalCode || '—';
+                          const label = tenant.legalName || tenant.name;
+                          return (
+                            <option key={tenant.id} value={tenant.id}>
+                              {label} - {fiscal}
+                              {tenant.isItalianBillable ? '' : ' (no FatturaPA)'}
+                            </option>
+                          );
+                        })}
                       </Form.Select>
+                      <Form.Text className="text-muted">
+                        Manca un cliente?{' '}
+                        <a href="/admin/clients" target="_blank" rel="noreferrer">
+                          Apri Clienti
+                        </a>{' '}
+                        per registrarlo o configurarne la fatturazione elettronica.
+                      </Form.Text>
                     </Form.Group>
                   </Col>
                   <Col md={4}>
-                    {selectedCustomer && (
+                    {selectedTenant && (
                       <div className="mt-4 text-muted small">
                         <div>
                           <strong>SDI:</strong>{' '}
-                          {selectedCustomer.codiceDestinatario ||
-                            selectedCustomer.pecDestinatario ||
+                          {selectedTenant.fatturaPA?.codiceDestinatario ||
+                            selectedTenant.fatturaPA?.pecDestinatario ||
                             'N/A'}
                         </div>
                         <div>
-                          <strong>P.IVA:</strong>{' '}
-                          {selectedCustomer.fiscalIdCode}
+                          <strong>P.IVA / CF:</strong>{' '}
+                          {selectedTenant.vatNumber ||
+                            selectedTenant.fiscalCode ||
+                            '—'}
                         </div>
+                        {!selectedTenant.isItalianBillable && (
+                          <div className="text-warning">
+                            <strong>Attenzione:</strong> profilo FatturaPA non
+                            attivo per questo cliente.
+                          </div>
+                        )}
                       </div>
                     )}
                   </Col>

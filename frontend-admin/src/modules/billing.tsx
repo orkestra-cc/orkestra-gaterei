@@ -5,7 +5,6 @@ import ModuleGate from 'components/common/ModuleGate';
 import FalconLoader from 'components/common/FalconLoader';
 
 const BillingDashboard = lazy(() => import('pages/billing/dashboard'));
-const CustomerManagement = lazy(() => import('pages/billing/customers'));
 const SupplierManagement = lazy(() => import('pages/billing/suppliers'));
 const IssuedInvoices = lazy(() => import('pages/billing/invoices/issued'));
 const ReceivedInvoices = lazy(() => import('pages/billing/invoices/received'));
@@ -26,18 +25,6 @@ export const billingManifest: ModuleManifest = {
           <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer']]}>
             <Suspense key="billing-dashboard" fallback={<FalconLoader />}>
               <BillingDashboard />
-            </Suspense>
-          </ProtectedRoute>
-        </ModuleGate>
-      ),
-    },
-    {
-      path: 'billing/customers',
-      element: (
-        <ModuleGate module="billing">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer']]}>
-            <Suspense key="billing-customers" fallback={<FalconLoader />}>
-              <CustomerManagement />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>

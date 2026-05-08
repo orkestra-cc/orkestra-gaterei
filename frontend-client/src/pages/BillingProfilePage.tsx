@@ -4,22 +4,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import {
-  type BillingProfile,
+  type BillingIdentity,
   type UpsertBillingProfileInput,
   getBillingProfile,
   putBillingProfile,
+  setItalianBillable,
 } from '@/api/billingProfile';
 
-// Tier-2 self-service billing profile editor. Form maps to the wire
-// shape on backend/internal/addons/clientbilling/handlers/me_handler.go.
-// Backend Validate (services/customer_service.go) enforces:
-//   - country non-empty (in either case)
-//   - isCompany=true  → legalName required
-//   - isCompany=false → at least one of firstName/lastName
-// We mirror those rules client-side so 400s only happen on real edge
-// cases, not the empty-field path. The ?next= query param is honored
-// post-save so this page can chain into the subscribe flow when the
-// payments handler returns 409 ("complete your billing profile").
+// Tier-2 self-service billing identity editor. Maps to the wire shape on
+// backend/internal/core/tenant/handlers/handler.go's BillingIdentityDTO.
+//
+// Phase 6 of the Unified Client Aggregate refactor (2026-05-08): this page
+// previously edited a clientbilling.UserBillingCustomer row via
+// /v1/me/billing-profile. The clientbilling addon was deleted; the
+// equivalent fields now live on the caller's personal Tenant aggregate
+// (lazy-provisioned by EnsureTenantForUser). We mirror the backend
+// validation timing — the toggle endpoint requires FatturaPA routing
+// before flipping IsItalianBillable on, so the UI gates the toggle
+// button and surfaces a hint on missing routing.
+//
+// Required fields (mirror SetBillingIdentity + SubscribePage gate):
+//   - billingAddress.country (always)
+//   - legalName (when isCompany=true; otherwise rendered from the User's
+//     name fields by the backend's UserDisplayResolver at invoice time)
+//
+// FatturaPA routing (codiceDestinatario or pecDestinatario) is optional
+// here but required to enable Italian-billable mode.
 export function BillingProfilePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -34,9 +44,6 @@ export function BillingProfilePage() {
 
   const [isCompany, setIsCompany] = useState<boolean>(false);
   const [legalName, setLegalName] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [fiscalCode, setFiscalCode] = useState('');
   const [country, setCountry] = useState('IT');
@@ -45,33 +52,33 @@ export function BillingProfilePage() {
   const [city, setCity] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [province, setProvince] = useState('');
+  const [codiceDestinatario, setCodiceDestinatario] = useState('');
+  const [pecDestinatario, setPecDestinatario] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  // Hydrate the form once the GET resolves. We keep the local state the
-  // source of truth from then on so the user's in-progress edits aren't
-  // wiped by a refetch.
+  // Hydrate the form once the GET resolves. Local state stays the source
+  // of truth from then on so user edits aren't wiped by a refetch.
   useEffect(() => {
     if (!profile.data || hydrated) return;
     const p = profile.data;
     setIsCompany(p.isCompany);
     setLegalName(p.legalName ?? '');
-    setFirstName(p.firstName ?? '');
-    setLastName(p.lastName ?? '');
-    setEmail(p.email ?? '');
     setVatNumber(p.vatNumber ?? '');
     setFiscalCode(p.fiscalCode ?? '');
-    setCountry(p.country?.trim() ? p.country : 'IT');
-    setAddressLine1(p.addressLine1 ?? '');
-    setAddressLine2(p.addressLine2 ?? '');
-    setCity(p.city ?? '');
-    setPostalCode(p.postalCode ?? '');
-    setProvince(p.province ?? '');
+    setCountry(p.billingAddress?.country?.trim() ? p.billingAddress.country : 'IT');
+    setAddressLine1(p.billingAddress?.line1 ?? '');
+    setAddressLine2(p.billingAddress?.line2 ?? '');
+    setCity(p.billingAddress?.city ?? '');
+    setPostalCode(p.billingAddress?.postalCode ?? '');
+    setProvince(p.billingAddress?.province ?? '');
+    setCodiceDestinatario(p.fatturaPA?.codiceDestinatario ?? '');
+    setPecDestinatario(p.fatturaPA?.pecDestinatario ?? '');
     setHydrated(true);
   }, [profile.data, hydrated]);
 
-  const saveMutation = useMutation<BillingProfile, Error, UpsertBillingProfileInput>({
+  const saveMutation = useMutation<BillingIdentity, Error, UpsertBillingProfileInput>({
     mutationFn: putBillingProfile,
     onSuccess: (saved) => {
       queryClient.setQueryData(['billing-profile'], saved);
@@ -84,17 +91,43 @@ export function BillingProfilePage() {
     },
   });
 
+  const toggleMutation = useMutation<BillingIdentity, Error, boolean>({
+    mutationFn: setItalianBillable,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['billing-profile'], saved);
+    },
+  });
+
+  const hasRouting =
+    !!codiceDestinatario.trim() || !!pecDestinatario.trim();
+
+  function buildPatch(): UpsertBillingProfileInput {
+    return {
+      isCompany,
+      legalName: legalName.trim() || undefined,
+      vatNumber: vatNumber.trim() || undefined,
+      fiscalCode: fiscalCode.trim() || undefined,
+      billingAddress: {
+        line1: addressLine1.trim() || undefined,
+        line2: addressLine2.trim() || undefined,
+        city: city.trim() || undefined,
+        province: province.trim() || undefined,
+        postalCode: postalCode.trim() || undefined,
+        country: country.trim().toUpperCase() || undefined,
+      },
+      fatturaPA: {
+        codiceDestinatario: codiceDestinatario.trim() || undefined,
+        pecDestinatario: pecDestinatario.trim() || undefined,
+      },
+    };
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setValidationError(null);
 
-    if (isCompany) {
-      if (!legalName.trim()) {
-        setValidationError(t('billing.errorLegalName'));
-        return;
-      }
-    } else if (!firstName.trim() && !lastName.trim()) {
-      setValidationError(t('billing.errorPersonName'));
+    if (isCompany && !legalName.trim()) {
+      setValidationError(t('billing.errorLegalName'));
       return;
     }
     if (!country.trim()) {
@@ -102,31 +135,17 @@ export function BillingProfilePage() {
       return;
     }
 
-    saveMutation.mutate({
-      isCompany,
-      legalName: legalName.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      vatNumber: vatNumber.trim(),
-      fiscalCode: fiscalCode.trim(),
-      country: country.trim().toUpperCase(),
-      addressLine1: addressLine1.trim(),
-      addressLine2: addressLine2.trim(),
-      city: city.trim(),
-      postalCode: postalCode.trim(),
-      province: province.trim(),
-    });
+    saveMutation.mutate(buildPatch());
   }
 
-  const stripeBadge = useMemo(() => {
-    if (!profile.data?.hasStripe) return null;
+  const italianBillableBadge = useMemo(() => {
+    if (!profile.data?.isItalianBillable) return null;
     return (
       <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        {t('billing.stripeLinked')}
+        {t('billing.italianBillableEnabled')}
       </span>
     );
-  }, [profile.data?.hasStripe, t]);
+  }, [profile.data?.isItalianBillable, t]);
 
   if (profile.isLoading) {
     return (
@@ -151,6 +170,8 @@ export function BillingProfilePage() {
     );
   }
 
+  const italianBillableActive = !!profile.data?.isItalianBillable;
+
   return (
     <section className="mx-auto max-w-2xl px-6 py-16">
       <Link to="/account" className="mb-6 inline-block text-sm text-slate-600 hover:underline">
@@ -162,7 +183,7 @@ export function BillingProfilePage() {
           <h1 className="mb-2 text-3xl font-semibold tracking-tight">{t('billing.title')}</h1>
           <p className="text-slate-600">{t('billing.subtitle')}</p>
         </div>
-        {stripeBadge}
+        {italianBillableBadge}
       </header>
 
       {next && (
@@ -205,37 +226,13 @@ export function BillingProfilePage() {
             {t('billing.identityLegend')}
           </legend>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {isCompany ? (
-              <Field
-                label={t('billing.legalName')}
-                value={legalName}
-                onChange={setLegalName}
-                required
-                colSpan={2}
-              />
-            ) : (
-              <>
-                <Field
-                  label={t('billing.firstName')}
-                  value={firstName}
-                  onChange={setFirstName}
-                  required
-                />
-                <Field
-                  label={t('billing.lastName')}
-                  value={lastName}
-                  onChange={setLastName}
-                  required
-                />
-              </>
-            )}
             <Field
-              label={t('billing.email')}
-              value={email}
-              onChange={setEmail}
-              type="email"
+              label={t('billing.legalName')}
+              value={legalName}
+              onChange={setLegalName}
+              required={isCompany}
               colSpan={2}
-              hint={t('billing.emailHint')}
+              hint={isCompany ? undefined : t('billing.legalNameHintPerson')}
             />
             {isCompany && (
               <Field
@@ -293,6 +290,69 @@ export function BillingProfilePage() {
             />
           </div>
         </fieldset>
+
+        <fieldset className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <legend className="px-2 text-sm font-medium text-slate-700">
+            {t('billing.fatturaPALegend')}
+          </legend>
+          <p className="mb-4 text-sm text-slate-600">{t('billing.fatturaPAHint')}</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label={t('billing.codiceDestinatario')}
+              value={codiceDestinatario}
+              onChange={setCodiceDestinatario}
+              maxLength={7}
+              hint={t('billing.codiceDestinatarioHint')}
+            />
+            <Field
+              label={t('billing.pecDestinatario')}
+              value={pecDestinatario}
+              onChange={setPecDestinatario}
+              type="email"
+              hint={t('billing.pecDestinatarioHint')}
+            />
+          </div>
+        </fieldset>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-700">
+                {t('billing.italianBillableLabel')}
+              </p>
+              <p className="text-xs text-slate-500">
+                {italianBillableActive
+                  ? t('billing.italianBillableActiveHint')
+                  : t('billing.italianBillableIdleHint')}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={
+                toggleMutation.isPending ||
+                (!italianBillableActive && !hasRouting)
+              }
+              onClick={() => toggleMutation.mutate(!italianBillableActive)}
+              className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              {toggleMutation.isPending
+                ? t('billing.toggling')
+                : italianBillableActive
+                  ? t('billing.disable')
+                  : t('billing.enable')}
+            </button>
+          </div>
+          {!italianBillableActive && !hasRouting && (
+            <p className="mt-3 text-xs text-amber-700">
+              {t('billing.italianBillableNeedsRouting')}
+            </p>
+          )}
+          {toggleMutation.isError && (
+            <p className="mt-3 text-xs text-red-700" role="alert">
+              {toggleMutation.error.message}
+            </p>
+          )}
+        </div>
 
         {validationError && (
           <p

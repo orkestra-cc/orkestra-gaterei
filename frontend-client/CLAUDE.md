@@ -47,7 +47,7 @@ frontend-client/
 │   │   ├── verifyEmail.ts      # /v1/auth/client/verify-email{,/resend}
 │   │   ├── subscriptions.ts    # /v1/me/subscriptions self-service
 │   │   ├── payments.ts         # /v1/me/payments/{,setup-}checkout-session
-│   │   └── billingProfile.ts   # /v1/me/billing-profile (user-owner billing identity)
+│   │   └── billingProfile.ts   # /v1/me/billing-identity (personal-tenant billing identity, Phase 6)
 │   ├── auth/
 │   │   ├── AuthProvider.tsx    # React context: in-memory access token + signIn/signOut
 │   │   ├── authContext.ts      # Context shape
@@ -165,7 +165,7 @@ If you add a third Stripe flow (refunds UI, customer portal redirect, etc.), fol
 
 ### Owner & billing-profile gate
 
-Subscribes are polymorphic: `SubscribePage` defaults to **personal** (`ownerKind:"user"` — the calling user is the owner) and only renders an organization picker when `useOwnedTenants()` returns rows. Personal subscribes require a row in `clientbilling_customers` (Phase 2 of the polymorphic-owner refactor) — without it, the payments handler returns 409 `"complete your billing profile before checkout"`. The SPA pre-flights `GET /v1/me/billing-profile` before opening Checkout and bounces to `/account/billing?next=/subscribe?...` if `hasBillingProfile()` is false; the same redirect runs as a fallback when the post-create checkout-session call still 409s. Tenant-owner subscribes reuse the existing `tenant.StripeCustomerID` seam and do not need the billing-profile form.
+Subscribes are polymorphic: `SubscribePage` defaults to **personal** (`ownerKind:"user"` — the calling user is the owner) and only renders an organization picker when `useOwnedTenants()` returns rows. Personal subscribes pre-flight `GET /v1/me/billing-identity` (Phase 6 of the Unified Client Aggregate refactor — the predecessor `/v1/me/billing-profile` and the `clientbilling_customers` collection are gone, replaced by a per-user personal Tenant aggregate that the backend lazy-provisions via `EnsureTenantForUser`). The SPA bounces to `/account/billing?next=/subscribe?...` if `hasBillingProfile()` reports the identity is missing (no `billingAddress.country`, or `isCompany=true` without `legalName`); the same redirect runs as a fallback when a post-create checkout-session call still 409s. Tenant-owner subscribes reuse the existing `tenant.StripeCustomerID` seam and do not need the billing-identity form.
 
 ## Path aliases
 

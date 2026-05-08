@@ -72,7 +72,7 @@ const DivisionsTab: React.FC<Props> = ({ org }) => {
                 {divisions.map((d) => (
                   <tr key={d.id} className="align-middle">
                     <td>
-                      <Link to={`/admin/external-tenants/${d.id}`}>{d.name}</Link>
+                      <Link to={`/admin/clients/${d.id}`}>{d.name}</Link>
                     </td>
                     <td className="text-muted">
                       <code className="fs-11">{d.slug}</code>

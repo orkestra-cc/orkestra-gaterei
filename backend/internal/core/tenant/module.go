@@ -217,6 +217,19 @@ func (m *Module) RegisterRoutes(ri *module.RouteInfo) {
 		api := humachi.New(r, ri.APIConfig)
 		m.handler.RegisterAdminRoutes(api)
 	})
+
+	// Tier-2 self-service: /v1/me/billing-identity. Mounted on the client
+	// audience surface so frontend-client tokens (aud=client) can call it
+	// to manage their own tenant's billing identity. The handler resolves
+	// the personal tenant via EnsureTenantForUser — Tier-2 users never
+	// touch another tenant's row.
+	if ri.Client != nil {
+		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
+			r.Use(ri.Client.AuthMW.RequireGlobal())
+			api := humachi.New(r, ri.APIConfig)
+			m.handler.RegisterClientRoutes(api)
+		})
+	}
 }
 
 // Service returns the tenant service — exposed so the authz module can

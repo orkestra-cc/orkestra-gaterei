@@ -34,6 +34,17 @@ export interface Org {
   purgedAt?: string | null;
   /** Soft-archive timestamp. Succeeds the deprecated `deletedAt`. */
   archivedAt?: string | null;
+  /** Hierarchical external tenants — nil for root tenants. */
+  parentTenantUUID?: string | null;
+  /** Phase 1 unified-clients fields — empty until the billing-identity form is filled in. */
+  legalName?: string;
+  vatNumber?: string;
+  fiscalCode?: string;
+  isCompany?: boolean;
+  isItalianBillable?: boolean;
+  billingAddress?: TenantAddress;
+  fatturaPA?: FatturaPAProfile | null;
+  signupChannel?: string;
 }
 
 export interface CreateOrgInput {
@@ -91,22 +102,44 @@ export interface TenantPayment {
 }
 
 /**
- * Flat read-only projection of a tenant's linked FatturaPA customer
- * (ADR-0001 PR-4). Returned by GET /v1/admin/tenants/{id}/billing-customer.
- * The full Customer shape lives under the billing module — this DTO is
- * what the tenant aggregator returns for the admin clients page.
+ * Italian-billable address sub-document. Keep in lockstep with the backend
+ * `models.TenantAddress`.
  */
-export interface TenantBillingCustomer {
-  uuid: string;
-  tenantUUID: string;
-  denomination: string;
-  name: string;
-  surname: string;
-  fiscalIdCode: string;
-  isCompany: boolean;
-  country: string;
-  isActive: boolean;
-  createdAt: string;
+export interface TenantAddress {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
+}
+
+/**
+ * FatturaPA routing sub-document persisted on the unified Tenant aggregate.
+ * Required when `Tenant.IsItalianBillable` is true; either CodiceDestinatario
+ * or PECDestinatario must be present at send time.
+ */
+export interface FatturaPAProfile {
+  codiceDestinatario?: string;
+  pecDestinatario?: string;
+  isPA?: boolean;
+  codiceUfficio?: string;
+  riferimentoAmm?: string;
+  convenzioneNumero?: string;
+}
+
+/**
+ * Patch payload for `PATCH /v1/admin/clients/{tenantId}/billing-identity`.
+ * All fields optional; nil leaves the existing value. FatturaPA is
+ * wholesale-replaced when present.
+ */
+export interface SetBillingIdentityInput {
+  isCompany?: boolean;
+  legalName?: string;
+  vatNumber?: string;
+  fiscalCode?: string;
+  billingAddress?: TenantAddress;
+  fatturaPA?: FatturaPAProfile;
 }
 
 export interface AdminOrgListQuery {
@@ -386,31 +419,37 @@ export const tenantApi = baseApi.injectEndpoints({
       providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:payments` }],
     }),
 
-    // ADR-0001 PR-4 — billing-customer aggregator. 404 is the "not
-    // linked" state and surfaces as `error.status === 404` on the
-    // hook. The consumer (TenantDetailModal Billing tab) renders the
-    // empty state when it sees that. Same pattern as identityApi's
-    // getIdPConfig — keeps the type narrow and avoids a queryFn.
-    getTenantBillingCustomerAdmin: builder.query<TenantBillingCustomer, string>({
-      query: (tenantId) => ({
-        url: `/v1/admin/tenants/${tenantId}/billing-customer`,
-        method: 'GET',
+    // Unified Client Aggregate (Phase 1) — admin-side billing-identity writes.
+    // Mirror the self-service /v1/me/billing-identity surface that
+    // frontend-client uses, but gated by system.tenants.admin so platform
+    // operators can fix Tier-2 tenants from the admin clients page.
+    setTenantBillingIdentityAdmin: builder.mutation<
+      Org,
+      { tenantId: string; body: SetBillingIdentityInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/clients/${tenantId}/billing-identity`,
+        method: 'PATCH',
+        body,
       }),
-      providesTags: (_, __, tenantId) => [
-        { type: 'AdminOrg', id: `${tenantId}:billing-customer` },
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'AdminOrg', id: tenantId },
+        { type: 'AdminOrg', id: 'LIST' },
       ],
     }),
 
-    promoteTenantToBillingCustomerAdmin: builder.mutation<
-      TenantBillingCustomer,
-      string
+    setTenantItalianBillableAdmin: builder.mutation<
+      Org,
+      { tenantId: string; enabled: boolean }
     >({
-      query: (tenantId) => ({
-        url: `/v1/admin/tenants/${tenantId}/billing-customer`,
+      query: ({ tenantId, enabled }) => ({
+        url: `/v1/admin/clients/${tenantId}/italian-billable`,
         method: 'POST',
+        body: { enabled },
       }),
-      invalidatesTags: (_, __, tenantId) => [
-        { type: 'AdminOrg', id: `${tenantId}:billing-customer` },
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'AdminOrg', id: tenantId },
+        { type: 'AdminOrg', id: 'LIST' },
       ],
     }),
 
@@ -563,6 +602,6 @@ export const {
   useCreateTenantDivisionAdminMutation,
   useListTenantSubscriptionsAdminQuery,
   useListTenantPaymentsAdminQuery,
-  useGetTenantBillingCustomerAdminQuery,
-  usePromoteTenantToBillingCustomerAdminMutation,
+  useSetTenantBillingIdentityAdminMutation,
+  useSetTenantItalianBillableAdminMutation,
 } = tenantApi;

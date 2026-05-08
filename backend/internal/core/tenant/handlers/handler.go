@@ -882,3 +882,160 @@ func (h *Handler) listTenantPaymentsAdmin(ctx context.Context, in *tenantIDPath)
 	return out, nil
 }
 
+// --- Unified Client Aggregate (Phase 6) — Tier-2 self-service ---
+
+// BillingIdentityDTO is the focused projection returned by the self-service
+// /v1/me/billing-identity endpoints. Trimmed from the full Tenant model so
+// the client surface doesn't leak operator-only fields (KMSKeyID, Plan,
+// IdPConfigUUID, etc.) and stays stable independently of the tenant aggregate.
+type BillingIdentityDTO struct {
+	TenantID          string                   `json:"tenantId"`
+	IsCompany         bool                     `json:"isCompany"`
+	IsItalianBillable bool                     `json:"isItalianBillable"`
+	LegalName         string                   `json:"legalName,omitempty"`
+	VATNumber         string                   `json:"vatNumber,omitempty"`
+	FiscalCode        string                   `json:"fiscalCode,omitempty"`
+	BillingAddress    models.TenantAddress     `json:"billingAddress,omitempty"`
+	FatturaPA         *models.FatturaPAProfile `json:"fatturaPA,omitempty"`
+}
+
+type billingIdentityOutput struct {
+	Body BillingIdentityDTO
+}
+
+type setMyBillingIdentityInput struct {
+	Body struct {
+		IsCompany      *bool                    `json:"isCompany,omitempty" doc:"Legal-entity discriminator: false=natural person/sole-proprietor, true=corporation"`
+		LegalName      *string                  `json:"legalName,omitempty"`
+		VATNumber      *string                  `json:"vatNumber,omitempty"`
+		FiscalCode     *string                  `json:"fiscalCode,omitempty"`
+		BillingAddress *models.TenantAddress    `json:"billingAddress,omitempty"`
+		FatturaPA      *models.FatturaPAProfile `json:"fatturaPA,omitempty" doc:"FatturaPA routing sub-document — required when IsItalianBillable is true"`
+	}
+}
+
+type setMyItalianBillableInput struct {
+	Body struct {
+		Enabled bool `json:"enabled"`
+	}
+}
+
+// RegisterClientRoutes mounts the Tier-2 self-service billing-identity surface
+// on the client audience. Each handler resolves the caller's personal tenant
+// via EnsureTenantForUser (lazy provisioning), then delegates to the same
+// service methods the admin endpoints call. Tier-2 users never see another
+// tenant's data — the personal tenant is keyed by the authenticated userUUID.
+func (h *Handler) RegisterClientRoutes(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "get-my-billing-identity",
+		Method:      http.MethodGet,
+		Path:        "/v1/me/billing-identity",
+		Summary:     "Read the caller's billing identity",
+		Description: "Returns the billing-identity sub-document of the caller's personal tenant. Lazy-provisions the personal tenant on first call.",
+		Tags:        []string{"Tenants"},
+	}, h.getMyBillingIdentity)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-my-billing-identity",
+		Method:      http.MethodPatch,
+		Path:        "/v1/me/billing-identity",
+		Summary:     "Update the caller's billing identity",
+		Description: "Patches IsCompany, LegalName, VAT/fiscal codes, billing address, and the FatturaPA routing sub-document on the caller's personal tenant. All fields optional; nil leaves the existing value. FatturaPA is wholesale-replaced when present.",
+		Tags:        []string{"Tenants"},
+	}, h.setMyBillingIdentity)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-my-italian-billable",
+		Method:      http.MethodPost,
+		Path:        "/v1/me/italian-billable",
+		Summary:     "Toggle the caller's Italian-billable flag",
+		Description: "Flips Tenant.IsItalianBillable on the caller's personal tenant. Enabling requires a FatturaPA profile with CodiceDestinatario or PECDestinatario (422 otherwise); disabling is unconditional.",
+		Tags:        []string{"Tenants"},
+	}, h.setMyItalianBillable)
+}
+
+func (h *Handler) resolveCallerTenant(ctx context.Context) (*models.Tenant, error) {
+	userUUID, ok := middleware.GetUserUUID(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	personal, err := h.svc.EnsureTenantForUser(ctx, userUUID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to resolve personal tenant", err)
+	}
+	t, err := h.svc.GetTenantModel(ctx, personal.UUID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to load personal tenant", err)
+	}
+	return t, nil
+}
+
+func tenantToBillingIdentityDTO(t *models.Tenant) BillingIdentityDTO {
+	return BillingIdentityDTO{
+		TenantID:          t.UUID,
+		IsCompany:         t.IsCompany,
+		IsItalianBillable: t.IsItalianBillable,
+		LegalName:         t.LegalName,
+		VATNumber:         t.VATNumber,
+		FiscalCode:        t.FiscalCode,
+		BillingAddress:    t.BillingAddress,
+		FatturaPA:         t.FatturaPA,
+	}
+}
+
+func (h *Handler) getMyBillingIdentity(ctx context.Context, _ *struct{}) (*billingIdentityOutput, error) {
+	t, err := h.resolveCallerTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &billingIdentityOutput{Body: tenantToBillingIdentityDTO(t)}, nil
+}
+
+func (h *Handler) setMyBillingIdentity(ctx context.Context, in *setMyBillingIdentityInput) (*billingIdentityOutput, error) {
+	t, err := h.resolveCallerTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	svcInput := services.SetBillingIdentityInput{
+		IsCompany:      in.Body.IsCompany,
+		LegalName:      in.Body.LegalName,
+		VATNumber:      in.Body.VATNumber,
+		FiscalCode:     in.Body.FiscalCode,
+		BillingAddress: in.Body.BillingAddress,
+		FatturaPA:      in.Body.FatturaPA,
+	}
+	if err := h.svc.SetBillingIdentity(ctx, t.UUID, svcInput); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, huma.Error404NotFound("tenant not found")
+		}
+		return nil, huma.Error400BadRequest("billing-identity update failed: " + err.Error())
+	}
+	updated, err := h.svc.GetTenantModel(ctx, t.UUID)
+	if err != nil {
+		return nil, huma.Error404NotFound("tenant not found")
+	}
+	return &billingIdentityOutput{Body: tenantToBillingIdentityDTO(updated)}, nil
+}
+
+func (h *Handler) setMyItalianBillable(ctx context.Context, in *setMyItalianBillableInput) (*billingIdentityOutput, error) {
+	t, err := h.resolveCallerTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.svc.SetItalianBillable(ctx, t.UUID, in.Body.Enabled); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			return nil, huma.Error404NotFound("tenant not found")
+		case errors.Is(err, services.ErrItalianBillableMissingProfile):
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		default:
+			return nil, huma.Error400BadRequest("italian-billable toggle failed: " + err.Error())
+		}
+	}
+	updated, err := h.svc.GetTenantModel(ctx, t.UUID)
+	if err != nil {
+		return nil, huma.Error404NotFound("tenant not found")
+	}
+	return &billingIdentityOutput{Body: tenantToBillingIdentityDTO(updated)}, nil
+}
+

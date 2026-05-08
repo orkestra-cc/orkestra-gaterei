@@ -115,6 +115,16 @@ Gated globally by a system permission, not by per-org membership, so platform op
 | PATCH | `/v1/admin/clients/{tenantId}/billing-identity` | Unified-clients — sets `IsCompany`, `LegalName`, VAT/fiscal codes, billing address, and the FatturaPA routing sub-document on a Tier-2 tenant. All body fields optional; nil leaves the existing value. The data this endpoint writes is what `iface.BillingTenantProvider.ResolveBillingParty` reads at invoice-send time (replaces the deleted `billing.Customer` row). |
 | POST | `/v1/admin/clients/{tenantId}/italian-billable` | Unified-clients Phase 1 — flips `Tenant.IsItalianBillable`. Enabling requires a FatturaPA profile carrying `CodiceDestinatario` or `PECDestinatario` (422 otherwise); disabling is unconditional. Send-time validation enforces the same invariant a second time, so the toggle on its own is not load-bearing. |
 
+### Tier-2 self-service — Client surface, `RequireGlobal()`
+
+Mounted on `ri.Client.ProtectedRouter` so frontend-client tokens (`aud=client`) can manage their own tenant's billing identity without an admin sweep. Each handler resolves the caller's personal tenant via `EnsureTenantForUser` (lazy provisioning), then delegates to the same `SetBillingIdentity` / `SetItalianBillable` service methods the admin endpoints call. The Tier-2 caller never touches another tenant's row — the personal tenant is keyed by the authenticated `userUUID`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/me/billing-identity` | Read the caller's billing identity (lazy-provisions the personal tenant on first call). Returns `BillingIdentityDTO` (focused projection — does not leak operator-only fields). |
+| PATCH | `/v1/me/billing-identity` | Update the caller's billing identity. All fields optional; nil leaves the existing value. FatturaPA is wholesale-replaced when present. |
+| POST | `/v1/me/italian-billable` | Toggle `IsItalianBillable` on the caller's personal tenant. Same FatturaPA-routing precondition as the admin endpoint. |
+
 The tenant-scoped mutation group additionally exposes `POST /v1/tenants/{tenantId}/divisions` + `GET /v1/tenants/{tenantId}/divisions` for members with `tenant.read` on the parent.
 
 Route registration and handler implementations in `handlers/handler.go`. The permission itself (`system.tenants.admin`) is declared with `System: true` in `module.go::Permissions()`, so `super_admin` / `administrator` / `developer` inherit it automatically via authz's system-role seeding — no bindings required.

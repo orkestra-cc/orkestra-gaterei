@@ -16,7 +16,7 @@ const BillingGreetings = () => {
     {
       title: 'Clienti',
       icon: faBuilding,
-      to: '/billing/customers',
+      to: '/admin/clients',
       color: 'info',
     },
     {

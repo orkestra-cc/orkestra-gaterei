@@ -1,10 +1,5 @@
 import { baseApi } from './baseApi';
 import type {
-  Customer,
-  CustomerListResponse,
-  CustomerListParams,
-  CreateCustomerInput,
-  UpdateCustomerInput,
   Supplier,
   SupplierListResponse,
   SupplierListParams,
@@ -48,64 +43,6 @@ const buildQueryParams = (params: Record<string, unknown>): string => {
 // Billing API endpoints
 export const billingApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    // ========================================
-    // Customer Endpoints
-    // ========================================
-
-    getCustomers: builder.query<CustomerListResponse, CustomerListParams | undefined>({
-      query: (params) => {
-        const queryString = params ? buildQueryParams(params) : '';
-        return {
-          url: `/v1/billing/customers${queryString ? `?${queryString}` : ''}`,
-          method: 'GET',
-        };
-      },
-      providesTags: (result) =>
-        result?.customers
-          ? [
-              ...result.customers.map(({ id }) => ({ type: 'Customer' as const, id })),
-              { type: 'Customer', id: 'LIST' },
-            ]
-          : [{ type: 'Customer', id: 'LIST' }],
-    }),
-
-    getCustomer: builder.query<Customer, string>({
-      query: (id) => `/v1/billing/customers/${id}`,
-      providesTags: (_result, _error, id) => [{ type: 'Customer', id }],
-    }),
-
-    createCustomer: builder.mutation<Customer, CreateCustomerInput>({
-      query: (data) => ({
-        url: '/v1/billing/customers',
-        method: 'POST',
-        body: data,
-      }),
-      invalidatesTags: [{ type: 'Customer', id: 'LIST' }],
-    }),
-
-    updateCustomer: builder.mutation<Customer, { id: string; data: UpdateCustomerInput }>({
-      query: ({ id, data }) => ({
-        url: `/v1/billing/customers/${id}`,
-        method: 'PATCH',
-        body: data,
-      }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: 'Customer', id },
-        { type: 'Customer', id: 'LIST' },
-      ],
-    }),
-
-    deleteCustomer: builder.mutation<void, string>({
-      query: (id) => ({
-        url: `/v1/billing/customers/${id}`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: (_result, _error, id) => [
-        { type: 'Customer', id },
-        { type: 'Customer', id: 'LIST' },
-      ],
-    }),
-
     // ========================================
     // Supplier Endpoints
     // ========================================
@@ -601,12 +538,6 @@ export interface ConfigureBusinessRegistryResponse {
 
 // Export hooks for usage in components
 export const {
-  // Customer hooks
-  useGetCustomersQuery,
-  useGetCustomerQuery,
-  useCreateCustomerMutation,
-  useUpdateCustomerMutation,
-  useDeleteCustomerMutation,
   // Supplier hooks
   useGetSuppliersQuery,
   useGetSupplierQuery,
