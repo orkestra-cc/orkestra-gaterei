@@ -11,7 +11,6 @@ package services
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -71,7 +70,7 @@ func newOrchestrationEnv(t *testing.T) *orchestrationEnv {
 // rotation flow only calls GetByUserUUID at the end of the happy
 // path to populate the response. Returns no rows; the response
 // payload still validates.
-type orchOAuthRepo struct{ mu sync.Mutex }
+type orchOAuthRepo struct{}
 
 func (orchOAuthRepo) CreateOAuthProvider(context.Context, *authModels.OAuthProviderDoc) error {
 	return nil
