@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Spinner, Table } from 'react-bootstrap';
+import { Alert, Dropdown, Spinner, Table } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { Org } from 'store/api/tenantApi';
@@ -7,22 +8,40 @@ import {
   useListOrgMembersAdminQuery,
   useRemoveOrgMemberAdminMutation,
 } from 'store/api/tenantApi';
+import {
+  useResendVerificationClientUserAdminMutation,
+  useSendPasswordResetClientUserAdminMutation,
+} from 'store/api/userApi';
 import { Button } from 'react-bootstrap';
 import AttachMemberModal from './AttachMemberModal';
+import AdminResetMfaModal from 'pages/admin/users/AdminResetMfaModal';
 
 interface Props {
   org: Org;
 }
 
+interface MfaTarget {
+  id: string;
+  email: string;
+  fullName?: string;
+}
+
 /**
  * Members tab — mirrors the MembersTab from the legacy TenantDetailModal.
  * Role assignments live on the Role Management page; this tab only shows
- * current memberships and allows removing non-owner rows.
+ * current memberships and allows removing non-owner rows. The per-row
+ * actions menu also exposes the admin trigger surface that previously
+ * lived on the retired user-detail page (resend verification, send
+ * password reset, reset MFA) so operators can recover a Tier-2 client
+ * user without leaving the tenant.
  */
 const MembersTab: React.FC<Props> = ({ org }) => {
   const { data, isLoading, error } = useListOrgMembersAdminQuery(org.id);
   const [removeMember] = useRemoveOrgMemberAdminMutation();
+  const [resendVerification] = useResendVerificationClientUserAdminMutation();
+  const [sendPasswordReset] = useSendPasswordResetClientUserAdminMutation();
   const [attachOpen, setAttachOpen] = useState(false);
+  const [mfaTarget, setMfaTarget] = useState<MfaTarget | null>(null);
 
   const onRemove = async (userUUID: string) => {
     try {
@@ -30,6 +49,24 @@ const MembersTab: React.FC<Props> = ({ org }) => {
       toast.success('Member removed');
     } catch (err: unknown) {
       toast.error('Remove failed: ' + extractError(err));
+    }
+  };
+
+  const onResendVerification = async (userUUID: string) => {
+    try {
+      await resendVerification(userUUID).unwrap();
+      toast.success('Verification email sent');
+    } catch (err: unknown) {
+      toast.error('Resend failed: ' + extractError(err));
+    }
+  };
+
+  const onSendPasswordReset = async (userUUID: string) => {
+    try {
+      await sendPasswordReset(userUUID).unwrap();
+      toast.success('Password-reset email sent');
+    } catch (err: unknown) {
+      toast.error('Send failed: ' + extractError(err));
     }
   };
 
@@ -95,16 +132,62 @@ const MembersTab: React.FC<Props> = ({ org }) => {
                 )}
               </td>
               <td className="text-end">
-                {!m.isOwner && (
-                  <Button
-                    variant="link"
+                <Dropdown align="end">
+                  <Dropdown.Toggle
+                    variant="falcon-default"
                     size="sm"
-                    className="p-0 text-danger text-decoration-none"
-                    onClick={() => onRemove(m.userUUID)}
+                    className="border-0"
                   >
-                    Remove
-                  </Button>
-                )}
+                    <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu className="border py-0">
+                    <div className="py-1">
+                      <Dropdown.Item
+                        as="button"
+                        type="button"
+                        onClick={() => onResendVerification(m.userUUID)}
+                      >
+                        <FontAwesomeIcon icon="envelope" className="me-2" />
+                        Resend verification
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        as="button"
+                        type="button"
+                        onClick={() => onSendPasswordReset(m.userUUID)}
+                      >
+                        <FontAwesomeIcon icon="key" className="me-2" />
+                        Send password reset
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        as="button"
+                        type="button"
+                        onClick={() =>
+                          setMfaTarget({
+                            id: m.userUUID,
+                            email: m.email || m.userUUID,
+                          })
+                        }
+                      >
+                        <FontAwesomeIcon icon="shield-alt" className="me-2" />
+                        Reset MFA…
+                      </Dropdown.Item>
+                      {!m.isOwner && (
+                        <>
+                          <Dropdown.Divider className="my-1" />
+                          <Dropdown.Item
+                            as="button"
+                            type="button"
+                            className="text-danger"
+                            onClick={() => onRemove(m.userUUID)}
+                          >
+                            <FontAwesomeIcon icon="trash-alt" className="me-2" />
+                            Remove from tenant
+                          </Dropdown.Item>
+                        </>
+                      )}
+                    </div>
+                  </Dropdown.Menu>
+                </Dropdown>
               </td>
             </tr>
           ))}
@@ -121,6 +204,12 @@ const MembersTab: React.FC<Props> = ({ org }) => {
         org={org}
         show={attachOpen}
         onHide={() => setAttachOpen(false)}
+      />
+      <AdminResetMfaModal
+        show={!!mfaTarget}
+        user={mfaTarget}
+        tier="client"
+        onHide={() => setMfaTarget(null)}
       />
     </>
   );

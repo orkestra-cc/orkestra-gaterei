@@ -7,6 +7,8 @@ import type { BadgeColor } from 'components/common/SubtleBadge';
 import { useGetOrgAdminQuery } from 'store/api/tenantApi';
 import { useGetClientUserAdminQuery } from 'store/api/userApi';
 
+import ImpersonateButton from './ImpersonateButton';
+
 const OverviewTab = lazy(() => import('./OverviewTab'));
 const MembersTab = lazy(() => import('./MembersTab'));
 const DivisionsTab = lazy(() => import('./DivisionsTab'));
@@ -171,12 +173,15 @@ const ClientDetailPage: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="fs-10 text-muted">
-            <div>
-              ID: <code className="fs-11">{org.id}</code>
-            </div>
-            <div>
-              Owner: <code className="fs-11">{org.ownerUserUUID || '—'}</code>
+          <div className="d-flex flex-column align-items-end gap-2">
+            <ImpersonateButton org={org} />
+            <div className="fs-10 text-muted text-end">
+              <div>
+                ID: <code className="fs-11">{org.id}</code>
+              </div>
+              <div>
+                Owner: <code className="fs-11">{org.ownerUserUUID || '—'}</code>
+              </div>
             </div>
           </div>
         </Card.Body>
