@@ -53,6 +53,9 @@ func (stubTenant) ActivateTenant(context.Context, string) error {
 func (stubTenant) SetTenantStripeCustomerID(context.Context, string, string) error {
 	return errors.New("not used")
 }
+func (stubTenant) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
+	return nil, errors.New("not used")
+}
 
 // fakeRevocation is an in-memory SessionRevocationService. Tests pre-
 // populate `revoked` to flip a sid into the deny set.

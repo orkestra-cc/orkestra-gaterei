@@ -18,8 +18,10 @@ Does not own org-scoped roles or permissions — those are authz role bindings. 
 | `module.go` | Module registration, collections, permissions, service wire-up |
 | `handlers/handler.go` | HTTP handlers for org and membership CRUD + invites |
 | `services/service.go` | Org lifecycle, membership sync, invite token issuance, `iface.TenantProvider` implementation |
-| `repository/repository.go` | MongoDB CRUD for orgs, memberships, invites |
-| `models/org.go` | `Org`, `Membership`, `Invite` structs + plan/feature constants |
+| `services/billing.go` | Unified-clients (Phase 1) — `SetItalianBillable`, `SetBillingIdentity`, `ResolveBillingParty`, `EnsureTenantForUser`, `iface.BillingTenantProvider` implementation |
+| `services/entitlements.go` | Capability-entitlement projection (`iface.AccessProvider`) |
+| `repository/repository.go` | MongoDB CRUD for orgs, memberships, invites; personal-tenant predicate lookup |
+| `models/org.go` | `Org`, `Membership`, `Invite`, `FatturaPAProfile` structs + plan/feature constants |
 
 ## MongoDB collections
 
@@ -112,6 +114,8 @@ Gated globally by a system permission, not by per-org membership, so platform op
 | GET | `/v1/admin/tenants/{tenantId}/payments` | Aggregator — proxies to `iface.TenantPaymentProvider`. Returns `[]` when the payments addon is disabled. |
 | GET | `/v1/admin/tenants/{tenantId}/billing-customer` | Aggregator — proxies to `iface.TenantBillingCustomerProvider`. Returns `404` when no `billing.Customer` is linked or the billing addon is disabled. ADR-0001 PR-4. |
 | POST | `/v1/admin/tenants/{tenantId}/billing-customer` | Promotes the tenant to a FatturaPA customer. Idempotent — returns the existing row when already linked, otherwise creates a new `billing.Customer` pre-filled from `iface.Tenant` (LegalName, VATNumber, FiscalCode, Country, Email). 503 when billing is disabled, 404 when the tenant is unknown, 422 when the tenant is internal or has no name. ADR-0001 PR-4. |
+| PATCH | `/v1/admin/clients/{tenantId}/billing-identity` | Unified-clients Phase 1 — sets `IsCompany`, `LegalName`, VAT/fiscal codes, billing address, and the FatturaPA routing sub-document on a Tier-2 tenant. All body fields optional; nil leaves the existing value. The data this endpoint writes is what Phase 5 resolves via `BillingTenantProvider` in place of the soon-to-be-deleted `billing.Customer` row. |
+| POST | `/v1/admin/clients/{tenantId}/italian-billable` | Unified-clients Phase 1 — flips `Tenant.IsItalianBillable`. Enabling requires a FatturaPA profile carrying `CodiceDestinatario` or `PECDestinatario` (422 otherwise); disabling is unconditional. Send-time validation enforces the same invariant a second time, so the toggle on its own is not load-bearing. |
 
 The tenant-scoped mutation group additionally exposes `POST /v1/tenants/{tenantId}/divisions` + `GET /v1/tenants/{tenantId}/divisions` for members with `tenant.read` on the parent.
 

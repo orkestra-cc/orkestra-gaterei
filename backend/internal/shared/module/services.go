@@ -97,6 +97,16 @@ const (
 	// its audit sink via SetAuditSink — the public provider interface stays
 	// slim, the concrete service carries post-init setters.
 	ServiceTenantService  ServiceKey = "tenant.service"
+	// ServiceBillingTenantProvider exposes the unified-clients billing-party
+	// resolver: walks up Tenant.ParentTenantUUID until it finds a tenant
+	// carrying FatturaPA fields and returns the snapshot the billing send
+	// path stamps onto an Invoice's CessionarioCommittente. Registered by
+	// the tenant module from the same concrete *tenant/services.Service that
+	// implements TenantProvider — the unified-client refactor (Phase 5)
+	// switches billing.invoice_service.Send onto this seam in place of the
+	// soon-to-be-deleted billing.Customer lookup.
+	// Value: iface.BillingTenantProvider.
+	ServiceBillingTenantProvider ServiceKey = "tenant.billing_provider"
 	ServiceAuthzProvider  ServiceKey = "authz.provider"
 	// ServiceAuthzService is the concrete *authz/services.Service registered
 	// alongside the AuthzProvider interface. main.go resolves it post-

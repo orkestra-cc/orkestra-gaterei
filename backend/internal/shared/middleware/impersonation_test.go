@@ -74,6 +74,9 @@ func (f *fakeTenantProvider) ActivateTenant(_ context.Context, _ string) error {
 func (f *fakeTenantProvider) SetTenantStripeCustomerID(_ context.Context, _, _ string) error {
 	return nil
 }
+func (f *fakeTenantProvider) EnsureTenantForUser(_ context.Context, _ string) (*iface.Tenant, error) {
+	return nil, nil
+}
 
 type capturingSink struct {
 	events []iface.AuditEvent

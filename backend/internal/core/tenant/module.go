@@ -37,7 +37,12 @@ func (m *Module) Description() string {
 func (m *Module) Dependencies() []string { return []string{"user"} }
 
 func (m *Module) ProvidedServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceTenantProvider, module.ServiceAccessProvider, module.ServiceTenantService}
+	return []module.ServiceKey{
+		module.ServiceTenantProvider,
+		module.ServiceAccessProvider,
+		module.ServiceTenantService,
+		module.ServiceBillingTenantProvider,
+	}
 }
 
 func (m *Module) Collections() []module.CollectionSpec {
@@ -131,6 +136,11 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	// need to drive post-init setters can resolve it without importing the
 	// tenant package from a second location.
 	deps.Services.Register(module.ServiceTenantService, m.svc)
+	// Billing-party resolver for the unified-clients refactor (Phase 1):
+	// walks up Tenant.ParentTenantUUID until it finds a tenant with FatturaPA
+	// fields and returns the snapshot the billing send path needs. Same
+	// concrete Service so the resolver shares the tenant repository.
+	deps.Services.Register(module.ServiceBillingTenantProvider, iface.BillingTenantProvider(m.svc))
 
 	// Cascade hook: evict the owner's client_users row when an external
 	// Tier-2 tenant is deleted and the owner has no other live
@@ -154,6 +164,19 @@ func (m *Module) Init(deps *module.Dependencies) error {
 				return fmt.Errorf("tenant: evict orphaned client owner: %w", err)
 			}
 			return nil
+		})
+		// Wire the user-display resolver consumed by EnsureTenantForUser
+		// (seeds the personal tenant's Name from the User's FullName) and
+		// by ResolveBillingParty (renders the FatturaPA party name for
+		// sole-proprietor tenants). Bound to the ClientUserProvider because
+		// only Tier-2 self-registered users need this path; operator users
+		// never trigger lazy provisioning.
+		m.svc.SetUserDisplayResolver(func(ctx context.Context, userUUID string) (string, string, error) {
+			u, err := clientUsers.GetUserByID(ctx, userUUID)
+			if err != nil || u == nil {
+				return "", "", err
+			}
+			return u.FullName, u.Email, nil
 		})
 	}
 	return nil

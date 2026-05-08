@@ -100,6 +100,9 @@ func (s *stubTenantProvider) ActivateTenant(context.Context, string) error      
 func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
 	return nil
 }
+func (s *stubTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
+	return nil, nil
+}
 
 func userTx(uuid, userUUID string, status models.TransactionStatus) models.Transaction {
 	return models.Transaction{

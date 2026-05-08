@@ -25,6 +25,12 @@ type Service struct {
 	kms             iface.KMSProvider
 	bindOwner       OwnerRoleBinder
 	postDeleteHooks []TenantPostDeleteHook
+	// userDisplay is the lazy lookup the unified-clients refactor (Phase 1)
+	// uses to seed a personal tenant's Name from the owner User's FullName
+	// (EnsureTenantForUser) and to render the FatturaPA CedentePrestatore
+	// party name for sole-proprietor tenants (ResolveBillingParty). Wired by
+	// the tenant module's Init from the registered ClientUserProvider.
+	userDisplay UserDisplayResolver
 }
 
 // OwnerRoleBinder is invoked from CreateTenant after the owner membership

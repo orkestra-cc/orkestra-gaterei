@@ -102,6 +102,9 @@ func (s *stubTenantProvider) ActivateTenant(context.Context, string) error      
 func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
 	return nil
 }
+func (s *stubTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
+	return nil, nil
+}
 
 // nopLogger keeps the test output quiet. Reused across tests in this file.
 func nopLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

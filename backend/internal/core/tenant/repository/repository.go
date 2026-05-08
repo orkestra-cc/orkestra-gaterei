@@ -207,6 +207,43 @@ func (r *Repository) UpdateTenantStatus(ctx context.Context, uuid string, status
 	return nil
 }
 
+// FindPersonalTenant returns the unique tenant matching the canonical
+// personal-tenant predicate
+//
+//	(Kind=external, IsCompany=false, SignupChannel=self_serve,
+//	 OwnerUserUUID=userUUID, deletedAt=nil)
+//
+// or (nil, ErrNotFound) when no row matches. Used by the unified-clients
+// lazy provisioner (services.EnsureTenantForUser) — see the design notes in
+// services/billing.go. The predicate is what makes lazy provisioning safe:
+// IsCompany=false ensures we don't auto-route a personal subscription onto
+// the user's existing B2B tenant. Soft-deleted rows are excluded so a user
+// who deleted their personal tenant gets a fresh one on the next call.
+//
+// The personal-tenant predicate has no dedicated index today — Mongo will
+// pick the existing ownerUserUUID index and filter the rest in-memory.
+// Volumes are bounded (one row per user) so this is safe; if the call
+// becomes hot we can add a compound index later.
+func (r *Repository) FindPersonalTenant(ctx context.Context, userUUID string) (*models.Tenant, error) {
+	filter := bson.M{
+		"ownerUserUUID": userUUID,
+		"kind":          string(models.TenantKindExternal),
+		"signupChannel": models.SignupChannelSelfServe,
+		"isCompany":     false,
+		"deletedAt":     nil,
+	}
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: 1}})
+	var t models.Tenant
+	err := r.db.Collection(CollTenants).FindOne(ctx, filter, opts).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
 // CountMembersByTenants returns a map tenantUUID -> member count for the
 // given tenants. Uses a single $group aggregation on tenant_memberships so
 // list views can attach member counts without N round trips.

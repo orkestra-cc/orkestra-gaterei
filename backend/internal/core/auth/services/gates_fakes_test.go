@@ -569,6 +569,9 @@ func (gateTenantProvider) ActivateTenant(context.Context, string) error {
 func (gateTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
 	panic("not used")
 }
+func (gateTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
+	panic("not used")
+}
 
 // testRSAKey returns a process-wide cached RSA key pair for JWT
 // signing in the gate tests. Generated lazily on first use so

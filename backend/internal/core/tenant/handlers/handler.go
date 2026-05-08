@@ -656,6 +656,92 @@ func (h *Handler) RegisterAdminRoutes(api huma.API) {
 		Description: "Idempotent — when a customer is already linked, returns the existing row. Otherwise creates a new Customer pre-filled from the tenant's iface.Tenant fields (LegalName, VATNumber, FiscalCode, Country, Email). Address fields are intentionally left empty: iface.Tenant doesn't carry the breakdown. ADR-0001 PR-4.",
 		Tags:        []string{"Tenants Admin"},
 	}, h.promoteTenantToBillingCustomerAdmin)
+
+	// --- Unified Client Aggregate (Phase 1) — billing-identity sub-document ---
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-tenant-billing-identity-admin",
+		Method:      http.MethodPatch,
+		Path:        "/v1/admin/clients/{tenantId}/billing-identity",
+		Summary:     "Update a tenant's billing-identity sub-document (platform admin)",
+		Description: "Sets IsCompany, LegalName, VAT/fiscal codes, billing address, and the FatturaPA routing sub-document on a Tier-2 tenant. Phase 1 of the Unified Client Aggregate refactor — the data this endpoint writes is what Phase 5 will resolve via BillingTenantProvider in place of the soon-to-be-deleted billing.Customer row. All body fields are optional; nil leaves the existing value.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.setTenantBillingIdentityAdmin)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-tenant-italian-billable-admin",
+		Method:      http.MethodPost,
+		Path:        "/v1/admin/clients/{tenantId}/italian-billable",
+		Summary:     "Toggle a tenant's Italian-billable flag (platform admin)",
+		Description: "Flips Tenant.IsItalianBillable. Enabling requires a FatturaPA profile with at least one routing handle (CodiceDestinatario or PECDestinatario) — 422 otherwise. Disabling is unconditional.",
+		Tags:        []string{"Tenants Admin"},
+	}, h.setTenantItalianBillableAdmin)
+}
+
+// --- Unified Client Aggregate (Phase 1) handlers ---
+
+// setBillingIdentityInput is the wire shape for PATCH
+// /v1/admin/clients/{tenantId}/billing-identity. All fields optional;
+// missing fields leave the existing value untouched. FatturaPA is
+// wholesale-replaced when present so the operator UI can post a complete
+// sub-document without merge logic.
+type setBillingIdentityInput struct {
+	TenantID string `path:"tenantId"`
+	Body     struct {
+		IsCompany      *bool                    `json:"isCompany,omitempty" doc:"Legal-entity discriminator: false=natural person/sole-proprietor, true=corporation"`
+		LegalName      *string                  `json:"legalName,omitempty"`
+		VATNumber      *string                  `json:"vatNumber,omitempty"`
+		FiscalCode     *string                  `json:"fiscalCode,omitempty"`
+		BillingAddress *models.TenantAddress    `json:"billingAddress,omitempty"`
+		FatturaPA      *models.FatturaPAProfile `json:"fatturaPA,omitempty" doc:"FatturaPA routing sub-document — required when IsItalianBillable is true"`
+	}
+}
+
+type setItalianBillableInput struct {
+	TenantID string `path:"tenantId"`
+	Body     struct {
+		Enabled bool `json:"enabled" doc:"true to enable Italian billable mode (requires FatturaPA routing); false to disable"`
+	}
+}
+
+func (h *Handler) setTenantBillingIdentityAdmin(ctx context.Context, in *setBillingIdentityInput) (*tenantOutput, error) {
+	svcInput := services.SetBillingIdentityInput{
+		IsCompany:      in.Body.IsCompany,
+		LegalName:      in.Body.LegalName,
+		VATNumber:      in.Body.VATNumber,
+		FiscalCode:     in.Body.FiscalCode,
+		BillingAddress: in.Body.BillingAddress,
+		FatturaPA:      in.Body.FatturaPA,
+	}
+	if err := h.svc.SetBillingIdentity(ctx, in.TenantID, svcInput); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, huma.Error404NotFound("tenant not found")
+		}
+		return nil, huma.Error400BadRequest("billing-identity update failed: " + err.Error())
+	}
+	t, err := h.svc.GetTenantModel(ctx, in.TenantID)
+	if err != nil {
+		return nil, huma.Error404NotFound("tenant not found")
+	}
+	return &tenantOutput{Body: t}, nil
+}
+
+func (h *Handler) setTenantItalianBillableAdmin(ctx context.Context, in *setItalianBillableInput) (*tenantOutput, error) {
+	if err := h.svc.SetItalianBillable(ctx, in.TenantID, in.Body.Enabled); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			return nil, huma.Error404NotFound("tenant not found")
+		case errors.Is(err, services.ErrItalianBillableMissingProfile):
+			return nil, huma.Error422UnprocessableEntity(err.Error())
+		default:
+			return nil, huma.Error400BadRequest("italian-billable toggle failed: " + err.Error())
+		}
+	}
+	t, err := h.svc.GetTenantModel(ctx, in.TenantID)
+	if err != nil {
+		return nil, huma.Error404NotFound("tenant not found")
+	}
+	return &tenantOutput{Body: t}, nil
 }
 
 func (h *Handler) listAllTenantsAdmin(ctx context.Context, in *adminTenantListInput) (*adminTenantListOutput, error) {

@@ -371,6 +371,100 @@ type TenantProvider interface {
 	// for an external tenant so subsequent renewal cycles skip customer
 	// creation. Idempotent: re-applying the same value is a no-op.
 	SetTenantStripeCustomerID(ctx context.Context, tenantUUID, stripeCustomerID string) error
+	// EnsureTenantForUser is the lazy-provisioning seam introduced by the
+	// Unified Client Aggregate refactor (Phase 1). It returns the user's
+	// existing personal tenant — uniquely identified by
+	// (Kind=external, IsCompany=false, SignupChannel=self_serve,
+	// OwnerUserUUID=userUUID) — or creates one when none exists, with
+	// Name=user.FullName (the User aggregate's display field). Idempotent:
+	// concurrent calls collapse onto the first row that wins the slug-
+	// uniqueness race; later callers receive the existing personal tenant.
+	// Phase 2 wires this into subscriptions/payments callers behind a
+	// feature flag; Phase 3 flips the flag and migrates legacy clientbilling
+	// rows onto the resulting personal tenants.
+	EnsureTenantForUser(ctx context.Context, userUUID string) (*Tenant, error)
+}
+
+// ---------------------------------------------------------------------------
+// BillingTenantProvider — consumed by: billing (Phase 5), payments self-
+// service (Phase 5), invoice send path.
+//
+// Owns the billing-party resolution algorithm for the Unified Client Aggregate
+// (Phase 1): walk up Tenant.ParentTenantUUID until a tenant with FatturaPA
+// fields is found, then return a snapshot the consumer can stamp onto an
+// invoice's CessionarioCommittente. Subscriptions stay attached to the
+// consuming workspace; invoicing rolls up to the right legal entity in the
+// hierarchy.
+//
+// Phase 1 wires the resolver but does not switch any consumer onto it —
+// billing.invoice_service still uses the legacy billing.Customer lookup.
+// Phase 5 deletes Customer and points Send at this seam.
+// ---------------------------------------------------------------------------
+
+// BillingParty is the snapshot the billing module stamps onto an invoice
+// when it would otherwise reach for a billing.Customer row. Flat by design:
+// invoice send is a one-way snapshot for legal-immutability reasons (FatturaPA
+// requires the party fields to remain stable after issuance). Mirrors the
+// fields the FatturaPA XML's CessionarioCommittente section carries.
+type BillingParty struct {
+	// TenantUUID is the tenant the resolver landed on after walking up the
+	// parent chain. May differ from the requested tenantUUID when the input
+	// is a division and billing rolls up to its parent.
+	TenantUUID string
+	// LegalName is the canonical party name. For IsCompany=true this is the
+	// corporate Denominazione; for IsCompany=false the resolver falls back to
+	// the owner User's FullName (rendered server-side; see ResolveBillingParty
+	// implementation note).
+	LegalName  string
+	IsCompany  bool
+	VATNumber  string
+	FiscalCode string
+	Country    string
+	Email      string
+	Address    BillingAddress
+	FatturaPA  FatturaPAProfile
+}
+
+// BillingAddress is the snapshot variant of TenantAddress kept inside iface
+// so consumers don't reach into the tenant module's models. Field shape
+// matches tenant/models.TenantAddress one-for-one.
+type BillingAddress struct {
+	Line1      string
+	Line2      string
+	City       string
+	Province   string
+	PostalCode string
+	Country    string
+}
+
+// FatturaPAProfile is the cross-module snapshot of tenant/models.FatturaPAProfile.
+// Same field shape, repeated here so consumers (billing, payments) don't
+// import the tenant model package.
+type FatturaPAProfile struct {
+	CodiceDestinatario string
+	PECDestinatario    string
+	IsPA               bool
+	CodiceUfficio      string
+	RiferimentoAmm     string
+	ConvenzioneNumero  string
+}
+
+// ErrBillingPartyNotConfigured is the sentinel returned by ResolveBillingParty
+// when neither the requested tenant nor any ancestor carries FatturaPA fields
+// — i.e. the tenant is not yet ready to be billed via FatturaPA. Handlers map
+// this to 422 so the SPA can prompt the operator to fill in the billing
+// identity before sending an invoice.
+var ErrBillingPartyNotConfigured = errors.New("billing: tenant has no FatturaPA profile in its ancestor chain")
+
+// BillingTenantProvider resolves the legal-entity tenant a Tier-2 client
+// (or one of its divisions) bills under, plus the snapshot the billing send
+// path needs.
+type BillingTenantProvider interface {
+	// ResolveBillingParty walks up the parent chain from tenantUUID until it
+	// finds a tenant whose IsItalianBillable=true AND FatturaPA carries at
+	// least one routing field (CodiceDestinatario or PECDestinatario). Returns
+	// ErrBillingPartyNotConfigured when the chain bottoms out with no match.
+	ResolveBillingParty(ctx context.Context, tenantUUID string) (*BillingParty, error)
 }
 
 // ---------------------------------------------------------------------------
