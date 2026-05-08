@@ -11,7 +11,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	cbmodels "github.com/orkestra/backend/internal/addons/clientbilling/models"
 	pmtmodels "github.com/orkestra/backend/internal/addons/payments/models"
 	submodels "github.com/orkestra/backend/internal/addons/subscriptions/models"
 	tenantrepo "github.com/orkestra/backend/internal/core/tenant/repository"
@@ -24,6 +23,13 @@ import (
 // clientbilling entirely.
 const sentinelCollection = "migrations_applied"
 
+// clientbillingCustomersCollection is the legacy collection name. The
+// clientbilling Go surface was deleted in Phase 5 of the Unified Client
+// Aggregate refactor — this binary is preserved as a historical artifact
+// (the migration runs once per environment), so we duplicate the collection
+// name here rather than reaching back into a deleted package.
+const clientbillingCustomersCollection = "clientbilling_customers"
+
 type mongoStore struct {
 	db *mongo.Database
 }
@@ -31,7 +37,7 @@ type mongoStore struct {
 func newMongoStore(db *mongo.Database) *mongoStore { return &mongoStore{db: db} }
 
 func (s *mongoStore) SourceRows(ctx context.Context) ([]migrator.SourceRow, error) {
-	cur, err := s.db.Collection(cbmodels.CustomersCollection).
+	cur, err := s.db.Collection(clientbillingCustomersCollection).
 		Find(ctx, bson.M{}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
 	if err != nil {
 		return nil, err

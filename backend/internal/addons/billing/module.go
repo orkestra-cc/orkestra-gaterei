@@ -22,7 +22,6 @@ import (
 type BillingModule struct {
 	module.BaseModule
 	invoiceHandler          *handlers.InvoiceHandler
-	customerHandler         *handlers.CustomerHandler
 	supplierHandler         *handlers.SupplierHandler
 	companyHandler          *handlers.CompanyHandler
 	notificationHandler     *handlers.NotificationHandler
@@ -48,19 +47,13 @@ func (m *BillingModule) Enabled(cfg *config.Config) bool {
 	}
 	return cfg.Billing.OpenAPIAccountEmail != "" && cfg.Billing.OpenAPIAPIKey != ""
 }
-func (m *BillingModule) Dependencies() []string          { return []string{"documents"} }
+func (m *BillingModule) Dependencies() []string { return []string{"documents"} }
 func (m *BillingModule) OptionalServices() []module.ServiceKey {
-	// TenantProvider is optional from the billing module's POV: the
-	// promote-tenant flow needs it but normal customer CRUD does not.
-	// Listed as optional so the module still boots if tenant somehow
-	// fails to init (it shouldn't — tenant is a core module).
-	return []module.ServiceKey{module.ServicePDFService, module.ServiceTenantProvider}
-}
-
-// ProvidedServices declares the billing.tenant_customer_provider key the
-// core/tenant aggregator endpoint resolves. ADR-0001 PR-4.
-func (m *BillingModule) ProvidedServices() []module.ServiceKey {
-	return []module.ServiceKey{module.ServiceTenantBillingCustomerProvider}
+	// BillingTenantProvider drives the CessionarioCommittente snapshot at
+	// invoice creation time (Unified Client Aggregate, Phase 5). PDFService
+	// renders the invoice PDF when documents is enabled. Both are optional
+	// so the module still boots when those producers are absent.
+	return []module.ServiceKey{module.ServicePDFService, module.ServiceBillingTenantProvider}
 }
 
 func (m *BillingModule) ConfigSchema() []module.ConfigField {
@@ -96,14 +89,13 @@ func (m *BillingModule) ConfigSchema() []module.ConfigField {
 func (m *BillingModule) HotReloadConfig() bool { return true }
 
 func (m *BillingModule) Collections() []module.CollectionSpec {
+	// billing_customers is no longer registered for auto-creation (Phase 5
+	// of the Unified Client Aggregate refactor — Customer was deleted in
+	// favour of Tenant.FatturaPA). The collection itself survives in Mongo
+	// as a one-phase safety belt for forensics; a follow-up migration drops
+	// it after invoice send is verified working in production.
 	return []module.CollectionSpec{
 		{Name: "billing_invoices", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
-		{Name: "billing_customers", Indexes: []module.IndexSpec{
-			{Keys: map[string]int{"uuid": 1}, Unique: true},
-			// Sparse + unique: a tenant has at most one billing profile,
-			// but most customers are not tenants. ADR-0001 PR-4.
-			{Keys: map[string]int{"tenantUUID": 1}, Sparse: true, Unique: true},
-		}},
 		{Name: "billing_suppliers", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
 		{Name: "billing_companies", Indexes: []module.IndexSpec{{Keys: map[string]int{"uuid": 1}, Unique: true}}},
 		{Name: "billing_notifications"},
@@ -120,7 +112,6 @@ func (m *BillingModule) NavItems() []module.NavItemSpec {
 			{Name: "Dashboard", Icon: "chart-pie", Path: "/billing/dashboard", Active: true},
 			{Name: "Invoices Issued", Icon: "paper-plane", Path: "/billing/invoices/issued", Active: true},
 			{Name: "Invoices Received", Icon: "inbox", Path: "/billing/invoices/received", Active: true},
-			{Name: "Customers", Icon: "users", Path: "/billing/customers", Active: true},
 			{Name: "Suppliers", Icon: "truck", Path: "/billing/suppliers", Active: true},
 			{Name: "SDI Notifications", Icon: "bell", Path: "/billing/notifications", Active: true},
 			{Name: "Issuing Companies", Icon: "building", Path: "/billing/companies", Active: true},
@@ -150,7 +141,6 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	}
 
 	invoiceRepo := repository.NewInvoiceRepository(deps.DB)
-	customerRepo := repository.NewCustomerRepository(deps.DB)
 	supplierRepo := repository.NewSupplierRepository(deps.DB)
 	companyRepo := repository.NewCompanyRepository(deps.DB)
 	notificationRepo := repository.NewNotificationRepository(deps.DB)
@@ -161,29 +151,19 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 	// Retrieve PDFService from ServiceRegistry (can be nil if documents module is disabled)
 	pdfSvc, _ := module.GetTyped[iface.PDFProvider](deps.Services, module.ServicePDFService)
 
-	// Resolve the tenant provider lazily — needed by the
-	// PromoteTenantToCustomer flow (ADR-0001 PR-4). Tenant is a core
-	// module so it always initializes before billing, but treat the
-	// lookup as optional so a misconfigured deployment without tenant
-	// still boots the rest of the billing surface.
-	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
+	// Resolve the unified-client billing-party seam (Phase 5). Tenant is a
+	// core module so the provider is always available in production; treat
+	// it as optional so a misconfigured deployment still boots the rest of
+	// the billing surface — the invoice service surfaces ErrTenantNotBillable
+	// when an invoice carries a tenantUUID and the resolver is missing.
+	billingTenants, _ := module.GetTyped[iface.BillingTenantProvider](deps.Services, module.ServiceBillingTenantProvider)
 
-	invoiceSvc := services.NewInvoiceService(invoiceRepo, customerRepo, supplierRepo, companyRepo, m.openAPIClient, xmlBuilder, nil, pdfSvc, deps.Logger)
-	customerSvc := services.NewCustomerService(customerRepo, tenantProvider, deps.Logger)
+	invoiceSvc := services.NewInvoiceService(invoiceRepo, supplierRepo, companyRepo, billingTenants, m.openAPIClient, xmlBuilder, nil, pdfSvc, deps.Logger)
 	supplierSvc := services.NewSupplierService(supplierRepo, deps.Logger)
 	companySvc := services.NewCompanyService(companyRepo, m.openAPIClient, deps.Logger)
 	notificationSvc := services.NewNotificationService(notificationRepo, deps.Logger)
 
-	// Publish the tenant→customer aggregator adapter so core/tenant can
-	// serve /v1/admin/tenants/{id}/billing-customer without importing
-	// this module. ADR-0001 PR-4.
-	deps.Services.Register(
-		module.ServiceTenantBillingCustomerProvider,
-		iface.TenantBillingCustomerProvider(services.NewTenantBillingCustomerAdapter(customerRepo, customerSvc)),
-	)
-
 	m.invoiceHandler = handlers.NewInvoiceHandler(invoiceSvc)
-	m.customerHandler = handlers.NewCustomerHandler(customerSvc)
 	m.supplierHandler = handlers.NewSupplierHandler(supplierSvc)
 	m.companyHandler = handlers.NewCompanyHandler(companySvc)
 	m.notificationHandler = handlers.NewNotificationHandler(notificationSvc)
@@ -253,7 +233,6 @@ func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
 		RegisterRoutes(
 			api,
 			m.invoiceHandler,
-			m.customerHandler,
 			m.supplierHandler,
 			m.companyHandler,
 			m.notificationHandler,
