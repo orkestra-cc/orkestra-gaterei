@@ -295,43 +295,78 @@ func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, 
 	// system.tenants.admin can act in any tenant. Falls through to 403 for
 	// non-admins so a stale header can't leak data from another tenant.
 	if h := r.Header.Get(TenantIDHeader); h != "" && !ok {
-		impCtx, _, impersonated := m.tryImpersonationBypass(ctx, r, claims, h)
-		if !impersonated {
+		impCtx, _, decision := m.tryImpersonationBypass(ctx, r, claims, h)
+		switch decision {
+		case impersonationBypassMFARequired:
+			m.sendMFARequired(w, r)
+			return
+		case impersonationBypassDenied:
 			m.sendErrorResponse(w, r, errors.AuthorizationError("not a member of requested tenant").
 				WithOperation("resolve_tenant").
 				WithDetail("tenantId", h).
 				Build())
 			return
+		case impersonationBypassAllowed:
+			ctx = impCtx
 		}
-		ctx = impCtx
 	}
 
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
+// impersonationBypassDecision is the tri-state result tryImpersonationBypass
+// returns so the caller can distinguish "you're not allowed" (403) from
+// "you'd be allowed but need a fresh second factor first" (401 step-up).
+// The middleware emits a different response for each — folding them into a
+// single ok=false would have hidden the MFA branch from the client.
+type impersonationBypassDecision int
+
+const (
+	impersonationBypassDenied impersonationBypassDecision = iota
+	impersonationBypassAllowed
+	impersonationBypassMFARequired
+)
+
+// Audit action names for the impersonation event, split by target shape so
+// SOC2/security review can tell apart sensitive personal-tenant access from
+// routine business-tenant operator work. See Phase 7 of the Unified Client
+// Aggregate plan.
+const (
+	auditActionImpersonatePersonal = "admin.tenant.impersonate.personal"
+	auditActionImpersonateBusiness = "admin.tenant.impersonate.business"
+)
+
 // tryImpersonationBypass resolves a non-member X-Tenant-ID when the caller
 // holds system.tenants.admin. On success it returns an enriched context
 // stamping tenantID + looked-up kind + synthetic administrator roles + an
-// impersonation flag, and emits one de-duped admin.tenant.impersonate
-// audit event per (actor, tenant, TTL). On failure (no admin permission,
-// tenant lookup failed, required services not wired) it returns ok=false
-// so the caller can fall through to the existing 403 path.
+// impersonation flag, and emits one de-duped admin.tenant.impersonate.*
+// audit event per (actor, tenant, TTL). The decision discriminates:
+//   - Denied: missing services, no admin permission, tenant lookup failed.
+//   - MFARequired: target is a personal tenant (IsCompany=false +
+//     SignupChannel=self_serve) and the actor's session has not completed
+//     a second factor — caller surfaces 401 step_up_required.
+//   - Allowed: bypass applied; caller adopts the enriched context.
 func (m *AuthMiddleware) tryImpersonationBypass(
 	ctx context.Context,
 	r *http.Request,
 	claims *models.JWTClaims,
 	requestedTenantID string,
-) (context.Context, string, bool) {
+) (context.Context, string, impersonationBypassDecision) {
 	if m.authz == nil || m.tenant == nil {
-		return ctx, "", false
+		return ctx, "", impersonationBypassDenied
 	}
 	allowed, err := m.authz.HasPermission(ctx, claims.UserUUID, "", "system.tenants.admin")
 	if err != nil || !allowed {
-		return ctx, "", false
+		return ctx, "", impersonationBypassDenied
 	}
 	target, err := m.tenant.GetTenant(ctx, requestedTenantID)
 	if err != nil || target == nil {
-		return ctx, "", false
+		return ctx, "", impersonationBypassDenied
+	}
+
+	personal := isPersonalTenant(target)
+	if personal && !amrSatisfiesMFA(claims.AMR) {
+		return ctx, target.Kind, impersonationBypassMFARequired
 	}
 
 	ctx = context.WithValue(ctx, ctxTenantID, target.UUID)
@@ -341,12 +376,26 @@ func (m *AuthMiddleware) tryImpersonationBypass(
 	}
 	ctx = context.WithValue(ctx, ctxTenantImpersonated, true)
 
-	m.recordImpersonationAudit(ctx, r, claims, target)
-	return ctx, target.Kind, true
+	action := auditActionImpersonateBusiness
+	if personal {
+		action = auditActionImpersonatePersonal
+	}
+	m.recordImpersonationAudit(ctx, r, claims, target, action)
+	return ctx, target.Kind, impersonationBypassAllowed
+}
+
+// isPersonalTenant matches the canonical "personal tenant" predicate from
+// the Unified Client Aggregate plan: a Tier-2 self-serve signup that has
+// not been promoted to a business entity. Anything else (companies,
+// sales-assisted onboarding, seeded ops tenants) is treated as business.
+func isPersonalTenant(t *iface.Tenant) bool {
+	return t != nil && !t.IsCompany && t.SignupChannel == iface.SignupChannelSelfServe
 }
 
 // recordImpersonationAudit emits a dedupe'd audit event so a single page
-// load that fires many XHRs produces one audit row per minute. When the
+// load that fires many XHRs produces one audit row per minute. action is
+// the split admin.tenant.impersonate.{personal,business} variant chosen by
+// the caller based on the target's IsCompany+SignupChannel shape. When the
 // compliance sink is not registered, the event is silently dropped — the
 // impersonation still works, it just isn't recorded.
 func (m *AuthMiddleware) recordImpersonationAudit(
@@ -354,6 +403,7 @@ func (m *AuthMiddleware) recordImpersonationAudit(
 	r *http.Request,
 	claims *models.JWTClaims,
 	target *iface.Tenant,
+	action string,
 ) {
 	if m.auditSink == nil {
 		return
@@ -373,16 +423,18 @@ func (m *AuthMiddleware) recordImpersonationAudit(
 		ActorUserID:  claims.UserUUID,
 		ActorEmail:   claims.Email,
 		ActorType:    "user",
-		Action:       "admin.tenant.impersonate",
+		Action:       action,
 		ResourceType: "tenant",
 		ResourceID:   target.UUID,
 		Outcome:      "success",
 		IPAddress:    utils.GetClientIP(r),
 		UserAgent:    r.UserAgent(),
 		Metadata: map[string]any{
-			"targetTenantSlug": target.Slug,
-			"targetTenantName": target.Name,
-			"requestPath":      r.URL.Path,
+			"targetTenantSlug":     target.Slug,
+			"targetTenantName":     target.Name,
+			"targetIsCompany":      target.IsCompany,
+			"targetSignupChannel":  target.SignupChannel,
+			"requestPath":          r.URL.Path,
 		},
 	})
 }

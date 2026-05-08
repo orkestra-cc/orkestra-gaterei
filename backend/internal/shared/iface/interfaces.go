@@ -281,6 +281,15 @@ const (
 	TenantStatusPurged       = "purged"
 )
 
+// SignupChannelSelfServe mirrors tenant/models.SignupChannelSelfServe.
+// Redeclared here so consumers (impersonation bypass, audit emitters)
+// reading iface.Tenant.SignupChannel can match against the canonical
+// "personal tenant" predicate (IsCompany=false + SignupChannel=self_serve)
+// without importing the tenant module.
+const (
+	SignupChannelSelfServe = "self_serve"
+)
+
 // Tenant is the DTO shape the tenant module exposes across the module boundary.
 type Tenant struct {
 	UUID             string
@@ -304,6 +313,19 @@ type Tenant struct {
 	FiscalCode       string
 	Country          string
 	StripeCustomerID string
+
+	// IsCompany discriminates the legal-entity shape (false = natural person /
+	// sole-proprietor, true = corporate entity). Combined with SignupChannel,
+	// it identifies the canonical "personal tenant" predicate
+	// (IsCompany=false + SignupChannel=SignupChannelSelfServe) consumed by
+	// the impersonation bypass to require MFA step-up and to split the
+	// admin.tenant.impersonate audit action between .personal and .business.
+	IsCompany bool
+	// SignupChannel records how the tenant was created — see the
+	// tenant/models.SignupChannel* constants. Mirrored here so consumers
+	// can match against SignupChannelSelfServe without importing the
+	// tenant module.
+	SignupChannel string
 }
 
 // TenantMembership is a user's membership in a tenant — identifying the

@@ -181,6 +181,8 @@ func tenantToIface(t *models.Tenant) *iface.Tenant {
 		FiscalCode:       t.FiscalCode,
 		Country:          t.BillingAddress.Country,
 		StripeCustomerID: t.StripeCustomerID,
+		IsCompany:        t.IsCompany,
+		SignupChannel:    t.SignupChannel,
 	}
 }
 
