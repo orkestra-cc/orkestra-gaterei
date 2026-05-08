@@ -181,7 +181,11 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 	if tenants, ok := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider); ok {
 		planner, _ := module.GetTyped[iface.SelfServiceCheckoutPlanner](deps.Services, module.ServiceSelfServiceCheckoutPlanner)
 		userBilling, _ := module.GetTyped[iface.UserBillingCustomerProvider](deps.Services, module.ServiceUserBillingCustomerProvider)
-		m.clientHandler = handlers.NewClientHandler(m.payment, txRepo, pmRepository, tenants, userBilling, planner)
+		lazyTenantProvisioning := false
+		if deps.Config != nil {
+			lazyTenantProvisioning = deps.Config.Features.LazyTenantProvisioning
+		}
+		m.clientHandler = handlers.NewClientHandler(m.payment, txRepo, pmRepository, tenants, userBilling, planner, lazyTenantProvisioning)
 	} else {
 		deps.Logger.Warn("payments: tenant provider missing — Tier-2 self-service routes will not mount")
 	}

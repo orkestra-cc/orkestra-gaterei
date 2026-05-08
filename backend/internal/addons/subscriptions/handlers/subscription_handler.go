@@ -22,6 +22,11 @@ type SubscriptionHandler struct {
 	// tenant owner returns 503 in that case (the route refuses to guess
 	// ownership from thin air). User-owner self-subscribe still works.
 	tenants iface.TenantProvider
+	// lazyTenantProvisioning flips on the Unified Client Aggregate Phase 2
+	// behavior: callerOwnerSet calls TenantProvider.EnsureTenantForUser and
+	// adds the resulting personal tenant to the owner set. Off by default;
+	// flipped via UNIFIED_CLIENTS_LAZY_TENANT_ENABLED in Phase 3.
+	lazyTenantProvisioning bool
 }
 
 func NewSubscriptionHandler(
@@ -30,13 +35,15 @@ func NewSubscriptionHandler(
 	invoices repository.InvoiceRepository,
 	activity *services.ActivityService,
 	tenants iface.TenantProvider,
+	lazyTenantProvisioning bool,
 ) *SubscriptionHandler {
 	return &SubscriptionHandler{
-		subs:     subs,
-		renewal:  renewal,
-		invoices: invoices,
-		activity: activity,
-		tenants:  tenants,
+		subs:                   subs,
+		renewal:                renewal,
+		invoices:               invoices,
+		activity:               activity,
+		tenants:                tenants,
+		lazyTenantProvisioning: lazyTenantProvisioning,
 	}
 }
 
@@ -355,6 +362,20 @@ func (h *SubscriptionHandler) callerOwnerSet(ctx context.Context) (map[iface.Own
 	}
 	if h.tenants == nil {
 		return owned, nil
+	}
+	// Unified Client Aggregate Phase 2: when the flag is on, materialize
+	// (or fetch) the caller's personal tenant and treat it as an owned
+	// principal alongside the legacy user owner. Errors here are surfaced
+	// — the personal tenant is the canonical billing party once the flag
+	// is on, so a silent fallback would hide subscriptions from the user.
+	if h.lazyTenantProvisioning {
+		personal, err := h.tenants.EnsureTenantForUser(ctx, userUUID)
+		if err != nil {
+			return nil, err
+		}
+		if personal != nil && personal.UUID != "" {
+			owned[iface.TenantOwner(personal.UUID)] = struct{}{}
+		}
 	}
 	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
 	if err != nil {

@@ -34,14 +34,24 @@ type EntitlementSyncer struct {
 	access   iface.AccessProvider
 	tenant   iface.TenantProvider
 	logger   *slog.Logger
+	// lazyTenantProvisioning gates the Unified Client Aggregate Phase 2
+	// behavior: when true, user-owned subscriptions resolve their owner
+	// through TenantProvider.EnsureTenantForUser and entitlement grants /
+	// revocations are applied to the personal tenant instead of the user.
+	// Off by default; flipped via UNIFIED_CLIENTS_LAZY_TENANT_ENABLED in
+	// Phase 3 after legacy clientbilling rows have been migrated onto
+	// the resulting personal tenants.
+	lazyTenantProvisioning bool
 }
 
 // NewEntitlementSyncer constructs a syncer. Pass a nil AccessProvider for
 // setups that do not run the tenant module; the syncer degrades to no-ops.
 // The TenantProvider is optional and used only for tenant-kind labelling
-// in metrics.
-func NewEntitlementSyncer(services repository.ServiceRepository, access iface.AccessProvider, tenant iface.TenantProvider, logger *slog.Logger) *EntitlementSyncer {
-	return &EntitlementSyncer{services: services, access: access, tenant: tenant, logger: logger}
+// in metrics — except when lazyTenantProvisioning is on, in which case it
+// is also the seam that resolves user→personal-tenant for entitlement
+// projection.
+func NewEntitlementSyncer(services repository.ServiceRepository, access iface.AccessProvider, tenant iface.TenantProvider, lazyTenantProvisioning bool, logger *slog.Logger) *EntitlementSyncer {
+	return &EntitlementSyncer{services: services, access: access, tenant: tenant, lazyTenantProvisioning: lazyTenantProvisioning, logger: logger}
 }
 
 // OnActivate grants every capability listed on the subscription's tier to
@@ -57,7 +67,14 @@ func (s *EntitlementSyncer) OnActivate(ctx context.Context, sub *models.Subscrip
 	if s == nil || s.access == nil || sub == nil {
 		return
 	}
-	owner := ownerOfSubscription(sub)
+	owner, err := s.ownerOfSubscription(ctx, sub)
+	if err != nil {
+		s.logger.Warn("entitlement syncer: owner resolution failed",
+			slog.String("subscription", sub.UUID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
 	if owner.IsZero() {
 		return
 	}
@@ -116,7 +133,14 @@ func (s *EntitlementSyncer) OnDeactivate(ctx context.Context, sub *models.Subscr
 	if s == nil || s.access == nil || sub == nil {
 		return
 	}
-	owner := ownerOfSubscription(sub)
+	owner, err := s.ownerOfSubscription(ctx, sub)
+	if err != nil {
+		s.logger.Warn("entitlement syncer: owner resolution failed",
+			slog.String("subscription", sub.UUID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
 	if owner.IsZero() {
 		return
 	}
@@ -177,9 +201,32 @@ const CapabilitySourceSubscription = "subscription"
 // client) or a tenant (admin-attached business) after the post-onboarding
 // refactor. Callers treat a zero return as "no owner, skip sync" rather
 // than forcing a grant against the wrong aggregate.
-func ownerOfSubscription(sub *models.Subscription) iface.Owner {
+//
+// Unified Client Aggregate Phase 2: when the lazyTenantProvisioning flag
+// is on AND the subscription is user-owned AND a TenantProvider is wired,
+// the resolver redirects the owner to the user's personal tenant via
+// TenantProvider.EnsureTenantForUser. New activations therefore project
+// onto the personal tenant; legacy user-owned entitlement rows persist in
+// the access provider until the Phase 3 migration rewrites them. Errors
+// from EnsureTenantForUser are returned so the syncer logs and skips
+// rather than misattributing the grant to the user.
+func (s *EntitlementSyncer) ownerOfSubscription(ctx context.Context, sub *models.Subscription) (iface.Owner, error) {
 	if sub == nil {
-		return iface.Owner{}
+		return iface.Owner{}, nil
 	}
-	return iface.Owner{Kind: sub.OwnerKind, UUID: sub.OwnerUUID}
+	owner := iface.Owner{Kind: sub.OwnerKind, UUID: sub.OwnerUUID}
+	if !s.lazyTenantProvisioning || s.tenant == nil {
+		return owner, nil
+	}
+	if owner.Kind != iface.OwnerKindUser || owner.UUID == "" {
+		return owner, nil
+	}
+	personal, err := s.tenant.EnsureTenantForUser(ctx, owner.UUID)
+	if err != nil {
+		return iface.Owner{}, err
+	}
+	if personal == nil || personal.UUID == "" {
+		return owner, nil
+	}
+	return iface.TenantOwner(personal.UUID), nil
 }

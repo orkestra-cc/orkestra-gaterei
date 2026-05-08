@@ -82,9 +82,13 @@ func (r *stubPMRepo) Delete(context.Context, string) error { return nil }
 
 // stubTenantProvider — local copy because Go test packages can't share types
 // across modules without a shared helper, and the surface needed here is
-// trivially small.
+// trivially small. personalByUser feeds EnsureTenantForUser under the
+// Phase 2 lazy-tenant flag; ensureCalls records every invocation so a
+// flag-off path can assert the seam stays inert.
 type stubTenantProvider struct {
-	memberships map[string][]iface.TenantMembership
+	memberships    map[string][]iface.TenantMembership
+	personalByUser map[string]*iface.Tenant
+	ensureCalls    []string
 }
 
 func (s *stubTenantProvider) GetTenant(context.Context, string) (*iface.Tenant, error) {
@@ -100,8 +104,12 @@ func (s *stubTenantProvider) ActivateTenant(context.Context, string) error      
 func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
 	return nil
 }
-func (s *stubTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
-	return nil, nil
+func (s *stubTenantProvider) EnsureTenantForUser(_ context.Context, userUUID string) (*iface.Tenant, error) {
+	s.ensureCalls = append(s.ensureCalls, userUUID)
+	if s.personalByUser == nil {
+		return nil, nil
+	}
+	return s.personalByUser[userUUID], nil
 }
 
 func userTx(uuid, userUUID string, status models.TransactionStatus) models.Transaction {
@@ -135,7 +143,7 @@ func tenantPM(uuid, tenantUUID string) models.PaymentMethod {
 // newClientHandler wires a ClientHandler with just the deps the read paths
 // touch. payment, userBilling and planner are not exercised by MeListXxx.
 func newClientHandlerForReads(tx repository.TransactionRepository, pm repository.PaymentMethodRepository, tp iface.TenantProvider) *ClientHandler {
-	return NewClientHandler(nil, tx, pm, tp, nil, nil)
+	return NewClientHandler(nil, tx, pm, tp, nil, nil, false)
 }
 
 // --- Transactions ---
@@ -269,5 +277,66 @@ func TestMeListPaymentMethods_NilTenantProviderStillReturnsUserRows(t *testing.T
 	}
 	if resp.Body.Total != 1 || resp.Body.Items[0].UUID != "pm-u" {
 		t.Fatalf("expected only the calling user's pm, got %+v", resp.Body.Items)
+	}
+}
+
+// newClientHandlerForReadsWithFlag flips the Unified Client Aggregate
+// Phase 2 lazy-tenant feature flag — same shape as newClientHandlerForReads
+// otherwise.
+func newClientHandlerForReadsWithFlag(tx repository.TransactionRepository, pm repository.PaymentMethodRepository, tp iface.TenantProvider, lazy bool) *ClientHandler {
+	return NewClientHandler(nil, tx, pm, tp, nil, nil, lazy)
+}
+
+// TestMeListTransactions_LazyTenantFlagOffSkipsEnsure asserts that the
+// default (flag-off) path leaves EnsureTenantForUser inert.
+func TestMeListTransactions_LazyTenantFlagOffSkipsEnsure(t *testing.T) {
+	tx := newStubTxRepo(userTx("tx-u", "user-A", models.TxSucceeded))
+	tp := &stubTenantProvider{
+		memberships:    map[string][]iface.TenantMembership{"user-A": nil},
+		personalByUser: map[string]*iface.Tenant{"user-A": {UUID: "tenant-personal-A"}},
+	}
+	h := newClientHandlerForReadsWithFlag(tx, newStubPMRepo(), tp, false)
+
+	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	if _, err := h.MeListTransactions(ctx, &MeListTransactionsRequest{}); err != nil {
+		t.Fatalf("MeListTransactions: %v", err)
+	}
+	if len(tp.ensureCalls) != 0 {
+		t.Fatalf("EnsureTenantForUser must stay inert with flag off, got %v", tp.ensureCalls)
+	}
+}
+
+// TestMeListTransactions_LazyTenantFlagOnAddsPersonalTenant asserts that
+// turning the flag on materializes the personal tenant and surfaces its
+// transactions alongside legacy user-owned rows.
+func TestMeListTransactions_LazyTenantFlagOnAddsPersonalTenant(t *testing.T) {
+	tx := newStubTxRepo(
+		userTx("tx-u", "user-A", models.TxSucceeded),
+		tenantTx("tx-p", "tenant-personal-A", models.TxSucceeded),
+		tenantTx("tx-other", "tenant-other", models.TxSucceeded), // not owned
+	)
+	tp := &stubTenantProvider{
+		memberships:    map[string][]iface.TenantMembership{"user-A": nil},
+		personalByUser: map[string]*iface.Tenant{"user-A": {UUID: "tenant-personal-A"}},
+	}
+	h := newClientHandlerForReadsWithFlag(tx, newStubPMRepo(), tp, true)
+
+	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	resp, err := h.MeListTransactions(ctx, &MeListTransactionsRequest{})
+	if err != nil {
+		t.Fatalf("MeListTransactions: %v", err)
+	}
+	if len(tp.ensureCalls) != 1 || tp.ensureCalls[0] != "user-A" {
+		t.Fatalf("EnsureTenantForUser calls: %v", tp.ensureCalls)
+	}
+	if resp.Body.Total != 2 {
+		t.Fatalf("expected user + personal tenant rows (2), got %d: %+v", resp.Body.Total, resp.Body.Items)
+	}
+	got := map[string]bool{}
+	for _, r := range resp.Body.Items {
+		got[r.UUID] = true
+	}
+	if !got["tx-u"] || !got["tx-p"] || got["tx-other"] {
+		t.Fatalf("unexpected fan-out: %+v", got)
 	}
 }

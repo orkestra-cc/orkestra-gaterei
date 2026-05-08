@@ -82,11 +82,14 @@ func (stubSvcRepoMin) List(context.Context, repository.ServiceFilters) ([]models
 	return nil, nil
 }
 
-// stubTenantProvider returns a controlled membership set per userUUID. All
-// other TenantProvider methods are stubs — MeList only touches
-// ListUserMemberships.
+// stubTenantProvider returns a controlled membership set per userUUID and
+// records EnsureTenantForUser invocations. All other TenantProvider methods
+// are stubs — MeList only touches ListUserMemberships and (under the Phase 2
+// flag) EnsureTenantForUser.
 type stubTenantProvider struct {
-	memberships map[string][]iface.TenantMembership
+	memberships  map[string][]iface.TenantMembership
+	personalByUser map[string]*iface.Tenant
+	ensureCalls  []string
 }
 
 func (s *stubTenantProvider) GetTenant(context.Context, string) (*iface.Tenant, error) {
@@ -102,8 +105,12 @@ func (s *stubTenantProvider) ActivateTenant(context.Context, string) error      
 func (s *stubTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
 	return nil
 }
-func (s *stubTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
-	return nil, nil
+func (s *stubTenantProvider) EnsureTenantForUser(_ context.Context, userUUID string) (*iface.Tenant, error) {
+	s.ensureCalls = append(s.ensureCalls, userUUID)
+	if s.personalByUser == nil {
+		return nil, nil
+	}
+	return s.personalByUser[userUUID], nil
 }
 
 // nopLogger keeps the test output quiet. Reused across tests in this file.
@@ -113,7 +120,7 @@ func nopLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, 
 // touches — no renewal/invoice/activity surface needed.
 func newHandlerForList(repo repository.SubscriptionRepository, tp iface.TenantProvider) *SubscriptionHandler {
 	subs := services.NewSubscriptionService(repo, stubSvcRepoMin{}, nil, nil, tp, nopLogger())
-	return NewSubscriptionHandler(subs, nil, nil, nil, tp)
+	return NewSubscriptionHandler(subs, nil, nil, nil, tp, false)
 }
 
 func userSub(uuid, userUUID string, status models.SubStatus) models.Subscription {
@@ -306,4 +313,95 @@ func TestMeList_InvalidOwnerKindRejected(t *testing.T) {
 	if !strings.Contains(strings.ToLower(se.Error()), "ownerkind") {
 		t.Fatalf("error message: %s", se.Error())
 	}
+}
+
+// newHandlerForListWithFlag wires the same surface as newHandlerForList but
+// flips the Unified Client Aggregate Phase 2 lazy-tenant feature flag.
+func newHandlerForListWithFlag(repo repository.SubscriptionRepository, tp iface.TenantProvider, lazy bool) *SubscriptionHandler {
+	subs := services.NewSubscriptionService(repo, stubSvcRepoMin{}, nil, nil, tp, nopLogger())
+	return NewSubscriptionHandler(subs, nil, nil, nil, tp, lazy)
+}
+
+// TestMeList_LazyTenantFlagOffSkipsEnsure asserts that the default
+// (flag-off) behavior does not call EnsureTenantForUser — the path is still
+// reachable but inert until Phase 3 flips the flag.
+func TestMeList_LazyTenantFlagOffSkipsEnsure(t *testing.T) {
+	repo := newStubSubRepo(userSub("u-1", "user-A", models.SubActive))
+	tp := &stubTenantProvider{
+		memberships:    map[string][]iface.TenantMembership{"user-A": nil},
+		personalByUser: map[string]*iface.Tenant{"user-A": {UUID: "tenant-personal-A"}},
+	}
+	h := newHandlerForListWithFlag(repo, tp, false)
+
+	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	if _, err := h.MeList(ctx, &MeListSubscriptionsRequest{}); err != nil {
+		t.Fatalf("MeList: %v", err)
+	}
+	if len(tp.ensureCalls) != 0 {
+		t.Fatalf("EnsureTenantForUser must not be called when flag is off, got %v", tp.ensureCalls)
+	}
+}
+
+// TestMeList_LazyTenantFlagOnAddsPersonalTenant asserts that with the flag
+// on the personal tenant is provisioned and its subscriptions surface in
+// the caller's owner set alongside the legacy user-owned rows.
+func TestMeList_LazyTenantFlagOnAddsPersonalTenant(t *testing.T) {
+	repo := newStubSubRepo(
+		userSub("u-1", "user-A", models.SubActive),
+		tenantSub("p-1", "tenant-personal-A", models.SubActive),
+		tenantSub("x-1", "tenant-other", models.SubActive), // not owned, must not surface
+	)
+	tp := &stubTenantProvider{
+		memberships:    map[string][]iface.TenantMembership{"user-A": nil},
+		personalByUser: map[string]*iface.Tenant{"user-A": {UUID: "tenant-personal-A"}},
+	}
+	h := newHandlerForListWithFlag(repo, tp, true)
+
+	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	resp, err := h.MeList(ctx, &MeListSubscriptionsRequest{})
+	if err != nil {
+		t.Fatalf("MeList: %v", err)
+	}
+	if len(tp.ensureCalls) != 1 || tp.ensureCalls[0] != "user-A" {
+		t.Fatalf("EnsureTenantForUser calls: %v", tp.ensureCalls)
+	}
+	if resp.Body.Total != 2 {
+		t.Fatalf("expected user-owned + personal-tenant rows (2), got %d: %+v", resp.Body.Total, resp.Body.Items)
+	}
+	got := map[string]bool{}
+	for _, s := range resp.Body.Items {
+		got[s.UUID] = true
+	}
+	if !got["u-1"] || !got["p-1"] || got["x-1"] {
+		t.Fatalf("unexpected fan-out: %+v", got)
+	}
+}
+
+// TestMeList_LazyTenantFlagOnSurfacesEnsureError asserts that a failing
+// EnsureTenantForUser propagates as the request error rather than silently
+// scoping the user's data away.
+func TestMeList_LazyTenantFlagOnSurfacesEnsureError(t *testing.T) {
+	repo := newStubSubRepo(userSub("u-1", "user-A", models.SubActive))
+	tp := &erroringEnsureTenantProvider{stubTenantProvider: stubTenantProvider{
+		memberships: map[string][]iface.TenantMembership{"user-A": nil},
+	}, ensureErr: errors.New("mongo down")}
+	h := newHandlerForListWithFlag(repo, tp, true)
+
+	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	_, err := h.MeList(ctx, &MeListSubscriptionsRequest{})
+	if err == nil {
+		t.Fatal("expected EnsureTenantForUser failure to surface")
+	}
+}
+
+// erroringEnsureTenantProvider overrides EnsureTenantForUser to return an
+// error — used to assert the handler does not silently swallow provisioning
+// failures under the Phase 2 flag.
+type erroringEnsureTenantProvider struct {
+	stubTenantProvider
+	ensureErr error
+}
+
+func (e *erroringEnsureTenantProvider) EnsureTenantForUser(context.Context, string) (*iface.Tenant, error) {
+	return nil, e.ensureErr
 }

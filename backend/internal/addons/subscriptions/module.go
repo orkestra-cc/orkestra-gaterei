@@ -145,7 +145,13 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	// flow fails fast on missing tenant data.
 	tenantProvider, _ := module.GetTyped[iface.TenantProvider](deps.Services, module.ServiceTenantProvider)
 	accessProvider, _ := module.GetTyped[iface.AccessProvider](deps.Services, module.ServiceAccessProvider)
-	entitlementSyncer := services.NewEntitlementSyncer(serviceRepo, accessProvider, tenantProvider, deps.Logger)
+
+	lazyTenantProvisioning := false
+	if deps.Config != nil {
+		lazyTenantProvisioning = deps.Config.Features.LazyTenantProvisioning
+	}
+
+	entitlementSyncer := services.NewEntitlementSyncer(serviceRepo, accessProvider, tenantProvider, lazyTenantProvisioning, deps.Logger)
 
 	subscriptionSvc := services.NewSubscriptionService(subRepo, serviceRepo, activitySvc, entitlementSyncer, tenantProvider, deps.Logger)
 
@@ -159,7 +165,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	reconciler := services.NewReconciler(invoiceRepo, subRepo, activitySvc, entitlementSyncer, deps.Logger)
 
 	m.serviceHandler = handlers.NewServiceHandler(serviceSvc)
-	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, tenantProvider)
+	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, tenantProvider, lazyTenantProvisioning)
 
 	interval := deps.GetConfigDuration("subscriptions", "renewalInterval", time.Hour)
 	m.renewalJob = jobs.NewRenewalJob(renewalSvc, interval, deps.Logger)

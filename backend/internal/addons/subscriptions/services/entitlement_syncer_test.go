@@ -92,7 +92,7 @@ func TestSyncer_OnActivateGrantsEveryCapability(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
 	ap := &stubAccessProvider{}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 
 	periodEnd := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 	sub := tenantSub("sub-1", "tenant-1", "svc-1")
@@ -125,7 +125,7 @@ func TestSyncer_OnActivateGrantsForUserOwner(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1", "rag.query"),
 	}}
 	ap := &stubAccessProvider{}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 
 	sub := &models.Subscription{
 		UUID:        "sub-1",
@@ -150,7 +150,7 @@ func TestSyncer_OnActivateSkipsWhenOwnerMissing(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1", "rag.query"),
 	}}
 	ap := &stubAccessProvider{}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 
 	sub := &models.Subscription{
 		UUID:        "sub-1",
@@ -169,7 +169,7 @@ func TestSyncer_OnActivateNoopWhenTierHasNoCapabilities(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1"), // empty caps
 	}}
 	ap := &stubAccessProvider{}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 	if len(ap.grants) != 0 {
 		t.Fatalf("expected zero grants, got %d", len(ap.grants))
@@ -181,7 +181,7 @@ func TestSyncer_OnDeactivateRevokesEveryCapability(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
 	ap := &stubAccessProvider{}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 
 	syncer.OnDeactivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 
@@ -197,7 +197,7 @@ func TestSyncer_NilAccessProviderIsNoop(t *testing.T) {
 	// Degraded mode: no tenant module registered. Syncer must not panic;
 	// subscription lifecycle should continue producing its other side
 	// effects unaffected.
-	syncer := NewEntitlementSyncer(&stubServiceRepo{}, nil, nil, nopLogger())
+	syncer := NewEntitlementSyncer(&stubServiceRepo{}, nil, nil, false, nopLogger())
 	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 	syncer.OnDeactivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 	// No assertions needed — the test passes if we didn't panic.
@@ -211,10 +211,140 @@ func TestSyncer_OnActivateContinuesOnIndividualGrantError(t *testing.T) {
 		"svc-1": serviceWithTier("svc-1", "rag.query", "agents.run"),
 	}}
 	ap := &stubAccessProvider{grantErr: errors.New("transient")}
-	syncer := NewEntitlementSyncer(repo, ap, nil, nopLogger())
+	syncer := NewEntitlementSyncer(repo, ap, nil, false, nopLogger())
 
 	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-1", "svc-1"))
 	if len(ap.grants) != 2 {
 		t.Fatalf("syncer must attempt every grant even when earlier ones fail, got %d", len(ap.grants))
+	}
+}
+
+// stubSyncerTenantProvider exposes EnsureTenantForUser to the syncer's
+// Phase 2 path. Other TenantProvider methods are stubs — only the lazy
+// path exercises this provider through the syncer.
+type stubSyncerTenantProvider struct {
+	personalByUser map[string]*iface.Tenant
+	ensureCalls    []string
+	ensureErr      error
+}
+
+func (s *stubSyncerTenantProvider) GetTenant(context.Context, string) (*iface.Tenant, error) {
+	return nil, nil
+}
+func (s *stubSyncerTenantProvider) ListUserMemberships(context.Context, string) ([]iface.TenantMembership, error) {
+	return nil, nil
+}
+func (s *stubSyncerTenantProvider) IsMember(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+func (s *stubSyncerTenantProvider) ActivateTenant(context.Context, string) error { return nil }
+func (s *stubSyncerTenantProvider) SetTenantStripeCustomerID(context.Context, string, string) error {
+	return nil
+}
+func (s *stubSyncerTenantProvider) EnsureTenantForUser(_ context.Context, userUUID string) (*iface.Tenant, error) {
+	s.ensureCalls = append(s.ensureCalls, userUUID)
+	if s.ensureErr != nil {
+		return nil, s.ensureErr
+	}
+	return s.personalByUser[userUUID], nil
+}
+
+// TestSyncer_LazyTenantFlagOffKeepsUserOwner asserts the default behavior:
+// user-owned subscriptions still project onto the user owner. The flag is
+// off until Phase 3 flips it.
+func TestSyncer_LazyTenantFlagOffKeepsUserOwner(t *testing.T) {
+	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
+		"svc-1": serviceWithTier("svc-1", "rag.query"),
+	}}
+	ap := &stubAccessProvider{}
+	tp := &stubSyncerTenantProvider{
+		personalByUser: map[string]*iface.Tenant{"user-9": {UUID: "tenant-personal-9"}},
+	}
+	syncer := NewEntitlementSyncer(repo, ap, tp, false, nopLogger())
+
+	syncer.OnActivate(context.Background(), &models.Subscription{
+		UUID: "sub-1", OwnerKind: iface.OwnerKindUser, OwnerUUID: "user-9",
+		ServiceUUID: "svc-1", TierCode: "std",
+	})
+
+	if len(tp.ensureCalls) != 0 {
+		t.Fatalf("EnsureTenantForUser must not be called when flag is off, got %v", tp.ensureCalls)
+	}
+	if len(ap.grants) != 1 || ap.grants[0].Owner.Kind != iface.OwnerKindUser || ap.grants[0].Owner.UUID != "user-9" {
+		t.Fatalf("flag-off grant must stay on user owner, got %+v", ap.grants)
+	}
+}
+
+// TestSyncer_LazyTenantFlagOnRedirectsToPersonalTenant asserts that when
+// the flag is on the activation projects onto the user's personal tenant
+// (resolved via EnsureTenantForUser) rather than the user owner — this is
+// the projection-rewriting half of the Phase 2 contract.
+func TestSyncer_LazyTenantFlagOnRedirectsToPersonalTenant(t *testing.T) {
+	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
+		"svc-1": serviceWithTier("svc-1", "rag.query"),
+	}}
+	ap := &stubAccessProvider{}
+	tp := &stubSyncerTenantProvider{
+		personalByUser: map[string]*iface.Tenant{"user-9": {UUID: "tenant-personal-9"}},
+	}
+	syncer := NewEntitlementSyncer(repo, ap, tp, true, nopLogger())
+
+	syncer.OnActivate(context.Background(), &models.Subscription{
+		UUID: "sub-1", OwnerKind: iface.OwnerKindUser, OwnerUUID: "user-9",
+		ServiceUUID: "svc-1", TierCode: "std",
+	})
+
+	if len(tp.ensureCalls) != 1 || tp.ensureCalls[0] != "user-9" {
+		t.Fatalf("EnsureTenantForUser calls: %v", tp.ensureCalls)
+	}
+	if len(ap.grants) != 1 {
+		t.Fatalf("expected 1 grant, got %d", len(ap.grants))
+	}
+	got := ap.grants[0].Owner
+	if got.Kind != iface.OwnerKindTenant || got.UUID != "tenant-personal-9" {
+		t.Fatalf("flag-on grant must target the personal tenant, got %+v", got)
+	}
+}
+
+// TestSyncer_LazyTenantFlagOnLeavesTenantSubsAlone asserts that tenant-owned
+// subscriptions are pass-through under the flag — no spurious EnsureTenantForUser
+// call, owner stays unchanged.
+func TestSyncer_LazyTenantFlagOnLeavesTenantSubsAlone(t *testing.T) {
+	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
+		"svc-1": serviceWithTier("svc-1", "rag.query"),
+	}}
+	ap := &stubAccessProvider{}
+	tp := &stubSyncerTenantProvider{}
+	syncer := NewEntitlementSyncer(repo, ap, tp, true, nopLogger())
+
+	syncer.OnActivate(context.Background(), tenantSub("sub-1", "tenant-X", "svc-1"))
+
+	if len(tp.ensureCalls) != 0 {
+		t.Fatalf("tenant-owned subs must not trigger EnsureTenantForUser, got %v", tp.ensureCalls)
+	}
+	if len(ap.grants) != 1 || ap.grants[0].Owner.UUID != "tenant-X" {
+		t.Fatalf("tenant-owned grant: %+v", ap.grants)
+	}
+}
+
+// TestSyncer_LazyTenantFlagOnEnsureErrorSkips asserts that when EnsureTenantForUser
+// fails the syncer logs and skips rather than misattributing the grant to the
+// raw user owner — better to drop the projection update than to write to the
+// wrong aggregate.
+func TestSyncer_LazyTenantFlagOnEnsureErrorSkips(t *testing.T) {
+	repo := &stubServiceRepo{byUUID: map[string]*models.Service{
+		"svc-1": serviceWithTier("svc-1", "rag.query"),
+	}}
+	ap := &stubAccessProvider{}
+	tp := &stubSyncerTenantProvider{ensureErr: errors.New("mongo down")}
+	syncer := NewEntitlementSyncer(repo, ap, tp, true, nopLogger())
+
+	syncer.OnActivate(context.Background(), &models.Subscription{
+		UUID: "sub-1", OwnerKind: iface.OwnerKindUser, OwnerUUID: "user-9",
+		ServiceUUID: "svc-1", TierCode: "std",
+	})
+
+	if len(ap.grants) != 0 {
+		t.Fatalf("expected zero grants when EnsureTenantForUser errors, got %d", len(ap.grants))
 	}
 }

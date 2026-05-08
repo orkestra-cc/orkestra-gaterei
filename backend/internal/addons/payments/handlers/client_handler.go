@@ -34,6 +34,11 @@ type ClientHandler struct {
 	// planner is optional — the checkout-session route returns 503 when
 	// the subscriptions module is disabled or has not registered the key.
 	planner iface.SelfServiceCheckoutPlanner
+	// lazyTenantProvisioning gates the Unified Client Aggregate Phase 2
+	// behavior: callerOwnerSet calls TenantProvider.EnsureTenantForUser and
+	// adds the resulting personal tenant to the caller's owner set. Off by
+	// default — flipped via UNIFIED_CLIENTS_LAZY_TENANT_ENABLED in Phase 3.
+	lazyTenantProvisioning bool
 }
 
 // NewClientHandler constructs the handler. tenants may be nil — tenant-
@@ -47,14 +52,16 @@ func NewClientHandler(
 	tenants iface.TenantProvider,
 	userBilling iface.UserBillingCustomerProvider,
 	planner iface.SelfServiceCheckoutPlanner,
+	lazyTenantProvisioning bool,
 ) *ClientHandler {
 	return &ClientHandler{
-		payment:     payment,
-		txRepo:      txRepo,
-		pmRepo:      pmRepo,
-		tenants:     tenants,
-		userBilling: userBilling,
-		planner:     planner,
+		payment:                payment,
+		txRepo:                 txRepo,
+		pmRepo:                 pmRepo,
+		tenants:                tenants,
+		userBilling:            userBilling,
+		planner:                planner,
+		lazyTenantProvisioning: lazyTenantProvisioning,
 	}
 }
 
@@ -72,6 +79,18 @@ func (h *ClientHandler) callerOwnerSet(ctx context.Context) (map[iface.Owner]str
 	}
 	if h.tenants == nil {
 		return owned, nil
+	}
+	// Unified Client Aggregate Phase 2 — see SubscriptionHandler.callerOwnerSet
+	// for the rationale. Provisioning errors surface so that an unreachable
+	// tenant module doesn't silently scope away the user's payment data.
+	if h.lazyTenantProvisioning {
+		personal, err := h.tenants.EnsureTenantForUser(ctx, userUUID)
+		if err != nil {
+			return nil, err
+		}
+		if personal != nil && personal.UUID != "" {
+			owned[iface.TenantOwner(personal.UUID)] = struct{}{}
+		}
 	}
 	memberships, err := h.tenants.ListUserMemberships(ctx, userUUID)
 	if err != nil {

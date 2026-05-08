@@ -28,6 +28,21 @@ type Config struct {
 	AIModels  AIModelsConfig
 	Agents    AgentsConfig
 	Sales     SalesConfig
+	Features  FeaturesConfig
+}
+
+// FeaturesConfig holds cross-module feature flags driving phased migrations.
+// These are intentionally not module-scoped — they switch behavior in
+// multiple addons at once and are flipped centrally during a refactor.
+type FeaturesConfig struct {
+	// LazyTenantProvisioning gates the Unified Client Aggregate Phase 2
+	// behavior: when true, self-service callers (subscriptions, payments)
+	// resolve their personal tenant via TenantProvider.EnsureTenantForUser
+	// and the entitlement syncer redirects user-owned subscription
+	// activations onto that tenant. Default off — flipped on in Phase 3
+	// after the one-shot migration of legacy clientbilling rows lands.
+	// Env var: UNIFIED_CLIENTS_LAZY_TENANT_ENABLED.
+	LazyTenantProvisioning bool
 }
 
 // SalesConfig holds configuration for the AI Sales Intelligence module
@@ -513,6 +528,11 @@ func Load() (*Config, error) {
 		ScraperTimeout:  getEnvAsDuration("SALES_SCRAPER_TIMEOUT", "30s"),
 		ScraperMaxDepth: getEnvAsInt("SALES_SCRAPER_MAX_DEPTH", 3),
 		MaxTokens:       getEnvAsInt("SALES_MAX_TOKENS", 8192),
+	}
+
+	// Cross-module feature flags
+	config.Features = FeaturesConfig{
+		LazyTenantProvisioning: getEnvAsBool("UNIFIED_CLIENTS_LAZY_TENANT_ENABLED", false),
 	}
 
 	// Documents/PDF generation configuration (Gotenberg)
