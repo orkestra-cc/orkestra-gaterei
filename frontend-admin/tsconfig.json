@@ -45,7 +45,8 @@
       "reference/*": ["src/reference/*"],
       "types/*": ["src/types/*"],
       "modules/*": ["src/modules/*"],
-      "modules": ["src/modules"]
+      "modules": ["src/modules"],
+      "test/*": ["src/test/*"]
     }
   },
   "include": ["src/**/*", "vite.config.js"],

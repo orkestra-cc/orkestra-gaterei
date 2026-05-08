@@ -87,11 +87,13 @@ frontend-admin/
 │   ├── types/                     # Shared TypeScript types per backend module
 │   ├── data/                      # Static data, mock APIs, lookups
 │   ├── docs/                      # Component docs (separate from src/reference/)
+│   ├── test/                      # Test infra: MSW server, renderWithProviders, default handlers
 │   └── assets/                    # Images, SCSS, fonts
 ├── public/                        # Static files served as-is
 ├── Dockerfile                     # Multi-stage: builder (node:24-alpine) → production (nginx:alpine)
 ├── tsconfig.json                  # Path aliases declared here AND in vite.config.js
 ├── vite.config.js                 # Vite config with manualChunks for vendor splitting
+├── vitest.config.ts               # Vitest config — happy-dom env, react-router-dom alias
 └── package.json
 ```
 
@@ -105,7 +107,7 @@ import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
 import BillingDashboard from 'pages/billing/dashboard';
 ```
 
-Available aliases: `App`, `components`, `pages`, `layouts`, `providers`, `hooks`, `helpers`, `data`, `assets`, `routes`, `store`, `config`, `reference`, `types`, `utils`, `widgets`, `features`, `demos`, `docs`, `reducers`.
+Available aliases: `App`, `components`, `pages`, `layouts`, `providers`, `hooks`, `helpers`, `data`, `assets`, `routes`, `store`, `config`, `reference`, `types`, `utils`, `widgets`, `features`, `demos`, `docs`, `reducers`, `test`.
 
 ## How navigation works
 
@@ -213,9 +215,40 @@ npm run build             # tsc + vite build (production)
 npm run build:staging     # Staging build
 npm run preview           # Serve built bundle locally
 npm run typecheck         # tsc --noEmit (CI-safe)
+npm run test              # Vitest single-pass run
+npm run test:watch        # Vitest watch mode
 ```
 
 The `tsc` step in `build` enforces strict mode — TypeScript errors fail the build.
+
+## Testing
+
+Vitest + React Testing Library + happy-dom + MSW. The infra lives in `src/test/`:
+
+| File | Purpose |
+|---|---|
+| `src/test/setup.ts` | Vitest global setup — jest-dom matchers, MSW lifecycle (`onUnhandledRequest: 'error'` so missing stubs fail loud), `resetCapturedRequests()` between tests |
+| `src/test/server.ts` | Single shared `setupServer(...defaultHandlers)` reused by every test file |
+| `src/test/handlers.ts` | Default MSW handlers + per-endpoint request capture (`capturedRequests.billingStatsParams` etc.) for tests that need to assert outbound params |
+| `src/test/render.tsx` | `renderWithProviders(ui, { preloadedState, store, routerEntries })` — wraps in a fresh non-persisted Redux store + `MemoryRouter`. Returns `{ store, ...renderResult }` |
+
+**Default pattern**: real component, real Redux store, real RTK Query, MSW for HTTP. Mock hooks (`vi.mock`) only when testing branching logic of a hook's *consumer* (e.g. `ProtectedRoute` mocking `useAuth`), not when testing data flow.
+
+```tsx
+import { renderWithProviders } from 'test/render';
+import { server } from 'test/server';
+import { http, HttpResponse } from 'msw';
+
+server.use(http.get('*/v1/whatever', () => HttpResponse.json({ ... })));
+const { store } = renderWithProviders(<MyComponent />);
+expect(await screen.findByText(...)).toBeInTheDocument();
+expect(store.getState().auth.accessToken).toBe('...');
+```
+
+**Configuration gotchas:**
+
+- `vitest.config.ts` aliases `react-router-dom` → `react-router`. Without this, v7's dual-package layout creates separate `Router` context instances at test time and components mixing the two imports lose their context.
+- `environment: 'happy-dom'` (not jsdom) — jsdom + MSW v2 + Node fetch trip over `RequestInit: Expected signal to be an instance of AbortSignal`.
 
 ## Conventions
 

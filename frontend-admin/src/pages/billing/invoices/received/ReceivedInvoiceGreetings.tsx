@@ -8,8 +8,14 @@ import { useGetBillingStatsQuery } from 'store/api/billingApi';
 import CountUp from 'react-countup';
 import { formatCurrency } from 'types/billing';
 
+// All-time fromDate so the rollup mirrors the (un-date-scoped) table below;
+// without it the backend defaults to current month and reads zero.
+const STATS_FROM_DATE_ALL_TIME = '2000-01-01';
+
 const ReceivedInvoiceGreetings = () => {
-  const { data: stats } = useGetBillingStatsQuery({});
+  const { data: stats } = useGetBillingStatsQuery({
+    fromDate: STATS_FROM_DATE_ALL_TIME,
+  });
 
   const statItems = [
     {
