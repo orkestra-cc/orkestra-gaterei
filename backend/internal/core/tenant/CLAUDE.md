@@ -97,7 +97,7 @@ Gated globally by a system permission, not by per-org membership, so platform op
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/v1/admin/tenants` | List every tenant. Query params: `?kind=internal\|external`, `?parentTenantUUID=<uuid>`, `?rootsOnly=true`, `?includeDeleted=true`. Response includes `memberCount` from a single `$group` aggregation. |
+| GET | `/v1/admin/tenants` | List every tenant. Query params: `?kind=internal\|external`, `?parentTenantUUID=<uuid>`, `?rootsOnly=true`, `?includeDeleted=true`, `?q=<text>`, `?includeDeletedUsers=true`. Response includes `memberCount` from a single `$group` aggregation. When `q` is set the handler routes to `repository.SearchTenantsByQ`, which $lookup-joins `tenant_memberships` → tier-appropriate user collection (`operator_users` for internal, `client_users` for external) and matches `q` (case-insensitive substring) against tenant `name`/`slug` plus member `email`/`fullName`/`username`. Each matching row includes a `matchedMembers` array (≤ `MaxMatchedMembersPerTenant=5`) so the frontend can render "matched: alice@x" chips. `includeDeletedUsers` opts soft-deleted users into the member-side join (default: live users only). |
 | GET | `/v1/admin/tenants/{tenantId}` | Get any tenant |
 | PATCH | `/v1/admin/tenants/{tenantId}` | Update any tenant (name, slug, settings) |
 | DELETE | `/v1/admin/tenants/{tenantId}` | Soft-delete any tenant — bypasses the owner-only check |

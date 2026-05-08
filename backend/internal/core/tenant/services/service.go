@@ -643,10 +643,13 @@ func (s *Service) runPostDeleteHooks(ctx context.Context, c TenantPostDeleteCont
 }
 
 // TenantAdminView is a tenant plus its current member count, used by the
-// platform-admin list endpoint to avoid an N+1.
+// platform-admin list endpoint to avoid an N+1. When the caller passed a Q
+// filter, MatchedMembers carries up to repository.MaxMatchedMembersPerTenant
+// member-side hits so the UI can show "matched: alice@x" chips on each row.
 type TenantAdminView struct {
-	Tenant      *models.Tenant
-	MemberCount int
+	Tenant         *models.Tenant
+	MemberCount    int
+	MatchedMembers []repository.MemberMatch
 }
 
 // ListAllTenants returns every tenant in the system with live member counts.
@@ -656,10 +659,43 @@ func (s *Service) ListAllTenants(ctx context.Context, includeDeleted bool) ([]Te
 	return s.ListAllTenantsFiltered(ctx, repository.TenantListFilter{IncludeDeleted: includeDeleted})
 }
 
+// adminListRepo is the slice of repository.Repository that
+// listAllTenantsFiltered needs. Extracted so the routing decision (Q trim,
+// search-vs-list dispatch, count attachment) can be tested with a fake repo
+// without spinning up Mongo.
+type adminListRepo interface {
+	ListTenants(ctx context.Context, f repository.TenantListFilter) ([]models.Tenant, error)
+	SearchTenantsByQ(ctx context.Context, f repository.TenantListFilter) ([]repository.TenantSearchResult, error)
+	CountMembersByTenants(ctx context.Context, tenantUUIDs []string) (map[string]int, error)
+}
+
 // ListAllTenantsFiltered is the kind/parent-aware variant used by the Phase 3
-// split between the Internal Tenants and Clients admin pages.
+// split between the Internal Tenants and Clients admin pages. When filter.Q
+// is non-empty it routes to the member-aware aggregation in
+// repository.SearchTenantsByQ so the search box on /admin/clients can match
+// tenant name + slug + member email/fullName/username in a single round trip.
 func (s *Service) ListAllTenantsFiltered(ctx context.Context, filter repository.TenantListFilter) ([]TenantAdminView, error) {
-	tenants, err := s.repo.ListTenants(ctx, filter)
+	return listAllTenantsFiltered(ctx, s.repo, filter)
+}
+
+func listAllTenantsFiltered(ctx context.Context, repo adminListRepo, filter repository.TenantListFilter) ([]TenantAdminView, error) {
+	if strings.TrimSpace(filter.Q) != "" {
+		results, err := repo.SearchTenantsByQ(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]TenantAdminView, len(results))
+		for i := range results {
+			t := results[i].Tenant
+			out[i] = TenantAdminView{
+				Tenant:         &t,
+				MemberCount:    results[i].MemberCount,
+				MatchedMembers: results[i].MatchedMembers,
+			}
+		}
+		return out, nil
+	}
+	tenants, err := repo.ListTenants(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -670,7 +706,7 @@ func (s *Service) ListAllTenantsFiltered(ctx context.Context, filter repository.
 	for i := range tenants {
 		uuids[i] = tenants[i].UUID
 	}
-	counts, err := s.repo.CountMembersByTenants(ctx, uuids)
+	counts, err := repo.CountMembersByTenants(ctx, uuids)
 	if err != nil {
 		return nil, err
 	}

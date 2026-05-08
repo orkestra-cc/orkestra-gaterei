@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/orkestra/backend/internal/core/tenant/models"
@@ -153,7 +154,38 @@ type TenantListFilter struct {
 	RootsOnly bool
 	// IncludeDeleted returns soft-deleted rows when true.
 	IncludeDeleted bool
+	// Q, when non-empty, narrows results to tenants whose name/slug match
+	// (case-insensitive substring) OR who have at least one member whose
+	// email/fullName/username matches. Service.ListAllTenantsFiltered routes
+	// to SearchTenantsByQ when set.
+	Q string
+	// IncludeDeletedUsers controls whether soft-deleted users count as
+	// matches in Q's member-side join. Only meaningful when Q is set.
+	IncludeDeletedUsers bool
 }
+
+// MemberMatch is the projection of a member-side hit returned alongside a
+// tenant when Q matches the member rather than the tenant itself. Used by the
+// /admin/clients search to show "matched: alice@x" chips on each row.
+type MemberMatch struct {
+	UserUUID string `bson:"uuid" json:"userUUID"`
+	Email    string `bson:"email" json:"email"`
+	FullName string `bson:"fullName" json:"fullName,omitempty"`
+	Username string `bson:"username" json:"username,omitempty"`
+}
+
+// TenantSearchResult is what SearchTenantsByQ returns: the tenant itself plus
+// up to MaxMatchedMembersPerTenant member-side hits.
+type TenantSearchResult struct {
+	Tenant          models.Tenant `bson:",inline"`
+	MatchedMembers  []MemberMatch `bson:"matchedMembers" json:"matchedMembers"`
+	MemberCount     int           `bson:"memberCount" json:"memberCount"`
+}
+
+// MaxMatchedMembersPerTenant bounds the matchedMembers payload so a tenant
+// with thousands of members doesn't bloat a search response. The UI only
+// shows the first few chips anyway.
+const MaxMatchedMembersPerTenant = 5
 
 // ListTenants is the general-purpose admin list with optional filters. Sorts
 // by createdAt descending.
@@ -186,6 +218,185 @@ func (r *Repository) ListTenants(ctx context.Context, f TenantListFilter) ([]mod
 		return nil, err
 	}
 	return out, nil
+}
+
+// SearchTenantsByQ runs the unified-clients member-aware search aggregation.
+// Matches f.Q (case-insensitive substring) against tenants.name, tenants.slug,
+// AND every member's email/fullName/username in the tier-appropriate user
+// collection (operator_users for Kind=internal, client_users for
+// Kind=external). Returns the tenants that hit plus up to
+// MaxMatchedMembersPerTenant matched-member projections per row so the UI can
+// show "matched: alice@x" chips.
+//
+// Requires f.Q != "" and f.Kind != ""; the caller (Service.ListAllTenantsFiltered)
+// is expected to fall back to the plain ListTenants path otherwise.
+//
+// Cost note: $lookup against the user collection is bounded by the membership
+// fan-out (memberships of one tenant) plus the regex scan against email +
+// fullName + username on those users. At current Tier-2 volumes (low
+// thousands) this is fine; if it ever shows up in slow query logs the
+// straightforward fix is denormalizing a memberSearchIndex array onto each
+// tenant row.
+func (r *Repository) SearchTenantsByQ(ctx context.Context, f TenantListFilter) ([]TenantSearchResult, error) {
+	q := regexp.QuoteMeta(f.Q)
+	userColl := userCollectionForKind(f.Kind)
+	if userColl == "" {
+		// No user collection means we cannot do the member-side join; fall
+		// back to tenant-only matching by promoting the regex up.
+		return r.searchTenantsByQTenantOnly(ctx, f, q)
+	}
+
+	tenantMatch := bson.M{}
+	if f.Kind != "" {
+		tenantMatch["kind"] = string(f.Kind)
+	}
+	switch {
+	case f.RootsOnly:
+		tenantMatch["$or"] = []bson.M{
+			{"parentTenantUUID": bson.M{"$exists": false}},
+			{"parentTenantUUID": nil},
+			{"parentTenantUUID": ""},
+		}
+	case f.ParentTenantUUID != nil:
+		tenantMatch["parentTenantUUID"] = *f.ParentTenantUUID
+	}
+	if !f.IncludeDeleted {
+		tenantMatch["deletedAt"] = nil
+	}
+
+	memberLookupPipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"$expr": bson.M{"$in": bson.A{"$uuid", "$$memberUUIDs"}}}}},
+	}
+	if !f.IncludeDeletedUsers {
+		memberLookupPipeline = append(memberLookupPipeline,
+			bson.D{{Key: "$match", Value: bson.M{"deletedAt": nil}}},
+		)
+	}
+	memberLookupPipeline = append(memberLookupPipeline,
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id":      0,
+			"uuid":     1,
+			"email":    1,
+			"fullName": 1,
+			"username": 1,
+		}}},
+	)
+
+	regex := bson.M{"$regex": q, "$options": "i"}
+	matchedMembersFilter := bson.M{
+		"$filter": bson.M{
+			"input": "$memberUsers",
+			"as":    "m",
+			"cond": bson.M{"$or": bson.A{
+				bson.M{"$regexMatch": bson.M{"input": bson.M{"$ifNull": bson.A{"$$m.email", ""}}, "regex": q, "options": "i"}},
+				bson.M{"$regexMatch": bson.M{"input": bson.M{"$ifNull": bson.A{"$$m.fullName", ""}}, "regex": q, "options": "i"}},
+				bson.M{"$regexMatch": bson.M{"input": bson.M{"$ifNull": bson.A{"$$m.username", ""}}, "regex": q, "options": "i"}},
+			}},
+		},
+	}
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: tenantMatch}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         CollMemberships,
+			"localField":   "uuid",
+			"foreignField": "tenantId",
+			"as":           "members",
+		}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":     userColl,
+			"let":      bson.M{"memberUUIDs": "$members.userUUID"},
+			"pipeline": memberLookupPipeline,
+			"as":       "memberUsers",
+		}}},
+		{{Key: "$addFields", Value: bson.M{"matchedMembers": matchedMembersFilter}}},
+		{{Key: "$match", Value: bson.M{"$or": bson.A{
+			bson.M{"name": regex},
+			bson.M{"slug": regex},
+			bson.M{"matchedMembers.0": bson.M{"$exists": true}},
+		}}}},
+		{{Key: "$addFields", Value: bson.M{
+			"memberCount":    bson.M{"$size": "$members"},
+			"matchedMembers": bson.M{"$slice": bson.A{"$matchedMembers", MaxMatchedMembersPerTenant}},
+		}}},
+		{{Key: "$project", Value: bson.M{"members": 0, "memberUsers": 0}}},
+		{{Key: "$sort", Value: bson.D{{Key: "createdAt", Value: -1}}}},
+	}
+
+	cur, err := r.db.Collection(CollTenants).Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []TenantSearchResult
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// searchTenantsByQTenantOnly is the fallback path when Kind is unset (so we
+// don't know which user collection to join) — matches Q against tenant name
+// and slug only and returns empty matchedMembers.
+func (r *Repository) searchTenantsByQTenantOnly(ctx context.Context, f TenantListFilter, quotedQ string) ([]TenantSearchResult, error) {
+	regex := bson.M{"$regex": quotedQ, "$options": "i"}
+	conds := []bson.M{
+		{"$or": []bson.M{{"name": regex}, {"slug": regex}}},
+	}
+	switch {
+	case f.RootsOnly:
+		conds = append(conds, bson.M{"$or": []bson.M{
+			{"parentTenantUUID": bson.M{"$exists": false}},
+			{"parentTenantUUID": nil},
+			{"parentTenantUUID": ""},
+		}})
+	case f.ParentTenantUUID != nil:
+		conds = append(conds, bson.M{"parentTenantUUID": *f.ParentTenantUUID})
+	}
+	if !f.IncludeDeleted {
+		conds = append(conds, bson.M{"deletedAt": nil})
+	}
+	tenantMatch := bson.M{"$and": conds}
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: tenantMatch}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         CollMemberships,
+			"localField":   "uuid",
+			"foreignField": "tenantId",
+			"as":           "members",
+		}}},
+		{{Key: "$addFields", Value: bson.M{
+			"memberCount":    bson.M{"$size": "$members"},
+			"matchedMembers": bson.A{},
+		}}},
+		{{Key: "$project", Value: bson.M{"members": 0}}},
+		{{Key: "$sort", Value: bson.D{{Key: "createdAt", Value: -1}}}},
+	}
+	cur, err := r.db.Collection(CollTenants).Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []TenantSearchResult
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// userCollectionForKind picks the tier-appropriate user collection for the
+// member-side join in SearchTenantsByQ. Kept as a tiny helper so future
+// changes (e.g. a unified user collection) only need to update one site.
+func userCollectionForKind(kind models.TenantKind) string {
+	switch kind {
+	case models.TenantKindInternal:
+		return "operator_users"
+	case models.TenantKindExternal:
+		return "client_users"
+	default:
+		return ""
+	}
 }
 
 // UpdateTenantStatus transitions a tenant to a new lifecycle state.

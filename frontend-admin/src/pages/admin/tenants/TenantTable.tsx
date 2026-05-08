@@ -18,6 +18,16 @@ interface Props {
   error: boolean;
   includeDeleted: boolean;
   onIncludeDeletedChange: (value: boolean) => void;
+  /** Lifted to the parent so its debounced value can drive the API query. */
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
+  /** Toggle for "include soft-deleted users in member-side hits". Only
+   * meaningful and only displayed when a search is active. */
+  includeDeletedUsers: boolean;
+  onIncludeDeletedUsersChange: (value: boolean) => void;
+  /** True when the debounced search term is non-empty — server is filtering
+   * results and matchedMembers chips become relevant. */
+  searchActive: boolean;
   onRowClick: (org: AdminOrgListItem) => void;
   onCreateClick: () => void;
   onDeleteClick: (org: AdminOrgListItem) => void;
@@ -33,28 +43,28 @@ const TenantTable: React.FC<Props> = ({
   error,
   includeDeleted,
   onIncludeDeletedChange,
+  searchTerm,
+  onSearchChange,
+  includeDeletedUsers,
+  onIncludeDeletedUsersChange,
+  searchActive,
   onRowClick,
   onCreateClick,
   onDeleteClick,
   title,
   createLabel,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('');
 
+  // Plan filter stays client-side — the server-side `q` already narrows the
+  // tenant list to text/member matches, and the plan dropdown is a small
+  // additional chip filter on top of that.
   const filtered = useMemo(() => {
     return orgs.filter((o) => {
-      if (
-        searchTerm &&
-        !o.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !o.slug.toLowerCase().includes(searchTerm.toLowerCase())
-      ) {
-        return false;
-      }
       if (planFilter && o.plan !== planFilter) return false;
       return true;
     });
-  }, [orgs, searchTerm, planFilter]);
+  }, [orgs, planFilter]);
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return '\u2014';
@@ -82,7 +92,10 @@ const TenantTable: React.FC<Props> = ({
       <Card.Header className="border-bottom border-200 px-4 py-3">
         <TenantTableHeader
           searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={onSearchChange}
+          searchActive={searchActive}
+          includeDeletedUsers={includeDeletedUsers}
+          onIncludeDeletedUsersChange={onIncludeDeletedUsersChange}
           planFilter={planFilter}
           onPlanChange={setPlanFilter}
           includeDeleted={includeDeleted}
@@ -129,7 +142,30 @@ const TenantTable: React.FC<Props> = ({
                     }}
                     onClick={() => onRowClick(org)}
                   >
-                    <td className="ps-3 fw-semibold">{org.name}</td>
+                    <td className="ps-3 fw-semibold">
+                      <div>{org.name}</div>
+                      {searchActive && org.matchedMembers && org.matchedMembers.length > 0 && (
+                        <div className="mt-1 d-flex flex-wrap gap-1">
+                          {org.matchedMembers.map((m) => (
+                            <span
+                              key={m.userUUID}
+                              title={[m.fullName, m.username, m.email]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            >
+                              <SubtleBadge
+                                bg="info"
+                                pill
+                                className="fs-11 fw-normal"
+                              >
+                                <FontAwesomeIcon icon="user" className="me-1" />
+                                {m.email || m.fullName || m.username}
+                              </SubtleBadge>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="text-muted">
                       <code className="fs-11">{org.slug}</code>
                     </td>

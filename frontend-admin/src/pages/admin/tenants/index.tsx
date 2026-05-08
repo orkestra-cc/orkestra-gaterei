@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, Col, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -116,16 +116,36 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [includeDeletedUsers, setIncludeDeletedUsers] = useState(false);
+
+  // Debounce the search input so each keystroke doesn't fire a backend
+  // round-trip. 300ms tracks the typical typing cadence for "I'm searching
+  // for someone, the result will appear shortly" feel without making the
+  // result feel laggy after the last keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchTerm]);
+
   const queryArg = {
     includeDeleted: includeDeleted || undefined,
     kind,
     rootsOnly: rootsOnly || undefined,
+    q: debouncedSearch || undefined,
+    includeDeletedUsers:
+      debouncedSearch && includeDeletedUsers ? true : undefined,
   };
   // Pass undefined when every filter is false so the RTK Query cache key
   // matches the pre-split "no arg" variant and existing consumers keep
   // their subscriptions.
   const hasFilter = Boolean(
-    queryArg.includeDeleted || queryArg.kind || queryArg.rootsOnly,
+    queryArg.includeDeleted ||
+      queryArg.kind ||
+      queryArg.rootsOnly ||
+      queryArg.q ||
+      queryArg.includeDeletedUsers,
   );
   const { data, isLoading, error } = useListAllOrgsAdminQuery(
     hasFilter ? queryArg : undefined,
@@ -270,6 +290,11 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
         error={!!error}
         includeDeleted={includeDeleted}
         onIncludeDeletedChange={setIncludeDeleted}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        includeDeletedUsers={includeDeletedUsers}
+        onIncludeDeletedUsersChange={setIncludeDeletedUsers}
+        searchActive={debouncedSearch !== ''}
         onRowClick={handleRowClick}
         onCreateClick={() => setShowCreate(true)}
         onDeleteClick={handleDelete}

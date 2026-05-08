@@ -4,6 +4,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 interface Props {
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  /** True when the parent's debounced search is non-empty — exposes the
+   * "include deleted users" toggle so it doesn't visually clutter the
+   * toolbar when no search is in flight. */
+  searchActive: boolean;
+  includeDeletedUsers: boolean;
+  onIncludeDeletedUsersChange: (value: boolean) => void;
   planFilter: string;
   onPlanChange: (value: string) => void;
   includeDeleted: boolean;
@@ -20,6 +26,9 @@ interface Props {
 const TenantTableHeader: React.FC<Props> = ({
   searchTerm,
   onSearchChange,
+  searchActive,
+  includeDeletedUsers,
+  onIncludeDeletedUsersChange,
   planFilter,
   onPlanChange,
   onCreateClick,
@@ -35,10 +44,20 @@ const TenantTableHeader: React.FC<Props> = ({
         <Form.Control
           type="search"
           size="sm"
-          placeholder="Search by name or slug..."
+          placeholder="Search by name, slug, member email, or surname..."
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
         />
+        {searchActive && (
+          <Form.Check
+            type="switch"
+            id="tenant-search-include-deleted-users"
+            label="Include soft-deleted users in member matches"
+            checked={includeDeletedUsers}
+            onChange={(e) => onIncludeDeletedUsersChange(e.target.checked)}
+            className="fs-11 text-muted mt-1"
+          />
+        )}
       </Col>
       <Col xs="auto">
         <Form.Select

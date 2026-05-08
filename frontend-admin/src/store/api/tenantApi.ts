@@ -150,6 +150,15 @@ export interface AdminOrgListQuery {
   parentTenantUUID?: string;
   /** Shorthand: exclude every tenant that has a parent (root-level only). */
   rootsOnly?: boolean;
+  /**
+   * Search term — matches tenant name, slug, and (when kind is set) member
+   * email/fullName/username (case-insensitive substring). Empty disables
+   * the server-side search and the response includes every tenant the
+   * other filters allow.
+   */
+  q?: string;
+  /** Include soft-deleted users in member-side search hits. */
+  includeDeletedUsers?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -220,6 +229,18 @@ export interface UpdateOrgAdminInput {
 export interface AdminOrgListItem extends Org {
   memberCount: number;
   deletedAt?: string | null;
+  /**
+   * Member-side hits when the request used the `q` search param. Empty
+   * for non-search requests. Bounded server-side (max 5).
+   */
+  matchedMembers?: AdminMatchedMember[];
+}
+
+export interface AdminMatchedMember {
+  userUUID: string;
+  email: string;
+  fullName?: string;
+  username?: string;
 }
 
 export interface MembershipRecord {
@@ -364,6 +385,8 @@ export const tenantApi = baseApi.injectEndpoints({
         if (arg?.kind) params.kind = arg.kind;
         if (arg?.rootsOnly) params.rootsOnly = true;
         if (arg?.parentTenantUUID) params.parentTenantUUID = arg.parentTenantUUID;
+        if (arg?.q) params.q = arg.q;
+        if (arg?.includeDeletedUsers) params.includeDeletedUsers = true;
         return {
           url: '/v1/admin/tenants',
           method: 'GET',

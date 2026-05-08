@@ -461,9 +461,20 @@ func (h *Handler) acceptInvite(ctx context.Context, in *acceptInviteInput) (*ten
 
 // --- Platform admin routes ---
 
+type adminMatchedMember struct {
+	UserUUID string `json:"userUUID"`
+	Email    string `json:"email"`
+	FullName string `json:"fullName,omitempty"`
+	Username string `json:"username,omitempty"`
+}
+
 type adminTenantListItem struct {
 	models.Tenant
 	MemberCount int `json:"memberCount"`
+	// MatchedMembers carries the member-side hits when the request used the
+	// `q` query param. Empty otherwise. Bounded by
+	// repository.MaxMatchedMembersPerTenant.
+	MatchedMembers []adminMatchedMember `json:"matchedMembers,omitempty"`
 }
 
 type adminTenantListInput struct {
@@ -476,6 +487,14 @@ type adminTenantListInput struct {
 	// RootsOnly restricts to tenants that have no parent (used by the Clients
 	// root list to exclude divisions).
 	RootsOnly bool `query:"rootsOnly"`
+	// Q narrows results to tenants whose name/slug match (case-insensitive
+	// substring) OR who have at least one member whose email / fullName /
+	// username matches. Used by the search box on /admin/clients and
+	// /admin/internal/tenants. Empty disables the search path.
+	Q string `query:"q"`
+	// IncludeDeletedUsers controls whether soft-deleted users count as
+	// matches in Q's member-side join. Only meaningful when Q is set.
+	IncludeDeletedUsers bool `query:"includeDeletedUsers"`
 }
 
 type adminTenantListOutput struct {
@@ -727,7 +746,12 @@ func (h *Handler) setTenantItalianBillableAdmin(ctx context.Context, in *setItal
 }
 
 func (h *Handler) listAllTenantsAdmin(ctx context.Context, in *adminTenantListInput) (*adminTenantListOutput, error) {
-	filter := repository.TenantListFilter{IncludeDeleted: in.IncludeDeleted, RootsOnly: in.RootsOnly}
+	filter := repository.TenantListFilter{
+		IncludeDeleted:      in.IncludeDeleted,
+		RootsOnly:           in.RootsOnly,
+		Q:                   strings.TrimSpace(in.Q),
+		IncludeDeletedUsers: in.IncludeDeletedUsers,
+	}
 	if in.Kind != "" {
 		kind := models.TenantKind(in.Kind)
 		if !kind.Valid() {
@@ -746,7 +770,19 @@ func (h *Handler) listAllTenantsAdmin(ctx context.Context, in *adminTenantListIn
 	out := &adminTenantListOutput{}
 	out.Body.Tenants = make([]adminTenantListItem, 0, len(views))
 	for _, v := range views {
-		out.Body.Tenants = append(out.Body.Tenants, adminTenantListItem{Tenant: *v.Tenant, MemberCount: v.MemberCount})
+		item := adminTenantListItem{Tenant: *v.Tenant, MemberCount: v.MemberCount}
+		if len(v.MatchedMembers) > 0 {
+			item.MatchedMembers = make([]adminMatchedMember, len(v.MatchedMembers))
+			for i, m := range v.MatchedMembers {
+				item.MatchedMembers[i] = adminMatchedMember{
+					UserUUID: m.UserUUID,
+					Email:    m.Email,
+					FullName: m.FullName,
+					Username: m.Username,
+				}
+			}
+		}
+		out.Body.Tenants = append(out.Body.Tenants, item)
 	}
 	return out, nil
 }
