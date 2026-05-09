@@ -17,7 +17,20 @@ ProvidedServices, RequiredServices, OptionalServices
 Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 ```
 
-**Registration** (`cmd/server/catalog.go`): core modules (user → notification → auth → navigation) are always loaded. All optional modules are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
+**Registration** (`cmd/server/catalog.go` + `catalog_<addon>.go`): core modules (user → notification → auth → navigation) are always loaded — they live in `catalog.go`. Each optional addon lives in its own `cmd/server/catalog_<addon>.go` file, gated by `//go:build !no_addons || addon_<name>`, and registers itself into `optionalModules` via `init()`. The default build (no tags) compiles every addon — same behavior as before. Pass `-tags "no_addons"` for a core-only "starter" binary, or `-tags "no_addons addon_billing addon_documents"` for a curated subset. All optional modules that are compiled in are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
+
+**Profile builds** (Makefile + Dockerfile `BUILD_TAGS` arg): the canonical addon SKUs are defined in `backend/Makefile`. Build-tag sets are closed under module dependencies (see the `Dependencies()` declarations) — picking a profile that omits a transitive dependency fails loudly at boot via the registry's topo sort, not silently at request time.
+
+| Profile      | `make` target          | Tag set                                                                                  |
+| ------------ | ---------------------- | ---------------------------------------------------------------------------------------- |
+| starter      | `make build-starter`   | `no_addons`                                                                              |
+| minimal      | `make build-minimal`   | `no_addons addon_dev`                                                                    |
+| billing      | `make build-billing`   | `no_addons addon_billing addon_documents addon_company addon_dev`                        |
+| ai           | `make build-ai`        | `no_addons addon_graph addon_aimodels addon_rag addon_agents addon_sales addon_dev`      |
+| saas         | `make build-saas`      | `no_addons addon_subscriptions addon_payments addon_compliance addon_identity addon_dev` |
+| enterprise   | `make build`           | (no tags — every addon)                                                                  |
+
+Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). `Dockerfile.minimal` defaults to `BUILD_TAGS="no_addons addon_dev"` so `docker-compose.minimal.yml` ships a true minimal binary. CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge.
 
 **Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
 
@@ -81,7 +94,7 @@ Each module follows: `module.go` → `handlers/` → `services/` → `repository
 ## Adding a New Module
 
 1. Create `internal/addons/yourmodule/module.go` implementing the `Module` interface
-2. Add to `optionalModules` in `cmd/server/catalog.go` (the registry auto-sorts by `Dependencies()`)
+2. Create `cmd/server/catalog_yourmodule.go` with build tag `//go:build !no_addons || addon_yourmodule`, a single `init()` that registers `optionalModules["yourmodule"] = func() module.Module { return yourmodule.NewModule() }` (the registry auto-sorts by `Dependencies()`)
 3. Declare `Collections()` for auto-created MongoDB collections + indexes
 4. Declare `NavItems()` for sidebar entries (group, icon, path, minRole)
 5. Declare `ConfigSchema()` for admin-configurable fields

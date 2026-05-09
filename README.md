@@ -4,7 +4,7 @@ Professional business and service management platform — electronic invoicing (
 
 ## Architecture at a glance
 
-- **Backend** — Go 1.25, Huma v2 (OpenAPI-first), self-contained modules with lifecycle (`Init`, `RegisterRoutes`, `Start`, `Stop`, `HealthCheck`). Three core modules (auth, user, navigation) always load; every other feature is an opt-in addon registered in `backend/cmd/server/catalog.go`.
+- **Backend** — Go 1.25, Huma v2 (OpenAPI-first), self-contained modules with lifecycle (`Init`, `RegisterRoutes`, `Start`, `Stop`, `HealthCheck`). Core modules (auth, user, navigation, …) always load; every other feature is an opt-in addon registered through a per-addon `backend/cmd/server/catalog_<name>.go` file behind a `//go:build !no_addons || addon_<name>` tag. The default build pulls all addons; profile builds (`make build-starter|minimal|billing|ai|saas|enterprise`) ship curated subsets — see [backend/CLAUDE.md](backend/CLAUDE.md).
 - **Frontend** — React 19 + Vite 7 + TypeScript 5.9 strict. Navigation is fetched dynamically from the backend, so the UI reflects whatever modules are enabled.
 - **Mobile** — Flutter 3.35 + Riverpod (early-stage).
 - **Data** — MongoDB 8 + Redis 8. Optional Memgraph knowledge graph.
@@ -93,7 +93,7 @@ Run `./orkestra.sh --help` for the full command surface.
 ### Backend
 
 1. Create `backend/internal/addons/<name>/module.go` implementing the `Module` interface
-2. Register it in `backend/cmd/server/catalog.go` under `optionalModules`
+2. Create `backend/cmd/server/catalog_<name>.go` with `//go:build !no_addons || addon_<name>` and an `init()` that registers the factory in `optionalModules`
 3. Declare `Collections()`, `NavItems()`, `ConfigSchema()`, `Dependencies()`
 4. Use `shared/iface` interfaces for cross-module dependencies — never import another module's `services/` or `repository/` package directly
 
