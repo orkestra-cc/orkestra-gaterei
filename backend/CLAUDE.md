@@ -1,6 +1,6 @@
 # Backend — Go Modular Server
 
-Single Go binary. 4 core modules (always loaded) + 12 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
+Single Go binary. 6 core modules (always loaded) + 13 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
 
 ## Stack
 
@@ -17,7 +17,7 @@ ProvidedServices, RequiredServices, OptionalServices
 Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 ```
 
-**Registration** (`cmd/server/catalog.go` + `catalog_<addon>.go`): core modules (user → notification → auth → navigation) are always loaded — they live in `catalog.go`. Each optional addon lives in its own `cmd/server/catalog_<addon>.go` file, gated by `//go:build !no_addons || addon_<name>`, and registers itself into `optionalModules` via `init()`. The default build (no tags) compiles every addon — same behavior as before. Pass `-tags "no_addons"` for a core-only "starter" binary, or `-tags "no_addons addon_billing addon_documents"` for a curated subset. All optional modules that are compiled in are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
+**Registration** (`cmd/server/catalog.go` + `catalog_<addon>.go`): core modules (user → notification → tenant → authz → auth → navigation) are always loaded — they live in `catalog.go`. Each optional addon lives in its own `cmd/server/catalog_<addon>.go` file, gated by `//go:build !no_addons || addon_<name>`, and registers itself into `optionalModules` via `init()`. The default build (no tags) compiles every addon — same behavior as before. Pass `-tags "no_addons"` for a core-only "starter" binary, or `-tags "no_addons addon_billing addon_documents"` for a curated subset. All optional modules that are compiled in are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
 
 **Profile builds** (Makefile + Dockerfile `BUILD_TAGS` arg): the canonical addon SKUs are defined in `backend/Makefile`. Build-tag sets are closed under module dependencies (see the `Dependencies()` declarations) — picking a profile that omits a transitive dependency fails loudly at boot via the registry's topo sort, not silently at request time.
 
@@ -51,9 +51,11 @@ backend/
 │   └── ai-service/                 # AI sidecar binary (optional)
 │       └── main.go
 ├── internal/
-│   ├── core/                       # Always loaded (init order: user → notification → auth → navigation)
+│   ├── core/                       # Always loaded (init order: user → notification → tenant → authz → auth → navigation)
 │   │   ├── user/                   # User CRUD, roles, documents
 │   │   ├── notification/           # Email delivery, templates, preferences, unsubscribe
+│   │   ├── tenant/                 # Orgs + memberships (two-tier tenancy)
+│   │   ├── authz/                  # Permissions, roles, Cedar policy engine
 │   │   ├── auth/                   # Email/password + OAuth 2.1, JWT, sessions, RBAC
 │   │   └── navigation/             # Dynamic menu from module NavItems
 │   ├── addons/                     # Optional — toggled at /admin/modules
@@ -67,6 +69,8 @@ backend/
 │   │   ├── sales/                  # AI prospect analysis
 │   │   ├── subscriptions/          # Recurring services catalog, clients, subscriptions
 │   │   ├── payments/               # Stripe gateway, refunds, webhooks
+│   │   ├── compliance/             # Platform audit log + (future) DSR / SOC2 evidence
+│   │   ├── identity/               # Per-tenant BYO OIDC + SCIM 2.0 stubs
 │   │   └── dev/                    # Dev token generator
 │   ├── shared/                     # Infrastructure — used by core and addons
 │   │   ├── module/                 # Module interface, registry, config service
