@@ -16,7 +16,6 @@ import (
 	"time"
 
 	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
-	docModels "github.com/orkestra/backend/internal/addons/documents/models"
 	ragModels "github.com/orkestra/backend/internal/addons/rag/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
@@ -140,7 +139,7 @@ type AdminAuthInviter interface {
 // ---------------------------------------------------------------------------
 
 type PDFProvider interface {
-	GenerateInvoicePDF(ctx context.Context, invoiceData map[string]interface{}, templateUUID string, generatedBy string) (*docModels.GeneratedDocument, error)
+	GenerateInvoicePDF(ctx context.Context, invoiceData map[string]interface{}, templateUUID string, generatedBy string) (*GeneratedDocument, error)
 	GetDocumentContent(ctx context.Context, uuid string) ([]byte, string, error)
 }
 
