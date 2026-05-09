@@ -30,7 +30,7 @@ Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 | saas         | `make build-saas`      | `no_addons addon_subscriptions addon_payments addon_compliance addon_identity addon_dev` |
 | enterprise   | `make build`           | (no tags — every addon)                                                                  |
 
-Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). `Dockerfile.minimal` defaults to `BUILD_TAGS="no_addons addon_dev"` so `docker-compose.minimal.yml` ships a true minimal binary. CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge.
+Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). `Dockerfile.minimal` defaults to `BUILD_TAGS="no_addons addon_dev"` so `docker-compose.minimal.yml` ships a true minimal binary. CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge. On push to `dev`/`main`, the same matrix publishes one image per profile to GHCR: `ghcr.io/<repo>/backend:<profile>` (rolling) and `:<profile>-<sha>` (pinned). `:latest` stays as an alias for `:enterprise` for backward compatibility.
 
 **Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
 
