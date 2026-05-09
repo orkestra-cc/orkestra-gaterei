@@ -106,7 +106,7 @@ Each module follows: `module.go` → `handlers/` → `services/` → `repository
 7. Use `shared/iface` interfaces for cross-module deps — add new interfaces there if needed
 8. Use `deps.Services.Register(key, impl)` to expose services to other modules
 
-Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed). For first boot of a fresh install, the module's `ConfigSchema().EnvVar` fields seed the initial `module_configs` document from the host environment — see [docker/CLAUDE.md](../docker/CLAUDE.md) for the env-var-vs-admin-UI split.
+Users enable the module via the admin UI at `/admin/modules` (takes effect immediately, no restart needed). For first boot of a fresh install, the module's `ConfigSchema().EnvVar` fields seed the initial `module_configs` document from the host environment — see [docker/CLAUDE.md](../docker/CLAUDE.md) for the env-var-vs-admin-UI split. On first boot only, setting `ORKESTRA_PROFILE` (resolved by `shared/module/config_service.go::computeProfileOverride`) pre-enables the SKU's addons in the seeded document; the dev addon is excluded so it keeps its `!IsProduction()` gate.
 
 ## API Endpoints
 

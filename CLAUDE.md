@@ -69,7 +69,7 @@ Two layers decide what runs:
 
 **Enabling/disabling at runtime:** The admin API (`PATCH /v1/admin/modules/{name}`) calls `StartModule()`/`StopModule()` on the registry. The module starts or stops immediately — no restart required. Dependency constraints are enforced: you cannot disable a module that another running module depends on (returns 409).
 
-**Which modules start at boot** is determined by the `module_configs` collection in MongoDB (set via admin UI). On first boot of a brand-new install the document is seeded from each module's `ConfigSchema().EnvVar` — see `docker/CLAUDE.md` for the per-bucket split.
+**Which modules start at boot** is determined by the `module_configs` collection in MongoDB (set via admin UI). On first boot of a brand-new install the document is seeded from each module's `ConfigSchema().EnvVar`; if `ORKESTRA_PROFILE` is set (typically by `docker-compose.<profile>.yml`), the seeder additionally pre-enables the SKU's addons (`billing` → billing/documents/company, `ai` → graph/aimodels/rag/agents/sales, `saas` → subscriptions/payments/compliance/identity, `enterprise` → every non-core, non-dev addon). Subsequent boots ignore `ORKESTRA_PROFILE` — admin-set values are authoritative. See `docker/CLAUDE.md` for the per-bucket split.
 
 The registry topologically sorts modules by `Dependencies()` so initialization order is always correct.
 
