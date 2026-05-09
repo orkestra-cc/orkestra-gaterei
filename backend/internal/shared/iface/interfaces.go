@@ -17,7 +17,6 @@ import (
 
 	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
 	docModels "github.com/orkestra/backend/internal/addons/documents/models"
-	graphModels "github.com/orkestra/backend/internal/addons/graph/models"
 	ragModels "github.com/orkestra/backend/internal/addons/rag/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
@@ -151,8 +150,8 @@ type PDFProvider interface {
 // ---------------------------------------------------------------------------
 
 type GraphProvider interface {
-	ExecuteRead(ctx context.Context, database string, cypher string, params map[string]interface{}) (*graphModels.QueryResult, error)
-	ExecuteWrite(ctx context.Context, database string, cypher string, params map[string]interface{}) (*graphModels.QueryResult, error)
+	ExecuteRead(ctx context.Context, database string, cypher string, params map[string]interface{}) (*QueryResult, error)
+	ExecuteWrite(ctx context.Context, database string, cypher string, params map[string]interface{}) (*QueryResult, error)
 	ExecuteAutoCommit(ctx context.Context, database string, cypher string, params map[string]interface{}) error
 }
 
