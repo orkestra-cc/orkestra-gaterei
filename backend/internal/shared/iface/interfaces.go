@@ -16,7 +16,6 @@ import (
 	"time"
 
 	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
-	ragModels "github.com/orkestra/backend/internal/addons/rag/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
 
@@ -188,7 +187,7 @@ type LLMConfig struct {
 // ---------------------------------------------------------------------------
 
 type RAGQueryProvider interface {
-	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*ragModels.RAGQueryResponse, error)
+	Query(ctx context.Context, question string, topK int, minScore float64, isoStandard, llmOverrideUUID, requirementLevel, nodeType, retrievalMode string, documentUUIDs []string) (*RAGQueryResponse, error)
 }
 
 // ---------------------------------------------------------------------------
