@@ -9,8 +9,9 @@ models/
   ├── model_config.go     ← ModelConfig struct + ProviderCategoryFor()
   └── dto.go              ← Huma request/response DTOs
 providers/
-  ├── interfaces.go       ← EmbeddingProvider + LLMProvider interfaces
-  ├── types.go            ← ModelConfig, CompletionOptions, StreamChunk, RemoteModel
+  ├── interfaces.go       ← Aliases to iface.EmbeddingProvider/LLMProvider/CompletionOptions/StreamChunk + CompletionResult & LLMProviderWithUsage (sales-side extension)
+  ├── types.go            ← ModelConfig, RemoteModel (provider-creation inputs; aimodels-internal)
+  ├── batch.go            ← BatchRequest/BatchResult/BatchStatus + BatchLLMProvider (sales-side batch extension)
   ├── factory.go          ← Provider creation + TestConnectivity + FetchAvailableModels
   ├── ollama.go           ← Ollama REST API implementation
   ├── openai.go           ← OpenAI-compatible (also llama.cpp, vLLM, LocalAI)

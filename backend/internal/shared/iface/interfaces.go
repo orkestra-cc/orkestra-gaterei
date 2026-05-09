@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	aiProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
 
@@ -159,10 +158,10 @@ type GraphProvider interface {
 // ---------------------------------------------------------------------------
 
 type AIModelProvider interface {
-	GetDefaultEmbeddingProvider(ctx context.Context) (aiProviders.EmbeddingProvider, error)
-	GetDefaultLLMProvider(ctx context.Context) (aiProviders.LLMProvider, error)
-	GetLLMProvider(ctx context.Context, uuid string) (aiProviders.LLMProvider, error)
-	GetEmbeddingProvider(ctx context.Context, uuid string) (aiProviders.EmbeddingProvider, error)
+	GetDefaultEmbeddingProvider(ctx context.Context) (EmbeddingProvider, error)
+	GetDefaultLLMProvider(ctx context.Context) (LLMProvider, error)
+	GetLLMProvider(ctx context.Context, uuid string) (LLMProvider, error)
+	GetEmbeddingProvider(ctx context.Context, uuid string) (EmbeddingProvider, error)
 	// GetDefaultLLMConfig returns the raw configuration of the default LLM
 	// model (provider name, model name, API key, base URL). Consumed by
 	// modules that need the underlying credentials, e.g. the agents
