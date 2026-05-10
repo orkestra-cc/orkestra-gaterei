@@ -1,23 +1,17 @@
 
-import { useGetUserByIdQuery } from 'store/api/userApi';
-import { useSelector } from 'react-redux';
-import { selectUser } from 'store/slices/authSlice';
+import { useGetCurrentUserQuery } from 'store/api/authApi';
 import OperatorBanner from './OperatorBanner';
 import OperatorProfileIntro from './OperatorProfileIntro';
 import { Col, Row, Alert, Spinner } from 'react-bootstrap';
+import type { User } from 'store/api/userApi';
 
 
 const OperatorProfile: React.FC = () => {
-  const currentUser = useSelector(selectUser);
-  const userId = currentUser?.id;
-
   const {
-    data: user,
+    data: backendUser,
     isLoading,
     error
-  } = useGetUserByIdQuery(userId!, {
-    skip: !userId
-  });
+  } = useGetCurrentUserQuery();
 
   if (isLoading) {
     return (
@@ -37,13 +31,28 @@ const OperatorProfile: React.FC = () => {
     );
   }
 
-  if (!user) {
+  if (!backendUser) {
     return (
       <Alert variant="warning">
         User not found.
       </Alert>
     );
   }
+
+  const user: User = {
+    id: backendUser.id,
+    email: backendUser.email,
+    username: backendUser.username,
+    fullName: backendUser.fullName,
+    avatar: backendUser.avatar,
+    role: backendUser.role,
+    providers: backendUser.oauthProviders ?? [],
+    isActive: backendUser.isActive,
+    emailVerified: backendUser.emailVerified,
+    lastLogin: backendUser.lastLogin,
+    createdAt: backendUser.createdAt,
+    updatedAt: backendUser.updatedAt,
+  };
 
   return (
     <>

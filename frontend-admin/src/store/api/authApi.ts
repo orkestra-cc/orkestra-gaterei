@@ -220,9 +220,9 @@ export const authApi = baseApi.injectEndpoints({
           return { error: result.error };
         }
 
-        // For successful responses, extract user data from body wrapper
-        const responseWrapper = result.data as { body: BackendUser };
-        const userData = responseWrapper?.body;
+        // Huma serializes the Body field's value as the response body
+        // directly — there is no outer { body: ... } wrapper.
+        const userData = result.data as BackendUser | undefined;
         return { data: userData?.isActive ? userData : null };
       },
       // Check auth status frequently
