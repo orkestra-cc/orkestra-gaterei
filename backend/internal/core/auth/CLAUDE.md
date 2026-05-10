@@ -18,7 +18,8 @@ Does not own user profile data (delegates to `iface.UserProvider`), org membersh
 | `module.go` | Module wiring — repos, providers, JWT, OAuth factory, password service, handlers |
 | `handlers/auth_handler.go` | OAuth initiate/callback endpoints, mobile ID-token routes, logout, refresh |
 | `handlers/password_handler.go` | Register, login, verify email, forgot/reset/change password |
-| `services/auth_service.go` | OAuth orchestration, provider linking, token pair issuance |
+| `handlers/admin_user_auth_handler.go` | Operator-side admin endpoints under `/v1/admin/users/{id}/...` — auth-methods aggregator, send-password-reset, resend-verification, oauth unlink. Inline error mapping translates the typed service errors to 404 / 409 with body codes |
+| `services/auth_service.go` | OAuth orchestration, provider linking, token pair issuance, admin auth-methods aggregator (`GetUserAuthMethods`), admin OAuth unlink (`AdminUnlinkOAuth`) with self-action + last-credential safeguards |
 | `services/password_auth_service.go` | Password register/login/verify/reset/change, rate-limited |
 | `services/password_service.go` | Argon2id hashing + policy validation |
 | `services/jwt_service.go` | RS256 JWT signing, validation, membership embedding |
@@ -56,7 +57,7 @@ Only email tokens and device-trust grants currently have a TTL — refresh token
 - **Required services** (`module.go:32-34`): `ServiceUserService`, `ServiceTenantProvider`. Panics if missing — both are core.
 - **Optional services** (`module.go:35-37`): `ServiceNotificationSender`. Graceful degradation: signup and password-reset mail endpoints still mount, but when `RequireEmailVerification=true` signup returns 503 unless the notifier is configured.
 - **Provides** (`module.go:38-45`): `ServiceAuthService`, `ServiceJWTService`, `ServicePasswordService`, `ServicePasswordAuthService`.
-- **Permissions contributed**: `auth.self` (edit your own password/sessions), `auth.mfa.self` (manage your own MFA factors), `system.users.mfa_reset` (admin reset of another user's MFA — declared now, wired into an admin endpoint in Block B).
+- **Permissions contributed**: `auth.self` (edit your own password/sessions), `auth.mfa.self` (manage your own MFA factors), `system.users.mfa_reset` (admin reset of another user's MFA), `system.users.password_reset` (admin: send a password-reset email to another user), `system.users.email_verify_resend` (admin: resend the email-verification message), `system.users.oauth_unlink` (admin: unlink an OAuth identity from another user). The four `system.users.*` keys back the operator-side admin user-auth surface (`/v1/admin/users/{userId}/...`); each gates exactly one route so the audit trail and any future RBAC tweaks stay per-action.
 
 ## Lifecycle
 
@@ -224,6 +225,10 @@ The OAuth provider callbacks (`/v1/auth/oauth/{google,apple,discord,github}/call
 | DELETE | `/v1/auth/{tier}/me/mfa/webauthn/credentials/{credentialId}` | `RequireGlobal()` + `RequireStepUp(5m)` | Remove one passkey by base64url-encoded credential id |
 | POST | `/v1/auth/{tier}/mfa/webauthn/verify/begin` | `RequireGlobal()` | Begin a step-up assertion using a passkey |
 | POST | `/v1/auth/{tier}/mfa/webauthn/verify/finish` | `RequireGlobal()` | Finish a step-up assertion; mints a stepped-up access token with `amr:[..., "otp", "webauthn"]` + `last_otp_at=now` |
+| GET | `/v1/admin/users/{userId}/auth-methods` | `RequireSystemPermission("system.users.admin")` | Admin: aggregate password / MFA / OAuth state of an operator user. Drives the Authentication Methods card on `/admin/user/profile/:userId`. Read-only |
+| POST | `/v1/admin/users/{userId}/send-password-reset` | `RequireSystemPermission("system.users.password_reset")` | Admin: trigger the standard password-reset email for an operator user. Operator-side companion of the existing client-user route |
+| POST | `/v1/admin/users/{userId}/resend-verification` | `RequireSystemPermission("system.users.email_verify_resend")` | Admin: re-emit the email-verification message. Idempotent — already-verified users return 200 with no action |
+| DELETE | `/v1/admin/users/{userId}/oauth/{provider}` | `RequireSystemPermission("system.users.oauth_unlink")` + `RequireStepUp(5m)` | Admin: unlink a Google/Apple/GitHub/Discord identity. Service-layer safeguards reject self-action (409 `self_action`) and last-credential lockout — no password + sole OAuth link returns 409 `last_credential` |
 
 And a public endpoint that completes a login after a partial response:
 
@@ -249,6 +254,17 @@ And a public endpoint that completes a login after a partial response:
 - **Session revocation list** — Redis-backed set at `auth:revoked:session:<sid>` checked on every authenticated request by both `AuthMiddleware` (monolith) and `JWTValidator` (sidecar). Populated on logout + change-password; payload is the reason string for operator debugging. Entries auto-expire after the access-token TTL + 1min buffer. Fails open on Redis errors — a degraded Redis must not lock every user out. Logout invalidates the current sid only; `allDevices=true` still relies on refresh-token revocation (per-user-generation counter is a follow-up).
 - **Grace countdown on `/v1/auth/me/mfa`** — response now carries `requiresMfa` + `graceExpiresAt` computed from the user record + JWT memberships, so the frontend banner/countdown can render without relying on the one-shot login response.
 - **WebAuthn / passkeys** — second-factor enrollment under `services/webauthn_service.go` + `handlers/webauthn_handler.go`. Library: `github.com/go-webauthn/webauthn`. Configuration: `WEBAUTHN_RP_ID` (eTLD+1 host, no scheme/port) + `WEBAUTHN_RP_ORIGINS` (comma-separated full URLs). Both env vars are optional — if either is missing the module derives them from `FRONTEND_URL` (eg. `http://localhost:8080` → `rpId=localhost`, `origins=[http://localhost:8080]`); if neither resolves, WebAuthn is disabled and the endpoints don't mount. Credentials live as an embedded `webauthnCredentials[]` array on the same `*_mfa_factors` row (one row per user with `type=webauthn`); the (userUuid,type) unique index naturally allows a user to enroll both TOTP and passkeys. Login/step-up via passkey sets `amr=[..., "otp", "webauthn"]` so existing step-up middleware accepts the proof. The partial login response carries `webauthnAvailable: bool` so the verify page can offer the passkey button alongside the code field.
+
+### Admin user-auth surface
+
+`handlers/admin_user_auth_handler.go` hosts four operator-tier admin endpoints under `/v1/admin/users/{userId}/...` that power the **Authentication Methods** card on `/admin/user/profile/:userId`. Each route is in its own router group with its own permission gate; only the unlink route adds `RequireStepUp(5m)`.
+
+- `GET .../auth-methods` — aggregates `User.PasswordHash` presence + `PasswordUpdatedAt`, MFA factor rows from `operator_mfa_factors`, OAuth identities from `User.OAuthLinks`, and email-verification + last-login state into one `models.AuthMethodsView`. Backed by `AuthService.GetUserAuthMethods`. Read-only — gated by `system.users.admin` rather than a new permission since reading is incidental to user administration.
+- `POST .../send-password-reset` — proxies to `iface.AdminAuthInviter.AdminTriggerPasswordReset` on the operator-tier `*PasswordAuthService`. No step-up — the action emits a notification, it does not read or mutate a credential.
+- `POST .../resend-verification` — same pattern via `AdminResendVerification`. Idempotent (200 with no action when already verified).
+- `DELETE .../oauth/{provider}` — backed by `AuthService.AdminUnlinkOAuth`. Service-layer safeguards: rejects `actorUUID == targetUUID` (`ErrAdminSelfAction` → 409 `self_action`) and rejects the operation when it would leave the user with no usable login method, i.e. `PasswordHash == "" && len(activeOAuthLinks) == 1` (`ErrLastCredentialRemoval` → 409 `last_credential`). Step-up gated because the action removes a credential.
+
+Each successful action emits `slog.Info("admin_auth_action", event=…, actorUUID=…, targetUUID=…)` so the operator log stream carries an audit record. The `event` is one of `admin_oauth_unlink`, `admin_password_reset_sent`, `admin_verification_resent`. **Persistent audit rows in `auth_security_events` are a follow-up** — `services.AuthService.RecordSecurityEvent` is currently a no-op; back-filling real persistence so the four admin paths land rows in the collection is tracked separately and is the right place to plumb actor/target/IP/UA at write time.
 
 ## Service contract
 

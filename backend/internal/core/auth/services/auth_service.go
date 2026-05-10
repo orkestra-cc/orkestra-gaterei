@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -42,6 +43,18 @@ var (
 	// already authenticated. Translated to 403 oauth_link_disabled at
 	// the handler boundary.
 	ErrOAuthLinkDisabled = errors.New("oauth account linking by email is disabled")
+	// ErrLastCredentialRemoval signals that an admin tried to unlink an
+	// OAuth identity that would leave the target with no usable login
+	// method (no password set AND it was their only OAuth provider).
+	// Translated to 409 last_credential at the handler boundary so the
+	// UI can prompt the operator to send a password-reset first.
+	ErrLastCredentialRemoval = errors.New("cannot remove the user's only remaining credential")
+	// ErrAdminSelfAction signals that an admin tried to invoke an
+	// admin-on-user action against their own account (MFA reset, OAuth
+	// unlink) — actions where lock-out risk is real and the admin
+	// should be using the self-service flow instead. Translated to 409
+	// self_action at the handler boundary.
+	ErrAdminSelfAction = errors.New("admin cannot perform this action on their own account")
 )
 
 // AuthService extends the basic auth service with UUID support and OAuth linking
@@ -57,6 +70,18 @@ type AuthService interface {
 	RemoveOAuthLink(ctx context.Context, userUUID string, input models.UnlinkOAuthProviderInput) error
 	SetPrimaryOAuthLink(ctx context.Context, userUUID string, input models.SetPrimaryOAuthProviderInput) error
 	GetOAuthLinks(ctx context.Context, userUUID string) (*models.OAuthLinksResponse, error)
+	// AdminUnlinkOAuth removes a linked OAuth identity from another
+	// user's account. Enforces two safeguards in addition to the route
+	// gate: rejects self-action (actorUUID == targetUUID) and rejects
+	// removing the user's only remaining credential (no password +
+	// single OAuth link). Both safeguards live here so any caller —
+	// HTTP handler, future CLI, internal job — gets the same checks.
+	AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUID string, provider userModels.OAuthProvider) error
+	// GetUserAuthMethods aggregates the user's auth state across the
+	// user record, MFA factor row(s), and linked OAuth providers into
+	// a single view for the admin profile card. Read-only; no policy
+	// gate beyond the caller's RequireSystemPermission.
+	GetUserAuthMethods(ctx context.Context, targetUUID string) (*models.AuthMethodsView, error)
 
 	// Account consolidation
 	ConsolidateAccountsByEmail(ctx context.Context, email string) (*userModels.User, error)
@@ -293,6 +318,193 @@ func (s *authService) GetOAuthLinks(ctx context.Context, userUUID string) (*mode
 		CanUnlink:   len(authLinks) > 1, // Can only unlink if more than one link exists
 		RequiresMFA: false,              // TODO: Implement MFA logic
 	}, nil
+}
+
+// AdminUnlinkOAuth removes one linked OAuth identity from another
+// user's account. The HTTP handler is gated by
+// RequireSystemPermission("system.users.oauth_unlink") + RequireStepUp,
+// but the lock-out and self-action invariants are enforced here so a
+// future caller (CLI, internal job) cannot bypass them.
+//
+// Safeguards (in this order):
+//  1. actorUUID != targetUUID — admins must not unlink their own
+//     identities through the admin path; the self-service flow exists
+//     for that and carries different audit semantics.
+//  2. Last-credential lockout — refuse when the target has no usable
+//     password AND this is their only OAuth link. The operator should
+//     send a password-reset first, then unlink.
+//
+// The provider-specific subject ID is resolved from the target's
+// User.OAuthLinks rather than from the OAuth provider repo so this
+// path stays free of tier-specific repo plumbing.
+func (s *authService) AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUID string, provider userModels.OAuthProvider) error {
+	if actorUUID == "" || targetUUID == "" {
+		return fmt.Errorf("admin unlink: actorUUID and targetUUID are required")
+	}
+	if actorUUID == targetUUID {
+		return ErrAdminSelfAction
+	}
+
+	target, err := s.userService.GetUserByID(ctx, targetUUID)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return ErrOAuthLinkNotFound
+	}
+
+	links, err := s.userService.GetUserOAuthLinks(ctx, targetUUID)
+	if err != nil {
+		return err
+	}
+
+	var providerID string
+	activeCount := 0
+	for _, link := range links {
+		if link.IsActive {
+			activeCount++
+		}
+		if link.Provider == provider && providerID == "" {
+			providerID = link.ProviderID
+		}
+	}
+	if providerID == "" {
+		return ErrOAuthLinkNotFound
+	}
+	if target.PasswordHash == "" && activeCount <= 1 {
+		return ErrLastCredentialRemoval
+	}
+
+	if err := s.userService.RemoveOAuthLinkFromUser(ctx, targetUUID, provider, providerID); err != nil {
+		return err
+	}
+
+	slog.Info("admin_auth_action",
+		"event", "admin_oauth_unlink",
+		"actorUUID", actorUUID,
+		"targetUUID", targetUUID,
+		"provider", string(provider),
+	)
+	return nil
+}
+
+// GetUserAuthMethods aggregates a single user's authentication state
+// (password, MFA factors, OAuth identities, email verification) into
+// the AuthMethodsView the admin card consumes. Reads from three
+// sources: the user record (PasswordHash, MFAGraceStartedAt,
+// OAuthLinks, EmailVerified, LastLogin), the tier's mfa_factors
+// collection (TOTP + WebAuthn rows for the user), and — implicitly —
+// the policy reader for MFARequired/MFAGraceExpiresAt.
+//
+// MFA factor reads are best-effort: a transient repo error must not
+// blank the password / OAuth half of the response. The caller can
+// retry the whole call to refresh the MFA section if it surfaces as
+// empty when it shouldn't.
+func (s *authService) GetUserAuthMethods(ctx context.Context, targetUUID string) (*models.AuthMethodsView, error) {
+	if targetUUID == "" {
+		return nil, fmt.Errorf("get auth methods: targetUUID is required")
+	}
+	user, err := s.userService.GetUserByID(ctx, targetUUID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrOAuthLinkNotFound
+	}
+
+	view := &models.AuthMethodsView{
+		HasUsablePassword: user.PasswordHash != "",
+		PasswordUpdatedAt: user.PasswordUpdatedAt,
+		EmailVerified:     user.EmailVerified,
+		LastLoginAt:       user.LastLogin,
+		MFAGraceStartedAt: user.MFAGraceStartedAt,
+		MFAFactors:        []models.MFAFactorView{},
+		OAuthProviders:    []models.OAuthProviderView{},
+	}
+
+	// MFARequired starts from the role-only check — covers the system
+	// roles (super_admin / administrator) without needing a tenant
+	// lookup. If the role alone doesn't trigger it and a tenant
+	// provider is wired, fold in the user's tenant memberships so an
+	// org_owner / org_admin in any tenant flips the requirement on.
+	view.MFARequired = RoleRequiresMFA(user, nil)
+	if !view.MFARequired && s.tenantProvider != nil {
+		if mems, mErr := s.tenantProvider.ListUserMemberships(ctx, targetUUID); mErr == nil {
+			view.MFARequired = RoleRequiresMFA(user, ifaceMembershipsToAuth(mems))
+		}
+	}
+	if s.policy != nil {
+		if deadline := s.policy.MFAGraceExpiresAt(ctx, user); !deadline.IsZero() {
+			view.MFAGraceExpiresAt = &deadline
+		}
+	}
+
+	if s.mfaFactorRepo != nil {
+		if totp, err := s.mfaFactorRepo.FindByUserAndType(ctx, targetUUID, models.MFAFactorTOTP); err == nil && totp != nil {
+			view.MFAFactors = append(view.MFAFactors, models.MFAFactorView{
+				Type:                 string(models.MFAFactorTOTP),
+				EnrolledAt:           totp.VerifiedAt,
+				LastUsedAt:           totp.LastUsedAt,
+				BackupCodesRemaining: len(totp.BackupCodesHashed),
+			})
+		}
+		if wa, err := s.mfaFactorRepo.FindByUserAndType(ctx, targetUUID, models.MFAFactorWebAuthn); err == nil && wa != nil && len(wa.WebAuthnCredentials) > 0 {
+			creds := make([]models.WebAuthnCredentialSummary, 0, len(wa.WebAuthnCredentials))
+			for _, c := range wa.WebAuthnCredentials {
+				creds = append(creds, models.WebAuthnCredentialSummary{
+					CredentialID: encodeCredentialID(c.CredentialID),
+					Name:         c.Name,
+					CreatedAt:    c.CreatedAt,
+					LastUsedAt:   c.LastUsedAt,
+				})
+			}
+			view.MFAFactors = append(view.MFAFactors, models.MFAFactorView{
+				Type:        string(models.MFAFactorWebAuthn),
+				EnrolledAt:  wa.VerifiedAt,
+				LastUsedAt:  wa.LastUsedAt,
+				Credentials: creds,
+			})
+		}
+	}
+
+	for _, link := range user.OAuthLinks {
+		if !link.IsActive {
+			continue
+		}
+		view.OAuthProviders = append(view.OAuthProviders, models.OAuthProviderView{
+			Provider:   string(link.Provider),
+			Email:      link.Email,
+			LinkedAt:   link.LinkedAt,
+			LastUsedAt: link.LastUsed,
+			IsPrimary:  link.IsPrimary,
+		})
+	}
+
+	return view, nil
+}
+
+// ifaceMembershipsToAuth converts the iface.TenantMembership slice
+// returned by TenantProvider.ListUserMemberships into the
+// authModels.OrgMembership shape that RoleRequiresMFA consumes. Only
+// the fields the policy reads are copied; everything else is dropped.
+func ifaceMembershipsToAuth(mems []iface.TenantMembership) []models.OrgMembership {
+	out := make([]models.OrgMembership, 0, len(mems))
+	for _, m := range mems {
+		out = append(out, models.OrgMembership{
+			TenantUUID: m.TenantUUID,
+			TenantKind: m.TenantKind,
+			Roles:      m.Roles,
+		})
+	}
+	return out
+}
+
+// encodeCredentialID renders the raw WebAuthn credential ID bytes as
+// the same base64url-no-padding string the W3C JSON wire format uses,
+// so the admin UI can deep-link to "remove this credential" later
+// without reshaping IDs at the boundary.
+func encodeCredentialID(b []byte) string {
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func (s *authService) ConsolidateAccountsByEmail(ctx context.Context, email string) (*userModels.User, error) {

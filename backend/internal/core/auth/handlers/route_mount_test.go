@@ -76,3 +76,53 @@ func TestRouteMountsRegisterDistinctPaths(t *testing.T) {
 		t.Error("admin mfa reset path missing from spec")
 	}
 }
+
+// TestAdminUserAuthHandlerMountsAllRoutes locks in that every Register*
+// method on AdminUserAuthHandler lands its expected path on the spec.
+// The handler is built with nil services because huma reads only
+// metadata at registration time. If a future refactor splits a route
+// or renames a path, this test fails before the mount drift reaches
+// production.
+func TestAdminUserAuthHandlerMountsAllRoutes(t *testing.T) {
+	t.Parallel()
+
+	router := chi.NewRouter()
+	api := humachi.New(router, huma.DefaultConfig("test", "1.0.0"))
+
+	h := &AdminUserAuthHandler{}
+	h.RegisterReadAuthMethodsRoute(api)
+	h.RegisterPasswordResetRoute(api)
+	h.RegisterResendVerificationRoute(api)
+	h.RegisterOAuthUnlinkRoute(api)
+
+	spec := api.OpenAPI()
+	if spec == nil || spec.Paths == nil {
+		t.Fatal("OpenAPI spec missing after registration")
+	}
+
+	want := map[string]string{
+		"/v1/admin/users/{userId}/auth-methods":         "GET",
+		"/v1/admin/users/{userId}/send-password-reset":  "POST",
+		"/v1/admin/users/{userId}/resend-verification":  "POST",
+		"/v1/admin/users/{userId}/oauth/{provider}":     "DELETE",
+	}
+	for path, method := range want {
+		item, ok := spec.Paths[path]
+		if !ok {
+			t.Errorf("expected path %q missing from spec", path)
+			continue
+		}
+		var op *huma.Operation
+		switch method {
+		case "GET":
+			op = item.Get
+		case "POST":
+			op = item.Post
+		case "DELETE":
+			op = item.Delete
+		}
+		if op == nil {
+			t.Errorf("expected %s on %q, got nothing", method, path)
+		}
+	}
+}

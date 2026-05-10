@@ -161,6 +161,48 @@ export interface AdminTriggerResponse {
   message: string;
 }
 
+// --- Admin user auth-methods surface ---
+// One-to-one mirror of authModels.AuthMethodsView from the Go backend.
+// The card on /admin/user/profile/:userId consumes this as its single
+// source of truth for the user's auth state.
+
+export type OAuthProviderName = 'google' | 'apple' | 'github' | 'discord';
+
+export interface AdminAuthWebAuthnCredential {
+  credentialId: string; // base64url, no padding
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface AdminAuthMfaFactor {
+  type: 'totp' | 'webauthn';
+  enrolledAt?: string;
+  lastUsedAt?: string;
+  backupCodesRemaining?: number;
+  credentials?: AdminAuthWebAuthnCredential[];
+}
+
+export interface AdminAuthOAuthProvider {
+  provider: OAuthProviderName;
+  email: string;
+  linkedAt: string;
+  lastUsedAt?: string;
+  isPrimary: boolean;
+}
+
+export interface AdminAuthMethods {
+  hasUsablePassword: boolean;
+  passwordUpdatedAt?: string;
+  emailVerified: boolean;
+  lastLoginAt?: string;
+  mfaRequired: boolean;
+  mfaGraceStartedAt?: string;
+  mfaGraceExpiresAt?: string;
+  mfaFactors: AdminAuthMfaFactor[];
+  oauthProviders: AdminAuthOAuthProvider[];
+}
+
 export interface AdminClientUserListResponse {
   users: AdminClientUserItem[];
   total: number;
@@ -379,6 +421,47 @@ export const userApi = baseApi.injectEndpoints({
         method: 'POST',
       }),
     }),
+
+    // Admin — aggregate auth state of an operator user. Drives the
+    // Authentication Methods card on /admin/user/profile/:userId.
+    getUserAuthMethodsAdmin: builder.query<AdminAuthMethods, string>({
+      query: (id) => `/v1/admin/users/${id}/auth-methods`,
+      providesTags: (_r, _e, id) => [{ type: 'User', id: `auth-methods-${id}` }],
+    }),
+
+    // Admin — trigger a password-reset email for an operator user.
+    sendPasswordResetUserAdmin: builder.mutation<AdminTriggerResponse, string>({
+      query: (id) => ({
+        url: `/v1/admin/users/${id}/send-password-reset`,
+        method: 'POST',
+      }),
+      // No tag invalidation: send-password-reset has no read-side
+      // effect on the user record; the card stays accurate.
+    }),
+
+    // Admin — resend the email-verification message for an operator user.
+    resendVerificationUserAdmin: builder.mutation<AdminTriggerResponse, string>({
+      query: (id) => ({
+        url: `/v1/admin/users/${id}/resend-verification`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_r, _e, id) => [
+        { type: 'User', id },
+        { type: 'User', id: `auth-methods-${id}` },
+      ],
+    }),
+
+    // Admin — unlink an OAuth identity from an operator user.
+    unlinkOAuthUserAdmin: builder.mutation<{ success: boolean }, { id: string; provider: OAuthProviderName }>({
+      query: ({ id, provider }) => ({
+        url: `/v1/admin/users/${id}/oauth/${provider}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_r, _e, { id }) => [
+        { type: 'User', id },
+        { type: 'User', id: `auth-methods-${id}` },
+      ],
+    }),
   }),
 });
 
@@ -401,4 +484,8 @@ export const {
   useResendInviteClientUserAdminMutation,
   useResendVerificationClientUserAdminMutation,
   useSendPasswordResetClientUserAdminMutation,
+  useGetUserAuthMethodsAdminQuery,
+  useSendPasswordResetUserAdminMutation,
+  useResendVerificationUserAdminMutation,
+  useUnlinkOAuthUserAdminMutation,
 } = userApi;

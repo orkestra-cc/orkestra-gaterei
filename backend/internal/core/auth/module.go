@@ -36,10 +36,17 @@ type AuthModule struct {
 	// callback URL — its tierDispatch map routes callbacks to the
 	// matching tier's authService. webauthn handler stays nil when
 	// passkeys are disabled at boot.
-	operatorAuthHandler     *handlers.AuthHandler
-	operatorPasswordHandler *handlers.PasswordAuthHandler
-	operatorMFAHandler      *handlers.MFAHandler
-	operatorWebAuthnHandler *handlers.WebAuthnHandler
+	operatorAuthHandler          *handlers.AuthHandler
+	operatorPasswordHandler      *handlers.PasswordAuthHandler
+	operatorMFAHandler           *handlers.MFAHandler
+	operatorWebAuthnHandler      *handlers.WebAuthnHandler
+	// operatorAdminUserAuthHandler hosts the admin endpoints that
+	// inspect and manage another operator user's auth methods
+	// (password, MFA, OAuth, email verification). Mounted under
+	// /v1/admin/users/{userId}/... on the operator host mux only —
+	// admin actions on Tier-2 client users live on the user module's
+	// AdminClientUserHandler.
+	operatorAdminUserAuthHandler *handlers.AdminUserAuthHandler
 
 	// ADR-0003 PR-D D-5: client-tier handler instances bound to the
 	// client authTierBundle. Same shape as the operator block above but
@@ -81,6 +88,9 @@ func (m *AuthModule) Permissions() []iface.PermissionSpec {
 		{Key: "auth.self", Module: "auth", Description: "Edit your own password and sessions"},
 		{Key: "auth.mfa.self", Module: "auth", Description: "Enroll, verify, and remove your own MFA factors"},
 		{Key: "system.users.mfa_reset", Module: "auth", Description: "Admin: reset another user's MFA factors"},
+		{Key: "system.users.password_reset", Module: "auth", Description: "Admin: trigger a password-reset email for another user"},
+		{Key: "system.users.email_verify_resend", Module: "auth", Description: "Admin: resend the email-verification mail for another user"},
+		{Key: "system.users.oauth_unlink", Module: "auth", Description: "Admin: unlink an OAuth identity (Google/Apple/GitHub/Discord) from another user"},
 	}
 }
 
@@ -705,6 +715,13 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		deps.Services.Register(module.ServiceWebAuthn, opBundle.webauthnSvc)
 	}
 
+	// Admin user-auth handler — operator-tier only. Reuses the operator
+	// auth service for the GET aggregator + OAuth unlink, and the
+	// operator password-auth service (which satisfies
+	// iface.AdminAuthInviter via structural typing) for the
+	// send-password-reset / resend-verification routes.
+	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc)
+
 	// Client tier — required after the D-8 cutover. Same expectation
 	// as operator tier above. Mints aud=client tokens via the client-
 	// audience JWT service so the client host mux's
@@ -1023,6 +1040,33 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		// path, different handler instance. Mounted on the operator
 		// router because admins act from the operator console.
 		m.clientMFAHandler.RegisterClientAdminRoutes(api)
+	})
+
+	// Admin user-auth surface — four endpoints under
+	// /v1/admin/users/{userId}/... each gated by its own permission so
+	// the audit trail stays per-action. Step-up applies only to OAuth
+	// unlink (credential removal); password-reset / resend-verification
+	// dispatch a notification but do not read or remove a secret.
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorAdminUserAuthHandler.RegisterReadAuthMethodsRoute(api)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.password_reset"))
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorAdminUserAuthHandler.RegisterPasswordResetRoute(api)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.email_verify_resend"))
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorAdminUserAuthHandler.RegisterResendVerificationRoute(api)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.oauth_unlink"))
+		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorAdminUserAuthHandler.RegisterOAuthUnlinkRoute(api)
 	})
 
 	// Operator WebAuthn — public/protected/step-up halves mirror the
