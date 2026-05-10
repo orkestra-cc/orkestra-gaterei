@@ -52,6 +52,7 @@ const UserCalendar = lazy(
   () => import('pages/user/calendar/UserCalendar')
 );
 const Settings = lazy(() => import('pages/user/settings/Settings'));
+const SecurityPage = lazy(() => import('pages/user/security'));
 
 /**
  * Builds the full route tree with core routes + injected module/reference children.
@@ -336,6 +337,17 @@ export function buildCoreRoutes(
                       fallback={<FalconLoader />}
                     >
                       <Settings />
+                    </Suspense>
+                  ),
+                },
+                {
+                  path: 'security',
+                  element: (
+                    <Suspense
+                      key="user-security"
+                      fallback={<FalconLoader />}
+                    >
+                      <SecurityPage />
                     </Suspense>
                   ),
                 },

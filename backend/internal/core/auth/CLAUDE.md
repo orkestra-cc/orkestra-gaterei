@@ -19,7 +19,8 @@ Does not own user profile data (delegates to `iface.UserProvider`), org membersh
 | `handlers/auth_handler.go` | OAuth initiate/callback endpoints, mobile ID-token routes, logout, refresh |
 | `handlers/password_handler.go` | Register, login, verify email, forgot/reset/change password |
 | `handlers/admin_user_auth_handler.go` | Operator-side admin endpoints under `/v1/admin/users/{id}/...` — auth-methods aggregator, send-password-reset, resend-verification, oauth unlink. Inline error mapping translates the typed service errors to 404 / 409 with body codes |
-| `services/auth_service.go` | OAuth orchestration, provider linking, token pair issuance, admin auth-methods aggregator (`GetUserAuthMethods`), admin OAuth unlink (`AdminUnlinkOAuth`) with self-action + last-credential safeguards |
+| `handlers/self_user_auth_handler.go` | Self-service endpoints under `/v1/auth/{tier}/me/...` — auth-methods aggregator, session list/revoke, OAuth self-unlink. Drives the operator-tier `/user/security` page; mirrors the admin handler's structure with self-action allowed |
+| `services/auth_service.go` | OAuth orchestration, provider linking, token pair issuance, auth-methods aggregator (`GetUserAuthMethods`), admin OAuth unlink (`AdminUnlinkOAuth`) + self-service unlink (`SelfUnlinkOAuth`) sharing a `wouldLockOutOAuthUnlink` lockout helper, session list / revoke methods with three-step revocation (refresh tokens → session doc → Redis sid) |
 | `services/password_auth_service.go` | Password register/login/verify/reset/change, rate-limited |
 | `services/password_service.go` | Argon2id hashing + policy validation |
 | `services/jwt_service.go` | RS256 JWT signing, validation, membership embedding |
@@ -225,6 +226,12 @@ The OAuth provider callbacks (`/v1/auth/oauth/{google,apple,discord,github}/call
 | DELETE | `/v1/auth/{tier}/me/mfa/webauthn/credentials/{credentialId}` | `RequireGlobal()` + `RequireStepUp(5m)` | Remove one passkey by base64url-encoded credential id |
 | POST | `/v1/auth/{tier}/mfa/webauthn/verify/begin` | `RequireGlobal()` | Begin a step-up assertion using a passkey |
 | POST | `/v1/auth/{tier}/mfa/webauthn/verify/finish` | `RequireGlobal()` | Finish a step-up assertion; mints a stepped-up access token with `amr:[..., "otp", "webauthn"]` + `last_otp_at=now` |
+| GET | `/v1/auth/{tier}/me/auth-methods` | `RequireGlobal()` | Self-service: aggregate password / MFA / OAuth state of the calling user. Same `models.AuthMethodsView` shape the admin route returns. Drives the `/user/security` page header |
+| GET | `/v1/auth/{tier}/me/sessions` | `RequireGlobal()` | Self-service: list active sessions for the caller. `IsCurrent` flag stamped from JWT `sid` |
+| DELETE | `/v1/auth/{tier}/me/oauth/{provider}` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: unlink one of the caller's OAuth identities. Service-layer last-credential safeguard rejects with 409 `last_credential` when removing would leave the user with no usable login |
+| DELETE | `/v1/auth/{tier}/me/sessions/{sessionId}` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: revoke one session by UUID. Returns 409 `cannot_revoke_current` when the target sid matches the caller's JWT — logout is the right tool for that |
+| DELETE | `/v1/auth/{tier}/me/sessions` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: revoke every active session except the calling one. Returns `{revoked: int}` |
+| POST | `/v1/auth/{tier}/me/mfa/backup-codes/regenerate` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: replace the user's TOTP backup-code list with a fresh set. Old codes stop working immediately. Returns `{codes: string[]}` exactly once |
 | GET | `/v1/admin/users/{userId}/auth-methods` | `RequireSystemPermission("system.users.admin")` | Admin: aggregate password / MFA / OAuth state of an operator user. Drives the Authentication Methods card on `/admin/user/profile/:userId`. Read-only |
 | POST | `/v1/admin/users/{userId}/send-password-reset` | `RequireSystemPermission("system.users.password_reset")` | Admin: trigger the standard password-reset email for an operator user. Operator-side companion of the existing client-user route |
 | POST | `/v1/admin/users/{userId}/resend-verification` | `RequireSystemPermission("system.users.email_verify_resend")` | Admin: re-emit the email-verification message. Idempotent — already-verified users return 200 with no action |
@@ -254,6 +261,31 @@ And a public endpoint that completes a login after a partial response:
 - **Session revocation list** — Redis-backed set at `auth:revoked:session:<sid>` checked on every authenticated request by both `AuthMiddleware` (monolith) and `JWTValidator` (sidecar). Populated on logout + change-password; payload is the reason string for operator debugging. Entries auto-expire after the access-token TTL + 1min buffer. Fails open on Redis errors — a degraded Redis must not lock every user out. Logout invalidates the current sid only; `allDevices=true` still relies on refresh-token revocation (per-user-generation counter is a follow-up).
 - **Grace countdown on `/v1/auth/me/mfa`** — response now carries `requiresMfa` + `graceExpiresAt` computed from the user record + JWT memberships, so the frontend banner/countdown can render without relying on the one-shot login response.
 - **WebAuthn / passkeys** — second-factor enrollment under `services/webauthn_service.go` + `handlers/webauthn_handler.go`. Library: `github.com/go-webauthn/webauthn`. Configuration: `WEBAUTHN_RP_ID` (eTLD+1 host, no scheme/port) + `WEBAUTHN_RP_ORIGINS` (comma-separated full URLs). Both env vars are optional — if either is missing the module derives them from `FRONTEND_URL` (eg. `http://localhost:8080` → `rpId=localhost`, `origins=[http://localhost:8080]`); if neither resolves, WebAuthn is disabled and the endpoints don't mount. Credentials live as an embedded `webauthnCredentials[]` array on the same `*_mfa_factors` row (one row per user with `type=webauthn`); the (userUuid,type) unique index naturally allows a user to enroll both TOTP and passkeys. Login/step-up via passkey sets `amr=[..., "otp", "webauthn"]` so existing step-up middleware accepts the proof. The partial login response carries `webauthnAvailable: bool` so the verify page can offer the passkey button alongside the code field.
+
+### Self-service security surface
+
+`handlers/self_user_auth_handler.go` hosts six routes under
+`/v1/auth/{tier}/me/...` that power the **`/user/security`** page on
+`frontend-admin`. Reads (`auth-methods`, `sessions`) are gated by
+`RequireGlobal()` only; destructive endpoints (OAuth unlink, session
+revoke, revoke-all, backup-codes regenerate) are gated by
+`RequireGlobal()` + `RequireStepUp(5m)` so a fresh MFA proof is
+required for credential / session removal. Backup-codes regeneration
+lives on `MFAHandler` for cohesion with the rest of the MFA surface.
+
+The service layer reuses the lockout helper extracted from
+`AdminUnlinkOAuth` so a self-unlink that would leave the user with no
+usable login method is rejected with 409 `last_credential`. Session
+revocation is the same three-step coordinated op the admin paths use:
+`refreshTokenRepo.RevokeTokensBySession` → flip
+`AuthSession.IsActive=false` → push the sid into the Redis revocation
+set (`auth:revoked:session:<sid>`) so middleware kills in-flight
+access tokens on the next request. The "revoke all except current"
+endpoint exists so the caller's response can complete without a
+mid-flight 401. Each successful action emits
+`slog.Info("self_auth_action", event=..., userUUID=...)`. Persistent
+audit rows are tracked under the same `RecordSecurityEvent` follow-up
+as the admin paths.
 
 ### Admin user-auth surface
 

@@ -66,6 +66,13 @@ type MFAService interface {
 	VerifyBackupCode(ctx context.Context, userUUID, code string) error
 
 	RemoveFactor(ctx context.Context, userUUID, actorUUID string) error
+	// RegenerateBackupCodes replaces the user's existing backup codes
+	// with a freshly generated set, persists their hashes (atomic
+	// $set, not append), and returns the plaintext codes exactly
+	// once. Callers must apply the step-up middleware — destroying
+	// the existing codes is irreversible. Returns ErrMFANotEnrolled
+	// when no TOTP factor exists for the user.
+	RegenerateBackupCodes(ctx context.Context, userUUID string) ([]string, error)
 	Status(ctx context.Context, userUUID string) (*MFAStatusSnapshot, error)
 	// SetDeviceTrust wires the "remember this device" service so
 	// factor removal (and the admin-reset variant on top of it)
@@ -321,6 +328,40 @@ func (s *mfaService) RemoveFactor(ctx context.Context, userUUID, actorUUID strin
 		slog.String("factorUUID", factor.UUID),
 	)
 	return nil
+}
+
+// RegenerateBackupCodes replaces the user's existing backup-code
+// hash list with a fresh set, returning the plaintext exactly once.
+// The repo's $set replace is atomic — old codes stop working the
+// instant the write lands, so a stolen code race is bounded by the
+// regeneration latency itself. Returns ErrMFANotEnrolled when the
+// user has no TOTP factor (the caller has nothing to replace).
+func (s *mfaService) RegenerateBackupCodes(ctx context.Context, userUUID string) ([]string, error) {
+	if userUUID == "" {
+		return nil, ErrMFANotEnrolled
+	}
+	if _, err := s.factors.FindByUserAndType(ctx, userUUID, models.MFAFactorTOTP); err != nil {
+		if errors.Is(err, repository.ErrMFAFactorNotFound) {
+			return nil, ErrMFANotEnrolled
+		}
+		return nil, err
+	}
+	plaintext, hashed, err := s.generateBackupCodes(s.recoveryCodesCount(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("generate backup codes: %w", err)
+	}
+	if err := s.factors.ReplaceBackupCodes(ctx, userUUID, hashed); err != nil {
+		if errors.Is(err, repository.ErrMFAFactorNotFound) {
+			return nil, ErrMFANotEnrolled
+		}
+		return nil, fmt.Errorf("persist backup codes: %w", err)
+	}
+	s.logger.Info("self_auth_action",
+		"event", "self_backup_codes_regenerated",
+		"userUUID", userUUID,
+		"count", len(plaintext),
+	)
+	return plaintext, nil
 }
 
 func (s *mfaService) Status(ctx context.Context, userUUID string) (*MFAStatusSnapshot, error) {

@@ -55,6 +55,17 @@ var (
 	// should be using the self-service flow instead. Translated to 409
 	// self_action at the handler boundary.
 	ErrAdminSelfAction = errors.New("admin cannot perform this action on their own account")
+	// ErrCannotRevokeCurrent signals that the user tried to revoke the
+	// session they are calling from. The existing logout endpoint is
+	// the right tool for that — revoking the current session through
+	// the self-service surface would race the user's own response.
+	// Translated to 409 cannot_revoke_current at the handler boundary.
+	ErrCannotRevokeCurrent = errors.New("cannot revoke the current session — use logout instead")
+	// ErrSessionNotFound signals that the requested session UUID does
+	// not exist or does not belong to the calling user. We collapse
+	// "doesn't exist" and "not yours" to one error so the response
+	// doesn't leak the existence of someone else's session UUID.
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 // AuthService extends the basic auth service with UUID support and OAuth linking
@@ -77,11 +88,32 @@ type AuthService interface {
 	// single OAuth link). Both safeguards live here so any caller —
 	// HTTP handler, future CLI, internal job — gets the same checks.
 	AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUID string, provider userModels.OAuthProvider) error
+	// SelfUnlinkOAuth removes one OAuth identity from the caller's own
+	// account. Mirrors AdminUnlinkOAuth's last-credential safeguard so
+	// a user cannot accidentally remove their only login method, but
+	// drops the self-action check (self-action IS the point here). The
+	// HTTP handler is gated by RequireStepUp(5m) — credential removal
+	// demands a fresh MFA proof.
+	SelfUnlinkOAuth(ctx context.Context, userUUID string, provider userModels.OAuthProvider) error
 	// GetUserAuthMethods aggregates the user's auth state across the
 	// user record, MFA factor row(s), and linked OAuth providers into
-	// a single view for the admin profile card. Read-only; no policy
-	// gate beyond the caller's RequireSystemPermission.
+	// a single view consumed by the admin profile card and by the
+	// self-service /user/security page. The HTTP gate (admin
+	// permission vs. RequireGlobal) is applied at the handler.
 	GetUserAuthMethods(ctx context.Context, targetUUID string) (*models.AuthMethodsView, error)
+	// ListUserSessions returns the active sessions for the user. The
+	// IsCurrent flag is NOT populated here — the HTTP handler stamps
+	// it by comparing each SessionInfo.SessionID against the JWT sid.
+	ListUserSessions(ctx context.Context, userUUID string) (*models.SessionsResponse, error)
+	// RevokeUserSession revokes one session by UUID for the user.
+	// Rejects revoke-current with ErrCannotRevokeCurrent so the
+	// caller's response can complete; returns ErrSessionNotFound when
+	// the session doesn't exist or doesn't belong to the user.
+	RevokeUserSession(ctx context.Context, userUUID, sessionUUID, currentSid string) error
+	// RevokeAllUserSessionsExcept revokes every active session for
+	// the user except the one matching currentSid. Returns the count
+	// of revoked sessions.
+	RevokeAllUserSessionsExcept(ctx context.Context, userUUID, currentSid string) (int, error)
 
 	// Account consolidation
 	ConsolidateAccountsByEmail(ctx context.Context, email string) (*userModels.User, error)
@@ -114,6 +146,14 @@ type AuthService interface {
 	// partial response's WebAuthnAvailable hint. Mirrors the same setter on
 	// PasswordAuthService — both login paths must surface the field uniformly.
 	SetWebAuthnAvailability(c HasWebAuthnCredentials)
+
+	// SetSessionRevocation wires the Redis-backed sid revocation store
+	// post-construction so RevokeUserSession / RevokeAllUserSessionsExcept
+	// can push revoked sids into the set the AuthMiddleware consults on
+	// every authenticated request. Optional — when nil the persisted
+	// session+refresh-token state is still updated, but in-flight access
+	// tokens stay valid until their TTL ticks over.
+	SetSessionRevocation(rev SessionRevocationService)
 
 	// SetPolicy wires the admin-managed policy reader. Optional — the
 	// OAuth login MFA evaluation falls back to legacy hardcoded values
@@ -171,6 +211,12 @@ type authService struct {
 	// signup gating can read the audience-scoped oauthAllowSignup
 	// policy without needing the caller to pass it explicitly.
 	audience PolicyAudience
+	// sessionRevocation is the Redis-backed sid revocation store
+	// shared across all tiers. Wired post-construction via
+	// SetSessionRevocation; nil disables the in-flight access-token
+	// kill (the persisted state still updates, just no immediate
+	// effect on outstanding bearer tokens).
+	sessionRevocation SessionRevocationService
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -191,6 +237,11 @@ func (s *authService) SetPolicy(p *AuthPolicyService) {
 // reads can fetch audience-scoped knobs.
 func (s *authService) SetAudience(a PolicyAudience) {
 	s.audience = a
+}
+
+// SetSessionRevocation wires the Redis-backed sid revocation store.
+func (s *authService) SetSessionRevocation(rev SessionRevocationService) {
+	s.sessionRevocation = rev
 }
 
 // NewAuthService creates a new auth service
@@ -357,21 +408,11 @@ func (s *authService) AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUI
 	if err != nil {
 		return err
 	}
-
-	var providerID string
-	activeCount := 0
-	for _, link := range links {
-		if link.IsActive {
-			activeCount++
-		}
-		if link.Provider == provider && providerID == "" {
-			providerID = link.ProviderID
-		}
-	}
-	if providerID == "" {
+	providerID, locked, found := wouldLockOutOAuthUnlink(target, links, provider)
+	if !found {
 		return ErrOAuthLinkNotFound
 	}
-	if target.PasswordHash == "" && activeCount <= 1 {
+	if locked {
 		return ErrLastCredentialRemoval
 	}
 
@@ -383,6 +424,72 @@ func (s *authService) AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUI
 		"event", "admin_oauth_unlink",
 		"actorUUID", actorUUID,
 		"targetUUID", targetUUID,
+		"provider", string(provider),
+	)
+	return nil
+}
+
+// wouldLockOutOAuthUnlink computes the shared lockout decision used by
+// AdminUnlinkOAuth and SelfUnlinkOAuth. Returns the matched providerID
+// (empty when no link is found), a `locked` flag set when removing the
+// link would leave the user with no usable credential (no password
+// AND single active OAuth link), and a `found` flag distinguishing
+// "provider not linked" (404) from a benign mismatch.
+func wouldLockOutOAuthUnlink(target *userModels.User, links []userModels.OAuthLink, provider userModels.OAuthProvider) (providerID string, locked bool, found bool) {
+	if target == nil {
+		return "", false, false
+	}
+	activeCount := 0
+	for _, link := range links {
+		if link.IsActive {
+			activeCount++
+		}
+		if link.Provider == provider && providerID == "" {
+			providerID = link.ProviderID
+		}
+	}
+	found = providerID != ""
+	if !found {
+		return "", false, false
+	}
+	locked = target.PasswordHash == "" && activeCount <= 1
+	return providerID, locked, true
+}
+
+// SelfUnlinkOAuth removes one OAuth identity from the caller's own
+// account. Reuses the shared wouldLockOutOAuthUnlink helper so a user
+// cannot accidentally lock themselves out — but skips the self-action
+// guard, since self-action is the entire point. The HTTP handler
+// gates this with RequireStepUp(5m); credential removal demands a
+// fresh MFA proof.
+func (s *authService) SelfUnlinkOAuth(ctx context.Context, userUUID string, provider userModels.OAuthProvider) error {
+	if userUUID == "" {
+		return fmt.Errorf("self unlink: userUUID is required")
+	}
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrOAuthLinkNotFound
+	}
+	links, err := s.userService.GetUserOAuthLinks(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	providerID, locked, found := wouldLockOutOAuthUnlink(user, links, provider)
+	if !found {
+		return ErrOAuthLinkNotFound
+	}
+	if locked {
+		return ErrLastCredentialRemoval
+	}
+	if err := s.userService.RemoveOAuthLinkFromUser(ctx, userUUID, provider, providerID); err != nil {
+		return err
+	}
+	slog.Info("self_auth_action",
+		"event", "self_oauth_unlink",
+		"userUUID", userUUID,
 		"provider", string(provider),
 	)
 	return nil
@@ -525,26 +632,222 @@ func (s *authService) FindAccountsForConsolidation(ctx context.Context, email st
 	return []*userModels.User{convertUserResponseToAuthModel(userResponse)}, nil
 }
 
+// GetUserSessionsByUUID lists active (isActive && !expired) sessions
+// for the user, sorted most-recent-first. The IsCurrent flag is left
+// unset — the HTTP handler stamps it by comparing each
+// SessionInfo.SessionID against the JWT sid claim.
 func (s *authService) GetUserSessionsByUUID(ctx context.Context, userUUID string) (*models.SessionsResponse, error) {
+	if userUUID == "" {
+		return nil, fmt.Errorf("get user sessions: userUUID is required")
+	}
+	if s.authSessionRepo == nil {
+		return &models.SessionsResponse{Sessions: []models.SessionInfo{}}, nil
+	}
+	docs, err := s.authSessionRepo.GetActiveSessionsByUser(ctx, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]models.SessionInfo, 0, len(docs))
+	for _, d := range docs {
+		if d == nil {
+			continue
+		}
+		out = append(out, models.SessionInfo{
+			SessionID:    d.UUID,
+			DeviceID:     d.DeviceID,
+			DeviceName:   d.DeviceInfo.DeviceName,
+			DeviceType:   d.DeviceInfo.DeviceType,
+			Platform:     d.DeviceInfo.Platform,
+			Location:     d.Location,
+			IPAddress:    d.IPAddress,
+			LastActivity: d.LastActivity,
+			CreatedAt:    d.CreatedAt,
+			ExpiresAt:    d.ExpiresAt,
+			RiskScore:    d.RiskScore,
+		})
+	}
 	return &models.SessionsResponse{
-		Sessions: []models.SessionInfo{},
+		Sessions:    out,
+		ActiveCount: len(out),
 	}, nil
 }
 
+// ListUserSessions is the explicitly-named alias used by the
+// self-service handler. Same contract as GetUserSessionsByUUID.
+func (s *authService) ListUserSessions(ctx context.Context, userUUID string) (*models.SessionsResponse, error) {
+	return s.GetUserSessionsByUUID(ctx, userUUID)
+}
+
 func (s *authService) GetSessionCountByUUID(ctx context.Context, userUUID string) (int, error) {
-	return 0, nil
+	if userUUID == "" || s.authSessionRepo == nil {
+		return 0, nil
+	}
+	docs, err := s.authSessionRepo.GetActiveSessionsByUser(ctx, userUUID)
+	if err != nil {
+		return 0, err
+	}
+	return len(docs), nil
 }
 
 func (s *authService) RenameSessionByUUID(ctx context.Context, userUUID string, deviceID, deviceName string) error {
-	return fmt.Errorf("session management not yet implemented")
+	if s.authSessionRepo == nil {
+		return fmt.Errorf("session repo unavailable")
+	}
+	return s.authSessionRepo.RenameDevice(ctx, userUUID, deviceID, deviceName)
 }
 
+// TerminateSessionByUUID terminates every active session matching
+// (userUUID, deviceID). Used by the existing logout-by-device path
+// (auth_handler.LogoutHTTP). Coordinates the three-step revoke per
+// matching session so refresh tokens are revoked, the session doc is
+// flipped, and the sid is pushed into the Redis revocation set.
 func (s *authService) TerminateSessionByUUID(ctx context.Context, userUUID string, deviceID string) error {
-	return fmt.Errorf("session management not yet implemented")
+	if userUUID == "" || deviceID == "" {
+		return fmt.Errorf("terminate session: userUUID and deviceID required")
+	}
+	if s.authSessionRepo == nil {
+		return fmt.Errorf("session repo unavailable")
+	}
+	sessions, err := s.authSessionRepo.GetActiveSessionsByUser(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess == nil || sess.DeviceID != deviceID {
+			continue
+		}
+		if err := s.revokeSessionInternal(ctx, sess.UUID, "user_logout"); err != nil {
+			return err
+		}
+	}
+	// Sweep any stale rows the per-session loop didn't touch (older
+	// duplicates, expired-but-still-active rows that the repo's
+	// "active" predicate filtered out).
+	return s.authSessionRepo.TerminateSessionByDevice(ctx, userUUID, deviceID)
 }
 
+// TerminateAllSessionsByUUID terminates every active session for the
+// user. Drives /v1/auth/logout?allDevices=true. Best-effort revoke
+// across each session, then a final TerminateAllUserSessions sweep so
+// any rows missed by the per-session loop still flip isActive=false.
 func (s *authService) TerminateAllSessionsByUUID(ctx context.Context, userUUID string) error {
-	return fmt.Errorf("session management not yet implemented")
+	if userUUID == "" {
+		return fmt.Errorf("terminate all sessions: userUUID required")
+	}
+	if s.authSessionRepo == nil {
+		return fmt.Errorf("session repo unavailable")
+	}
+	sessions, err := s.authSessionRepo.GetActiveSessionsByUser(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess == nil {
+			continue
+		}
+		if err := s.revokeSessionInternal(ctx, sess.UUID, "user_logout_all"); err != nil {
+			return err
+		}
+	}
+	return s.authSessionRepo.TerminateAllUserSessions(ctx, userUUID)
+}
+
+// RevokeUserSession revokes one session by UUID for the user.
+// Rejects revoke-current with ErrCannotRevokeCurrent (the user has
+// the existing logout for that). Returns ErrSessionNotFound when
+// the session doesn't exist or doesn't belong to the calling user —
+// the two are collapsed so the response can't be used to probe for
+// other users' session UUIDs.
+func (s *authService) RevokeUserSession(ctx context.Context, userUUID, sessionUUID, currentSid string) error {
+	if userUUID == "" || sessionUUID == "" {
+		return fmt.Errorf("revoke session: userUUID and sessionUUID required")
+	}
+	if currentSid != "" && sessionUUID == currentSid {
+		return ErrCannotRevokeCurrent
+	}
+	if s.authSessionRepo == nil {
+		return fmt.Errorf("session repo unavailable")
+	}
+	sess, err := s.authSessionRepo.GetByUUID(ctx, sessionUUID)
+	if err != nil {
+		return err
+	}
+	if sess == nil || sess.UserUUID != userUUID {
+		return ErrSessionNotFound
+	}
+	if err := s.revokeSessionInternal(ctx, sessionUUID, "user_self_revoke"); err != nil {
+		return err
+	}
+	slog.Info("self_auth_action",
+		"event", "self_session_revoke",
+		"userUUID", userUUID,
+		"sessionUUID", sessionUUID,
+	)
+	return nil
+}
+
+// RevokeAllUserSessionsExcept revokes every active session for the
+// user except the one matching currentSid so the caller's request
+// can complete. Returns the count of sessions revoked.
+func (s *authService) RevokeAllUserSessionsExcept(ctx context.Context, userUUID, currentSid string) (int, error) {
+	if userUUID == "" {
+		return 0, fmt.Errorf("revoke all sessions: userUUID required")
+	}
+	if s.authSessionRepo == nil {
+		return 0, nil
+	}
+	sessions, err := s.authSessionRepo.GetActiveSessionsByUser(ctx, userUUID)
+	if err != nil {
+		return 0, err
+	}
+	revoked := 0
+	for _, sess := range sessions {
+		if sess == nil || sess.UUID == currentSid {
+			continue
+		}
+		if err := s.revokeSessionInternal(ctx, sess.UUID, "user_self_revoke_others"); err != nil {
+			return revoked, err
+		}
+		revoked++
+	}
+	slog.Info("self_auth_action",
+		"event", "self_session_revoke_all",
+		"userUUID", userUUID,
+		"revoked", revoked,
+	)
+	return revoked, nil
+}
+
+// revokeSessionInternal performs the three-step revocation for a
+// single session: revoke its refresh tokens → flip the session doc
+// to inactive → push the sid into the Redis revocation set so
+// in-flight access tokens are rejected by AuthMiddleware on the
+// next request. The Redis push is best-effort (fail-open on outage)
+// — the persisted state still updates so reauth via cookie is
+// blocked even when Redis is unavailable.
+func (s *authService) revokeSessionInternal(ctx context.Context, sessionUUID, reason string) error {
+	if sessionUUID == "" {
+		return nil
+	}
+	if s.refreshTokenRepo != nil {
+		if err := s.refreshTokenRepo.RevokeTokensBySession(ctx, sessionUUID, reason); err != nil {
+			return fmt.Errorf("revoke refresh tokens: %w", err)
+		}
+	}
+	if s.authSessionRepo != nil {
+		if err := s.authSessionRepo.TerminateSession(ctx, sessionUUID); err != nil {
+			// Tolerate the repo's "session not found" sentinel —
+			// the row may already be terminated by a concurrent
+			// caller. Anything else is a real failure.
+			if err.Error() != "session not found" {
+				return fmt.Errorf("terminate session doc: %w", err)
+			}
+		}
+	}
+	if s.sessionRevocation != nil {
+		_ = s.sessionRevocation.Revoke(ctx, sessionUUID, reason)
+	}
+	return nil
 }
 
 func (s *authService) GenerateEnhancedTokenPair(ctx context.Context, user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenResponse, error) {

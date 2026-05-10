@@ -47,6 +47,13 @@ type AuthModule struct {
 	// admin actions on Tier-2 client users live on the user module's
 	// AdminClientUserHandler.
 	operatorAdminUserAuthHandler *handlers.AdminUserAuthHandler
+	// operatorSelfUserAuthHandler hosts the self-service security-center
+	// endpoints under /v1/auth/operator/me/... (auth-methods aggregator,
+	// session list/revoke, OAuth self-unlink). Drives the
+	// frontend-admin /user/security page. Tier-bound to operator
+	// because session + OAuth state lives in operator_* collections;
+	// the client-tier mirror is a deliberate follow-up.
+	operatorSelfUserAuthHandler *handlers.SelfUserAuthHandler
 
 	// ADR-0003 PR-D D-5: client-tier handler instances bound to the
 	// client authTierBundle. Same shape as the operator block above but
@@ -687,6 +694,13 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	m.operatorAuthHandler.SetTier(services.AudienceOperator)
 	m.operatorAuthHandler.SetPolicy(authPolicy)
 
+	// User-security plan Phase 1: hand the revocation store to the
+	// auth service so RevokeUserSession / RevokeAllUserSessionsExcept
+	// push to the same Redis set the AuthMiddleware consults on every
+	// authenticated request. Without this, in-flight access tokens
+	// would stay valid until the per-token TTL ticked over.
+	opBundle.authService.SetSessionRevocation(sessionRevocationSvc)
+
 	m.operatorMFAHandler = handlers.NewMFAHandler(
 		opBundle.mfaSvc,
 		mfaChallengeSvc,
@@ -721,6 +735,13 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// iface.AdminAuthInviter via structural typing) for the
 	// send-password-reset / resend-verification routes.
 	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc)
+
+	// Self-service security-center handler — operator tier this
+	// iteration. Wired to the operator authService + mfaSvc so reads
+	// + revokes hit operator_sessions / operator_mfa_factors. The
+	// route gates (RequireGlobal vs RequireGlobal+RequireStepUp(5m))
+	// are applied in RegisterRoutes.
+	m.operatorSelfUserAuthHandler = handlers.NewSelfUserAuthHandler(opBundle.authService, opBundle.mfaSvc)
 
 	// Client tier — required after the D-8 cutover. Same expectation
 	// as operator tier above. Mints aud=client tokens via the client-
@@ -776,6 +797,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	m.clientAuthHandler.SetStateSecret(oauthStateSecret)
 	m.clientAuthHandler.SetTier(services.AudienceClient)
 	m.clientAuthHandler.SetPolicy(authPolicy)
+	clBundle.authService.SetSessionRevocation(sessionRevocationSvc)
 
 	m.clientMFAHandler = handlers.NewMFAHandler(
 		clBundle.mfaSvc,
@@ -1067,6 +1089,23 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 		api := humachi.New(r, ri.APIConfig)
 		m.operatorAdminUserAuthHandler.RegisterOAuthUnlinkRoute(api)
+	})
+
+	// Self-service security-center surface — operator tier this
+	// iteration. Read endpoints under RequireGlobal(); destructive
+	// endpoints (OAuth unlink, session revoke, revoke-all) under
+	// RequireGlobal()+RequireStepUp(5m) so a fresh MFA proof is
+	// required for credential / session removal.
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireGlobal())
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorSelfUserAuthHandler.RegisterReadRoutes(api, handlers.OperatorMount)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireGlobal())
+		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
+		api := humachi.New(r, ri.APIConfig)
+		m.operatorSelfUserAuthHandler.RegisterStepUpRoutes(api, handlers.OperatorMount)
 	})
 
 	// Operator WebAuthn — public/protected/step-up halves mirror the

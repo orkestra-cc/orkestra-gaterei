@@ -169,7 +169,7 @@ func TestSuspiciousLogin_HighScoreRecordsAndEmails(t *testing.T) {
 	if got, _ := req.Data["LoginIP"].(string); got != "203.0.113.5" {
 		t.Errorf("LoginIP = %q, want 203.0.113.5", got)
 	}
-	if got, _ := req.Data["AccountActivityURL"].(string); got != "https://app.example.com/account/security" {
+	if got, _ := req.Data["AccountActivityURL"].(string); got != "https://app.example.com/user/security?tab=sessions" {
 		t.Errorf("AccountActivityURL = %q", got)
 	}
 }

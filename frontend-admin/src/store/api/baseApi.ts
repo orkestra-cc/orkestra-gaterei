@@ -334,6 +334,10 @@ export const baseApi = createApi({
     'Setup',
     // MFA factors + backup codes
     'MFA',
+    // Self-service security center
+    'SelfAuthMethods',
+    'Sessions',
+    'TrustedDevices',
     // Tenant + authz tags
     'Org',
     'Membership',

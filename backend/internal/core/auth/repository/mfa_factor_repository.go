@@ -29,6 +29,12 @@ type MFAFactorRepository interface {
 	// guarantee is what prevents replay within the 30-second TOTP window.
 	AdvanceLastUsedStep(ctx context.Context, uuid string, step int64, when time.Time) (bool, error)
 	ConsumeBackupCode(ctx context.Context, userUUID, hashedCode string) (bool, error)
+	// ReplaceBackupCodes atomically swaps the user's TOTP-factor backup
+	// code list for a fresh set. Used by self-service regeneration —
+	// the old codes must stop working immediately, hence $set rather
+	// than the consume-one-at-a-time $pull contract above. Returns
+	// ErrMFAFactorNotFound when no TOTP row exists for the user.
+	ReplaceBackupCodes(ctx context.Context, userUUID string, hashedCodes []string) error
 	Delete(ctx context.Context, uuid string) error
 	// DeleteAllByUser hard-deletes every MFA factor row for the user.
 	// Used by the GDPR DSR right-to-erasure pipeline — the rows contain
@@ -145,6 +151,27 @@ func (r *mfaFactorRepository) ConsumeBackupCode(ctx context.Context, userUUID, h
 		return false, err
 	}
 	return res.ModifiedCount > 0, nil
+}
+
+// ReplaceBackupCodes overwrites the backup-code hash list on the user's
+// TOTP factor in a single update. A nil/empty hashedCodes slice clears
+// the codes (caller's responsibility to refuse that path — the service
+// layer always passes a freshly generated list).
+func (r *mfaFactorRepository) ReplaceBackupCodes(ctx context.Context, userUUID string, hashedCodes []string) error {
+	if hashedCodes == nil {
+		hashedCodes = []string{}
+	}
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{"userUuid": userUUID, "type": models.MFAFactorTOTP},
+		bson.M{"$set": bson.M{"backupCodesHashed": hashedCodes}},
+	)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrMFAFactorNotFound
+	}
+	return nil
 }
 
 func (r *mfaFactorRepository) Delete(ctx context.Context, uuid string) error {

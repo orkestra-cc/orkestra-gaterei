@@ -247,6 +247,37 @@ func (h *MFAHandler) Remove(ctx context.Context, req *MFARemoveRequest) (*MFARem
 	return resp, nil
 }
 
+// --- Regenerate backup codes ---
+
+type MFARegenerateBackupCodesRequest struct {
+	Body struct{}
+}
+
+type MFARegenerateBackupCodesResponse struct {
+	Body struct {
+		Codes []string `json:"codes"`
+	}
+}
+
+// RegenerateBackupCodes destroys the user's existing backup codes
+// and returns a freshly generated set exactly once. The route is
+// gated by RequireStepUp(5m) — the action is irreversible and any
+// captured plaintext code is revoked the moment the new set lands.
+// Returns 400 mfa_not_enrolled when the user has no TOTP factor.
+func (h *MFAHandler) RegenerateBackupCodes(ctx context.Context, req *MFARegenerateBackupCodesRequest) (*MFARegenerateBackupCodesResponse, error) {
+	userUUID, _ := ctx.Value("userUUID").(string)
+	if userUUID == "" {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	codes, err := h.mfa.RegenerateBackupCodes(ctx, userUUID)
+	if err != nil {
+		return nil, mapMFAError(err)
+	}
+	resp := &MFARegenerateBackupCodesResponse{}
+	resp.Body.Codes = codes
+	return resp, nil
+}
+
 // --- Verify (self-service step-up) ---
 
 type MFAVerifyRequest struct {
@@ -571,6 +602,16 @@ func (h *MFAHandler) RegisterStepUpRoutes(api huma.API, mount RouteMount) {
 		Tags:        []string{"Authentication", "MFA"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.Remove)
+
+	huma.Register(api, huma.Operation{
+		OperationID: mount.OpIDPrefix + "mfa-regenerate-backup-codes",
+		Method:      http.MethodPost,
+		Path:        "/v1/auth" + mount.PathPrefix + "/me/mfa/backup-codes/regenerate",
+		Summary:     "Regenerate the current user's MFA backup codes (requires fresh step-up)",
+		Description: "Destroys the existing backup-code set and returns a freshly generated list exactly once. Old codes stop working immediately.",
+		Tags:        []string{"Authentication", "MFA"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.RegenerateBackupCodes)
 }
 
 // RegisterAdminRoutes mounts the admin-scoped reset endpoint. The caller

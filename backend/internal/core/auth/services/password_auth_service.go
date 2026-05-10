@@ -1205,7 +1205,7 @@ func (s *PasswordAuthService) notifyNewDeviceLogin(
 	if loginAt.IsZero() {
 		loginAt = time.Now()
 	}
-	accountActivityURL := strings.TrimRight(s.frontendURL, "/") + "/account/security"
+	accountActivityURL := strings.TrimRight(s.frontendURL, "/") + "/user/security?tab=sessions"
 	vars := map[string]any{
 		"AppName":            s.appName,
 		"UserName":           userName,

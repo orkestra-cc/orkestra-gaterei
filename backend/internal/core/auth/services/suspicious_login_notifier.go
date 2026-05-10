@@ -241,7 +241,7 @@ func (n *suspiciousLoginNotifier) sendEmail(ctx context.Context, in SuspiciousLo
 			}
 		}
 	}
-	accountActivityURL := strings.TrimRight(n.frontendURL, "/") + "/account/security"
+	accountActivityURL := strings.TrimRight(n.frontendURL, "/") + "/user/security?tab=sessions"
 
 	loginAt := in.Session.CreatedAt
 	if loginAt.IsZero() {
@@ -321,7 +321,7 @@ func (n *suspiciousLoginNotifier) sendAdminEmail(ctx context.Context, in Suspici
 	if loginAt.IsZero() {
 		loginAt = n.clock()
 	}
-	accountActivityURL := strings.TrimRight(n.frontendURL, "/") + "/account/security"
+	accountActivityURL := strings.TrimRight(n.frontendURL, "/") + "/user/security?tab=sessions"
 	affectedName := in.User.Name
 	if affectedName == "" {
 		affectedName = in.User.Email

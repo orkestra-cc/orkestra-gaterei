@@ -85,6 +85,19 @@ export const mfaApi = baseApi.injectEndpoints({
       },
     }),
 
+    // Regenerate backup codes — destroys the existing set and returns
+    // a fresh one exactly once. Gated server-side by RequireStepUp(5m);
+    // the global StepUpModal handles the 401 replay.
+    regenerateBackupCodes: builder.mutation<{ codes: string[] }, void>({
+      query: () => ({
+        url: 'v1/auth/operator/me/mfa/backup-codes/regenerate',
+        method: 'POST',
+        body: {},
+      }),
+      invalidatesTags: ['MFA', 'SelfAuthMethods'],
+      transformResponse: (res: unknown) => unwrap<{ codes: string[] }>(res),
+    }),
+
     // Remove the current user's factor. Gated server-side by RequireStepUp —
     // the caller must have verified within the last 5 minutes. The request
     // body is empty; the middleware enforces freshness from JWT claims.
@@ -277,6 +290,7 @@ export const {
   useEnrollMfaConfirmMutation,
   useVerifyMfaMutation,
   useRemoveMfaMutation,
+  useRegenerateBackupCodesMutation,
   useLoginVerifyMfaMutation,
   useAdminResetUserMfaMutation,
   useAdminResetClientUserMfaMutation,

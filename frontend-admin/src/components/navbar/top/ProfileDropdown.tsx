@@ -58,6 +58,9 @@ const ProfileDropdown = () => {
           <Dropdown.Item as={Link} to={paths.userSettings}>
             Settings
           </Dropdown.Item>
+          <Dropdown.Item as={Link} to={paths.userSecurity}>
+            Security
+          </Dropdown.Item>
           <Dropdown.Divider />
           <Dropdown.Item onClick={handleLogout}>Logout</Dropdown.Item>
         </div>

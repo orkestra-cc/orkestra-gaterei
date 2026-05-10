@@ -116,6 +116,67 @@ export interface AuthPolicy {
   passwordMinLength: number;
 }
 
+// --- Self-service security center ---
+// Mirrors authModels.AuthMethodsView and SessionInfo from the Go
+// backend. Reused by /user/security so the page can drive every tab
+// from a single fetch.
+
+export interface SelfAuthWebAuthnCredential {
+  credentialId: string; // base64url, no padding
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface SelfAuthMfaFactor {
+  type: 'totp' | 'webauthn';
+  enrolledAt?: string;
+  lastUsedAt?: string;
+  backupCodesRemaining?: number;
+  credentials?: SelfAuthWebAuthnCredential[];
+}
+
+export interface SelfAuthOAuthProvider {
+  provider: OAuthProvider;
+  email: string;
+  linkedAt: string;
+  lastUsedAt?: string;
+  isPrimary: boolean;
+}
+
+export interface SelfAuthMethods {
+  hasUsablePassword: boolean;
+  passwordUpdatedAt?: string;
+  emailVerified: boolean;
+  lastLoginAt?: string;
+  mfaRequired: boolean;
+  mfaGraceStartedAt?: string;
+  mfaGraceExpiresAt?: string;
+  mfaFactors: SelfAuthMfaFactor[];
+  oauthProviders: SelfAuthOAuthProvider[];
+}
+
+export interface SelfSessionInfo {
+  sessionId: string;
+  deviceId: string;
+  deviceName: string;
+  deviceType: string;
+  platform: string;
+  ipAddress: string;
+  lastActivity: string;
+  createdAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+  riskScore?: number;
+}
+
+export interface SelfSessionsResponse {
+  sessions: SelfSessionInfo[];
+  activeCount: number;
+  maxSessions?: number;
+  currentDevice?: string;
+}
+
 // Auth API slice
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -322,6 +383,55 @@ export const authApi = baseApi.injectEndpoints({
       invalidatesTags: ['Auth', 'User', 'Navigation'],
     }),
 
+    // --- Self-service security center ---
+
+    // Aggregate auth state of the **current** user. Read-only; used
+    // by the page header on /user/security and by individual tabs
+    // that need a quick is-it-set check.
+    getSelfAuthMethods: builder.query<SelfAuthMethods, void>({
+      query: () => 'v1/auth/operator/me/auth-methods',
+      providesTags: ['SelfAuthMethods'],
+    }),
+
+    // Active sessions for the current user. The IsCurrent flag is
+    // stamped server-side from the JWT sid so the row the request is
+    // coming from is highlighted.
+    getMySessions: builder.query<SelfSessionsResponse, void>({
+      query: () => 'v1/auth/operator/me/sessions',
+      providesTags: ['Sessions'],
+    }),
+
+    // Self-service unlink — gated server-side by RequireStepUp(5m).
+    // The global StepUpModal intercepts the 401 and replays.
+    unlinkOauthSelf: builder.mutation<{ success: boolean }, { provider: OAuthProvider }>({
+      query: ({ provider }) => ({
+        url: `v1/auth/operator/me/oauth/${provider}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['SelfAuthMethods', 'User'],
+    }),
+
+    // Revoke one session. Server returns 409 cannot_revoke_current
+    // when the session matches the JWT sid; the UI disables the
+    // revoke button for the current row, so this is defensive.
+    revokeSession: builder.mutation<void, { sessionId: string }>({
+      query: ({ sessionId }) => ({
+        url: `v1/auth/operator/me/sessions/${encodeURIComponent(sessionId)}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Sessions'],
+    }),
+
+    // Revoke every session except the calling one. The current
+    // session is left alive so the response can complete.
+    revokeAllSessions: builder.mutation<{ revoked: number }, void>({
+      query: () => ({
+        url: 'v1/auth/operator/me/sessions',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Sessions'],
+    }),
+
     // Get session after OAuth callback - retrieves access token using refresh token from cookie
     getSession: builder.query<SessionResponse | null, void>({
       providesTags: ['Auth'],
@@ -403,6 +513,12 @@ export const {
   // Lazy query hooks for conditional fetching
   useLazyGetCurrentUserQuery,
   useLazyGetSessionQuery,
+  // Self-service security center
+  useGetSelfAuthMethodsQuery,
+  useGetMySessionsQuery,
+  useUnlinkOauthSelfMutation,
+  useRevokeSessionMutation,
+  useRevokeAllSessionsMutation,
 } = authApi;
 
 // Export endpoints for manual cache management

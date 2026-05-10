@@ -364,8 +364,13 @@ func (r *gateRefreshRepo) UpdateRiskScore(context.Context, string, float64, []st
 func (r *gateRefreshRepo) RotateToken(context.Context, string, string) error { panic("not used") }
 func (r *gateRefreshRepo) RevokeToken(context.Context, string, string) error      { panic("not used") }
 func (r *gateRefreshRepo) RevokeTokenByUUID(context.Context, string, string) error { panic("not used") }
+// RevokeTokensBySession is a no-op so the user-security session
+// tests can drive the auth-service's revokeSessionInternal helper
+// without needing per-session refresh-token state. The other fake
+// methods stay as panics; if a future test grows a real expectation
+// here, lift this into a recording counter then.
 func (r *gateRefreshRepo) RevokeTokensBySession(context.Context, string, string) error {
-	panic("not used")
+	return nil
 }
 func (r *gateRefreshRepo) RevokeTokensByDevice(context.Context, string, string, string) error {
 	panic("not used")
