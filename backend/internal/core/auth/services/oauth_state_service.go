@@ -46,6 +46,11 @@ type StoreOAuthStateRequest struct {
 	DeviceInfo      *models.DeviceInfo      `json:"deviceInfo"`
 	SecurityContext *models.SecurityContext `json:"securityContext"`
 	ExpiryDuration  time.Duration           `json:"expiryDuration"` // Default: 10 minutes
+	// Mode + LinkUserUUID — see OAuthStateClaims. Mirrored on the
+	// Redis side-data row so the callback can cross-check against the
+	// signed-state JWT (defeats tampering with one half in isolation).
+	Mode         string `json:"mode,omitempty"`
+	LinkUserUUID string `json:"linkUserUuid,omitempty"`
 }
 
 // OAuthStateInfo contains stored OAuth state information. Tier mirrors
@@ -62,6 +67,9 @@ type OAuthStateInfo struct {
 	SecurityContext *models.SecurityContext `json:"securityContext"`
 	CreatedAt       time.Time               `json:"createdAt"`
 	ExpiresAt       time.Time               `json:"expiresAt"`
+	// Mode + LinkUserUUID — see StoreOAuthStateRequest.
+	Mode         string `json:"mode,omitempty"`
+	LinkUserUUID string `json:"linkUserUuid,omitempty"`
 }
 
 // OAuthStateStore defines the storage interface for OAuth states
@@ -115,6 +123,8 @@ func (s *oAuthStateService) StoreOAuthState(ctx context.Context, request *StoreO
 		SecurityContext: request.SecurityContext,
 		CreatedAt:       time.Now(),
 		ExpiresAt:       time.Now().Add(expiry),
+		Mode:            request.Mode,
+		LinkUserUUID:    request.LinkUserUUID,
 	}
 
 	// Serialize state info

@@ -411,6 +411,17 @@ export const authApi = baseApi.injectEndpoints({
       invalidatesTags: ['SelfAuthMethods', 'User'],
     }),
 
+    // Self-service link — start the OAuth flow that binds a new
+    // sign-in provider to the current account. Same step-up gate as
+    // unlink (it adds a credential). Returns the IdP redirect URL;
+    // the caller is responsible for `window.location.assign(authUrl)`.
+    initiateOauthLinkSelf: builder.mutation<{ authUrl: string; state: string }, { provider: OAuthProvider }>({
+      query: ({ provider }) => ({
+        url: `v1/auth/operator/me/oauth/link/${provider}`,
+        method: 'POST',
+      }),
+    }),
+
     // Revoke one session. Server returns 409 cannot_revoke_current
     // when the session matches the JWT sid; the UI disables the
     // revoke button for the current row, so this is defensive.
@@ -517,6 +528,7 @@ export const {
   useGetSelfAuthMethodsQuery,
   useGetMySessionsQuery,
   useUnlinkOauthSelfMutation,
+  useInitiateOauthLinkSelfMutation,
   useRevokeSessionMutation,
   useRevokeAllSessionsMutation,
 } = authApi;

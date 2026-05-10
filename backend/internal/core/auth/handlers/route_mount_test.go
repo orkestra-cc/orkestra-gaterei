@@ -42,6 +42,7 @@ func TestRouteMountsRegisterDistinctPaths(t *testing.T) {
 		wa.RegisterStepUpRoutes(api, mount)
 		dt.RegisterRoutes(api, mount)
 		auth.RegisterTierMountableRoutes(api, api, router, mount)
+		auth.RegisterOAuthLinkRoute(api, mount)
 	}
 
 	spec := api.OpenAPI()
@@ -62,6 +63,8 @@ func TestRouteMountsRegisterDistinctPaths(t *testing.T) {
 		"/v1/auth/operator/me/devices/trust",
 		"/v1/auth/operator/me/mfa/backup-codes/regenerate",
 		"/v1/auth/client/me/mfa/backup-codes/regenerate",
+		"/v1/auth/operator/me/oauth/link/{provider}",
+		"/v1/auth/client/me/oauth/link/{provider}",
 	}
 	for _, p := range want {
 		if _, ok := spec.Paths[p]; !ok {

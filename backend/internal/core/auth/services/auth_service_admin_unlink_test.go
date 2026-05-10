@@ -64,6 +64,16 @@ func (f *adminUnlinkUserFake) GetUserOAuthLinks(_ context.Context, userUUID stri
 	return nil, errNotFound
 }
 
+func (f *adminUnlinkUserFake) AddOAuthLinkToUser(_ context.Context, userUUID string, link userModels.OAuthLink) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if u, ok := f.users[userUUID]; ok {
+		u.OAuthLinks = append(u.OAuthLinks, link)
+		return nil
+	}
+	return errNotFound
+}
+
 func (f *adminUnlinkUserFake) RemoveOAuthLinkFromUser(_ context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -66,6 +66,19 @@ var (
 	// "doesn't exist" and "not yours" to one error so the response
 	// doesn't leak the existence of someone else's session UUID.
 	ErrSessionNotFound = errors.New("session not found")
+	// ErrOAuthLinkClaimedByOther signals that the OAuth identity the
+	// caller is trying to link is already attached to a different
+	// account. Returned by SelfLinkOAuthFromCallback so the callback
+	// surface can render an "already in use" error rather than
+	// silently re-binding the identity to the new user. Translated to
+	// 409 oauth_already_linked at the redirect query layer.
+	ErrOAuthLinkClaimedByOther = errors.New("OAuth identity already linked to another account")
+	// ErrOAuthLinkInvalidUserInfo signals that the OAuth provider's
+	// userInfo response was missing fields required to build a link
+	// (typically providerID or email). Distinct from ErrOAuthLinkNotFound
+	// — that's "the link doesn't exist", this is "the link can't be
+	// built from what we got back".
+	ErrOAuthLinkInvalidUserInfo = errors.New("OAuth provider returned incomplete user info")
 )
 
 // AuthService extends the basic auth service with UUID support and OAuth linking
@@ -95,6 +108,14 @@ type AuthService interface {
 	// HTTP handler is gated by RequireStepUp(5m) — credential removal
 	// demands a fresh MFA proof.
 	SelfUnlinkOAuth(ctx context.Context, userUUID string, provider userModels.OAuthProvider) error
+	// SelfLinkOAuthFromCallback binds a freshly-completed OAuth flow
+	// to an authenticated user. Called from the OAuth callback when
+	// the signed-state JWT carries Mode=link. Rejects with
+	// ErrOAuthLinkClaimedByOther when the (provider, providerID) pair
+	// is already attached to a different user; with
+	// ErrOAuthLinkAlreadyExists when the user already has the same
+	// provider linked.
+	SelfLinkOAuthFromCallback(ctx context.Context, userUUID string, provider userModels.OAuthProvider, userInfo map[string]interface{}, oauthTokens *models.OAuthProviderTokens) error
 	// GetUserAuthMethods aggregates the user's auth state across the
 	// user record, MFA factor row(s), and linked OAuth providers into
 	// a single view consumed by the admin profile card and by the
@@ -489,6 +510,139 @@ func (s *authService) SelfUnlinkOAuth(ctx context.Context, userUUID string, prov
 	}
 	slog.Info("self_auth_action",
 		"event", "self_oauth_unlink",
+		"userUUID", userUUID,
+		"provider", string(provider),
+	)
+	return nil
+}
+
+// SelfLinkOAuthFromCallback binds an OAuth identity returned by a
+// completed OAuth flow to an authenticated user. Driven by the
+// link-mode branch of the shared OAuth callback (state.Mode=="link";
+// state.LinkUserUUID names this user). Mirrors the safeguards in
+// HandleOAuthCallbackWithLinking but never mints tokens — the user
+// is already authenticated.
+//
+// Safeguards:
+//  1. providerID + email must be present in userInfo; reject with
+//     ErrOAuthLinkInvalidUserInfo otherwise.
+//  2. (provider, providerID) must not already be claimed by a
+//     different user — return ErrOAuthLinkClaimedByOther.
+//  3. The user must not already have a link for this provider —
+//     return ErrOAuthLinkAlreadyExists.
+//
+// On success the link is appended to User.OAuthLinks (the embedded
+// slice that powers self/admin OAuth-unlink) and a corresponding
+// row is written to the auth-side oauth_provider_repo so existing
+// provider-side lookups (login resolution) see the new identity.
+func (s *authService) SelfLinkOAuthFromCallback(
+	ctx context.Context,
+	userUUID string,
+	provider userModels.OAuthProvider,
+	userInfo map[string]interface{},
+	oauthTokens *models.OAuthProviderTokens,
+) error {
+	if userUUID == "" {
+		return fmt.Errorf("self link: userUUID is required")
+	}
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	providerID, _ := userInfo["provider_id"].(string)
+	email, _ := userInfo["email"].(string)
+	if providerID == "" || email == "" {
+		return ErrOAuthLinkInvalidUserInfo
+	}
+
+	// Already-claimed-by-another check: keyed on the provider-side
+	// index, the source of truth for "who owns this providerID". The
+	// repo speaks the auth-side OAuthProvider type, so cross from
+	// user-side to auth-side at the boundary.
+	authProvider := models.OAuthProvider(provider)
+	if existing, _ := s.oauthProviderRepo.GetByProviderAndID(ctx, authProvider, providerID); existing != nil {
+		if existing.UserUUID != userUUID {
+			return ErrOAuthLinkClaimedByOther
+		}
+		// Already linked to this same user — make the call idempotent
+		// so a refresh / replay doesn't surface as a hard error.
+		return nil
+	}
+
+	// Already-on-this-user check: walk the embedded array. Picking up
+	// here means a row exists on the user without a matching provider
+	// repo doc — defensive, treat as duplicate.
+	existingLinks, err := s.userService.GetUserOAuthLinks(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+	for _, l := range existingLinks {
+		if l.Provider == provider {
+			return ErrOAuthLinkAlreadyExists
+		}
+	}
+
+	now := time.Now()
+	name, _ := userInfo["name"].(string)
+	picture, _ := userInfo["picture"].(string)
+	emailVerified, _ := userInfo["email_verified"].(bool)
+	metadata := map[string]interface{}{
+		"name":           name,
+		"picture":        picture,
+		"email_verified": emailVerified,
+	}
+
+	link := userModels.OAuthLink{
+		Provider:   provider,
+		ProviderID: providerID,
+		Email:      email,
+		LinkedAt:   now,
+		IsActive:   true,
+		IsPrimary:  false,
+		LastUsed:   &now,
+		OAuthData:  metadata,
+	}
+	if err := s.userService.AddOAuthLinkToUser(ctx, userUUID, link); err != nil {
+		return fmt.Errorf("persist user link: %w", err)
+	}
+
+	// Mirror to the provider-side index so future logins by this
+	// identity resolve back to the right user. Best-effort — a write
+	// failure here leaves the embedded link in place; admin can
+	// re-link if needed. Tokens are stored unencrypted only when the
+	// caller chose not to provide encryption material; the canonical
+	// HandleOAuthCallbackWithLinking does encrypt — we keep the
+	// surface minimal here since these tokens are only used as a
+	// linking artifact, not for ongoing API access.
+	providerDoc := &models.OAuthProviderDoc{
+		UUID:       models.GenerateUUIDv7(),
+		UserUUID:   userUUID,
+		Provider:   authProvider,
+		ProviderID: providerID,
+		Email:      email,
+		IsPrimary:  false,
+		LinkedAt:   now,
+		Metadata:   metadata,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if oauthTokens != nil {
+		providerDoc.Scopes = oauthTokens.Scopes
+	}
+	if err := s.oauthProviderRepo.CreateOAuthProvider(ctx, providerDoc); err != nil {
+		slog.Warn("self_oauth_link: provider repo write failed (link still attached to user)",
+			"userUUID", userUUID,
+			"provider", string(provider),
+			"error", err.Error(),
+		)
+	}
+
+	slog.Info("self_auth_action",
+		"event", "self_oauth_link",
 		"userUUID", userUUID,
 		"provider", string(provider),
 	)

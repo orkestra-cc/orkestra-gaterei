@@ -1106,6 +1106,11 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
 		api := humachi.New(r, ri.APIConfig)
 		m.operatorSelfUserAuthHandler.RegisterStepUpRoutes(api, handlers.OperatorMount)
+		// Linking a new OAuth identity adds a credential, same shape
+		// as unlinking removes one — apply the same RequireStepUp(5m)
+		// gate so a hijacked session can't silently attach a
+		// persistence vector.
+		m.operatorAuthHandler.RegisterOAuthLinkRoute(api, handlers.OperatorMount)
 	})
 
 	// Operator WebAuthn — public/protected/step-up halves mirror the

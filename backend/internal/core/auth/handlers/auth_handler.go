@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -426,6 +427,215 @@ func (h *AuthHandler) InitiateOAuthLogin(ctx context.Context, req *OAuthLoginReq
 	}, nil
 }
 
+// OAuthLinkRequest is path-only — the provider is encoded in the
+// URL so the start endpoint mirrors the unlink-self surface
+// (DELETE /me/oauth/{provider}).
+type OAuthLinkRequest struct {
+	Provider string `path:"provider" enum:"google,apple,discord,github" doc:"OAuth provider name"`
+}
+
+// InitiateOAuthLink kicks off the self-service "add a sign-in
+// provider" flow. Authenticated; the caller's userUUID is stamped
+// into the signed-state JWT (Mode=link, LinkUserUUID=caller) so the
+// shared callback can bind the new identity without trusting any
+// query-string parameter or fresh login result. Returns the
+// IdP-redirect URL the SPA should `window.location.assign` to.
+func (h *AuthHandler) InitiateOAuthLink(ctx context.Context, req *OAuthLinkRequest) (*OAuthLoginResponse, error) {
+	logger := slog.Default()
+
+	userUUID, ok := middleware.GetUserUUID(ctx)
+	if !ok || userUUID == "" {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	provider := models.OAuthProvider(strings.ToLower(req.Provider))
+	switch provider {
+	case models.OAuthProviderGoogle, models.OAuthProviderApple, models.OAuthProviderGitHub, models.OAuthProviderDiscord:
+	default:
+		return nil, huma.Error400BadRequest("unsupported provider")
+	}
+	if err := h.oauthProviderAllowed(ctx, string(provider)); err != nil {
+		return nil, err
+	}
+	if len(h.stateSecret) == 0 {
+		logger.Error("oauth state secret not configured")
+		return nil, huma.Error500InternalServerError("OAuth not available", nil)
+	}
+
+	// SPA-side redirect target — same shape as InitiateOAuthLogin so
+	// the browser-facing post-callback path stays consistent. Linking
+	// flows redirect to /user/security?tab=oauth on success/failure;
+	// that targeting happens in the callback's link branch below, not
+	// here.
+	var frontendRedirectURL string
+	if rawRequest, ok := ctx.Value("http_request").(*http.Request); ok {
+		origin := rawRequest.Header.Get("Origin")
+		if origin != "" {
+			frontendRedirectURL = origin + "/user/security"
+		} else {
+			frontendRedirectURL = h.config.Server.FrontendURL + "/user/security"
+		}
+	} else {
+		frontendRedirectURL = h.config.Server.FrontendURL + "/user/security"
+	}
+
+	csrf, err := services.GenerateOAuthCSRF()
+	if err != nil {
+		logger.Error("Failed to generate OAuth CSRF nonce", slog.String("error", err.Error()))
+		return nil, huma.Error500InternalServerError("Failed to create OAuth state", err)
+	}
+	signedState, err := services.SignOAuthLinkStateToken(h.stateSecret, h.tier, csrf, userUUID, 10*time.Minute)
+	if err != nil {
+		logger.Error("Failed to sign OAuth link state", slog.String("error", err.Error()))
+		return nil, huma.Error500InternalServerError("Failed to create OAuth state", err)
+	}
+
+	stateRequest := &services.StoreOAuthStateRequest{
+		Provider:       provider,
+		Tier:           h.tier,
+		State:          csrf,
+		RedirectURI:    frontendRedirectURL,
+		ExpiryDuration: 10 * time.Minute,
+		Mode:           services.OAuthStateModeLink,
+		LinkUserUUID:   userUUID,
+	}
+	if _, err := h.oauthStateService.StoreOAuthState(ctx, stateRequest); err != nil {
+		logger.Error("Failed to create OAuth link state", slog.String("error", err.Error()))
+		return nil, huma.Error400BadRequest("Failed to create OAuth state", err)
+	}
+
+	providerSvc, _, err := h.resolveProvider(ctx, provider)
+	if err != nil {
+		logger.Error("Failed to create OAuth provider", slog.String("error", err.Error()))
+		return nil, huma.Error400BadRequest("OAuth provider not configured", err)
+	}
+	backendCallbackURL := h.oauthResolver.RedirectURL(ctx, provider)
+	if backendCallbackURL == "" {
+		return nil, huma.Error400BadRequest("OAuth provider redirect URL not configured", nil)
+	}
+	authURL := providerSvc.GetAuthURL(signedState, "", backendCallbackURL)
+
+	return &OAuthLoginResponse{
+		Body: struct {
+			AuthURL string `json:"authUrl" doc:"URL to redirect the user for OAuth authentication"`
+			State   string `json:"state" doc:"OAuth state parameter for security"`
+		}{
+			AuthURL: authURL,
+			State:   signedState,
+		},
+	}, nil
+}
+
+// finishOAuthLinkRedirect drives the link-mode branch of every
+// provider callback. Calls SelfLinkOAuthFromCallback on the
+// dispatched-target authService and renders a single neutral
+// 302 → /user/security?tab=oauth&link=<status>&provider=<x>. Caller
+// is responsible for having already validated the state token and
+// dispatched to the correct tier.
+func (h *AuthHandler) finishOAuthLinkRedirect(
+	w http.ResponseWriter,
+	r *http.Request,
+	target *AuthHandler,
+	provider models.OAuthProvider,
+	userInfo map[string]interface{},
+	oauthTokens *models.OAuthProviderTokens,
+	linkUserUUID string,
+) {
+	logger := slog.Default()
+	frontendURL := target.config.Server.FrontendURL
+	if frontendURL == "" {
+		frontendURL = h.config.Server.FrontendURL
+	}
+	frontendURL = strings.TrimRight(frontendURL, "/")
+
+	redirect := func(status, code string) {
+		base := frontendURL + "/user/security?tab=oauth&link=" + url.QueryEscape(status) + "&provider=" + url.QueryEscape(string(provider))
+		if code != "" {
+			base += "&code=" + url.QueryEscape(code)
+		}
+		http.Redirect(w, r, base, http.StatusFound)
+	}
+
+	if err := target.authService.SelfLinkOAuthFromCallback(r.Context(), linkUserUUID, userModels.OAuthProvider(provider), userInfo, oauthTokens); err != nil {
+		switch {
+		case errors.Is(err, services.ErrOAuthLinkClaimedByOther):
+			logger.Info("oauth link refused: identity already claimed",
+				slog.String("userUUID", linkUserUUID),
+				slog.String("provider", string(provider)))
+			redirect("failed", "already_linked")
+			return
+		case errors.Is(err, services.ErrOAuthLinkAlreadyExists):
+			logger.Info("oauth link refused: provider already attached",
+				slog.String("userUUID", linkUserUUID),
+				slog.String("provider", string(provider)))
+			redirect("failed", "duplicate_provider")
+			return
+		case errors.Is(err, services.ErrOAuthLinkInvalidUserInfo):
+			logger.Warn("oauth link refused: incomplete provider userinfo",
+				slog.String("userUUID", linkUserUUID),
+				slog.String("provider", string(provider)))
+			redirect("failed", "invalid_userinfo")
+			return
+		default:
+			logger.Error("oauth link failed",
+				slog.String("userUUID", linkUserUUID),
+				slog.String("provider", string(provider)),
+				slog.String("error", err.Error()))
+			redirect("failed", "internal")
+			return
+		}
+	}
+	redirect("success", "")
+}
+
+// resolveOAuthLinkRedirect is the Huma-handler counterpart to
+// finishOAuthLinkRedirect. Same link-mode contract; returns an
+// OAuthCallbackResponse the Huma handler can return directly so the
+// link branch composes inside the existing GitHub / Apple Huma
+// surfaces.
+func (h *AuthHandler) resolveOAuthLinkRedirect(
+	ctx context.Context,
+	target *AuthHandler,
+	provider models.OAuthProvider,
+	userInfo map[string]interface{},
+	oauthTokens *models.OAuthProviderTokens,
+	linkUserUUID string,
+) (*OAuthCallbackResponse, error) {
+	frontendURL := target.config.Server.FrontendURL
+	if frontendURL == "" {
+		frontendURL = h.config.Server.FrontendURL
+	}
+	frontendURL = strings.TrimRight(frontendURL, "/")
+	build := func(status, code string) string {
+		base := frontendURL + "/user/security?tab=oauth&link=" + url.QueryEscape(status) + "&provider=" + url.QueryEscape(string(provider))
+		if code != "" {
+			base += "&code=" + url.QueryEscape(code)
+		}
+		return base
+	}
+	resp := &OAuthCallbackResponse{Status: 302}
+
+	if err := target.authService.SelfLinkOAuthFromCallback(ctx, linkUserUUID, userModels.OAuthProvider(provider), userInfo, oauthTokens); err != nil {
+		switch {
+		case errors.Is(err, services.ErrOAuthLinkClaimedByOther):
+			resp.Headers.Location = build("failed", "already_linked")
+		case errors.Is(err, services.ErrOAuthLinkAlreadyExists):
+			resp.Headers.Location = build("failed", "duplicate_provider")
+		case errors.Is(err, services.ErrOAuthLinkInvalidUserInfo):
+			resp.Headers.Location = build("failed", "invalid_userinfo")
+		default:
+			slog.Default().Error("oauth link failed",
+				slog.String("userUUID", linkUserUUID),
+				slog.String("provider", string(provider)),
+				slog.String("error", err.Error()))
+			resp.Headers.Location = build("failed", "internal")
+		}
+		return resp, nil
+	}
+	resp.Headers.Location = build("success", "")
+	return resp, nil
+}
+
 // resolveStateForCallback validates the signed-state JWT presented to a
 // callback handler, looks up the matching Redis side-data row, and
 // returns the (cross-checked) state info. Returns ErrInvalidStateToken
@@ -450,6 +660,14 @@ func (h *AuthHandler) resolveStateForCallback(ctx context.Context, raw string) (
 	}
 	if stateInfo.Tier != claims.Tier {
 		return nil, nil, fmt.Errorf("OAuth state tier mismatch")
+	}
+	// Cross-check the link-mode pair (mode + linkUserUUID) — if either
+	// side stamped a link flow but the other didn't, treat it as a
+	// forged state (an attacker who tampered with one half in
+	// isolation). Both empty (login) or both populated (link with
+	// matching UUIDs) is fine.
+	if stateInfo.Mode != claims.Mode || stateInfo.LinkUserUUID != claims.LinkUserUUID {
+		return nil, nil, fmt.Errorf("OAuth state mode mismatch")
 	}
 	return stateInfo, claims, nil
 }
@@ -629,6 +847,13 @@ func (h *AuthHandler) HandleGoogleCallbackHTTP(w http.ResponseWriter, r *http.Re
 		IDToken:      tokenResp.IDToken,
 	}
 
+	// Link mode (state.Mode=="link"): the user is already
+	// authenticated; bind the new identity instead of minting tokens.
+	if claims.Mode == services.OAuthStateModeLink {
+		h.finishOAuthLinkRedirect(w, r, target, models.OAuthProviderGoogle, userInfoMap, oauthTokens, claims.LinkUserUUID)
+		return
+	}
+
 	// Use enhanced auth service for proper user creation and token management
 	tokenResponse, err := target.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderGoogle, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
@@ -724,6 +949,11 @@ func (h *AuthHandler) HandleDiscordCallbackHTTP(w http.ResponseWriter, r *http.R
 		Scopes:       tokenResponse.Scope,
 	}
 
+	if claims.Mode == services.OAuthStateModeLink {
+		h.finishOAuthLinkRedirect(w, r, target, models.OAuthProviderDiscord, userInfoMap, oauthTokens, claims.LinkUserUUID)
+		return
+	}
+
 	// Use enhanced auth service for proper user creation and token management
 	authTokenResponse, err := target.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderDiscord, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
@@ -780,6 +1010,7 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 
 	var stateInfo *services.OAuthStateInfo
+	var claims *services.OAuthStateClaims
 	target := h
 
 	if state == "" {
@@ -815,7 +1046,6 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	} else {
 		// ADR-0003 PR-D D-6: validate signed state + dispatch by tier.
 		var err error
-		var claims *services.OAuthStateClaims
 		stateInfo, claims, err = h.resolveStateForCallback(ctx, state)
 		if err != nil {
 			utils.AuthDebugError("state_validation", err)
@@ -884,6 +1114,11 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 	utils.AuthDebug("OAuth tokens prepared - has access: %v, has refresh: %v",
 		tokenResp.AccessToken != "", tokenResp.RefreshToken != "")
+
+	if claims != nil && claims.Mode == services.OAuthStateModeLink {
+		h.finishOAuthLinkRedirect(w, r, target, models.OAuthProviderApple, userInfoMap, oauthTokens, claims.LinkUserUUID)
+		return
+	}
 
 	// Use enhanced auth service for proper user creation and token management
 	utils.AuthDebug("Processing OAuth callback with linking")
@@ -1085,6 +1320,10 @@ func (h *AuthHandler) HandleGitHubCallback(ctx context.Context, req *OAuthCallba
 		AccessToken: tokenResp.AccessToken,
 		TokenType:   tokenResp.TokenType,
 		Scopes:      tokenResp.Scope,
+	}
+
+	if claims.Mode == services.OAuthStateModeLink {
+		return h.resolveOAuthLinkRedirect(ctx, target, models.OAuthProviderGitHub, userInfoMap, oauthTokens, claims.LinkUserUUID)
 	}
 
 	// Use enhanced auth service for proper user creation and token management
@@ -2018,6 +2257,23 @@ func (h *AuthHandler) RegisterOAuthStartRoutes(publicAPI huma.API, mount RouteMo
 		Description: "Validate Apple ID token from mobile app and return JWT tokens. Tokens are minted with the audience matching this mount.",
 		Tags:        []string{"Authentication", "Mobile"},
 	}, h.HandleMobileAppleAuth)
+}
+
+// RegisterOAuthLinkRoute mounts the authenticated "add a sign-in
+// provider" start endpoint at POST /v1/auth{prefix}/me/oauth/link/{provider}.
+// Caller wires `RequireGlobal()` (and optionally `RequireStepUp(5m)`)
+// around the API instance — link mode adds a credential, so the same
+// fresh-MFA gate the unlink path uses applies here.
+func (h *AuthHandler) RegisterOAuthLinkRoute(api huma.API, mount RouteMount) {
+	huma.Register(api, huma.Operation{
+		OperationID: mount.OpIDPrefix + "self-oauth-link-init",
+		Method:      http.MethodPost,
+		Path:        "/v1/auth" + mount.PathPrefix + "/me/oauth/link/{provider}",
+		Summary:     "Initiate OAuth flow to add a sign-in provider to the current account",
+		Description: "Returns a redirect URL the SPA should navigate to. The signed-state JWT carries the caller's userUUID so the shared callback can bind the new identity without a fresh login. The callback redirects back to /user/security?tab=oauth&link=success|failed.",
+		Tags:        []string{"Authentication", "Self-Service"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.InitiateOAuthLink)
 }
 
 // RegisterTierMountableRoutes mounts the audience-aware session routes

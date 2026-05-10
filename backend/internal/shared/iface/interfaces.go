@@ -51,6 +51,12 @@ type UserProvider interface {
 	// other live memberships. Idempotent.
 	SoftDeleteAndAliasEmail(ctx context.Context, userUUID string) error
 	GetUserOAuthLinks(ctx context.Context, userUUID string) ([]userModels.OAuthLink, error)
+	// AddOAuthLinkToUser appends an OAuth identity to the user's
+	// embedded OAuthLinks slice. Used by the self-service "add a
+	// sign-in provider" flow on /user/security and by any future
+	// caller that needs to bind a new identity to an existing
+	// account. Mirrors RemoveOAuthLinkFromUser.
+	AddOAuthLinkToUser(ctx context.Context, userUUID string, link userModels.OAuthLink) error
 	RemoveOAuthLinkFromUser(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error
 	SetPrimaryOAuthLink(ctx context.Context, userUUID string, provider userModels.OAuthProvider, providerID string) error
 	GetUserCount(ctx context.Context, filters *userModels.UserFilters) (int64, error)

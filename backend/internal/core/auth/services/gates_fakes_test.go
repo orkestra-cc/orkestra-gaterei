@@ -246,6 +246,19 @@ func (f *gateUserFake) ClearMFAGrace(_ context.Context, userUUID string) error {
 	return nil
 }
 
+// AddOAuthLinkToUser appends to the user's embedded OAuthLinks slice.
+// Used by the SelfLinkOAuth flow tests.
+func (f *gateUserFake) AddOAuthLinkToUser(_ context.Context, userUUID string, link userModels.OAuthLink) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	u, ok := f.byUUID[userUUID]
+	if !ok {
+		return errNotFound
+	}
+	u.OAuthLinks = append(u.OAuthLinks, link)
+	return nil
+}
+
 // errNotFound mirrors the "not found" sentinel the user service returns
 // when an email/uuid is unknown. Callers in PasswordAuthService check
 // non-nil err to mean "user does not exist" — they don't introspect

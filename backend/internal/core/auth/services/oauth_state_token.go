@@ -46,11 +46,31 @@ var ErrInvalidStateToken = errors.New("invalid OAuth state token")
 // the dispatch target (operator|client|"" for legacy paths); CSRF is the
 // random nonce that doubles as the Redis key holding the per-flow side
 // data; ExpiresAt enforces the 10-minute OAuth state window.
+//
+// Mode discriminates a login flow ("" or "login", default) from a
+// link flow ("link"). When Mode=="link" the callback is acting on a
+// user who is already authenticated — LinkUserUUID names the
+// authenticated user the new identity must be bound to. The
+// signed-state JWT is the only carrier for that UUID; the OAuth
+// provider has no awareness of it. Callbacks must reject any
+// link-mode state whose LinkUserUUID is empty.
 type OAuthStateClaims struct {
-	Tier string `json:"tier,omitempty"`
-	CSRF string `json:"csrf"`
+	Tier         string `json:"tier,omitempty"`
+	Mode         string `json:"mode,omitempty"`
+	LinkUserUUID string `json:"linkUserUuid,omitempty"`
+	CSRF         string `json:"csrf"`
 	jwt.RegisteredClaims
 }
+
+// OAuth state-token modes. Empty / OAuthStateModeLogin → the legacy
+// login flow (the callback mints a token pair). OAuthStateModeLink →
+// the user-security self-service "add a sign-in provider" flow (the
+// callback binds the new identity to LinkUserUUID and does not mint
+// tokens).
+const (
+	OAuthStateModeLogin = "login"
+	OAuthStateModeLink  = "link"
+)
 
 // SignOAuthStateToken mints the signed state JWT sent to the OAuth
 // provider as the `state` query parameter. tier may be empty for legacy
@@ -84,6 +104,42 @@ func SignOAuthStateToken(secret []byte, tier, csrf string, ttl time.Duration) (s
 	return signed, nil
 }
 
+// SignOAuthLinkStateToken mints a state JWT for the self-service
+// "add a sign-in provider" flow. linkUserUUID is the authenticated
+// user the new identity must be bound to on callback — empty is
+// rejected.
+func SignOAuthLinkStateToken(secret []byte, tier, csrf, linkUserUUID string, ttl time.Duration) (string, error) {
+	if linkUserUUID == "" {
+		return "", fmt.Errorf("oauth link state token: linkUserUUID is required")
+	}
+	if len(secret) == 0 {
+		return "", fmt.Errorf("oauth state token: secret is required")
+	}
+	if csrf == "" {
+		return "", fmt.Errorf("oauth state token: csrf is required")
+	}
+	if ttl <= 0 {
+		ttl = 10 * time.Minute
+	}
+	now := time.Now()
+	claims := OAuthStateClaims{
+		Tier:         tier,
+		Mode:         OAuthStateModeLink,
+		LinkUserUUID: linkUserUUID,
+		CSRF:         csrf,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(secret)
+	if err != nil {
+		return "", fmt.Errorf("oauth link state token: sign: %w", err)
+	}
+	return signed, nil
+}
+
 // ValidateOAuthStateToken parses and verifies a state JWT minted by
 // SignOAuthStateToken. Returns the decoded claims on success; any
 // signature, expiry, or alg mismatch surfaces as ErrInvalidStateToken so
@@ -110,6 +166,13 @@ func ValidateOAuthStateToken(secret []byte, raw string) (*OAuthStateClaims, erro
 		return nil, ErrInvalidStateToken
 	}
 	if claims.CSRF == "" {
+		return nil, ErrInvalidStateToken
+	}
+	// Cross-claim sanity: a link-mode state must always carry the
+	// authenticated user UUID. If the JWT was minted by a legitimate
+	// path this is set; if an attacker stripped it to slip past the
+	// link branch, reject as forged.
+	if claims.Mode == OAuthStateModeLink && claims.LinkUserUUID == "" {
 		return nil, ErrInvalidStateToken
 	}
 	return claims, nil

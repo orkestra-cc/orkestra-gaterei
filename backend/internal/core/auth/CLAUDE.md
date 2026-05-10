@@ -229,6 +229,7 @@ The OAuth provider callbacks (`/v1/auth/oauth/{google,apple,discord,github}/call
 | GET | `/v1/auth/{tier}/me/auth-methods` | `RequireGlobal()` | Self-service: aggregate password / MFA / OAuth state of the calling user. Same `models.AuthMethodsView` shape the admin route returns. Drives the `/user/security` page header |
 | GET | `/v1/auth/{tier}/me/sessions` | `RequireGlobal()` | Self-service: list active sessions for the caller. `IsCurrent` flag stamped from JWT `sid` |
 | DELETE | `/v1/auth/{tier}/me/oauth/{provider}` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: unlink one of the caller's OAuth identities. Service-layer last-credential safeguard rejects with 409 `last_credential` when removing would leave the user with no usable login |
+| POST | `/v1/auth/{tier}/me/oauth/link/{provider}` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: start the OAuth flow that adds a new sign-in provider to the caller's account. Returns `{authUrl, state}` — the SPA navigates to `authUrl`; the shared callback redirects back to `/user/security?tab=oauth&link=success\|failed&provider=<x>&code=<reason>`. The signed-state JWT carries `mode=link` + `linkUserUUID` so the callback binds the new identity to the authenticated user without trusting any query-string parameter |
 | DELETE | `/v1/auth/{tier}/me/sessions/{sessionId}` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: revoke one session by UUID. Returns 409 `cannot_revoke_current` when the target sid matches the caller's JWT — logout is the right tool for that |
 | DELETE | `/v1/auth/{tier}/me/sessions` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: revoke every active session except the calling one. Returns `{revoked: int}` |
 | POST | `/v1/auth/{tier}/me/mfa/backup-codes/regenerate` | `RequireGlobal()` + `RequireStepUp(5m)` | Self-service: replace the user's TOTP backup-code list with a fresh set. Old codes stop working immediately. Returns `{codes: string[]}` exactly once |
@@ -275,8 +276,17 @@ lives on `MFAHandler` for cohesion with the rest of the MFA surface.
 
 The service layer reuses the lockout helper extracted from
 `AdminUnlinkOAuth` so a self-unlink that would leave the user with no
-usable login method is rejected with 409 `last_credential`. Session
-revocation is the same three-step coordinated op the admin paths use:
+usable login method is rejected with 409 `last_credential`. The
+companion **link** endpoint (`POST /me/oauth/link/{provider}`) mints a
+signed-state JWT with `Mode=link` + `LinkUserUUID=caller` so the
+single shared OAuth callback can bind the returning identity to the
+authenticated user without minting fresh tokens. The callback rejects
+identities already claimed by another account (`ErrOAuthLinkClaimedByOther`)
+or duplicates of an existing provider on the same user
+(`ErrOAuthLinkAlreadyExists`); both surface as
+`/user/security?tab=oauth&link=failed&code=<reason>` redirects.
+Session revocation is the same three-step coordinated op the admin
+paths use:
 `refreshTokenRepo.RevokeTokensBySession` → flip
 `AuthSession.IsActive=false` → push the sid into the Redis revocation
 set (`auth:revoked:session:<sid>`) so middleware kills in-flight

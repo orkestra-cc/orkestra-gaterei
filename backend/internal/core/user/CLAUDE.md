@@ -91,7 +91,7 @@ Key method groups:
 - **Identity / lookup** — `GetUserByID`, `GetUserByEmail`, `GetUserForAuth` (includes password hash + lockout fields; auth-only), `GetUserCount`
 - **Creation** — `CreateUserWithPassword` (called by password signup), `CreateUserFromOAuth` (called by OAuth flows)
 - **Auth-side mutations** — `UpdatePasswordHash`, `MarkEmailVerified`, `RecordFailedLogin` (optional `lockUntil`), `ClearFailedLogins`, `UpdateUserLastLogin`, `StartMFAGraceIfUnset` (idempotent — preserves an existing clock), `ResetMFAGrace` (unconditionally restarts — used by admin MFA reset), `ClearMFAGrace` (wipe on successful enrollment)
-- **OAuth link management** — `GetUserOAuthLinks`, `RemoveOAuthLinkFromUser`, `SetPrimaryOAuthLink`
+- **OAuth link management** — `GetUserOAuthLinks`, `AddOAuthLinkToUser`, `RemoveOAuthLinkFromUser`, `SetPrimaryOAuthLink`
 - **General mutation** — `UpdateUser`, `DeleteUser`
 
 `GetUserForAuth` returns the full `*User` including the password hash. Every other read path returns `*UserManagementResponse` which strips sensitive fields — use the right one.
