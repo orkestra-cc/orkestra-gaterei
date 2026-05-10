@@ -12,6 +12,7 @@ import { Link } from 'react-router';
 import { useGetNotificationSummaryQuery } from 'store/api/billingApi';
 import { NOTIFICATION_TYPE_LABELS } from 'types/billing';
 import type { NotificationType } from 'types/billing';
+import { lastYearRange } from './dateRanges';
 
 const getNotificationIcon = (type: NotificationType) => {
   switch (type) {
@@ -33,7 +34,7 @@ const getNotificationIcon = (type: NotificationType) => {
 };
 
 const SDINotificationsSummary = () => {
-  const { data: summary, isLoading, error } = useGetNotificationSummaryQuery();
+  const { data: summary, isLoading, error } = useGetNotificationSummaryQuery(lastYearRange());
 
   if (isLoading) {
     return (

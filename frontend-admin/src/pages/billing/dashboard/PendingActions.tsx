@@ -10,6 +10,7 @@ import {
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import { Link } from 'react-router';
 import { useGetBillingStatsQuery, useGetNotificationsQuery } from 'store/api/billingApi';
+import { lastYearRange } from './dateRanges';
 
 interface PendingAction {
   id: string;
@@ -22,10 +23,13 @@ interface PendingAction {
 }
 
 const PendingActions = () => {
-  const { data: stats, isLoading: statsLoading } = useGetBillingStatsQuery({});
+  const lastYear = lastYearRange();
+  const { data: stats, isLoading: statsLoading } = useGetBillingStatsQuery(lastYear);
   const { isLoading: notificationsLoading } = useGetNotificationsQuery({
     processed: false,
     pageSize: 5,
+    fromDate: lastYear.fromDate,
+    toDate: lastYear.toDate,
   });
 
   const isLoading = statsLoading || notificationsLoading;

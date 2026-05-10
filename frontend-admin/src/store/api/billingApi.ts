@@ -20,6 +20,7 @@ import type {
   NotificationListResponse,
   NotificationListParams,
   NotificationSummary,
+  NotificationSummaryParams,
   BillingStats,
   BillingStatsParams,
   PreservedDocument,
@@ -467,8 +468,11 @@ export const billingApi = baseApi.injectEndpoints({
       ],
     }),
 
-    getNotificationSummary: builder.query<NotificationSummary, void>({
-      query: () => '/v1/billing/notifications/summary',
+    getNotificationSummary: builder.query<NotificationSummary, NotificationSummaryParams | undefined>({
+      query: (params) => {
+        const queryString = params ? buildQueryParams(params) : '';
+        return `/v1/billing/notifications/summary${queryString ? `?${queryString}` : ''}`;
+      },
       providesTags: [{ type: 'Notification', id: 'SUMMARY' }],
     }),
 

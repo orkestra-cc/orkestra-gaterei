@@ -844,6 +844,12 @@ export interface NotificationSummary {
   AT: number;
 }
 
+export interface NotificationSummaryParams {
+  fromDate?: string;
+  toDate?: string;
+  [key: string]: string | undefined;
+}
+
 export interface NotificationListResponse {
   notifications: SDINotification[];
   total: number;

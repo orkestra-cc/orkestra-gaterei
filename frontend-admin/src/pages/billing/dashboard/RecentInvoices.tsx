@@ -10,6 +10,7 @@ import {
   INVOICE_STATUS_LABELS,
 } from 'types/billing';
 import type { InvoiceSummary, InvoiceStatus } from 'types/billing';
+import { lastYearRange } from './dateRanges';
 
 const getStatusBadge = (status: InvoiceStatus) => {
   const variants: Record<InvoiceStatus, string> = {
@@ -26,14 +27,19 @@ const getStatusBadge = (status: InvoiceStatus) => {
 };
 
 const RecentInvoices = () => {
+  const lastYear = lastYearRange();
   const { data: issuedData, isLoading: issuedLoading } = useGetInvoicesQuery({
     direction: 'issued',
     pageSize: 5,
+    fromDate: lastYear.fromDate,
+    toDate: lastYear.toDate,
   });
 
   const { data: receivedData, isLoading: receivedLoading } = useGetInvoicesQuery({
     direction: 'received',
     pageSize: 5,
+    fromDate: lastYear.fromDate,
+    toDate: lastYear.toDate,
   });
 
   const isLoading = issuedLoading || receivedLoading;

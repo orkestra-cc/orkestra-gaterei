@@ -14,7 +14,7 @@ import { useGetNotificationSummaryQuery } from 'store/api/billingApi';
 import CountUp from 'react-countup';
 
 const NotificationGreetings = () => {
-  const { data: summary } = useGetNotificationSummaryQuery();
+  const { data: summary } = useGetNotificationSummaryQuery(undefined);
 
   const statItems = [
     {
