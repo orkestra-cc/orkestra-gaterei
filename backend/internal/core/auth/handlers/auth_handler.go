@@ -588,6 +588,80 @@ func (h *AuthHandler) finishOAuthLinkRedirect(
 	redirect("success", "")
 }
 
+// finishOAuthMFAPartialRedirect handles the partial-response branch
+// of the OAuth callback: when evaluateMFAForOAuth in the auth service
+// determines the user must complete a second factor before tokens are
+// minted, HandleOAuthCallbackWithLinking returns a TokenResponse with
+// RequiresMFA=true and no Access/RefreshToken. The callback must NOT
+// SetRefreshTokenCookie in that case — passing an empty value would
+// overwrite any previously valid cookie with an unusable one and leave
+// the SPA stuck on /auth/callback?success=true with no working session.
+//
+// Instead, redirect to /auth/callback with requiresMfa=true plus the
+// challenge id; SocialAuthCallback on the SPA reads those params and
+// routes to /mfa/verify (matching the password login MFA-partial path).
+// Returns true when the partial branch was hit and the caller should
+// stop processing.
+func (h *AuthHandler) finishOAuthMFAPartialRedirect(
+	w http.ResponseWriter,
+	r *http.Request,
+	target *AuthHandler,
+	tokenResponse *models.TokenResponse,
+	provider string,
+) bool {
+	if tokenResponse == nil || !tokenResponse.RequiresMFA {
+		return false
+	}
+	frontendURL := strings.TrimRight(target.config.Server.FrontendURL, "/")
+	qs := url.Values{}
+	qs.Set("requiresMfa", "true")
+	qs.Set("provider", provider)
+	if tokenResponse.MFAToken != "" {
+		qs.Set("mfaToken", tokenResponse.MFAToken)
+	}
+	if tokenResponse.WebAuthnAvailable {
+		qs.Set("webauthnAvailable", "true")
+	}
+	if tokenResponse.User != nil {
+		qs.Set("user_id", tokenResponse.User.ID)
+		qs.Set("email", tokenResponse.User.Email)
+	}
+	http.Redirect(w, r, frontendURL+"/auth/callback?"+qs.Encode(), http.StatusFound)
+	return true
+}
+
+// resolveOAuthMFAPartialRedirect is the Huma-handler counterpart of
+// finishOAuthMFAPartialRedirect — same contract, but returns the
+// OAuthCallbackResponse the GitHub Huma callback can hand back to the
+// framework. (nil, false) means the caller should fall through to the
+// regular full-token path.
+func (h *AuthHandler) resolveOAuthMFAPartialRedirect(
+	target *AuthHandler,
+	tokenResponse *models.TokenResponse,
+	provider string,
+) (*OAuthCallbackResponse, bool) {
+	if tokenResponse == nil || !tokenResponse.RequiresMFA {
+		return nil, false
+	}
+	frontendURL := strings.TrimRight(target.config.Server.FrontendURL, "/")
+	qs := url.Values{}
+	qs.Set("requiresMfa", "true")
+	qs.Set("provider", provider)
+	if tokenResponse.MFAToken != "" {
+		qs.Set("mfaToken", tokenResponse.MFAToken)
+	}
+	if tokenResponse.WebAuthnAvailable {
+		qs.Set("webauthnAvailable", "true")
+	}
+	if tokenResponse.User != nil {
+		qs.Set("user_id", tokenResponse.User.ID)
+		qs.Set("email", tokenResponse.User.Email)
+	}
+	resp := &OAuthCallbackResponse{Status: 302}
+	resp.Headers.Location = frontendURL + "/auth/callback?" + qs.Encode()
+	return resp, true
+}
+
 // resolveOAuthLinkRedirect is the Huma-handler counterpart to
 // finishOAuthLinkRedirect. Same link-mode contract; returns an
 // OAuthCallbackResponse the Huma handler can return directly so the
@@ -865,6 +939,14 @@ func (h *AuthHandler) HandleGoogleCallbackHTTP(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Failed to process OAuth callback", http.StatusInternalServerError)
 		return
 	}
+	// MFA-partial path: privileged user with an enrolled factor — no
+	// tokens were minted. Redirect to /auth/callback with the challenge
+	// id so the SPA routes to /mfa/verify, and skip the cookie write
+	// (an empty refresh token would clobber any previously valid one).
+	if h.finishOAuthMFAPartialRedirect(w, r, target, tokenResponse, "google") {
+		return
+	}
+
 	// Set only refresh token as secure HttpOnly cookie
 	// Use cookie configuration from environment
 	cookieName := target.config.Auth.Cookie.Name     // Set from COOKIE_NAME env var
@@ -958,6 +1040,9 @@ func (h *AuthHandler) HandleDiscordCallbackHTTP(w http.ResponseWriter, r *http.R
 	authTokenResponse, err := target.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderDiscord, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
 		http.Error(w, "Failed to process OAuth callback", http.StatusInternalServerError)
+		return
+	}
+	if h.finishOAuthMFAPartialRedirect(w, r, target, authTokenResponse, "discord") {
 		return
 	}
 
@@ -1126,6 +1211,9 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		utils.AuthDebugError("oauth_callback", err)
 		http.Error(w, "Failed to process OAuth callback", http.StatusInternalServerError)
+		return
+	}
+	if h.finishOAuthMFAPartialRedirect(w, r, target, tokenResponse, "apple") {
 		return
 	}
 	// Set only refresh token as secure HttpOnly cookie
@@ -1330,6 +1418,9 @@ func (h *AuthHandler) HandleGitHubCallback(ctx context.Context, req *OAuthCallba
 	tokenResponse, err := target.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderGitHub, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to process OAuth callback", err)
+	}
+	if resp, ok := h.resolveOAuthMFAPartialRedirect(target, tokenResponse, "github"); ok {
+		return resp, nil
 	}
 
 	// Redirect to frontend without access token (access token will be fetched via /auth/session)

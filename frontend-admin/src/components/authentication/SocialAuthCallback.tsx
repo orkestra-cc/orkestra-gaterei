@@ -20,9 +20,25 @@ const SocialAuthCallback = () => {
         const success = searchParams.get('success');
         const error = searchParams.get('error');
         const provider = searchParams.get('provider');
+        const requiresMfa = searchParams.get('requiresMfa');
+        const mfaToken = searchParams.get('mfaToken');
+        const webauthnAvailable = searchParams.get('webauthnAvailable') === 'true';
 
         if (error) {
           throw new Error(`OAuth error: ${error}`);
+        }
+
+        // OAuth-resolved user is privileged + MFA-enrolled — backend
+        // returned a partial response with no tokens. Route to
+        // /mfa/verify with the challenge id so the user can complete
+        // the second factor; LoginMfaVerify reads challengeId from
+        // location.state, matching the password-login MFA path.
+        if (requiresMfa === 'true' && mfaToken) {
+          navigate('/mfa/verify', {
+            replace: true,
+            state: { challengeId: mfaToken, webauthnAvailable, provider },
+          });
+          return;
         }
 
         if (success !== 'true') {
