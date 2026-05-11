@@ -88,12 +88,19 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
         }
 
         if (field.type === 'bool') {
+          // Mirror the enum branch: when no value is stored, fall back
+          // to the schema default so the switch reflects what the
+          // backend will actually enforce. Without this, default-true
+          // toggles render OFF until the user explicitly saves a value
+          // — admins read it as "disabled" and act on a wrong premise.
+          const stored = configValues[key];
+          const effective = stored !== undefined && stored !== '' ? stored : (field.default || 'false');
           return (
             <Form.Group key={key} className="mb-3">
               <Form.Check
                 type="switch"
                 label={field.label}
-                checked={configValues[key] === 'true'}
+                checked={effective === 'true'}
                 onChange={(e) => onConfigChange(key, e.target.checked ? 'true' : 'false')}
               />
               {field.description && (
