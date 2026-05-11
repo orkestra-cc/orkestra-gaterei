@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	stderrors "errors"
 	"log/slog"
 	"net/url"
 	"os"
@@ -891,6 +892,40 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		return session.RiskScore, nil
 	}
 	deps.Services.Register(module.ServiceSessionRiskLookup, sessionRiskLookup)
+
+	// MFA-enrollment lookup: reports whether a user has any TOTP or
+	// WebAuthn factor on the tier the caller's token was minted for.
+	// Consumed by AuthMiddleware.RequireStepUp to split step-up failures
+	// into MFA / password-reconfirm / enroll-first buckets. Tier
+	// resolution: audience claim picks the matching mfa_factors
+	// collection; empty/unknown audience falls back to operator (today's
+	// canonical tier) so legacy single-aud tokens keep working.
+	operatorMFA := opBundle.mfaFactorRepo
+	clientMFA := clBundle.mfaFactorRepo
+	mfaEnrollmentLookup := func(ctx context.Context, audience, userUUID string) (bool, error) {
+		if userUUID == "" {
+			return false, nil
+		}
+		repo := operatorMFA
+		if audience == "client" {
+			repo = clientMFA
+		}
+		if repo == nil {
+			return false, nil
+		}
+		if totp, err := repo.FindByUserAndType(ctx, userUUID, models.MFAFactorTOTP); err == nil && totp != nil {
+			return true, nil
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return false, err
+		}
+		if wa, err := repo.FindByUserAndType(ctx, userUUID, models.MFAFactorWebAuthn); err == nil && wa != nil && len(wa.WebAuthnCredentials) > 0 {
+			return true, nil
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return false, err
+		}
+		return false, nil
+	}
+	deps.Services.Register(module.ServiceMFAEnrollmentLookup, authMiddleware.MFAEnrollmentLookup(mfaEnrollmentLookup))
 
 	// Register one PII producer per tier with the DSR registry. Each
 	// producer reports tier-correct collection names in the DSR audit

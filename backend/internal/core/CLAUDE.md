@@ -78,6 +78,7 @@ Constants live in `backend/internal/shared/module/services.go:13-32`. This is th
 | `ServicePasswordService` | auth | `*services.PasswordService` | argon2id hashing |
 | `ServicePasswordAuthService` | auth | `*services.PasswordAuthService` | consumed by setup wizard |
 | `ServiceSessionRevocation` | auth | `services.SessionRevocationService` | Redis-backed revoked-session set; consumed by middleware on every auth'd request |
+| `ServiceMFAEnrollmentLookup` | auth | `middleware.MFAEnrollmentLookup` | Per-tier MFA-factor presence resolver; consumed by `RequireStepUp` to split step-up failures into MFA / password-reconfirm / enroll-first |
 | `ServiceOAuthProviderFactory` | auth | `*services.OAuthProviderFactory` | |
 | `ServiceOAuthStateService` | auth | `*services.OAuthStateService` | |
 | `ServiceOAuthProviderRepo` | auth | `*repository.OAuthProviderRepository` | |

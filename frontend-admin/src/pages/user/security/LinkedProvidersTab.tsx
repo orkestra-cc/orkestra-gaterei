@@ -112,6 +112,13 @@ const LinkedProvidersTab = () => {
         data?: { detail?: string; title?: string; code?: string };
       };
       if (e?.data?.code === 'step_up_required') return; // StepUpModal handles
+      if (e?.data?.code === 'password_confirm_required') return; // PasswordConfirmModal handles
+      if (e?.data?.code === 'mfa_enrollment_required') {
+        setError(
+          'Your role requires MFA. Enroll a second factor in Security settings before linking a new provider.'
+        );
+        return;
+      }
       setError(
         e?.data?.detail || e?.data?.title || 'Failed to start linking flow.'
       );
@@ -133,10 +140,16 @@ const LinkedProvidersTab = () => {
         setError(
           'You have no other login method. Set a password before unlinking this provider.'
         );
-      } else if (code === 'step_up_required') {
-        // The global StepUpModal will pick this up and replay; close
-        // the inline modal so the prompt isn't obscured.
+      } else if (code === 'step_up_required' || code === 'password_confirm_required') {
+        // The global StepUpModal / PasswordConfirmModal will pick this
+        // up and replay; close the inline modal so the prompt isn't
+        // obscured.
         setTarget(null);
+      } else if (code === 'mfa_enrollment_required') {
+        setTarget(null);
+        setError(
+          'Your role requires MFA. Enroll a second factor in Security settings before unlinking a provider.'
+        );
       } else {
         setError(
           e?.data?.detail || e?.data?.title || 'Failed to unlink provider.'

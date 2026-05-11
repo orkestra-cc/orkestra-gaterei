@@ -59,6 +59,13 @@ const SessionsTab = () => {
         data?: { detail?: string; title?: string; code?: string };
       };
       if (e?.data?.code === 'step_up_required') return; // StepUpModal handles
+      if (e?.data?.code === 'password_confirm_required') return; // PasswordConfirmModal handles
+      if (e?.data?.code === 'mfa_enrollment_required') {
+        setError(
+          'Your role requires MFA. Enroll a second factor in Security settings before revoking sessions.'
+        );
+        return;
+      }
       setError(
         e?.data?.detail || e?.data?.title || 'Failed to revoke session.'
       );
@@ -76,6 +83,17 @@ const SessionsTab = () => {
       };
       if (e?.data?.code === 'step_up_required') {
         setShowRevokeAll(false);
+        return;
+      }
+      if (e?.data?.code === 'password_confirm_required') {
+        setShowRevokeAll(false);
+        return;
+      }
+      if (e?.data?.code === 'mfa_enrollment_required') {
+        setShowRevokeAll(false);
+        setError(
+          'Your role requires MFA. Enroll a second factor in Security settings before revoking sessions.'
+        );
         return;
       }
       setError(

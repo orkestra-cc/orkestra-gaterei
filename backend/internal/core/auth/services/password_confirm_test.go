@@ -1,0 +1,145 @@
+package services
+
+import (
+	"context"
+	stderrors "errors"
+	"testing"
+
+	"github.com/orkestra/backend/internal/core/auth/models"
+)
+
+// Tests for PasswordAuthService.ConfirmPassword — the reauth bypass used
+// by RequireStepUp's password_confirm_required path. Reuses the in-memory
+// gatesEnv fixture so the wiring of UserService / PasswordService / JWT
+// matches the production code paths.
+
+func TestConfirmPassword_HappyPath(t *testing.T) {
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	u := env.hashedUser("alice@example.com", "correct-horse-battery")
+
+	res, err := env.auth.ConfirmPassword(context.Background(), u.UUID, "correct-horse-battery", []string{"pwd"}, "203.0.113.10")
+	if err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if res == nil || res.AccessToken == "" {
+		t.Fatal("expected access token in result")
+	}
+	if res.TokenType != "Bearer" {
+		t.Errorf("token type = %q, want Bearer", res.TokenType)
+	}
+	// Parse the freshly-minted token and assert it carries amr += "reauth"
+	// plus a non-zero last_otp_at. ValidateAccessToken runs the same path
+	// the middleware would.
+	claims, err := env.jwt.ValidateAccessToken(res.AccessToken)
+	if err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if claims.LastOTPAt == 0 {
+		t.Error("LastOTPAt must be stamped on a reauth token")
+	}
+	seen := map[string]bool{}
+	for _, v := range claims.AMR {
+		seen[v] = true
+	}
+	if !seen["pwd"] || !seen["reauth"] {
+		t.Errorf("amr = %v, want [pwd reauth]", claims.AMR)
+	}
+}
+
+func TestConfirmPassword_WrongPasswordReturnsInvalidCreds(t *testing.T) {
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	u := env.hashedUser("alice@example.com", "correct-horse-battery")
+
+	_, err := env.auth.ConfirmPassword(context.Background(), u.UUID, "wrong-password", []string{"pwd"}, "203.0.113.10")
+	if !stderrors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("err = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestConfirmPassword_NoPasswordHashIsUnavailable(t *testing.T) {
+	// Pure-OAuth user (no password hash) cannot reconfirm via password.
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	u := activeUser("oauth-only@example.com", "")
+	env.users.seed(u)
+
+	_, err := env.auth.ConfirmPassword(context.Background(), u.UUID, "anything", nil, "")
+	if !stderrors.Is(err, ErrPasswordConfirmUnavailable) {
+		t.Fatalf("err = %v, want ErrPasswordConfirmUnavailable", err)
+	}
+}
+
+func TestConfirmPassword_TOTPEnrolledRefuses(t *testing.T) {
+	// A user with TOTP enrolled must use the MFA path, not password
+	// reconfirm — the middleware should never route them here, but a
+	// crafted direct call must still be refused.
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	repo := newFakeFactorRepo()
+	env.auth.mfaFactorRepo = repo
+	u := env.hashedUser("with-totp@example.com", "correct-horse-battery")
+	_ = repo.Insert(context.Background(), &models.MFAFactorDoc{
+		UUID:     "factor-1",
+		UserUUID: u.UUID,
+		Type:     models.MFAFactorTOTP,
+	})
+
+	_, err := env.auth.ConfirmPassword(context.Background(), u.UUID, "correct-horse-battery", []string{"pwd"}, "")
+	if !stderrors.Is(err, ErrPasswordConfirmUnavailable) {
+		t.Fatalf("err = %v, want ErrPasswordConfirmUnavailable", err)
+	}
+}
+
+func TestConfirmPassword_WebAuthnEnrolledRefuses(t *testing.T) {
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	repo := newFakeFactorRepo()
+	env.auth.mfaFactorRepo = repo
+	u := env.hashedUser("with-passkey@example.com", "correct-horse-battery")
+	_ = repo.Insert(context.Background(), &models.MFAFactorDoc{
+		UUID:     "factor-wa",
+		UserUUID: u.UUID,
+		Type:     models.MFAFactorWebAuthn,
+		WebAuthnCredentials: []models.WebAuthnCredential{
+			{CredentialID: []byte("cred-1")},
+		},
+	})
+
+	_, err := env.auth.ConfirmPassword(context.Background(), u.UUID, "correct-horse-battery", []string{"pwd"}, "")
+	if !stderrors.Is(err, ErrPasswordConfirmUnavailable) {
+		t.Fatalf("err = %v, want ErrPasswordConfirmUnavailable", err)
+	}
+}
+
+func TestConfirmPassword_EmptyArgsRejected(t *testing.T) {
+	env := newGatesEnv(t, PolicyAudienceOperator, nil, nil)
+	if _, err := env.auth.ConfirmPassword(context.Background(), "", "x", nil, ""); !stderrors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("empty userUUID: err = %v, want ErrInvalidCredentials", err)
+	}
+	if _, err := env.auth.ConfirmPassword(context.Background(), "u-1", "", nil, ""); !stderrors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("empty password: err = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestMergeAMRWithReauth_AppendsAndDedupes(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"empty", nil, []string{"pwd", "reauth"}},
+		{"pwd-only", []string{"pwd"}, []string{"pwd", "reauth"}},
+		{"oauth", []string{"oauth"}, []string{"oauth", "reauth"}},
+		{"already-has-reauth", []string{"pwd", "reauth"}, []string{"pwd", "reauth"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := mergeAMRWithReauth(c.in)
+			if len(got) != len(c.want) {
+				t.Fatalf("len = %d, want %d (got %v want %v)", len(got), len(c.want), got, c.want)
+			}
+			for i, v := range got {
+				if v != c.want[i] {
+					t.Errorf("idx %d: got %q, want %q (got %v want %v)", i, v, c.want[i], got, c.want)
+				}
+			}
+		})
+	}
+}

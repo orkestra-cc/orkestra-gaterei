@@ -347,6 +347,37 @@ export const authApi = baseApi.injectEndpoints({
       })
     }),
 
+    // Password reconfirm — the step-up bypass for users with no MFA
+    // factor enrolled. Backend mints an access token with
+    // amr += "reauth" + last_otp_at = now so the next destructive
+    // request passes RequireStepUp. The fresh token is dispatched into
+    // Redux on success so the in-flight replay carries it.
+    confirmPassword: builder.mutation<
+      { success: boolean; accessToken: string; tokenType: string; expiresIn: number },
+      { password: string }
+    >({
+      query: body => ({
+        url: 'v1/auth/operator/me/password-confirm',
+        method: 'POST',
+        body
+      }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.accessToken && data?.expiresIn) {
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
+          }
+        } catch {
+          // handled by the mutation consumer
+        }
+      }
+    }),
+
     // User logout
     logout: builder.mutation<LogoutResponse, void>({
       query: () => ({
@@ -542,6 +573,7 @@ export const {
   useForgotPasswordMutation,
   useResetPasswordMutation,
   useChangePasswordMutation,
+  useConfirmPasswordMutation,
   useLogoutMutation,
   useInitiateOAuthMutation,
   useHandleOAuthCallbackMutation,

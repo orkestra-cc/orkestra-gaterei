@@ -12,6 +12,7 @@ import (
 
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	userModels "github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/iface"
@@ -66,6 +67,27 @@ const TenantIDHeader = "X-Tenant-ID"
 // through.
 type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, error)
 
+// MFAEnrollmentLookup resolves whether a user has any MFA factor (TOTP
+// or WebAuthn) enrolled. The audience argument lets the implementation
+// dispatch to the operator vs client mfa_factors collection without the
+// middleware having to know about tiering. Returns (false, nil) when no
+// factor is enrolled — a non-nil error is a lookup failure (e.g. Mongo
+// outage), which the gate treats as "presence unknown" and fails closed
+// to the legacy step-up path so a degraded DB never silently weakens the
+// gate.
+type MFAEnrollmentLookup func(ctx context.Context, audience, userUUID string) (hasFactor bool, err error)
+
+// StepUpPolicy is the subset of *services.AuthPolicyService the middleware
+// needs to decide between password-reconfirm and mfa-enrollment-required
+// when the user has no factor. The interface is declared here (not in
+// shared/iface) to avoid a package cycle — AuthMiddleware already imports
+// auth/services, but the policy reader is parameter-shaped so a test can
+// substitute a fake. Nil-tolerant: when unset, the gate falls back to the
+// legacy "always emit step_up_required" behaviour.
+type StepUpPolicy interface {
+	MFARequired(user *userModels.User, memberships []models.OrgMembership) bool
+}
+
 type AuthMiddleware struct {
 	jwtService        services.JWTService
 	authService       services.AuthService
@@ -75,6 +97,9 @@ type AuthMiddleware struct {
 	auditSink         iface.AuditSink
 	sessionRevocation services.SessionRevocationService
 	sessionRiskLookup SessionRiskLookup
+	mfaEnrollment     MFAEnrollmentLookup
+	stepUpPolicy      StepUpPolicy
+	users             iface.UserProvider
 	errorManager      *errors.Manager
 	cookieName        string
 	config            *config.Config
@@ -162,6 +187,35 @@ func (m *AuthMiddleware) SetSessionRevocation(s services.SessionRevocationServic
 // Optional — when unset, RequireLowRisk is a pass-through.
 func (m *AuthMiddleware) SetSessionRiskLookup(lookup SessionRiskLookup) {
 	m.sessionRiskLookup = lookup
+}
+
+// SetMFAEnrollmentLookup wires the per-tier MFA factor presence resolver
+// consumed by RequireStepUp. When set, a request that fails the freshness
+// check is split into two paths: users with no factor enrolled (and no
+// policy requirement) receive a `password_confirm_required` envelope so
+// the frontend can collect a password reconfirm instead of asking for an
+// MFA code they can't produce. Optional — nil falls back to legacy
+// behaviour (every step-up failure → step_up_required).
+func (m *AuthMiddleware) SetMFAEnrollmentLookup(lookup MFAEnrollmentLookup) {
+	m.mfaEnrollment = lookup
+}
+
+// SetStepUpPolicy wires the policy reader RequireStepUp uses to decide
+// whether a no-factor user must enroll first (`mfa_enrollment_required`)
+// or may bypass with a password reconfirm. Optional — nil receivers
+// default to "no role requires MFA", which keeps the gate permissive in
+// test setups that don't wire the auth policy.
+func (m *AuthMiddleware) SetStepUpPolicy(p StepUpPolicy) {
+	m.stepUpPolicy = p
+}
+
+// SetUserProvider wires the user lookup so RequireStepUp can resolve the
+// caller's record (role + memberships) when deciding between the
+// password-reconfirm and mfa-enroll branches. Optional — nil falls back
+// to claims-only reasoning (system role from `srole`, memberships from
+// `mbr`), which is sufficient for the role-based MFA requirement check.
+func (m *AuthMiddleware) SetUserProvider(u iface.UserProvider) {
+	m.users = u
 }
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -955,13 +1009,26 @@ func (m *AuthMiddleware) RequireMFA() func(http.Handler) http.Handler {
 	}
 }
 
-// RequireStepUp blocks the request unless a second factor was completed
-// within maxAge of now. Used for catastrophic / irreversible operations
-// where a session-long MFA proof (what RequireMFA accepts) would leave
-// too wide a window between authentication and action. Returns 401 with
-// code="step_up_required" and the maxAge in seconds; the client is
-// expected to prompt the user, call /v1/auth/mfa/verify to obtain a
-// refreshed access token, and retry.
+// RequireStepUp blocks the request unless a second factor (or a fresh
+// password reconfirm) was completed within maxAge of now. Used for
+// catastrophic / irreversible operations where a session-long MFA proof
+// (what RequireMFA accepts) would leave too wide a window between
+// authentication and action.
+//
+// The gate has three failure shapes so the frontend can pick the right
+// modal without a second round-trip:
+//
+//   - code="step_up_required" — user has a factor; ask for an OTP/passkey
+//     (the legacy path, unchanged).
+//   - code="password_confirm_required" — user has no factor enrolled AND
+//     the policy doesn't require them to. Frontend collects a password
+//     reconfirm via POST /v1/auth/{tier}/me/password-confirm and replays.
+//   - code="mfa_enrollment_required" — user's role requires MFA but they
+//     haven't enrolled. Frontend nudges them to /user/settings to enroll.
+//
+// The split is gated by the MFAEnrollmentLookup setter. When the lookup
+// isn't wired (legacy tests, sidecar fallback) every step-up failure
+// emits the legacy step_up_required envelope.
 func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler {
 	if maxAge <= 0 {
 		maxAge = 5 * time.Minute
@@ -974,17 +1041,73 @@ func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) 
 					WithOperation("require_step_up").Build())
 				return
 			}
-			if !amrSatisfiesMFA(claims.AMR) || claims.LastOTPAt == 0 {
-				m.sendStepUpRequired(w, r, maxAge)
+			// Fresh proof — pass through. amrSatisfiesMFA also accepts the
+			// "reauth" marker minted by the password-confirm endpoint; that
+			// endpoint refuses to issue a reauth token for users with an
+			// enrolled factor, so the marker can never be used to bypass
+			// MFA-required scenarios.
+			if amrSatisfiesMFA(claims.AMR) && claims.LastOTPAt > 0 &&
+				time.Since(time.Unix(claims.LastOTPAt, 0)) <= maxAge {
+				next.ServeHTTP(w, r)
 				return
 			}
-			if time.Since(time.Unix(claims.LastOTPAt, 0)) > maxAge {
-				m.sendStepUpRequired(w, r, maxAge)
-				return
-			}
-			next.ServeHTTP(w, r)
+			// No fresh proof. Branch on enrollment + policy.
+			m.dispatchStepUpFailure(w, r, claims, maxAge)
 		})
 	}
+}
+
+// dispatchStepUpFailure picks the failure envelope that lets the
+// frontend run the right recovery UX. Three outcomes:
+//
+//  1. enrollment lookup unavailable, or it reports the user has at
+//     least one factor → step_up_required (legacy path).
+//  2. no factor + role requires MFA → mfa_enrollment_required (the user
+//     must enroll before they can use the destructive surface).
+//  3. no factor + role does not require MFA → password_confirm_required
+//     (the password reconfirm path).
+//
+// The branching is deliberately defensive: any error from the lookup
+// falls through to the legacy step_up_required path. A degraded Mongo
+// must never silently weaken the gate (e.g. trick the frontend into
+// asking for a password when the user actually has TOTP enrolled).
+func (m *AuthMiddleware) dispatchStepUpFailure(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, maxAge time.Duration) {
+	if m.mfaEnrollment == nil {
+		m.sendStepUpRequired(w, r, maxAge)
+		return
+	}
+	hasFactor, err := m.mfaEnrollment(r.Context(), claims.Audience, claims.UserUUID)
+	if err != nil || hasFactor {
+		m.sendStepUpRequired(w, r, maxAge)
+		return
+	}
+	// No factor enrolled. If the role requires MFA, the right answer is
+	// "enroll first" — letting them bypass with a password would defeat
+	// the policy. Otherwise emit the password-confirm envelope.
+	if m.roleRequiresMFA(r.Context(), claims) {
+		m.sendMFAEnrollmentRequired(w, r)
+		return
+	}
+	m.sendPasswordConfirmRequired(w, r, maxAge)
+}
+
+// roleRequiresMFA resolves whether the caller's current role + memberships
+// trip the MFA-required policy. Prefers a fresh User lookup (so a role
+// change applied since the JWT was minted is honoured) and falls back to
+// reasoning from the claims when the user provider isn't wired.
+func (m *AuthMiddleware) roleRequiresMFA(ctx context.Context, claims *models.JWTClaims) bool {
+	if m.stepUpPolicy == nil {
+		return false
+	}
+	if m.users != nil {
+		if user, err := m.users.GetUserByID(ctx, claims.UserUUID); err == nil && user != nil {
+			return m.stepUpPolicy.MFARequired(user, claims.Memberships)
+		}
+	}
+	// Claims-only fallback — synthesize a minimal user from srole. The
+	// policy reader only reads user.Role and the membership roles, so
+	// this is sufficient for the role-based MFA gate.
+	return m.stepUpPolicy.MFARequired(&userModels.User{Role: claims.SystemRole}, claims.Memberships)
 }
 
 // RequireLowRisk blocks the request when the current session's risk
@@ -1075,15 +1198,67 @@ func (m *AuthMiddleware) sendStepUpRequired(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// amrSatisfiesMFA checks whether any second-factor method is recorded on the
-// token. Method names follow RFC 8176.
+// amrSatisfiesMFA checks whether any second-factor method (or a fresh
+// password reconfirm) is recorded on the token. Method names follow
+// RFC 8176 with one local extension:
+//
+//   - "reauth" — a fresh password reconfirm minted by the
+//     /v1/auth/{tier}/me/password-confirm endpoint. The endpoint refuses
+//     to mint a "reauth" token for a user with any MFA factor enrolled,
+//     so accepting it here cannot weaken the gate for an
+//     MFA-required user.
 func amrSatisfiesMFA(amr []string) bool {
 	for _, v := range amr {
-		if v == "otp" || v == "webauthn" || v == "mfa" {
+		if v == "otp" || v == "webauthn" || v == "mfa" || v == "reauth" {
 			return true
 		}
 	}
 	return false
+}
+
+// sendPasswordConfirmRequired emits the 401 envelope that tells the
+// frontend the user has no MFA factor and may bypass step-up with a
+// password reconfirm. Same outer shape as sendStepUpRequired so the
+// frontend's RTK Query base branch can switch on `code` alone.
+func (m *AuthMiddleware) sendPasswordConfirmRequired(w http.ResponseWriter, _ *http.Request, maxAge time.Duration) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer error="password_confirm_required"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "password reconfirm required",
+		"detail": "this action requires a fresh password reconfirm because no second factor is enrolled",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "password confirm required",
+			"location": "require_step_up",
+			"value":    "PASSWORD_CONFIRM_REQUIRED",
+		}},
+		"code":          "password_confirm_required",
+		"maxAgeSeconds": int(maxAge.Seconds()),
+	})
+}
+
+// sendMFAEnrollmentRequired emits the 403 envelope used when the caller's
+// role obligates MFA but they have no factor. Distinguished from
+// password_confirm_required so the frontend nudges to /user/settings
+// instead of opening the password modal.
+func (m *AuthMiddleware) sendMFAEnrollmentRequired(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer error="mfa_enrollment_required"`)
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusForbidden,
+		"title":  "mfa enrollment required",
+		"detail": "your role requires a second factor; enroll one before performing this action",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "mfa enrollment required",
+			"location": "require_step_up",
+			"value":    "MFA_ENROLLMENT_REQUIRED",
+		}},
+		"code": "mfa_enrollment_required",
+	})
 }
 
 // sendMFARequired emits the structured 401 the frontend looks for to trigger

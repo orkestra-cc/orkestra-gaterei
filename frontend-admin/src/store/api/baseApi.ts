@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import type { RootState } from '../index';
 import { setAccessToken, clearAccessToken } from '../slices/authSlice';
 import { requestStepUp } from '../stepUp';
+import { requestPasswordConfirm } from '../passwordConfirm';
 
 // Navigation helper - will be set by the auth provider
 let navigateToLogin: ((location?: string) => void) | null = null;
@@ -209,6 +210,25 @@ const baseQueryWithRetry: BaseQueryFn<
       !isAuthEndpoint(requestUrl)
     ) {
       const verified = await requestStepUp();
+      if (verified) {
+        return await baseQuery(args, api, extraOptions);
+      }
+      return result;
+    }
+
+    // Password reconfirm required — the no-MFA-factor fallback path of
+    // RequireStepUp. The backend emits this 401 when the user has no
+    // TOTP / passkey enrolled and the policy doesn't require them to;
+    // asking for an MFA code in StepUpModal would be a dead-end. We
+    // open PasswordConfirmModal instead, which posts to
+    // /me/password-confirm and replays the original request with the
+    // amr=[…,"reauth"] bearer dispatched by the mutation.
+    if (
+      result.error.status === 401 &&
+      errorData?.code === 'password_confirm_required' &&
+      !isAuthEndpoint(requestUrl)
+    ) {
+      const verified = await requestPasswordConfirm();
       if (verified) {
         return await baseQuery(args, api, extraOptions);
       }

@@ -68,6 +68,14 @@ const (
 	// Value: func(ctx context.Context, sessionID string) (float64, error)
 	ServiceSessionRiskLookup ServiceKey = "auth.session_risk_lookup"
 
+	// ServiceMFAEnrollmentLookup resolves whether a user has any MFA factor
+	// (TOTP or WebAuthn) enrolled, scoped to the tier that minted the
+	// caller's token. Consumed by AuthMiddleware.RequireStepUp to split
+	// step-up failures into three buckets — fresh MFA, password reconfirm,
+	// or enrollment-required. Wired by the auth module from both tiers'
+	// MFAFactorRepository instances. Value: middleware.MFAEnrollmentLookup.
+	ServiceMFAEnrollmentLookup ServiceKey = "auth.mfa_enrollment_lookup"
+
 	// ServiceWebAuthn is the W3C WebAuthn ceremony orchestrator (registration
 	// + assertion). Registered by the auth module when the deployment has
 	// configured an RP via WEBAUTHN_RP_ID + WEBAUTHN_RP_ORIGINS. Consumers

@@ -8,6 +8,7 @@ import ModalAuth from 'components/authentication/modal/ModalAuth';
 import ImpersonationBanner from 'components/tenant/ImpersonationBanner';
 import MfaEnrollmentBanner from 'components/authentication/MfaEnrollmentBanner';
 import StepUpModal from 'components/authentication/StepUpModal';
+import PasswordConfirmModal from 'components/authentication/PasswordConfirmModal';
 
 import { useAppContext } from 'providers/AppProvider';
 import { useTenantBootstrap } from 'hooks/useTenantBootstrap';
@@ -57,6 +58,7 @@ const MainLayout: React.FC = () => {
       </div>
       <ModalAuth />
       <StepUpModal />
+      <PasswordConfirmModal />
     </div>
   );
 };

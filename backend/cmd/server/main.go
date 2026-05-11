@@ -198,6 +198,22 @@ func main() {
 			authzSvc.SetSessionRiskLookup(authzServices.SessionRiskLookup(lookup))
 		}
 	}
+	// MFA-enrollment lookup + auth policy reader feed RequireStepUp's
+	// no-factor branch. When the user has no factor: privileged roles
+	// get 403 mfa_enrollment_required; everyone else gets 401
+	// password_confirm_required so the frontend can collect a password
+	// reconfirm instead of asking for an MFA code that can't exist. All
+	// three setters are optional — when any is unwired, RequireStepUp
+	// falls back to today's "always emit step_up_required" behaviour.
+	if lookup, ok := module.GetTyped[authMiddleware.MFAEnrollmentLookup](svcRegistry, module.ServiceMFAEnrollmentLookup); ok {
+		authMW.SetMFAEnrollmentLookup(lookup)
+	}
+	if policy, ok := module.GetTyped[*services.AuthPolicyService](svcRegistry, module.ServiceAuthPolicy); ok && policy != nil {
+		authMW.SetStepUpPolicy(policy)
+	}
+	if userProv, ok := module.GetTyped[iface.UserProvider](svcRegistry, module.ServiceUserService); ok {
+		authMW.SetUserProvider(userProv)
+	}
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 
 	// ADR-0003 PR-C: build two audience-scoped surfaces (operator + client),
