@@ -24,7 +24,10 @@ export default mergeConfig(
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       coverage: {
         provider: 'v8',
-        reporter: ['text', 'lcov'],
+        // json-summary is what the CI badge-refresh step parses
+        // (coverage/coverage-summary.json). lcov is for IDE plugins;
+        // text is the human summary that lands in the job log.
+        reporter: ['text', 'lcov', 'json-summary'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: ['src/reference/**', 'src/modules/_template/**', 'src/test/**'],
       },

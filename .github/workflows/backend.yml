@@ -97,6 +97,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed by the auto-commit step that refreshes the coverage badge
     env:
       COVERAGE_THRESHOLD: 15
     services:
@@ -137,6 +139,29 @@ jobs:
         with:
           name: backend-coverage
           path: backend/coverage.out
+
+      - name: Refresh coverage badge
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        run: |
+          PCT=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          INT=$(printf '%.0f' "$PCT")
+          if   [ "$INT" -ge 80 ]; then COLOR=brightgreen
+          elif [ "$INT" -ge 70 ]; then COLOR=green
+          elif [ "$INT" -ge 60 ]; then COLOR=yellowgreen
+          elif [ "$INT" -ge 50 ]; then COLOR=yellow
+          elif [ "$INT" -ge 40 ]; then COLOR=orange
+          else                          COLOR=red
+          fi
+          mkdir -p ../.github/badges
+          curl -fsSL "https://img.shields.io/badge/coverage-${PCT}%25-${COLOR}?style=flat-square&logo=go&logoColor=white&label=backend" \
+            -o ../.github/badges/backend-coverage.svg
+
+      - name: Commit refreshed badge
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(badges): refresh backend coverage [skip ci]"
+          file_pattern: .github/badges/backend-coverage.svg
 
   vulncheck:
     name: Vulnerability Check

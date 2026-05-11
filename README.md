@@ -244,7 +244,7 @@ Every pull request runs through:
 | Frontend Client | no tests | `vitest` is not configured yet |
 | Mobile | 60.3 % | `flutter test --coverage` (`coverage/lcov.info`) |
 
-The coverage badges in the header are SVGs committed to `.github/badges/`. Regenerate them by re-running the commands above; CI does not yet auto-refresh them.
+The coverage badges in the header are SVGs committed to `.github/badges/`. Each CI workflow's test job refreshes its own SVG on push to `dev` or `main` (badge fetch from shields.io + `stefanzweifel/git-auto-commit-action`); commit messages are tagged `[skip ci]` to avoid re-trigger loops. The `frontend-client` badge stays static until that project has tests.
 
 ## License
 
