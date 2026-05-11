@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'config/app_config.dart';
+import 'package:orkestra_mobile/config/app_config.dart';
 
 /// Main application entry point.
 ///

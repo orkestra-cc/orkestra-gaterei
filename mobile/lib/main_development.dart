@@ -1,6 +1,6 @@
-import 'config/environment.dart';
-import 'config/app_config.dart';
-import 'main.dart' as app;
+import 'package:orkestra_mobile/config/environment.dart';
+import 'package:orkestra_mobile/config/app_config.dart';
+import 'package:orkestra_mobile/main.dart' as app;
 
 /// Development environment entry point.
 ///
