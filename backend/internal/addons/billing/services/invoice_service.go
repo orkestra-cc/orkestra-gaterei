@@ -1775,7 +1775,7 @@ func getPartyName(party *models.PartyData) string {
 
 // formatAddress formats a party's address for display
 func formatAddress(party *models.PartyData) string {
-	var parts []string
+	parts := make([]string, 0, 2)
 
 	// Street address with number
 	address := party.Address

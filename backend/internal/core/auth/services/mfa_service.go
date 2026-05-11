@@ -434,7 +434,7 @@ func subtleConstantTimeEq(a, b string) bool {
 		// beyond what the code-length convention already reveals.
 		var x byte
 		for i := 0; i < len(a); i++ {
-			x |= a[i] ^ a[i]
+			x |= a[i] ^ a[i] //nolint:gocritic // dupSubExpr: intentional self-XOR keeps loop timing symmetric with the equal-length branch below.
 		}
 		_ = x
 		return false

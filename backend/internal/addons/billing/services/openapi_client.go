@@ -1230,5 +1230,5 @@ func (cb *circuitBreaker) RecordFailure() {
 // writeDebugXML writes XML to a file for debugging purposes
 func writeDebugXML(xmlContent string, invoiceNumber string) error {
 	filename := fmt.Sprintf("/tmp/invoice_%s.xml", strings.ReplaceAll(invoiceNumber, "/", "_"))
-	return os.WriteFile(filename, []byte(xmlContent), 0644)
+	return os.WriteFile(filename, []byte(xmlContent), 0o600)
 }

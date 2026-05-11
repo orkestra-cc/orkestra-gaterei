@@ -224,7 +224,7 @@ Current catalog status (snapshot as of this doc update — the live catalog is i
 
 **When adding a new permission:** declare it in the owning module's `Permissions()` only. Never write directly to `authz_permissions`. Include `System: true` only for platform-level operations that system roles inherit without a binding. Then ensure Cedar coverage — either name it as `Action::"<key>"` in a `cedar/policies/*.cedar` file, or use a suffix already covered by `context.action_suffix == "X"` (today: `read`, `view`, `self`); otherwise the `policycoverage` CI gate will fail with `permission.cedar.unreferenced`.
 
-**Cedar enforce mode:** the `CEDAR_ENFORCE_ACTIONS` env var (comma-separated permission keys) opts each listed action out of shadow mode and into Cedar-authoritative mode — for those actions Cedar's verdict overrides the role table, including the tier-aware forbids in `tenant_scope.cedar`. Unset (the default) keeps every action in pure shadow mode. Cedar-side failures during an enforced check fall back to the role-table verdict (logged at Error, counted as `fallback_role` on `orkestra_cedar_enforced_total`). Recommended starter list: `system.modules.admin,system.tenants.admin,system.users.admin,system.users.mfa_reset` — those four are explicitly named as `Action::` literals in `tenant_scope.cedar`. Roll back is a single env-var change.
+**Cedar enforce mode:** the `CEDAR_ENFORCE_ACTIONS` env var (comma-separated permission keys) opts each listed action out of shadow mode and into Cedar-authoritative mode — for those actions Cedar's verdict overrides the role table, including the tier-aware forbids in `tenant_scope.cedar`. Unset (the default) keeps every action in pure shadow mode. Cedar-side failures during an enforced check fall back to the role-table verdict (logged at Error, counted as `fallback_role` on `orkestra_cedar_enforced_total`). Recommended starter list: `system.modules.admin,system.tenants.admin,system.users.admin,system.users.mfa_reset` — those four were the original `Action::` literals named in `tenant_scope.cedar`. The same file now also names `system.users.password_reset`, `system.users.email_verify_resend`, and `system.users.oauth_unlink` (admin-managed user-credential operations) as operator-only forbids; fold them into the enforced list as they roll out. Roll back is a single env-var change.
 
 ## Cedar ABAC attributes
 
@@ -253,7 +253,7 @@ Section B item #4 of the auth roadmap (2026-04-24) plumbs attribute-based signal
 | @id | Shape | Fires when |
 |-----|-------|------------|
 | `abac.require_mfa_for_admin_suffix` | forbid | principal.system_role ∈ {super_admin, administrator} AND context.action_suffix == "admin" AND principal.mfa_enrolled == false |
-| `abac.deny_system_actions_from_public_ip_in_prod` | forbid | action ∈ the 4 system.* literals AND context.env == "production" AND context.ip_bucket == "public" |
+| `abac.deny_system_actions_from_public_ip_in_prod` | forbid | action ∈ the 7 system.* literals (`system.modules.admin`, `system.tenants.admin`, `system.users.{admin,mfa_reset,password_reset,email_verify_resend,oauth_unlink}`) AND context.env == "production" AND context.ip_bucket == "public" |
 
 **IP bucketing:** Cedar has no CIDR or netmask support, so `ip_bucket` is pre-classified by the engine. Policies never see the raw IP. If you need a new bucket (e.g. `allowlist` for a per-tenant CIDR config), extend `classifyIP` in `cedar/engine.go` and document the new value here — drift between policy literals and the classifier is a silent bug.
 

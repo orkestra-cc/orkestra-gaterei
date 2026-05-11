@@ -37,8 +37,9 @@ type RefreshTokenRepository interface {
 	// Token updates
 	UpdateLastActivity(ctx context.Context, uuid string) error
 	UpdateRiskScore(ctx context.Context, uuid string, riskScore float64, riskFactors []string) error
-	// RotateToken is the legacy single-token rotation. Deprecated in favour
-	// of RotateWithFamily; still callable so older code paths keep building.
+	// RotateToken is the legacy single-token rotation, still callable so older
+	// code paths keep building.
+	//
 	// Deprecated: use RotateWithFamily.
 	RotateToken(ctx context.Context, oldTokenHash, newTokenHash string) error
 	// RotateWithFamily atomically marks oldTokenHash as rotated (setting
