@@ -2,12 +2,17 @@
 
 <img src=".github/assets/orkestra-logo.webp" alt="Orkestra" width="480" />
 
-**Modular, multi-tenant orchestrator platform — pluggable business capabilities (electronic invoicing, AI sales intelligence, RAG, payments, identity) on a two-tier tenancy model.**
+**Modular, multi-tenant orchestrator platform. Pluggable business capabilities (electronic invoicing, AI sales intelligence, RAG, payments, identity) on a two-tier tenancy model.**
 
-[![Backend CI](https://img.shields.io/github/actions/workflow/status/orkestra-cc/orkestra/backend.yml?branch=dev&label=backend&logo=github&style=for-the-badge)](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml)
-[![Frontend Admin CI](https://img.shields.io/github/actions/workflow/status/orkestra-cc/orkestra/frontend-admin.yml?branch=dev&label=frontend-admin&logo=github&style=for-the-badge)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml)
-[![Mobile CI](https://img.shields.io/github/actions/workflow/status/orkestra-cc/orkestra/mobile.yml?branch=dev&label=mobile&logo=github&style=for-the-badge)](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml)
-[![Security](https://img.shields.io/github/actions/workflow/status/orkestra-cc/orkestra/security.yml?branch=dev&label=security&logo=github&style=for-the-badge)](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml)
+[![Backend CI](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml)
+[![Frontend Admin CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml)
+[![Mobile CI](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml)
+[![Security CI](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml)
+
+[![Backend coverage](.github/badges/backend-coverage.svg)](backend/)
+[![Frontend Admin coverage](.github/badges/frontend-admin-coverage.svg)](frontend-admin/)
+[![Frontend Client coverage](.github/badges/frontend-client-coverage.svg)](frontend-client/)
+[![Mobile coverage](.github/badges/mobile-coverage.svg)](mobile/)
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white&style=flat-square)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
@@ -21,7 +26,7 @@
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white&style=flat-square)](https://www.openapis.org)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-lightgrey?style=flat-square)](#license)
 
-[Quick Start](#quick-start--minimal-profile) · [SKU Profiles](#sku-profiles--pulled-from-ghcr) · [Architecture](CLAUDE.md) · [Backend](backend/CLAUDE.md) · [Frontend Admin](frontend-admin/CLAUDE.md) · [Frontend Client](frontend-client/CLAUDE.md) · [Docker](docker/CLAUDE.md)
+[Quick Start](#quick-start-minimal-profile) · [SKU Profiles](#sku-profiles-pulled-from-ghcr) · [Architecture](CLAUDE.md) · [Backend](backend/CLAUDE.md) · [Frontend Admin](frontend-admin/CLAUDE.md) · [Frontend Client](frontend-client/CLAUDE.md) · [Docker](docker/CLAUDE.md)
 
 </div>
 
@@ -29,24 +34,24 @@
 
 ## What is Orkestra
 
-Orkestra is not a single-purpose business app — it is a host that exposes business capabilities (invoicing, billing, AI sales, RAG, documents, payments, identity, compliance) as pluggable modules, and manages *who* can consume those capabilities across a **two-tier tenancy model**:
+Orkestra is not a single-purpose business app. It is a host that exposes business capabilities (invoicing, billing, AI sales, RAG, documents, payments, identity, compliance) as pluggable modules, and manages *who* can consume those capabilities across a **two-tier tenancy model**:
 
-- **Tier 1 — Internal tenants** (operator side). The companies that run Orkestra; their staff, RBAC, FatturaPA/SDI invoicing, module configuration.
-- **Tier 2 — External client tenants** (customer side). Clients register on the platform, subscribe to services via Stripe-backed billing, and consume the capabilities Tier-1 enables.
+- **Tier 1, internal tenants** (operator side). The companies that run Orkestra; their staff, RBAC, FatturaPA/SDI invoicing, module configuration.
+- **Tier 2, external client tenants** (customer side). Clients register on the platform, subscribe to services via Stripe-backed billing, and consume the capabilities Tier-1 enables.
 
 Module enable/disable is per-internal-tenant; service consumption is gated per-external-client subscription. The two are deliberately separate concerns. See [CLAUDE.md](CLAUDE.md) for the full model.
 
 ## Architecture at a glance
 
-- **Backend** — Go 1.25, [Huma v2](https://huma.rocks) (OpenAPI-first), modular monolith. 6 core modules always load; 13 optional addons are toggled at `/admin/modules` (hot-reload, no restart). Each addon lives behind a `//go:build !no_addons || addon_<name>` tag, so profile builds (`make build-starter|minimal|billing|ai|saas|enterprise`) ship curated subsets. CI builds every profile on every PR. See [backend/CLAUDE.md](backend/CLAUDE.md).
-- **Frontend (admin)** — React 19 + Vite 7 + TypeScript 5.9 strict. Navigation is fetched from `/v1/navigation` so the UI reflects whatever modules the backend has enabled. Cookie-based operator-audience auth. See [frontend-admin/CLAUDE.md](frontend-admin/CLAUDE.md).
-- **Frontend (client)** — Tier-2 customer-facing SPA on the same React 19 + Vite 7 stack, separate cookie domain, separate audience JWT. See [frontend-client/CLAUDE.md](frontend-client/CLAUDE.md).
-- **Mobile** — Flutter 3.35 + Riverpod (early-stage).
-- **Data** — MongoDB 8 + Redis 8. Optional Memgraph knowledge graph for the RAG / graph modules.
-- **Auth** — Email + password (argon2id) and OAuth 2.1 (Google, Apple, GitHub, Discord), RS256 JWT, 6-role RBAC, optional TOTP + WebAuthn MFA, per-audience tier split for operator vs. client surfaces.
-- **AI sidecar (optional)** — graph + aimodels + rag + agents can run as a separate `cmd/ai-service` binary; the monolith swaps in `RemoteAIModelProvider` / `RemoteRAGQueryProvider` HTTP clients via the `AI_SERVICE_URL` env var. Zero code changes in consumer modules. See `backend/cmd/ai-service/`.
+- **Backend.** Go 1.25, [Huma v2](https://huma.rocks) (OpenAPI-first), modular monolith. 6 core modules always load; 13 optional addons are toggled at `/admin/modules` (hot-reload, no restart). Each addon lives behind a `//go:build !no_addons || addon_<name>` tag, so profile builds (`make build-starter|minimal|billing|ai|saas|enterprise`) ship curated subsets. CI builds every profile on every PR. See [backend/CLAUDE.md](backend/CLAUDE.md).
+- **Frontend (admin).** React 19 + Vite 7 + TypeScript 5.9 strict. Navigation is fetched from `/v1/navigation` so the UI reflects whatever modules the backend has enabled. Cookie-based operator-audience auth. See [frontend-admin/CLAUDE.md](frontend-admin/CLAUDE.md).
+- **Frontend (client).** Tier-2 customer-facing SPA on the same React 19 + Vite 7 stack, separate cookie domain, separate audience JWT. See [frontend-client/CLAUDE.md](frontend-client/CLAUDE.md).
+- **Mobile.** Flutter 3.35 + Riverpod (early-stage).
+- **Data.** MongoDB 8 + Redis 8. Optional Memgraph knowledge graph for the RAG / graph modules.
+- **Auth.** Email + password (argon2id) and OAuth 2.1 (Google, Apple, GitHub, Discord), RS256 JWT, 6-role RBAC, optional TOTP + WebAuthn MFA, per-audience tier split for operator vs. client surfaces.
+- **AI sidecar (optional).** graph + aimodels + rag + agents can run as a separate `cmd/ai-service` binary; the monolith swaps in `RemoteAIModelProvider` / `RemoteRAGQueryProvider` HTTP clients via the `AI_SERVICE_URL` env var. Zero code changes in consumer modules. See `backend/cmd/ai-service/`.
 
-## Quick start — minimal profile
+## Quick start, minimal profile
 
 The minimal profile boots Orkestra with just the core modules (user, notification, auth, navigation, dev-token generator) on any Docker host. Four containers, public base images only, ~500 MB of RAM. Ports are non-standard (3050/8050/27050/6350) so it runs alongside the full dev stack without colliding.
 
@@ -86,9 +91,9 @@ Then restart the backend:
 docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d --force-recreate backend
 ```
 
-Addons with external dependencies (Gotenberg for PDFs, Memgraph for graph, Hindsight for agents) need their infrastructure to be reachable — either add those services to the compose file or point the module at a remote host via the admin API (`GET/PATCH /v1/admin/modules`).
+Addons with external dependencies (Gotenberg for PDFs, Memgraph for graph, Hindsight for agents) need their infrastructure to be reachable. Either add those services to the compose file or point the module at a remote host via the admin API (`GET/PATCH /v1/admin/modules`).
 
-## SKU profiles — pulled from GHCR
+## SKU profiles, pulled from GHCR
 
 For VMs that should run a specific addon SKU (no source build, no Chainguard registry), the published per-profile images on GHCR are exposed through five compose files. They layer on top of `docker-compose.infra.yml` for MongoDB and Redis.
 
@@ -107,14 +112,14 @@ docker compose -f docker-compose.infra.yml up -d                    # mongodb + 
 docker compose -f docker-compose.billing.yml --env-file .env up -d  # any profile name
 ```
 
-The same operations are wrapped by `./orkestra.sh profile <name> <op>` — see [Managing the stack](#managing-the-stack) below.
+The same operations are wrapped by `./orkestra.sh profile <name> <op>`. See [Managing the stack](#managing-the-stack) below.
 
 ## Full development stack
 
 For hot-reload Go development with AIR and the full addon fleet (Gotenberg, Hindsight, etc.), use the dev compose. Note that this stack uses Chainguard hardened images (`dhi.io/*`) and requires registry access.
 
 ```bash
-./orkestra.sh                                   # interactive TUI — pick "Full stack"
+./orkestra.sh                                   # interactive TUI; pick "Full stack"
 # or manually:
 cd docker
 docker compose -f docker-compose.infra.yml up -d
@@ -125,22 +130,22 @@ docker compose -f docker-compose.dev.yml up -d
 
 `orkestra.sh` at the project root is the single entry point for every stack operation. It replaces the old `deploy.sh` and `logs.sh`.
 
-**Interactive TUI** — `./orkestra.sh` launches a profile menu (minimal / SKU profile picker / full stack) followed by a per-profile operations menu with deploy, stop, reset, status, logs, and info.
+**Interactive TUI.** `./orkestra.sh` launches a profile menu (minimal / SKU profile picker / full stack) followed by a per-profile operations menu with deploy, stop, reset, status, logs, and info.
 
-**CLI mode** — every operation also works as a non-interactive command for scripting:
+**CLI mode.** Every operation also works as a non-interactive command for scripting:
 
 ```bash
-# Minimal — built locally from Dockerfile.minimal
+# Minimal, built locally from Dockerfile.minimal
 ./orkestra.sh minimal deploy --build
 ./orkestra.sh minimal logs backend -f
 ./orkestra.sh minimal reset --yes
 
-# SKU profile — pulled from GHCR (starter | billing | ai | saas | enterprise)
+# SKU profile, pulled from GHCR (starter | billing | ai | saas | enterprise)
 ./orkestra.sh profile billing deploy --pull
 ./orkestra.sh profile ai status
 ./orkestra.sh profile enterprise logs backend -f
 
-# Full stack — uses ENV from docker/.env or ENV=... prefix
+# Full stack, uses ENV from docker/.env or ENV=... prefix
 ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
 ./orkestra.sh status
 ./orkestra.sh logs orkestra-backend-dev -f
@@ -174,8 +179,8 @@ Run `./orkestra.sh --help` for the full command surface.
 | `agents` | Hindsight AI agents with RAG context |
 | `sales` | AI-driven prospect analysis and scoring |
 | `subscriptions` | Recurring AI-services catalog, clients, activity log |
-| `payments` | Stripe gateway — charges, refunds, webhooks |
-| `compliance` | Platform audit log + (future) GDPR DSR pipelines, SOC2 evidence |
+| `payments` | Stripe gateway: charges, refunds, webhooks |
+| `compliance` | Platform audit log; future GDPR DSR pipelines, SOC2 evidence |
 | `identity` | Per-tenant BYO OpenID Connect login + SCIM 2.0 stubs |
 | `dev` | Dev token generator (disabled in production) |
 
@@ -186,7 +191,7 @@ Run `./orkestra.sh --help` for the full command surface.
 1. Create `backend/internal/addons/<name>/module.go` implementing the `Module` interface.
 2. Create `backend/cmd/server/catalog_<name>.go` with `//go:build !no_addons || addon_<name>` and an `init()` that registers the factory in `optionalModules`.
 3. Declare `Collections()`, `NavItems()`, `ConfigSchema()`, `Dependencies()`.
-4. Use `shared/iface` interfaces for cross-module dependencies — never import another module's `services/` or `repository/` package directly.
+4. Use `shared/iface` interfaces for cross-module dependencies. Never import another module's `services/` or `repository/` package directly.
 
 See [backend/CLAUDE.md](backend/CLAUDE.md) for the full convention.
 
@@ -209,8 +214,8 @@ orkestra/
 │   ├── tools/               # tenantscope + policycoverage CI gates
 │   ├── Dockerfile           # Chainguard hardened images (dev + prod)
 │   └── Dockerfile.minimal   # Public images for the minimal profile
-├── frontend-admin/          # React 19 + Vite 7 — operator console (Tier-1)
-├── frontend-client/         # React 19 + Vite 7 — external client SPA (Tier-2)
+├── frontend-admin/          # React 19 + Vite 7, operator console (Tier-1)
+├── frontend-client/         # React 19 + Vite 7, external client SPA (Tier-2)
 ├── mobile/                  # Flutter 3.35
 ├── docker/                  # Compose files + env templates
 ├── docs/                    # Architecture and modernization docs
@@ -222,14 +227,25 @@ orkestra/
 
 Every pull request runs through:
 
-- **Lint** — golangci-lint (gocritic, gosec, prealloc, nolintlint) on the Go backend.
-- **Tenant-scoping analyzer** — custom `tools/tenantscope` static check enforcing invariant #1 from ADR-0001: every MongoDB read/write in an addon must derive its filter from `shared/tenantrepo.Scope`.
-- **Policy coverage** — `tools/policycoverage` reconciles every declared permission against Cedar policies + route middleware, fails on uncovered drift.
-- **Tests** — `go test -race` with a Mongo + Redis service matrix and a 15 % coverage floor.
-- **Vulnerability check** — `govulncheck` against the latest Go 1.25.x stdlib + module deps, with an allowlist for upstream-unfixed Docker SDK CVEs.
-- **Build matrix** — every SKU profile (`starter | minimal | billing | ai | saas | enterprise`) is built so a missing tag in `catalog_<addon>.go` surfaces here, not at deploy.
-- **Docker push** — on push to `dev` / `main`, each profile is pushed to GHCR as `ghcr.io/orkestra-cc/orkestra/backend:<profile>` and `:<profile>-<sha>`.
+- **Lint.** golangci-lint (gocritic, gosec, prealloc, nolintlint) on the Go backend.
+- **Tenant-scoping analyzer.** Custom `tools/tenantscope` static check enforcing invariant #1 from ADR-0001: every MongoDB read/write in an addon must derive its filter from `shared/tenantrepo.Scope`.
+- **Policy coverage.** `tools/policycoverage` reconciles every declared permission against Cedar policies + route middleware, fails on uncovered drift.
+- **Tests.** `go test -race` with a Mongo + Redis service matrix and a 15 % coverage floor.
+- **Vulnerability check.** `govulncheck` against the latest Go 1.25.x stdlib + module deps, with an allowlist for upstream-unfixed Docker SDK CVEs.
+- **Build matrix.** Every SKU profile (`starter | minimal | billing | ai | saas | enterprise`) is built so a missing tag in `catalog_<addon>.go` surfaces here, not at deploy.
+- **Docker push.** On push to `dev` / `main`, each profile is pushed to GHCR as `ghcr.io/orkestra-cc/orkestra/backend:<profile>` and `:<profile>-<sha>`.
+
+### Coverage snapshot
+
+| Project | Coverage | How it's measured |
+| --- | --- | --- |
+| Backend | 15.6 % | `go test -race -coverprofile=coverage.out ./...` (15 % floor enforced in CI) |
+| Frontend Admin | 3.2 % | `npm run test:coverage` (vitest + @vitest/coverage-v8) |
+| Frontend Client | no tests | `vitest` is not configured yet |
+| Mobile | 60.3 % | `flutter test --coverage` (`coverage/lcov.info`) |
+
+The coverage badges in the header are SVGs committed to `.github/badges/`. Regenerate them by re-running the commands above; CI does not yet auto-refresh them.
 
 ## License
 
-Proprietary — all rights reserved. © Orkestra.
+Proprietary, all rights reserved. © Orkestra.
