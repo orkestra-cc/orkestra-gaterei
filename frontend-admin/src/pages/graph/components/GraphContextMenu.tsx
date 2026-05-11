@@ -24,7 +24,7 @@ export function GraphContextMenu({
   onClose,
   onExpandNeighbors,
   onDeleteNode,
-  onDeleteRelationship,
+  onDeleteRelationship
 }: GraphContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -59,8 +59,10 @@ export function GraphContextMenu({
   // Keep menu within viewport
   const menuWidth = 200;
   const menuHeight = menu.type === 'node' ? 100 : 50;
-  const x = menu.x + menuWidth > window.innerWidth ? menu.x - menuWidth : menu.x;
-  const y = menu.y + menuHeight > window.innerHeight ? menu.y - menuHeight : menu.y;
+  const x =
+    menu.x + menuWidth > window.innerWidth ? menu.x - menuWidth : menu.x;
+  const y =
+    menu.y + menuHeight > window.innerHeight ? menu.y - menuHeight : menu.y;
 
   return (
     <div
@@ -70,7 +72,7 @@ export function GraphContextMenu({
         top: y,
         left: x,
         zIndex: 1050,
-        minWidth: menuWidth,
+        minWidth: menuWidth
       }}
     >
       <ListGroup

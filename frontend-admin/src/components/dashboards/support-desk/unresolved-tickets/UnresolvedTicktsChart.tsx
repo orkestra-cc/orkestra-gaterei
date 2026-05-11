@@ -1,4 +1,3 @@
-
 import { BarChart } from 'echarts/charts';
 import {
   GridComponent,
@@ -29,7 +28,11 @@ interface UnresolvedTicktsChartProps {
   data: number[][];
 }
 
-const getOption = (getThemeColor: ThemeColorGetter, data: number[][], isDark: boolean) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: number[][],
+  isDark: boolean
+) => ({
   color: [
     getThemeColor('primary'),
     getThemeColor('info'),
@@ -143,21 +146,22 @@ const getOption = (getThemeColor: ThemeColorGetter, data: number[][], isDark: bo
   }
 });
 
-const UnresolvedTicktsChart = forwardRef<ReactEChartsCore, UnresolvedTicktsChartProps>(
-  ({ data }, ref) => {
-    const { config, getThemeColor } = useAppContext();
+const UnresolvedTicktsChart = forwardRef<
+  ReactEChartsCore,
+  UnresolvedTicktsChartProps
+>(({ data }, ref) => {
+  const { config, getThemeColor } = useAppContext();
 
-    const { isDark } = config;
-    return (
-      <ReactEchart
-        echarts={echarts}
-        ref={ref}
-        option={getOption(getThemeColor, data, isDark)}
-        style={{ height: '21rem' }}
-      />
-    );
-  }
-);
+  const { isDark } = config;
+  return (
+    <ReactEchart
+      echarts={echarts}
+      ref={ref}
+      option={getOption(getThemeColor, data, isDark)}
+      style={{ height: '21rem' }}
+    />
+  );
+});
 
 UnresolvedTicktsChart.displayName = 'UnresolvedTicktsChart';
 

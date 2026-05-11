@@ -51,18 +51,23 @@ const DeleteRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
         </p>
         <Alert variant="warning" className="fs-10 mb-0">
           <strong>Bindings cascade.</strong> Any user currently granted this
-          role will lose its permissions immediately, and the binding rows
-          that reference it will be removed.
+          role will lose its permissions immediately, and the binding rows that
+          reference it will be removed.
         </Alert>
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide} disabled={isLoading}>
           Cancel
         </Button>
-        <Button variant="danger" onClick={onConfirm} disabled={isLoading || !role}>
+        <Button
+          variant="danger"
+          onClick={onConfirm}
+          disabled={isLoading || !role}
+        >
           {isLoading ? (
             <>
-              <Spinner size="sm" animation="border" className="me-2" /> Deleting…
+              <Spinner size="sm" animation="border" className="me-2" />{' '}
+              Deleting…
             </>
           ) : (
             <>Delete role</>

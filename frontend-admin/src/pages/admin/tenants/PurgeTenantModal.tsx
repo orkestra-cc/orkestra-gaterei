@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import {
   usePurgeOrgAdminMutation,
-  type AdminOrgListItem,
+  type AdminOrgListItem
 } from 'store/api/tenantApi';
 
 interface Props {
@@ -76,9 +76,9 @@ const PurgeTenantModal: React.FC<Props> = ({ org, show, onHide, onPurged }) => {
             <Alert variant="danger" className="fs-10 mb-3">
               <strong>Irreversible — cryptographically unrecoverable.</strong>
               <br />
-              Purging crypto-shreds the tenant's KMS key. Every ciphertext sealed with
-              that key becomes mathematically unrecoverable even if the rows themselves
-              are restored from a backup.
+              Purging crypto-shreds the tenant's KMS key. Every ciphertext
+              sealed with that key becomes mathematically unrecoverable even if
+              the rows themselves are restored from a backup.
             </Alert>
             <p className="mb-2">
               You are about to purge tenant{' '}
@@ -89,12 +89,14 @@ const PurgeTenantModal: React.FC<Props> = ({ org, show, onHide, onPurged }) => {
               .
             </p>
             <ul className="mb-0">
-              <li>Tenant status flips to <code>purged</code>.</li>
+              <li>
+                Tenant status flips to <code>purged</code>.
+              </li>
               <li>The wrapped data-encryption key is deleted from KMS.</li>
               <li>No undo, no grace period, no recovery path.</li>
               <li>
-                Audit-trail rows referencing the tenant are retained for regulatory
-                reasons; the data they describe stays sealed.
+                Audit-trail rows referencing the tenant are retained for
+                regulatory reasons; the data they describe stays sealed.
               </li>
             </ul>
           </Modal.Body>
@@ -122,7 +124,7 @@ const PurgeTenantModal: React.FC<Props> = ({ org, show, onHide, onPurged }) => {
               autoFocus
               type="text"
               value={typed}
-              onChange={(e) => setTyped(e.target.value)}
+              onChange={e => setTyped(e.target.value)}
               placeholder={org.slug}
               isInvalid={typed.length > 0 && !slugMatches}
               isValid={slugMatches}

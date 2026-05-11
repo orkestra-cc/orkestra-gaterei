@@ -1,4 +1,3 @@
-
 import WizardInput from './WizardInput';
 import { Col, OverlayTrigger, Row, Tooltip } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

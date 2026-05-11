@@ -4,7 +4,7 @@ import type {
   PaymentMethodRec,
   PaymentWebhookEvent,
   PaymentsListResponse,
-  RefundInput,
+  RefundInput
 } from '../../types/payments';
 
 const buildQS = (params: Record<string, unknown>): string => {
@@ -17,23 +17,33 @@ const buildQS = (params: Record<string, unknown>): string => {
 };
 
 export const paymentsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     listPaymentTransactions: builder.query<
       PaymentsListResponse<PaymentTransaction>,
-      { subscriptionUUID?: string; invoiceUUID?: string; tenantUUID?: string; status?: string } | undefined
+      | {
+          subscriptionUUID?: string;
+          invoiceUUID?: string;
+          tenantUUID?: string;
+          status?: string;
+        }
+      | undefined
     >({
-      query: (params) => `/v1/payments/transactions${params ? buildQS(params) : ''}`,
-      providesTags: (result) =>
+      query: params =>
+        `/v1/payments/transactions${params ? buildQS(params) : ''}`,
+      providesTags: result =>
         result?.items
           ? [
-              ...result.items.map(({ uuid }) => ({ type: 'PaymentTransaction' as const, id: uuid })),
-              { type: 'PaymentTransaction', id: 'LIST' },
+              ...result.items.map(({ uuid }) => ({
+                type: 'PaymentTransaction' as const,
+                id: uuid
+              })),
+              { type: 'PaymentTransaction', id: 'LIST' }
             ]
-          : [{ type: 'PaymentTransaction', id: 'LIST' }],
+          : [{ type: 'PaymentTransaction', id: 'LIST' }]
     }),
     getPaymentTransaction: builder.query<{ body: PaymentTransaction }, string>({
-      query: (id) => `/v1/payments/transactions/${id}`,
-      providesTags: (_r, _e, id) => [{ type: 'PaymentTransaction', id }],
+      query: id => `/v1/payments/transactions/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'PaymentTransaction', id }]
     }),
     refundPaymentTransaction: builder.mutation<
       { body: { providerRefundID: string; status: string } },
@@ -42,25 +52,29 @@ export const paymentsApi = baseApi.injectEndpoints({
       query: ({ id, input }) => ({
         url: `/v1/payments/transactions/${id}/refund`,
         method: 'POST',
-        body: input,
+        body: input
       }),
       invalidatesTags: (_r, _e, { id }) => [
         { type: 'PaymentTransaction', id },
-        { type: 'PaymentTransaction', id: 'LIST' },
-      ],
+        { type: 'PaymentTransaction', id: 'LIST' }
+      ]
     }),
-    listPaymentMethods: builder.query<PaymentsListResponse<PaymentMethodRec>, string>({
-      query: (tenantUUID) => `/v1/payments/methods${buildQS({ tenantUUID })}`,
-      providesTags: [{ type: 'PaymentMethodRec', id: 'LIST' }],
+    listPaymentMethods: builder.query<
+      PaymentsListResponse<PaymentMethodRec>,
+      string
+    >({
+      query: tenantUUID => `/v1/payments/methods${buildQS({ tenantUUID })}`,
+      providesTags: [{ type: 'PaymentMethodRec', id: 'LIST' }]
     }),
     listPaymentWebhookEvents: builder.query<
       PaymentsListResponse<PaymentWebhookEvent>,
       { provider?: string; limit?: number } | undefined
     >({
-      query: (params) => `/v1/payments/webhook-events${params ? buildQS(params) : ''}`,
-      providesTags: [{ type: 'PaymentWebhookEvent', id: 'LIST' }],
-    }),
-  }),
+      query: params =>
+        `/v1/payments/webhook-events${params ? buildQS(params) : ''}`,
+      providesTags: [{ type: 'PaymentWebhookEvent', id: 'LIST' }]
+    })
+  })
 });
 
 export const {
@@ -68,7 +82,7 @@ export const {
   useGetPaymentTransactionQuery,
   useRefundPaymentTransactionMutation,
   useListPaymentMethodsQuery,
-  useListPaymentWebhookEventsQuery,
+  useListPaymentWebhookEventsQuery
 } = paymentsApi;
 
 export default paymentsApi;

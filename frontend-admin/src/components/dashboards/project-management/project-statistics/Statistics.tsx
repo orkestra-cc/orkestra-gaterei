@@ -1,4 +1,3 @@
-
 import { Col, ProgressBar, Row } from 'react-bootstrap';
 import classNames from 'classnames';
 

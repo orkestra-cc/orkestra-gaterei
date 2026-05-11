@@ -1,4 +1,3 @@
-
 import { Card, ProgressBar } from 'react-bootstrap';
 import type { CellContext } from '@tanstack/react-table';
 import Flex from 'components/common/Flex';

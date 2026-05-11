@@ -24,7 +24,9 @@ const ReportForThisWeek = ({ data }: ReportForThisWeekProps) => {
         name: name
       });
     }
-    (event.target as HTMLElement).closest('button')?.classList.toggle('opacity-50');
+    (event.target as HTMLElement)
+      .closest('button')
+      ?.classList.toggle('opacity-50');
   };
   return (
     <Card>

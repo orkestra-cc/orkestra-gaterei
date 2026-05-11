@@ -9,7 +9,7 @@ import {
   Spinner,
   Alert,
   Row,
-  Col,
+  Col
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -21,13 +21,13 @@ import {
   faCopy,
   faStar,
   faFilter,
-  faFileAlt,
+  faFileAlt
 } from '@fortawesome/free-solid-svg-icons';
 import {
   useGetTemplatesQuery,
   useDeleteTemplateMutation,
   useSetDefaultTemplateMutation,
-  useDuplicateTemplateMutation,
+  useDuplicateTemplateMutation
 } from '../../../store/api/documentsApi';
 import {
   TemplateListItem,
@@ -36,7 +36,7 @@ import {
   TEMPLATE_TYPE_COLORS,
   PAGE_SIZE_LABELS,
   PAGE_ORIENTATION_LABELS,
-  formatDateTime,
+  formatDateTime
 } from '../../../types/documents';
 import TemplateModal from './components/TemplateModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
@@ -50,11 +50,16 @@ const TemplatesTable: React.FC = () => {
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editTemplate, setEditTemplate] = useState<TemplateListItem | null>(null);
-  const [deleteTemplate, setDeleteTemplate] = useState<TemplateListItem | null>(null);
+  const [editTemplate, setEditTemplate] = useState<TemplateListItem | null>(
+    null
+  );
+  const [deleteTemplate, setDeleteTemplate] = useState<TemplateListItem | null>(
+    null
+  );
   const [duplicateName, setDuplicateName] = useState('');
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  const [templateToDuplicate, setTemplateToDuplicate] = useState<TemplateListItem | null>(null);
+  const [templateToDuplicate, setTemplateToDuplicate] =
+    useState<TemplateListItem | null>(null);
 
   // API hooks
   const { data, isLoading, error, refetch } = useGetTemplatesQuery({
@@ -62,12 +67,15 @@ const TemplatesTable: React.FC = () => {
     pageSize,
     search: search || undefined,
     type: typeFilter || undefined,
-    isActive: true,
+    isActive: true
   });
 
-  const [deleteTemplateMutation, { isLoading: isDeleting }] = useDeleteTemplateMutation();
-  const [setDefaultMutation, { isLoading: isSettingDefault }] = useSetDefaultTemplateMutation();
-  const [duplicateMutation, { isLoading: isDuplicating }] = useDuplicateTemplateMutation();
+  const [deleteTemplateMutation, { isLoading: isDeleting }] =
+    useDeleteTemplateMutation();
+  const [setDefaultMutation, { isLoading: isSettingDefault }] =
+    useSetDefaultTemplateMutation();
+  const [duplicateMutation, { isLoading: isDuplicating }] =
+    useDuplicateTemplateMutation();
 
   // Handlers
   const handleDelete = async () => {
@@ -93,7 +101,7 @@ const TemplatesTable: React.FC = () => {
     try {
       await duplicateMutation({
         id: templateToDuplicate.id,
-        data: { name: duplicateName },
+        data: { name: duplicateName }
       }).unwrap();
       setShowDuplicateModal(false);
       setTemplateToDuplicate(null);
@@ -136,7 +144,7 @@ const TemplatesTable: React.FC = () => {
                   type="text"
                   placeholder="Cerca template..."
                   value={search}
-                  onChange={(e) => {
+                  onChange={e => {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
@@ -150,22 +158,27 @@ const TemplatesTable: React.FC = () => {
                 </InputGroup.Text>
                 <Form.Select
                   value={typeFilter}
-                  onChange={(e) => {
+                  onChange={e => {
                     setTypeFilter(e.target.value as TemplateType | '');
                     setPage(1);
                   }}
                 >
                   <option value="">Tutti i tipi</option>
-                  {Object.entries(TEMPLATE_TYPE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(TEMPLATE_TYPE_LABELS).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    )
+                  )}
                 </Form.Select>
               </InputGroup>
             </Col>
             <Col xs={12} md={2} lg={5} className="text-end">
-              <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+              <Button
+                variant="primary"
+                onClick={() => setShowCreateModal(true)}
+              >
                 <FontAwesomeIcon icon={faPlus} className="me-1" />
                 Nuovo Template
               </Button>
@@ -181,9 +194,16 @@ const TemplatesTable: React.FC = () => {
             </div>
           ) : data?.templates?.length === 0 ? (
             <div className="text-center py-5">
-              <FontAwesomeIcon icon={faFileAlt} className="text-muted mb-3" size="3x" />
+              <FontAwesomeIcon
+                icon={faFileAlt}
+                className="text-muted mb-3"
+                size="3x"
+              />
               <p className="text-muted">Nessun template trovato</p>
-              <Button variant="outline-primary" onClick={() => setShowCreateModal(true)}>
+              <Button
+                variant="outline-primary"
+                onClick={() => setShowCreateModal(true)}
+              >
                 Crea il primo template
               </Button>
             </div>
@@ -201,7 +221,7 @@ const TemplatesTable: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.templates?.map((template) => (
+                  {data?.templates?.map(template => (
                     <tr key={template.id}>
                       <td>
                         <div className="d-flex align-items-center">
@@ -217,7 +237,9 @@ const TemplatesTable: React.FC = () => {
                               )}
                             </span>
                             {template.description && (
-                              <p className="mb-0 fs-10 text-muted">{template.description}</p>
+                              <p className="mb-0 fs-10 text-muted">
+                                {template.description}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -243,7 +265,9 @@ const TemplatesTable: React.FC = () => {
                           {template.isActive ? 'Attivo' : 'Inattivo'}
                         </Badge>
                       </td>
-                      <td className="text-nowrap">{formatDateTime(template.updatedAt)}</td>
+                      <td className="text-nowrap">
+                        {formatDateTime(template.updatedAt)}
+                      </td>
                       <td className="text-end">
                         <Dropdown align="end">
                           <Dropdown.Toggle
@@ -254,11 +278,15 @@ const TemplatesTable: React.FC = () => {
                             <FontAwesomeIcon icon={faEllipsisV} />
                           </Dropdown.Toggle>
                           <Dropdown.Menu>
-                            <Dropdown.Item onClick={() => setEditTemplate(template)}>
+                            <Dropdown.Item
+                              onClick={() => setEditTemplate(template)}
+                            >
                               <FontAwesomeIcon icon={faEdit} className="me-2" />
                               Modifica
                             </Dropdown.Item>
-                            <Dropdown.Item onClick={() => openDuplicateModal(template)}>
+                            <Dropdown.Item
+                              onClick={() => openDuplicateModal(template)}
+                            >
                               <FontAwesomeIcon icon={faCopy} className="me-2" />
                               Duplica
                             </Dropdown.Item>
@@ -267,7 +295,10 @@ const TemplatesTable: React.FC = () => {
                                 onClick={() => handleSetDefault(template)}
                                 disabled={isSettingDefault}
                               >
-                                <FontAwesomeIcon icon={faStar} className="me-2" />
+                                <FontAwesomeIcon
+                                  icon={faStar}
+                                  className="me-2"
+                                />
                                 Imposta predefinito
                               </Dropdown.Item>
                             )}
@@ -277,8 +308,13 @@ const TemplatesTable: React.FC = () => {
                               onClick={() => setDeleteTemplate(template)}
                               disabled={template.isBuiltIn}
                             >
-                              <FontAwesomeIcon icon={faTrash} className="me-2" />
-                              {template.isBuiltIn ? 'Non eliminabile' : 'Elimina'}
+                              <FontAwesomeIcon
+                                icon={faTrash}
+                                className="me-2"
+                              />
+                              {template.isBuiltIn
+                                ? 'Non eliminabile'
+                                : 'Elimina'}
                             </Dropdown.Item>
                           </Dropdown.Menu>
                         </Dropdown>
@@ -294,7 +330,8 @@ const TemplatesTable: React.FC = () => {
         {data && data.totalPages > 1 && (
           <Card.Footer className="d-flex justify-content-between align-items-center">
             <span className="text-muted fs-10">
-              Pagina {data.page} di {data.totalPages} ({data.total} template totali)
+              Pagina {data.page} di {data.totalPages} ({data.total} template
+              totali)
             </span>
             <div>
               <Button
@@ -361,7 +398,7 @@ const TemplatesTable: React.FC = () => {
             <Form.Control
               type="text"
               value={duplicateName}
-              onChange={(e) => setDuplicateName(e.target.value)}
+              onChange={e => setDuplicateName(e.target.value)}
               placeholder="Inserisci il nome..."
             />
           </Form.Group>

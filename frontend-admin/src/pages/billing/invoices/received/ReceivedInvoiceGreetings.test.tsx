@@ -5,7 +5,7 @@ import { server } from 'test/server';
 import {
   billingStatsHandler,
   capturedRequests,
-  emptyBillingStats,
+  emptyBillingStats
 } from 'test/handlers';
 import ReceivedInvoiceGreetings from './ReceivedInvoiceGreetings';
 
@@ -22,8 +22,8 @@ describe('ReceivedInvoiceGreetings', () => {
         receivedPending: 2,
         receivedAccepted: 2,
         receivedRejected: 1,
-        receivedAmount: 9876.54,
-      }),
+        receivedAmount: 9876.54
+      })
     );
 
     renderWithProviders(<ReceivedInvoiceGreetings />);
@@ -35,7 +35,10 @@ describe('ReceivedInvoiceGreetings', () => {
     });
     const params = capturedRequests.billingStatsParams!;
     const fromDate = params.get('fromDate');
-    expect(fromDate, 'must pass fromDate, otherwise backend defaults to current month').toBeTruthy();
+    expect(
+      fromDate,
+      'must pass fromDate, otherwise backend defaults to current month'
+    ).toBeTruthy();
     expect(new Date(fromDate!).getUTCFullYear()).toBeLessThanOrEqual(2010);
   });
 });

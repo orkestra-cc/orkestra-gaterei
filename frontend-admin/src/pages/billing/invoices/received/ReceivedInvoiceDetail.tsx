@@ -7,7 +7,7 @@ import {
   Col,
   Table,
   Spinner,
-  Badge,
+  Badge
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -17,7 +17,7 @@ import {
   faDownload,
   faFilePdf,
   faCheck,
-  faTimes,
+  faTimes
 } from '@fortawesome/free-solid-svg-icons';
 import {
   useGetInvoiceQuery,
@@ -25,7 +25,7 @@ import {
   useLazyGetInvoiceHtmlQuery,
   useLazyGetInvoicePdfQuery,
   useAcceptInvoiceMutation,
-  useRejectInvoiceMutation,
+  useRejectInvoiceMutation
 } from 'store/api/billingApi';
 import type { InvoiceStatus } from 'types/billing';
 import {
@@ -37,7 +37,7 @@ import {
   UNIT_OF_MEASURE_LABELS,
   formatCurrency,
   formatItalianDate,
-  getPartyDisplayName,
+  getPartyDisplayName
 } from 'types/billing';
 import PageHeader from 'components/common/PageHeader';
 import FalconCardHeader from 'components/common/FalconCardHeader';
@@ -51,7 +51,7 @@ const getStatusBadgeVariant = (status: InvoiceStatus): string => {
     rejected: 'danger',
     accepted: 'success',
     paid: 'success',
-    cancelled: 'secondary',
+    cancelled: 'secondary'
   };
   return variants[status] || 'secondary';
 };
@@ -65,13 +65,15 @@ const ReceivedInvoiceDetail: React.FC = () => {
     data: invoice,
     isLoading: isLoadingInvoice,
     error: loadError,
-    refetch,
+    refetch
   } = useGetInvoiceQuery(invoiceId!, { skip: !invoiceId });
   const [getInvoiceXml] = useLazyGetInvoiceXmlQuery();
   const [getInvoiceHtml] = useLazyGetInvoiceHtmlQuery();
   const [getInvoicePdf] = useLazyGetInvoicePdfQuery();
-  const [acceptInvoice, { isLoading: isAccepting }] = useAcceptInvoiceMutation();
-  const [rejectInvoice, { isLoading: isRejecting }] = useRejectInvoiceMutation();
+  const [acceptInvoice, { isLoading: isAccepting }] =
+    useAcceptInvoiceMutation();
+  const [rejectInvoice, { isLoading: isRejecting }] =
+    useRejectInvoiceMutation();
 
   // Check if invoice can be responded to
   const canRespond = invoice?.status === 'pending';
@@ -80,7 +82,8 @@ const ReceivedInvoiceDetail: React.FC = () => {
   // Handle accept invoice
   const handleAccept = async () => {
     if (!invoiceId) return;
-    if (!window.confirm('Sei sicuro di voler accettare questa fattura?')) return;
+    if (!window.confirm('Sei sicuro di voler accettare questa fattura?'))
+      return;
 
     try {
       await acceptInvoice(invoiceId).unwrap();
@@ -110,7 +113,9 @@ const ReceivedInvoiceDetail: React.FC = () => {
       const result = await getInvoiceXml(invoiceId!).unwrap();
       const encoder = new TextEncoder();
       const utf8Bytes = encoder.encode(result);
-      const blob = new Blob([utf8Bytes], { type: 'application/xml; charset=utf-8' });
+      const blob = new Blob([utf8Bytes], {
+        type: 'application/xml; charset=utf-8'
+      });
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
     } catch {
@@ -133,7 +138,8 @@ const ReceivedInvoiceDetail: React.FC = () => {
     }
     const countryCode = cedente.fiscalIdCountry || 'IT';
     // Progressive: use last 5 chars of progressivoInvio (filename limit is 5, XML allows 10)
-    const rawProgressive = invoice.progressivoInvio ||
+    const rawProgressive =
+      invoice.progressivoInvio ||
       invoiceId?.slice(-5) ||
       String(invoice.number).replace(/\D/g, '').slice(-5).padStart(5, '0') ||
       '00001';
@@ -147,7 +153,9 @@ const ReceivedInvoiceDetail: React.FC = () => {
       const result = await getInvoiceXml(invoiceId!).unwrap();
       const encoder = new TextEncoder();
       const utf8Bytes = encoder.encode(result);
-      const blob = new Blob([utf8Bytes], { type: 'application/xml; charset=utf-8' });
+      const blob = new Blob([utf8Bytes], {
+        type: 'application/xml; charset=utf-8'
+      });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -185,7 +193,8 @@ const ReceivedInvoiceDetail: React.FC = () => {
       return `fattura_${invoiceNumber}.pdf`;
     }
     const countryCode = cedente.fiscalIdCountry || 'IT';
-    const progressive = invoice?.progressivoInvio ||
+    const progressive =
+      invoice?.progressivoInvio ||
       invoiceId?.slice(-5) ||
       String(invoice?.number).replace(/\D/g, '').slice(-5).padStart(5, '0') ||
       '00001';
@@ -195,7 +204,10 @@ const ReceivedInvoiceDetail: React.FC = () => {
   // Download PDF
   const handleDownloadPdf = async () => {
     try {
-      await getInvoicePdf({ id: invoiceId!, filename: generatePdfFilename() }).unwrap();
+      await getInvoicePdf({
+        id: invoiceId!,
+        filename: generatePdfFilename()
+      }).unwrap();
     } catch {
       console.error('Error downloading PDF');
     }
@@ -204,7 +216,10 @@ const ReceivedInvoiceDetail: React.FC = () => {
   // Loading state
   if (isLoadingInvoice) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: '400px' }}
+      >
         <Spinner animation="border" role="status">
           <span className="visually-hidden">Caricamento...</span>
         </Spinner>
@@ -223,11 +238,7 @@ const ReceivedInvoiceDetail: React.FC = () => {
 
   // Not found state
   if (!invoice) {
-    return (
-      <Alert variant="warning">
-        Fattura non trovata.
-      </Alert>
-    );
+    return <Alert variant="warning">Fattura non trovata.</Alert>;
   }
 
   // Get supplier display name
@@ -306,13 +317,19 @@ const ReceivedInvoiceDetail: React.FC = () => {
             <Col md={3}>
               <div className="mb-3">
                 <small className="text-muted">Data</small>
-                <div className="fw-bold">{invoice.date ? formatItalianDate(invoice.date) : '-'}</div>
+                <div className="fw-bold">
+                  {invoice.date ? formatItalianDate(invoice.date) : '-'}
+                </div>
               </div>
             </Col>
             <Col md={3}>
               <div className="mb-3">
                 <small className="text-muted">Tipo Documento</small>
-                <div className="fw-bold">{invoice.documentType ? DOCUMENT_TYPE_LABELS[invoice.documentType] : '-'}</div>
+                <div className="fw-bold">
+                  {invoice.documentType
+                    ? DOCUMENT_TYPE_LABELS[invoice.documentType]
+                    : '-'}
+                </div>
               </div>
             </Col>
             <Col md={3}>
@@ -320,7 +337,10 @@ const ReceivedInvoiceDetail: React.FC = () => {
                 <small className="text-muted">Stato</small>
                 <div>
                   {invoice.status && (
-                    <Badge bg={getStatusBadgeVariant(invoice.status)} className="text-uppercase">
+                    <Badge
+                      bg={getStatusBadgeVariant(invoice.status)}
+                      className="text-uppercase"
+                    >
                       {INVOICE_STATUS_LABELS[invoice.status]}
                     </Badge>
                   )}
@@ -338,13 +358,17 @@ const ReceivedInvoiceDetail: React.FC = () => {
             <Col md={3}>
               <div className="mb-3">
                 <small className="text-muted">Imponibile</small>
-                <div className="fw-bold">{formatCurrency(invoice.totalTaxableAmount || 0)}</div>
+                <div className="fw-bold">
+                  {formatCurrency(invoice.totalTaxableAmount || 0)}
+                </div>
               </div>
             </Col>
             <Col md={3}>
               <div className="mb-3">
                 <small className="text-muted">Totale</small>
-                <div className="fw-bold fs-5 text-primary">{formatCurrency(invoice.totalAmount || 0)}</div>
+                <div className="fw-bold fs-5 text-primary">
+                  {formatCurrency(invoice.totalAmount || 0)}
+                </div>
               </div>
             </Col>
           </Row>
@@ -390,16 +414,24 @@ const ReceivedInvoiceDetail: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {(invoice.lines || []).map((line) => (
+                {(invoice.lines || []).map(line => (
                   <tr key={line.lineNumber}>
                     <td>{line.lineNumber}</td>
                     <td>{line.description}</td>
                     <td className="text-end">{line.quantity}</td>
-                    <td>{line.unitOfMeasure ? UNIT_OF_MEASURE_LABELS[line.unitOfMeasure] : '-'}</td>
-                    <td className="text-end">{formatCurrency(line.unitPrice)}</td>
+                    <td>
+                      {line.unitOfMeasure
+                        ? UNIT_OF_MEASURE_LABELS[line.unitOfMeasure]
+                        : '-'}
+                    </td>
+                    <td className="text-end">
+                      {formatCurrency(line.unitPrice)}
+                    </td>
                     <td className="text-end">{line.vatRate}%</td>
                     <td>{line.vatNature || '-'}</td>
-                    <td className="text-end fw-bold">{formatCurrency(line.totalPrice)}</td>
+                    <td className="text-end fw-bold">
+                      {formatCurrency(line.totalPrice)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -408,19 +440,25 @@ const ReceivedInvoiceDetail: React.FC = () => {
                   <td colSpan={7} className="text-end">
                     Imponibile:
                   </td>
-                  <td className="text-end">{formatCurrency(invoice.totalTaxableAmount || 0)}</td>
+                  <td className="text-end">
+                    {formatCurrency(invoice.totalTaxableAmount || 0)}
+                  </td>
                 </tr>
                 <tr>
                   <td colSpan={7} className="text-end">
                     IVA:
                   </td>
-                  <td className="text-end">{formatCurrency(invoice.totalVatAmount || 0)}</td>
+                  <td className="text-end">
+                    {formatCurrency(invoice.totalVatAmount || 0)}
+                  </td>
                 </tr>
                 <tr className="fw-bold">
                   <td colSpan={7} className="text-end">
                     Totale:
                   </td>
-                  <td className="text-end">{formatCurrency(invoice.totalAmount || 0)}</td>
+                  <td className="text-end">
+                    {formatCurrency(invoice.totalAmount || 0)}
+                  </td>
                 </tr>
               </tfoot>
             </Table>
@@ -436,11 +474,19 @@ const ReceivedInvoiceDetail: React.FC = () => {
             <Row>
               <Col md={3}>
                 <small className="text-muted">Condizione</small>
-                <div>{invoice.paymentTerms.condition ? PAYMENT_CONDITION_LABELS[invoice.paymentTerms.condition] : '-'}</div>
+                <div>
+                  {invoice.paymentTerms.condition
+                    ? PAYMENT_CONDITION_LABELS[invoice.paymentTerms.condition]
+                    : '-'}
+                </div>
               </Col>
               <Col md={3}>
                 <small className="text-muted">Metodo</small>
-                <div>{invoice.paymentTerms.paymentMethod ? PAYMENT_METHOD_LABELS[invoice.paymentTerms.paymentMethod] : '-'}</div>
+                <div>
+                  {invoice.paymentTerms.paymentMethod
+                    ? PAYMENT_METHOD_LABELS[invoice.paymentTerms.paymentMethod]
+                    : '-'}
+                </div>
               </Col>
               {invoice.paymentTerms.dueDate && (
                 <Col md={3}>
@@ -455,7 +501,9 @@ const ReceivedInvoiceDetail: React.FC = () => {
                 </Col>
               )}
             </Row>
-            {(invoice.paymentTerms.iban || invoice.paymentTerms.bic || invoice.paymentTerms.istitutoFinanziario) && (
+            {(invoice.paymentTerms.iban ||
+              invoice.paymentTerms.bic ||
+              invoice.paymentTerms.istitutoFinanziario) && (
               <Row className="mt-3">
                 {invoice.paymentTerms.istitutoFinanziario && (
                   <Col md={3}>

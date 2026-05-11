@@ -7,11 +7,14 @@ import {
   Col,
   Collapse,
   Alert,
-  Spinner,
+  Spinner
 } from 'react-bootstrap';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import { useLazySearchCompaniesQuery } from 'store/api/companyApi';
-import type { CompanySearchApiParams, CompanySearchResult } from 'types/company';
+import type {
+  CompanySearchApiParams,
+  CompanySearchResult
+} from 'types/company';
 
 interface CompanySearchFiltersProps {
   onResults: (result: CompanySearchResult | null) => void;
@@ -77,12 +80,16 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
     if (long) params.long = Number(long);
     if (radius) params.radius = Number(radius);
     if (townCode.trim()) params.townCode = townCode.trim();
-    if (shareHolderTaxCode.trim()) params.shareHolderTaxCode = shareHolderTaxCode.trim();
+    if (shareHolderTaxCode.trim())
+      params.shareHolderTaxCode = shareHolderTaxCode.trim();
     if (dataEnrichment) params.dataEnrichment = dataEnrichment;
     if (dryRun) params.dryRun = 1;
 
     // Need at least one filter
-    if (Object.keys(params).length === 0 || (Object.keys(params).length === 1 && params.dryRun)) {
+    if (
+      Object.keys(params).length === 0 ||
+      (Object.keys(params).length === 1 && params.dryRun)
+    ) {
       return;
     }
 
@@ -118,15 +125,31 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
     onResults(null);
   };
 
-  const hasFilters = companyName || province || activityStatus || atecoCode || cciaa ||
-    reaCode || legalFormCode || sdiCode || pec || minTurnover || maxTurnover ||
-    minEmployees || maxEmployees || lat || long || radius || townCode ||
-    shareHolderTaxCode || dataEnrichment;
+  const hasFilters =
+    companyName ||
+    province ||
+    activityStatus ||
+    atecoCode ||
+    cciaa ||
+    reaCode ||
+    legalFormCode ||
+    sdiCode ||
+    pec ||
+    minTurnover ||
+    maxTurnover ||
+    minEmployees ||
+    maxEmployees ||
+    lat ||
+    long ||
+    radius ||
+    townCode ||
+    shareHolderTaxCode ||
+    dataEnrichment;
 
   const SectionToggle = ({
     label,
     open,
-    onToggle,
+    onToggle
   }: {
     label: string;
     open: boolean;
@@ -162,7 +185,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                   type="text"
                   placeholder="Es. Mario Rossi SRL"
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  onChange={e => setCompanyName(e.target.value)}
                 />
               </Form.Group>
             </Col>
@@ -173,7 +196,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                   type="text"
                   placeholder="Es. RM, MI"
                   value={province}
-                  onChange={(e) => setProvince(e.target.value)}
+                  onChange={e => setProvince(e.target.value)}
                   maxLength={2}
                   className="text-uppercase"
                 />
@@ -184,7 +207,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                 <Form.Label className="fs-9">Stato Attività</Form.Label>
                 <Form.Select
                   value={activityStatus}
-                  onChange={(e) => setActivityStatus(e.target.value)}
+                  onChange={e => setActivityStatus(e.target.value)}
                 >
                   <option value="">Tutti</option>
                   <option value="ATTIVA">Attiva</option>
@@ -212,7 +235,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. 62.01"
                       value={atecoCode}
-                      onChange={(e) => setAtecoCode(e.target.value)}
+                      onChange={e => setAtecoCode(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -223,7 +246,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. RM"
                       value={cciaa}
-                      onChange={(e) => setCciaa(e.target.value)}
+                      onChange={e => setCciaa(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -234,7 +257,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. 1234567"
                       value={reaCode}
-                      onChange={(e) => setReaCode(e.target.value)}
+                      onChange={e => setReaCode(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -245,7 +268,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. SR"
                       value={legalFormCode}
-                      onChange={(e) => setLegalFormCode(e.target.value)}
+                      onChange={e => setLegalFormCode(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -256,7 +279,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. M5UXCR1"
                       value={sdiCode}
-                      onChange={(e) => setSdiCode(e.target.value)}
+                      onChange={e => setSdiCode(e.target.value)}
                       className="font-monospace"
                     />
                   </Form.Group>
@@ -268,7 +291,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="email"
                       placeholder="Es. azienda@pec.it"
                       value={pec}
-                      onChange={(e) => setPec(e.target.value)}
+                      onChange={e => setPec(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -293,7 +316,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="number"
                       placeholder="0"
                       value={minTurnover}
-                      onChange={(e) => setMinTurnover(e.target.value)}
+                      onChange={e => setMinTurnover(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -304,7 +327,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="number"
                       placeholder="∞"
                       value={maxTurnover}
-                      onChange={(e) => setMaxTurnover(e.target.value)}
+                      onChange={e => setMaxTurnover(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -315,7 +338,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="number"
                       placeholder="0"
                       value={minEmployees}
-                      onChange={(e) => setMinEmployees(e.target.value)}
+                      onChange={e => setMinEmployees(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -326,7 +349,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="number"
                       placeholder="∞"
                       value={maxEmployees}
-                      onChange={(e) => setMaxEmployees(e.target.value)}
+                      onChange={e => setMaxEmployees(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -352,7 +375,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       step="any"
                       placeholder="Es. 41.9028"
                       value={lat}
-                      onChange={(e) => setLat(e.target.value)}
+                      onChange={e => setLat(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -364,7 +387,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       step="any"
                       placeholder="Es. 12.4964"
                       value={long}
-                      onChange={(e) => setLong(e.target.value)}
+                      onChange={e => setLong(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -375,7 +398,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="number"
                       placeholder="Es. 50"
                       value={radius}
-                      onChange={(e) => setRadius(e.target.value)}
+                      onChange={e => setRadius(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -386,7 +409,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Es. H501"
                       value={townCode}
-                      onChange={(e) => setTownCode(e.target.value)}
+                      onChange={e => setTownCode(e.target.value)}
                     />
                   </Form.Group>
                 </Col>
@@ -411,7 +434,9 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                       type="text"
                       placeholder="Codice Fiscale socio"
                       value={shareHolderTaxCode}
-                      onChange={(e) => setShareHolderTaxCode(e.target.value.toUpperCase())}
+                      onChange={e =>
+                        setShareHolderTaxCode(e.target.value.toUpperCase())
+                      }
                       className="font-monospace"
                       maxLength={16}
                     />
@@ -419,10 +444,12 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                 </Col>
                 <Col sm={6} md={4}>
                   <Form.Group>
-                    <Form.Label className="fs-9">Livello Arricchimento</Form.Label>
+                    <Form.Label className="fs-9">
+                      Livello Arricchimento
+                    </Form.Label>
                     <Form.Select
                       value={dataEnrichment}
-                      onChange={(e) => setDataEnrichment(e.target.value)}
+                      onChange={e => setDataEnrichment(e.target.value)}
                     >
                       <option value="">Default (start)</option>
                       <option value="name">Nome</option>
@@ -440,7 +467,7 @@ const CompanySearchFilters = ({ onResults }: CompanySearchFiltersProps) => {
                     id="dryRun"
                     label="Dry Run (solo conteggio)"
                     checked={dryRun}
-                    onChange={(e) => setDryRun(e.target.checked)}
+                    onChange={e => setDryRun(e.target.checked)}
                   />
                 </Col>
               </Row>

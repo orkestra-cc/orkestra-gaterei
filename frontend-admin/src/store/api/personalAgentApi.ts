@@ -4,61 +4,75 @@ import type {
   AgentConversation,
   AgentQueryResponse,
   AgentQueryRequest,
-  AgentSettings,
+  AgentSettings
 } from '../../types/agents';
 
 export const personalAgentApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Get or auto-create personal agent
     getPersonalAgent: builder.query<AgentProject, void>({
       query: () => '/v1/agents/personal',
-      providesTags: ['PersonalAgent'],
+      providesTags: ['PersonalAgent']
     }),
 
     // Query personal agent
-    personalAgentQuery: builder.mutation<AgentQueryResponse, AgentQueryRequest>({
-      query: (body) => ({
-        url: '/v1/agents/personal/query',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['PersonalConversation'],
-    }),
+    personalAgentQuery: builder.mutation<AgentQueryResponse, AgentQueryRequest>(
+      {
+        query: body => ({
+          url: '/v1/agents/personal/query',
+          method: 'POST',
+          body
+        }),
+        invalidatesTags: ['PersonalConversation']
+      }
+    ),
 
     // Add documents to personal agent scope
-    addPersonalDocuments: builder.mutation<AgentProject, { documentUuids: string[] }>({
-      query: (body) => ({
+    addPersonalDocuments: builder.mutation<
+      AgentProject,
+      { documentUuids: string[] }
+    >({
+      query: body => ({
         url: '/v1/agents/personal/documents',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['PersonalAgent'],
+      invalidatesTags: ['PersonalAgent']
     }),
 
     // Remove documents from personal agent scope
-    removePersonalDocuments: builder.mutation<AgentProject, { documentUuids: string[] }>({
-      query: (body) => ({
+    removePersonalDocuments: builder.mutation<
+      AgentProject,
+      { documentUuids: string[] }
+    >({
+      query: body => ({
         url: '/v1/agents/personal/documents',
         method: 'DELETE',
-        body,
+        body
       }),
-      invalidatesTags: ['PersonalAgent'],
+      invalidatesTags: ['PersonalAgent']
     }),
 
     // Update personal agent settings
-    updatePersonalSettings: builder.mutation<AgentProject, Partial<AgentSettings>>({
-      query: (body) => ({
+    updatePersonalSettings: builder.mutation<
+      AgentProject,
+      Partial<AgentSettings>
+    >({
+      query: body => ({
         url: '/v1/agents/personal/settings',
         method: 'PATCH',
-        body,
+        body
       }),
-      invalidatesTags: ['PersonalAgent'],
+      invalidatesTags: ['PersonalAgent']
     }),
 
     // Get personal agent settings
-    getPersonalSettings: builder.query<{ settings: AgentSettings | null }, void>({
+    getPersonalSettings: builder.query<
+      { settings: AgentSettings | null },
+      void
+    >({
       query: () => '/v1/agents/personal/settings',
-      providesTags: ['PersonalAgent'],
+      providesTags: ['PersonalAgent']
     }),
 
     // List personal conversations
@@ -66,26 +80,28 @@ export const personalAgentApi = baseApi.injectEndpoints({
       { conversations: AgentConversation[]; total: number },
       { limit?: number; offset?: number } | void
     >({
-      query: (params) =>
+      query: params =>
         `/v1/agents/personal/conversations?limit=${params?.limit ?? 20}&offset=${params?.offset ?? 0}`,
-      providesTags: ['PersonalConversation'],
+      providesTags: ['PersonalConversation']
     }),
 
     // Get a personal conversation with all messages
     getPersonalConversation: builder.query<AgentConversation, string>({
-      query: (uuid) => `/v1/agents/personal/conversations/${uuid}`,
-      providesTags: (_result, _err, uuid) => [{ type: 'PersonalConversation', id: uuid }],
+      query: uuid => `/v1/agents/personal/conversations/${uuid}`,
+      providesTags: (_result, _err, uuid) => [
+        { type: 'PersonalConversation', id: uuid }
+      ]
     }),
 
     // Delete a personal conversation
     deletePersonalConversation: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/agents/personal/conversations/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['PersonalConversation'],
-    }),
-  }),
+      invalidatesTags: ['PersonalConversation']
+    })
+  })
 });
 
 export const {
@@ -97,5 +113,5 @@ export const {
   useGetPersonalSettingsQuery,
   useListPersonalConversationsQuery,
   useGetPersonalConversationQuery,
-  useDeletePersonalConversationMutation,
+  useDeletePersonalConversationMutation
 } = personalAgentApi;

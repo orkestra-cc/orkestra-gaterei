@@ -1,4 +1,3 @@
-
 import { Card, Col, Image, Row } from 'react-bootstrap';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import images from 'data/gallery';

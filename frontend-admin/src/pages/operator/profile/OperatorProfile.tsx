@@ -1,21 +1,18 @@
-
 import { useGetCurrentUserQuery } from 'store/api/authApi';
 import OperatorBanner from './OperatorBanner';
 import OperatorProfileIntro from './OperatorProfileIntro';
 import { Col, Row, Alert, Spinner } from 'react-bootstrap';
 import type { User } from 'store/api/userApi';
 
-
 const OperatorProfile: React.FC = () => {
-  const {
-    data: backendUser,
-    isLoading,
-    error
-  } = useGetCurrentUserQuery();
+  const { data: backendUser, isLoading, error } = useGetCurrentUserQuery();
 
   if (isLoading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: '400px' }}
+      >
         <Spinner animation="border" role="status">
           <span className="visually-hidden">Loading...</span>
         </Spinner>
@@ -32,11 +29,7 @@ const OperatorProfile: React.FC = () => {
   }
 
   if (!backendUser) {
-    return (
-      <Alert variant="warning">
-        User not found.
-      </Alert>
-    );
+    return <Alert variant="warning">User not found.</Alert>;
   }
 
   const user: User = {
@@ -51,7 +44,7 @@ const OperatorProfile: React.FC = () => {
     emailVerified: backendUser.emailVerified,
     lastLogin: backendUser.lastLogin,
     createdAt: backendUser.createdAt,
-    updatedAt: backendUser.updatedAt,
+    updatedAt: backendUser.updatedAt
   };
 
   return (
@@ -60,7 +53,6 @@ const OperatorProfile: React.FC = () => {
       <Row className="g-3 mb-3">
         <Col lg={12}>
           <OperatorProfileIntro user={user} />
-
         </Col>
       </Row>
     </>

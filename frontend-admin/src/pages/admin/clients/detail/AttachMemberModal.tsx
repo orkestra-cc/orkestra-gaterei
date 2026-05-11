@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import {
-  type Org,
-  useAttachOrgMemberAdminMutation,
-} from 'store/api/tenantApi';
+import { type Org, useAttachOrgMemberAdminMutation } from 'store/api/tenantApi';
 
 interface Props {
   org: Org;
@@ -21,7 +18,7 @@ const ROLE_OPTIONS = [
   { value: 'org_viewer', label: 'Viewer (read-only)' },
   { value: 'org_billing', label: 'Billing' },
   { value: 'org_admin', label: 'Admin' },
-  { value: 'org_owner', label: 'Owner' },
+  { value: 'org_owner', label: 'Owner' }
 ];
 
 /**
@@ -129,7 +126,7 @@ const AttachMemberModal: React.FC<Props> = ({ org, show, onHide }) => {
               <Form.Control
                 type="text"
                 value={userUUID}
-                onChange={(e) => setUserUUID(e.target.value)}
+                onChange={e => setUserUUID(e.target.value)}
                 placeholder="e.g. 0192-…"
                 autoFocus
               />
@@ -144,21 +141,22 @@ const AttachMemberModal: React.FC<Props> = ({ org, show, onHide }) => {
               <Form.Control
                 type="email"
                 value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
+                onChange={e => setUserEmail(e.target.value)}
                 placeholder="user@example.com"
                 autoFocus
               />
               <Form.Text className="text-muted fs-11">
-                Resolved against the {org.kind === 'external' ? 'client' : 'operator'}
-                {' '}user collection (matches this tenant&apos;s tier).
+                Resolved against the{' '}
+                {org.kind === 'external' ? 'client' : 'operator'} user
+                collection (matches this tenant&apos;s tier).
               </Form.Text>
             </Form.Group>
           )}
 
           <Form.Group className="mb-3">
             <Form.Label className="fs-10">Role</Form.Label>
-            <Form.Select value={role} onChange={(e) => setRole(e.target.value)}>
-              {ROLE_OPTIONS.map((r) => (
+            <Form.Select value={role} onChange={e => setRole(e.target.value)}>
+              {ROLE_OPTIONS.map(r => (
                 <option key={r.value} value={r.value}>
                   {r.label} ({r.value})
                 </option>
@@ -172,11 +170,11 @@ const AttachMemberModal: React.FC<Props> = ({ org, show, onHide }) => {
               id="attach-isowner"
               label="Mark as tenant owner"
               checked={isOwner}
-              onChange={(e) => setIsOwner(e.target.checked)}
+              onChange={e => setIsOwner(e.target.checked)}
             />
             <Form.Text className="text-muted fs-11">
-              Stamps the denormalized owner flag on the membership row. Does
-              not change the tenant&apos;s primary owner record.
+              Stamps the denormalized owner flag on the membership row. Does not
+              change the tenant&apos;s primary owner record.
             </Form.Text>
           </Form.Group>
         </Modal.Body>

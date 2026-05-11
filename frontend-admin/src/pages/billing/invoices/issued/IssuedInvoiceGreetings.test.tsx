@@ -5,7 +5,7 @@ import { server } from 'test/server';
 import {
   billingStatsHandler,
   capturedRequests,
-  emptyBillingStats,
+  emptyBillingStats
 } from 'test/handlers';
 import IssuedInvoiceGreetings from './IssuedInvoiceGreetings';
 
@@ -23,8 +23,8 @@ describe('IssuedInvoiceGreetings', () => {
         issuedDraft: 1,
         issuedSent: 2,
         issuedDelivered: 3,
-        issuedAmount: 12345.67,
-      }),
+        issuedAmount: 12345.67
+      })
     );
 
     renderWithProviders(<IssuedInvoiceGreetings />);
@@ -38,7 +38,10 @@ describe('IssuedInvoiceGreetings', () => {
     });
     const params = capturedRequests.billingStatsParams!;
     const fromDate = params.get('fromDate');
-    expect(fromDate, 'must pass fromDate, otherwise backend defaults to current month').toBeTruthy();
+    expect(
+      fromDate,
+      'must pass fromDate, otherwise backend defaults to current month'
+    ).toBeTruthy();
     // Far enough in the past to cover any realistic invoice history.
     expect(new Date(fromDate!).getUTCFullYear()).toBeLessThanOrEqual(2010);
   });

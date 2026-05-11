@@ -7,13 +7,23 @@ import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableS
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'react-toastify';
-import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
+import {
+  arrayToCSV,
+  downloadCSV,
+  formatDateForCSV,
+  generateTimestampedFilename
+} from 'utils/csvExport';
 import type { InvoiceSummary, InvoiceStatus } from 'types/billing';
-import { INVOICE_STATUS_LABELS, DOCUMENT_TYPE_LABELS, formatCurrency } from 'types/billing';
+import {
+  INVOICE_STATUS_LABELS,
+  DOCUMENT_TYPE_LABELS,
+  formatCurrency
+} from 'types/billing';
 import { useSyncInvoicesMutation } from 'store/api/billingApi';
 
 const IssuedInvoiceTableHeader = () => {
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
+  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
+    useAdvanceTableContext();
   const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
   const [syncInvoices, { isLoading: isSyncing }] = useSyncInvoicesMutation();
 
@@ -34,10 +44,13 @@ const IssuedInvoiceTableHeader = () => {
     { label: 'Consegnata', value: 'delivered' },
     { label: 'Rifiutata', value: 'rejected' },
     { label: 'Accettata', value: 'accepted' },
-    { label: 'Pagata', value: 'paid' },
+    { label: 'Pagata', value: 'paid' }
   ];
 
-  const handleStatusFilter = (filter: { label: string; value: InvoiceStatus | 'all' }) => {
+  const handleStatusFilter = (filter: {
+    label: string;
+    value: InvoiceStatus | 'all';
+  }) => {
     setSelectedStatus(filter.label);
     if (filter.value === 'all') {
       setColumnFilters([]);
@@ -52,14 +65,15 @@ const IssuedInvoiceTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const invoice = row.original as InvoiceSummary;
       return {
-        'Numero': invoice.number,
-        'Tipo Documento': DOCUMENT_TYPE_LABELS[invoice.documentType] || invoice.documentType,
-        'Data': formatDateForCSV(invoice.date),
-        'Cliente': invoice.partyName,
-        'Importo': formatCurrency(invoice.totalAmount).replace('€', '').trim(),
-        'Stato': INVOICE_STATUS_LABELS[invoice.status],
+        Numero: invoice.number,
+        'Tipo Documento':
+          DOCUMENT_TYPE_LABELS[invoice.documentType] || invoice.documentType,
+        Data: formatDateForCSV(invoice.date),
+        Cliente: invoice.partyName,
+        Importo: formatCurrency(invoice.totalAmount).replace('€', '').trim(),
+        Stato: INVOICE_STATUS_LABELS[invoice.status],
         'SDI ID': invoice.sdiIdentifier || '',
-        'Creato il': formatDateForCSV(invoice.createdAt),
+        'Creato il': formatDateForCSV(invoice.createdAt)
       };
     });
 
@@ -71,7 +85,7 @@ const IssuedInvoiceTableHeader = () => {
       'Importo',
       'Stato',
       'SDI ID',
-      'Creato il',
+      'Creato il'
     ];
 
     const csv = arrayToCSV(csvData, headers);
@@ -100,11 +114,15 @@ const IssuedInvoiceTableHeader = () => {
             size="sm"
             className="text-600"
           >
-            <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
+            <FontAwesomeIcon
+              icon="filter"
+              transform="shrink-4"
+              className="me-2"
+            />
             <span className="d-none d-sm-inline-block">{selectedStatus}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
-            {statusFilters.map((filter) => (
+            {statusFilters.map(filter => (
               <Dropdown.Item
                 key={filter.value}
                 onClick={() => handleStatusFilter(filter)}
@@ -191,7 +209,9 @@ const IssuedInvoiceTableHeader = () => {
                     Sincronizza con SDI
                   </Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Elimina Selezionate</Dropdown.Item>
+                  <Dropdown.Item className="text-danger">
+                    Elimina Selezionate
+                  </Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>

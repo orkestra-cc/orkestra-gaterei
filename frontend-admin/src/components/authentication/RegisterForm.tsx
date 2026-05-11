@@ -29,7 +29,9 @@ const RegisterForm = () => {
       return;
     }
     if (password.length < passwordMinLength) {
-      setLocalError(`Password must be at least ${passwordMinLength} characters.`);
+      setLocalError(
+        `Password must be at least ${passwordMinLength} characters.`
+      );
       return;
     }
     if (password !== confirm) {
@@ -52,10 +54,12 @@ const RegisterForm = () => {
       const anyErr = err as { data?: { detail?: string }; status?: number };
       if (anyErr?.status === 503) {
         setLocalError(
-          'Sign-up is temporarily unavailable because email delivery is not configured. Please contact an administrator.',
+          'Sign-up is temporarily unavailable because email delivery is not configured. Please contact an administrator.'
         );
       } else {
-        setLocalError(anyErr?.data?.detail || 'Unable to create account. Please try again.');
+        setLocalError(
+          anyErr?.data?.detail || 'Unable to create account. Please try again.'
+        );
       }
     }
   };
@@ -64,12 +68,17 @@ const RegisterForm = () => {
     <Form onSubmit={handleSubmit}>
       {!registrationEnabled && (
         <Alert variant="warning" className="mb-3">
-          Self-service registration is currently disabled. Please contact an administrator
-          if you need an account.
+          Self-service registration is currently disabled. Please contact an
+          administrator if you need an account.
         </Alert>
       )}
       {localError && (
-        <Alert variant="danger" className="mb-3" dismissible onClose={() => setLocalError(null)}>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          dismissible
+          onClose={() => setLocalError(null)}
+        >
           {localError}
         </Alert>
       )}
@@ -79,7 +88,7 @@ const RegisterForm = () => {
         <Form.Control
           type="text"
           value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
+          onChange={e => setFullName(e.target.value)}
           autoComplete="name"
           required
         />
@@ -90,7 +99,7 @@ const RegisterForm = () => {
         <Form.Control
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           autoComplete="email"
           required
         />
@@ -101,12 +110,14 @@ const RegisterForm = () => {
         <Form.Control
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
           autoComplete="new-password"
           minLength={passwordMinLength}
           required
         />
-        <Form.Text className="text-muted">Use at least {passwordMinLength} characters.</Form.Text>
+        <Form.Text className="text-muted">
+          Use at least {passwordMinLength} characters.
+        </Form.Text>
       </Form.Group>
 
       <Form.Group className="mb-3">
@@ -114,7 +125,7 @@ const RegisterForm = () => {
         <Form.Control
           type="password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={e => setConfirm(e.target.value)}
           autoComplete="new-password"
           required
         />
@@ -125,7 +136,7 @@ const RegisterForm = () => {
           type="checkbox"
           id="accept-terms"
           checked={accepted}
-          onChange={(e) => setAccepted(e.target.checked)}
+          onChange={e => setAccepted(e.target.checked)}
           label={
             <span className="fs--1">
               I accept the <Link to="/terms">terms of service</Link> and{' '}
@@ -136,7 +147,12 @@ const RegisterForm = () => {
       </Form.Group>
 
       <div className="d-grid mb-3">
-        <Button type="submit" variant="primary" size="lg" disabled={isLoading || !registrationEnabled}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          disabled={isLoading || !registrationEnabled}
+        >
           {isLoading ? 'Creating account…' : 'Create account'}
         </Button>
       </div>

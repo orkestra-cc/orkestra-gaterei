@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Col, Nav, Row, Button } from 'react-bootstrap';
-import useScrollSpy from 'react-use-scrollspy';
+import useScrollSpy from 'hooks/useScrollSpy';
 import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import FalconComponentCard from 'components/common/FalconComponentCard';

@@ -1,8 +1,12 @@
-
 import { Card, Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Link, useNavigate, useLocation } from 'react-router';
-import { faHome, faSignOutAlt, faShieldAlt, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import {
+  faHome,
+  faSignOutAlt,
+  faShieldAlt,
+  faArrowLeft
+} from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from 'hooks/auth/useAuthRTK';
 
 interface Error401Props {
@@ -21,11 +25,8 @@ const Error401: React.FC<Error401Props> = ({
   const { user } = useAuth();
 
   // Get error context from navigation state
-  const {
-    requiredPermissions,
-    accessDeniedReason,
-    from
-  } = location.state || {};
+  const { requiredPermissions, accessDeniedReason, from } =
+    location.state || {};
 
   const handleGoBack = () => {
     navigate(-1);
@@ -38,12 +39,12 @@ const Error401: React.FC<Error401Props> = ({
 
   const getRoleDisplayName = (role?: string) => {
     const roleMap: Record<string, string> = {
-      'super_admin': 'Super Admin',
-      'administrator': 'Administrator',
-      'developer': 'Developer',
-      'manager': 'Manager',
-      'operator': 'Operator',
-      'guest': 'Guest'
+      super_admin: 'Super Admin',
+      administrator: 'Administrator',
+      developer: 'Developer',
+      manager: 'Manager',
+      operator: 'Operator',
+      guest: 'Guest'
     };
     return role ? roleMap[role] || role : 'Unknown';
   };
@@ -59,7 +60,8 @@ const Error401: React.FC<Error401Props> = ({
   const getDetailedMessage = () => {
     const currentUserRole = userRole || user?.role;
 
-    let details = 'You do not have the necessary permissions to access this page.';
+    let details =
+      'You do not have the necessary permissions to access this page.';
 
     if (currentUserRole) {
       details += `\n\nYour current role: ${getRoleDisplayName(currentUserRole)}`;
@@ -100,9 +102,7 @@ const Error401: React.FC<Error401Props> = ({
         </p>
         <hr />
         <div className="text-600">
-          <p style={{ whiteSpace: 'pre-line' }}>
-            {getDetailedMessage()}
-          </p>
+          <p style={{ whiteSpace: 'pre-line' }}>{getDetailedMessage()}</p>
         </div>
         <div className="mt-4">
           <Button
@@ -118,18 +118,15 @@ const Error401: React.FC<Error401Props> = ({
             <FontAwesomeIcon icon={faHome} className="me-2" />
             Go to Home
           </Link>
-          <Button
-            variant="outline-danger"
-            size="sm"
-            onClick={handleLogout}
-          >
+          <Button variant="outline-danger" size="sm" onClick={handleLogout}>
             <FontAwesomeIcon icon={faSignOutAlt} className="me-2" />
             Logout
           </Button>
         </div>
         <div className="mt-4 pt-3 border-top">
           <small className="text-500">
-            If you think this is an error, please contact the system administrator.
+            If you think this is an error, please contact the system
+            administrator.
           </small>
         </div>
       </Card.Body>

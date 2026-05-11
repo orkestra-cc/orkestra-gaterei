@@ -34,7 +34,10 @@ export interface InfiniteDataState<T> {
  * ```
  */
 interface UseInfiniteDataOptions<TData, TQueryArg> {
-  useQuery: (arg: TQueryArg & { cursor?: string; limit?: number }, options?: { skip?: boolean }) => {
+  useQuery: (
+    arg: TQueryArg & { cursor?: string; limit?: number },
+    options?: { skip?: boolean }
+  ) => {
     data?: PaginatedApiResponse<TData>;
     isLoading: boolean;
     isFetching: boolean;
@@ -42,7 +45,9 @@ interface UseInfiniteDataOptions<TData, TQueryArg> {
     refetch: () => void;
   };
   queryArgs: TQueryArg;
-  getNextPageParam?: (lastPage: PaginatedApiResponse<TData>) => string | undefined;
+  getNextPageParam?: (
+    lastPage: PaginatedApiResponse<TData>
+  ) => string | undefined;
   limit?: number;
   enabled?: boolean;
 }
@@ -52,7 +57,7 @@ export function useInfiniteData<TData = unknown, TQueryArg = any>({
   queryArgs,
   getNextPageParam,
   limit = 25,
-  enabled = true,
+  enabled = true
 }: UseInfiniteDataOptions<TData, TQueryArg>) {
   // Track cursors for pagination
   const [cursors, setCursors] = useState<string[]>([]);
@@ -64,11 +69,14 @@ export function useInfiniteData<TData = unknown, TQueryArg = any>({
     isFetching,
     error,
     refetch
-  } = useQuery({
-    ...queryArgs,
-    cursor: cursors[cursors.length - 1],
-    limit
-  }, { skip: !enabled });
+  } = useQuery(
+    {
+      ...queryArgs,
+      cursor: cursors[cursors.length - 1],
+      limit
+    },
+    { skip: !enabled }
+  );
 
   // Build infinite data state
   const infiniteData = useMemo<InfiniteDataState<TData>>(() => {
@@ -101,8 +109,9 @@ export function useInfiniteData<TData = unknown, TQueryArg = any>({
   const fetchNextPage = useCallback(() => {
     if (!currentPage || !currentPage.hasMore) return;
 
-    const nextCursor = getNextPageParam?.(currentPage) ||
-                      (currentPage.currentPage + 1).toString();
+    const nextCursor =
+      getNextPageParam?.(currentPage) ||
+      (currentPage.currentPage + 1).toString();
 
     if (nextCursor) {
       setCursors(prev => [...prev, nextCursor]);
@@ -119,7 +128,7 @@ export function useInfiniteData<TData = unknown, TQueryArg = any>({
     ...infiniteData,
     fetchNextPage,
     refetch: refetchAll,
-    canFetchMore: infiniteData.hasMore && !infiniteData.isFetchingMore,
+    canFetchMore: infiniteData.hasMore && !infiniteData.isFetchingMore
   };
 }
 
@@ -142,7 +151,12 @@ export function useInfiniteScroll<TData, TQueryArg>(
 ) {
   const { data, isLoading, isFetching, error } = useQuery(queryArgs, {
     skip: options.enabled === false
-  }) as { data?: { items: TData[]; hasMore: boolean; totalCount: number }; isLoading: boolean; isFetching: boolean; error: any };
+  }) as {
+    data?: { items: TData[]; hasMore: boolean; totalCount: number };
+    isLoading: boolean;
+    isFetching: boolean;
+    error: any;
+  };
 
   // For RTK Query endpoints that handle infinite data internally
   // The query itself manages the cursor/pagination state
@@ -152,7 +166,7 @@ export function useInfiniteScroll<TData, TQueryArg>(
     totalCount: data?.totalCount || 0,
     isLoading,
     isFetching,
-    error,
+    error
     // Note: fetchNext would need to be implemented in the RTK Query endpoint
     // using serializeQueryArgs and merge functions
   };
@@ -168,7 +182,11 @@ export function createInfiniteQueryConfig<TData>() {
       const { cursor, ...rest } = queryArgs;
       return rest; // Group by everything except cursor
     },
-    merge: (currentCache: any, newItems: PaginatedApiResponse<TData>, { arg }: any) => {
+    merge: (
+      currentCache: any,
+      newItems: PaginatedApiResponse<TData>,
+      { arg }: any
+    ) => {
       if (!arg.cursor) {
         // First page or reset
         return newItems;
@@ -178,6 +196,6 @@ export function createInfiniteQueryConfig<TData>() {
         ...newItems,
         items: [...(currentCache?.items || []), ...newItems.items]
       };
-    },
+    }
   };
 }

@@ -1,4 +1,3 @@
-
 import * as echarts from 'echarts/core';
 import { useAppContext } from 'providers/AppProvider';
 import ReactEchart from 'components/common/ReactEchart';

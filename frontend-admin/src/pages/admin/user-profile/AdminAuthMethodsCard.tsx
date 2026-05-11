@@ -7,7 +7,7 @@ import {
   Alert,
   Badge,
   OverlayTrigger,
-  Tooltip,
+  Tooltip
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
@@ -22,7 +22,7 @@ import {
   useGetUserAuthMethodsAdminQuery,
   useResendVerificationUserAdminMutation,
   useSendPasswordResetUserAdminMutation,
-  useUnlinkOAuthUserAdminMutation,
+  useUnlinkOAuthUserAdminMutation
 } from 'store/api/userApi';
 import AdminResetMfaModal from '../users/AdminResetMfaModal';
 
@@ -42,18 +42,26 @@ interface AdminAuthMethodsCardProps {
  * hide / disable + tooltip) and in the backend service (authoritative
  * 409 with a typed body code).
  */
-const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => {
+const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({
+  user
+}) => {
   const currentAdmin = useAppSelector(selectUser);
   const isSelf = currentAdmin?.id === user.id;
 
-  const { data, isLoading, error, refetch } = useGetUserAuthMethodsAdminQuery(user.id);
+  const { data, isLoading, error, refetch } = useGetUserAuthMethodsAdminQuery(
+    user.id
+  );
 
-  const [sendPasswordReset, { isLoading: pwBusy }] = useSendPasswordResetUserAdminMutation();
-  const [resendVerification, { isLoading: verifyBusy }] = useResendVerificationUserAdminMutation();
-  const [unlinkOAuth, { isLoading: unlinkBusy }] = useUnlinkOAuthUserAdminMutation();
+  const [sendPasswordReset, { isLoading: pwBusy }] =
+    useSendPasswordResetUserAdminMutation();
+  const [resendVerification, { isLoading: verifyBusy }] =
+    useResendVerificationUserAdminMutation();
+  const [unlinkOAuth, { isLoading: unlinkBusy }] =
+    useUnlinkOAuthUserAdminMutation();
 
   const [showMfaModal, setShowMfaModal] = useState(false);
-  const [confirmUnlink, setConfirmUnlink] = useState<AdminAuthOAuthProvider | null>(null);
+  const [confirmUnlink, setConfirmUnlink] =
+    useState<AdminAuthOAuthProvider | null>(null);
 
   const handleSendReset = async () => {
     try {
@@ -81,11 +89,16 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
     } catch (err) {
       // Surface the typed last-credential / self-action codes if the
       // server pushes back; otherwise fall through to the generic msg.
-      const code = (err as { data?: { type?: string; title?: string } })?.data?.title;
+      const code = (err as { data?: { type?: string; title?: string } })?.data
+        ?.title;
       if (code === 'last_credential') {
-        toast.error('User has no other login method — send a password-reset first.');
+        toast.error(
+          'User has no other login method — send a password-reset first.'
+        );
       } else if (code === 'self_action') {
-        toast.error('You cannot unlink your own OAuth identity from the admin surface.');
+        toast.error(
+          'You cannot unlink your own OAuth identity from the admin surface.'
+        );
       } else {
         toast.error('Unlink failed: ' + extractError(err));
       }
@@ -157,8 +170,17 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
                 : 'No password set — user signs in via OAuth only.'
             }
             action={
-              <Button variant="falcon-default" size="sm" disabled={pwBusy} onClick={handleSendReset}>
-                {pwBusy ? <Spinner size="sm" animation="border" /> : 'Send password-reset email'}
+              <Button
+                variant="falcon-default"
+                size="sm"
+                disabled={pwBusy}
+                onClick={handleSendReset}
+              >
+                {pwBusy ? (
+                  <Spinner size="sm" animation="border" />
+                ) : (
+                  'Send password-reset email'
+                )}
               </Button>
             }
           />
@@ -171,7 +193,9 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
               data.emailVerified ? (
                 <Badge bg="success">Verified</Badge>
               ) : (
-                <Badge bg="warning" text="dark">Unverified</Badge>
+                <Badge bg="warning" text="dark">
+                  Unverified
+                </Badge>
               )
             }
             sub={
@@ -187,7 +211,11 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
                   disabled={verifyBusy}
                   onClick={handleResendVerification}
                 >
-                  {verifyBusy ? <Spinner size="sm" animation="border" /> : 'Resend verification'}
+                  {verifyBusy ? (
+                    <Spinner size="sm" animation="border" />
+                  ) : (
+                    'Resend verification'
+                  )}
                 </Button>
               ) : null
             }
@@ -217,7 +245,11 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
               ) : data.mfaFactors.length > 0 && isSelf ? (
                 <OverlayTrigger
                   placement="left"
-                  overlay={<Tooltip>Use the self-service flow on your own account.</Tooltip>}
+                  overlay={
+                    <Tooltip>
+                      Use the self-service flow on your own account.
+                    </Tooltip>
+                  }
                 >
                   <span className="d-inline-block">
                     <Button variant="outline-warning" size="sm" disabled>
@@ -230,7 +262,7 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
           >
             {data.mfaFactors.length > 0 && (
               <ul className="list-unstyled mb-0 mt-2 ms-4 small text-body-secondary">
-                {data.mfaFactors.map((f) => (
+                {data.mfaFactors.map(f => (
                   <li key={f.type}>{describeFactor(f)}</li>
                 ))}
               </ul>
@@ -252,19 +284,26 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
               </p>
             ) : (
               <ul className="list-unstyled mb-0 ms-4">
-                {data.oauthProviders.map((p) => {
+                {data.oauthProviders.map(p => {
                   const onlyCredential =
                     !data.hasUsablePassword && data.oauthProviders.length === 1;
                   const blockReason = isSelf
                     ? 'You cannot unlink your own OAuth identity from the admin surface.'
                     : onlyCredential
-                    ? 'Send a password-reset first to keep the account accessible.'
-                    : null;
+                      ? 'Send a password-reset first to keep the account accessible.'
+                      : null;
                   return (
-                    <li key={p.provider} className="d-flex align-items-center justify-content-between py-1">
+                    <li
+                      key={p.provider}
+                      className="d-flex align-items-center justify-content-between py-1"
+                    >
                       <span>
-                        <strong className="text-capitalize me-2">{p.provider}</strong>
-                        <span className="text-body-secondary small">{p.email}</span>
+                        <strong className="text-capitalize me-2">
+                          {p.provider}
+                        </strong>
+                        <span className="text-body-secondary small">
+                          {p.email}
+                        </span>
                         {p.isPrimary && (
                           <Badge bg="info" className="ms-2">
                             Primary
@@ -310,7 +349,8 @@ const AdminAuthMethodsCard: React.FC<AdminAuthMethodsCardProps> = ({ user }) => 
         >
           <strong>Unlink {confirmUnlink.provider}?</strong>
           <p className="mb-2 small">
-            The user will lose this login method. They can re-link from their account settings later.
+            The user will lose this login method. They can re-link from their
+            account settings later.
           </p>
           <div className="d-flex gap-2 justify-content-end">
             <Button
@@ -347,7 +387,14 @@ interface SectionProps {
   children?: React.ReactNode;
 }
 
-const Section: React.FC<SectionProps> = ({ icon, title, badge, sub, action, children }) => (
+const Section: React.FC<SectionProps> = ({
+  icon,
+  title,
+  badge,
+  sub,
+  action,
+  children
+}) => (
   <div className="py-3 border-bottom">
     <div className="d-flex align-items-start justify-content-between">
       <div>
@@ -375,13 +422,21 @@ const ProviderActions: React.FC<ProviderActionsProps> = ({
   provider,
   blockReason,
   unlinkBusy,
-  onUnlinkClick,
+  onUnlinkClick
 }) => {
   if (blockReason) {
     return (
-      <OverlayTrigger placement="left" overlay={<Tooltip>{blockReason}</Tooltip>}>
+      <OverlayTrigger
+        placement="left"
+        overlay={<Tooltip>{blockReason}</Tooltip>}
+      >
         <span className="d-inline-block">
-          <Button variant="link" size="sm" disabled className="text-body-tertiary">
+          <Button
+            variant="link"
+            size="sm"
+            disabled
+            className="text-body-tertiary"
+          >
             <FontAwesomeIcon icon="ellipsis-h" />
           </Button>
         </span>
@@ -432,7 +487,10 @@ function describeFactor(f: AdminAuthMfaFactor): string {
   }
   if (f.type === 'webauthn') {
     const n = f.credentials?.length ?? 0;
-    const names = (f.credentials ?? []).map((c) => c.name).filter(Boolean).join(', ');
+    const names = (f.credentials ?? [])
+      .map(c => c.name)
+      .filter(Boolean)
+      .join(', ');
     return `${n} passkey${n === 1 ? '' : 's'}${names ? ` (${names})` : ''}`;
   }
   return f.type;
@@ -443,7 +501,7 @@ function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
+      day: 'numeric'
     });
   } catch {
     return iso;

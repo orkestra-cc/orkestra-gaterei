@@ -1,4 +1,3 @@
-
 import paths from 'routes/paths';
 import { Link } from 'react-router';
 import useAdvanceTable from './useAdvanceTable';

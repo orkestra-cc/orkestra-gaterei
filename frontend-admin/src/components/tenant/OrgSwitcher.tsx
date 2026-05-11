@@ -38,7 +38,7 @@ export default function OrgSwitcher() {
       </Dropdown.Toggle>
       <Dropdown.Menu>
         <Dropdown.Header>Your organizations</Dropdown.Header>
-        {memberships.map((m) => (
+        {memberships.map(m => (
           <Dropdown.Item
             key={m.tenantId}
             active={m.tenantId === current?.tenantId}

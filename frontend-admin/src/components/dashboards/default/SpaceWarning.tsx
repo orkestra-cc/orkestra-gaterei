@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import corner1 from 'assets/img/illustrations/corner-1.png';
 import { Link } from 'react-router';
@@ -18,10 +17,7 @@ const SpaceWarning = ({ className }: SpaceWarningProps) => (
         Your storage will be running out soon. Get more
         <br /> space and powerful productivity features.
       </p>
-      <Link
-        to="#!"
-        className="btn btn-link fs-10 text-warning mt-lg-3 ps-0"
-      >
+      <Link to="#!" className="btn btn-link fs-10 text-warning mt-lg-3 ps-0">
         Upgrade storage
         <FontAwesomeIcon icon="chevron-right" className="ms-1 fs-11" />
       </Link>

@@ -1,6 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Alert, Button, Form, Spinner } from 'react-bootstrap';
-import { useGetModuleQuery, useUpdateModuleMutation } from 'store/api/moduleApi';
+import {
+  useGetModuleQuery,
+  useUpdateModuleMutation
+} from 'store/api/moduleApi';
 import ModuleConfigFields from 'pages/admin/modules/ModuleConfigFields';
 
 interface SmtpStepProps {
@@ -20,7 +23,7 @@ const SMTP_FIELD_KEYS = [
   'email.smtp.port',
   'email.smtp.username',
   'email.smtp.password',
-  'email.smtp.tls_mode',
+  'email.smtp.tls_mode'
 ];
 
 /**
@@ -31,7 +34,8 @@ const SMTP_FIELD_KEYS = [
  * mode and auth mail logs to stdout.
  */
 const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
-  const { data: mod, isLoading: isLoadingModule } = useGetModuleQuery('notification');
+  const { data: mod, isLoading: isLoadingModule } =
+    useGetModuleQuery('notification');
   const [updateModule, { isLoading: isSaving }] = useUpdateModuleMutation();
 
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
@@ -59,11 +63,15 @@ const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
     const provider = (configValues['email.provider'] || '').trim();
     if (provider && provider !== 'noop') {
       if (!configValues['email.smtp.host']) {
-        setError('SMTP host is required when the provider is not set to "noop".');
+        setError(
+          'SMTP host is required when the provider is not set to "noop".'
+        );
         return;
       }
       if (!configValues['email.from_address']) {
-        setError('From address is required when the provider is not set to "noop".');
+        setError(
+          'From address is required when the provider is not set to "noop".'
+        );
         return;
       }
     }
@@ -72,7 +80,7 @@ const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
       // Collect changed plain values relative to what the backend reported.
       const changedConfig: Record<string, string> = {};
       for (const key of SMTP_FIELD_KEYS) {
-        const field = mod.configSchema.find((f) => f.key === key);
+        const field = mod.configSchema.find(f => f.key === key);
         if (!field || field.type === 'secret') continue;
         if (configValues[key] !== mod.configValues[key]) {
           changedConfig[key] = configValues[key] || '';
@@ -99,7 +107,10 @@ const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
       onNext();
     } catch (err: unknown) {
       const anyErr = err as { data?: { detail?: string } };
-      setError(anyErr?.data?.detail || 'Could not save SMTP settings. Please check the values and try again.');
+      setError(
+        anyErr?.data?.detail ||
+          'Could not save SMTP settings. Please check the values and try again.'
+      );
     }
   };
 
@@ -117,22 +128,27 @@ const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
         <h5 className="mb-1">Configure email delivery</h5>
         <p className="text-muted fs-10 mb-0">
           Orkestra uses these settings to send verification and password-reset
-          email. Leave the provider on <code>noop</code> to skip entirely —
-          you can configure SMTP later under <code>/admin/modules</code>.
+          email. Leave the provider on <code>noop</code> to skip entirely — you
+          can configure SMTP later under <code>/admin/modules</code>.
         </p>
       </div>
 
       {error && (
-        <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          onClose={() => setError(null)}
+          dismissible
+        >
           {error}
         </Alert>
       )}
 
       <Alert variant="warning" className="fs-10 mb-3">
-        <strong>Note:</strong> while the provider is <code>noop</code>, password-reset
-        and email-verification mail is logged to the backend stdout instead
-        of being delivered. Anyone who forgets their password will need a
-        backend operator to recover the link from the logs.
+        <strong>Note:</strong> while the provider is <code>noop</code>,
+        password-reset and email-verification mail is logged to the backend
+        stdout instead of being delivered. Anyone who forgets their password
+        will need a backend operator to recover the link from the logs.
       </Alert>
 
       <ModuleConfigFields
@@ -142,15 +158,19 @@ const SmtpStep = ({ onNext, onSkip }: SmtpStepProps) => {
         secretStatus={mod.secretStatus}
         includeKeys={SMTP_FIELD_KEYS}
         onConfigChange={(key, value) =>
-          setConfigValues((prev) => ({ ...prev, [key]: value }))
+          setConfigValues(prev => ({ ...prev, [key]: value }))
         }
         onSecretChange={(key, value) =>
-          setSecretValues((prev) => ({ ...prev, [key]: value }))
+          setSecretValues(prev => ({ ...prev, [key]: value }))
         }
       />
 
       <div className="d-flex justify-content-between">
-        <Button variant="outline-secondary" onClick={onSkip} disabled={isSaving}>
+        <Button
+          variant="outline-secondary"
+          onClick={onSkip}
+          disabled={isSaving}
+        >
           Skip for now
         </Button>
         <Button type="submit" variant="primary" disabled={isSaving}>

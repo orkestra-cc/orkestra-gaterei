@@ -1,4 +1,3 @@
-
 import NotificationDropdown from 'components/navbar/top/NotificationDropdown';
 import ProfileDropdown from 'components/navbar/top/ProfileDropdown';
 import { Nav } from 'react-bootstrap';

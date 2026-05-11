@@ -15,9 +15,13 @@ interface AuthWizardProviderProps {
   children: ReactNode;
 }
 
-export const AuthWizardContext = createContext<AuthWizardContextValue | undefined>(undefined);
+export const AuthWizardContext = createContext<
+  AuthWizardContextValue | undefined
+>(undefined);
 
-const AuthWizardProvider: React.FC<AuthWizardProviderProps> = ({ children }) => {
+const AuthWizardProvider: React.FC<AuthWizardProviderProps> = ({
+  children
+}) => {
   const [user, setUser] = useState<AuthWizardUser>({});
   const [step, setStep] = useState<number>(1);
 
@@ -32,7 +36,9 @@ const AuthWizardProvider: React.FC<AuthWizardProviderProps> = ({ children }) => 
 export const useAuthWizardContext = (): AuthWizardContextValue => {
   const context = useContext(AuthWizardContext);
   if (!context) {
-    throw new Error('useAuthWizardContext must be used within AuthWizardProvider');
+    throw new Error(
+      'useAuthWizardContext must be used within AuthWizardProvider'
+    );
   }
   return context;
 };

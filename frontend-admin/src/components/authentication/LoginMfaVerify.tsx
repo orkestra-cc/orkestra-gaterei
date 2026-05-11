@@ -6,12 +6,12 @@ import { useAppDispatch } from 'store/hooks';
 import {
   useLoginVerifyMfaMutation,
   useWebAuthnLoginBeginMutation,
-  useWebAuthnLoginFinishMutation,
+  useWebAuthnLoginFinishMutation
 } from 'store/api/mfaApi';
 import {
   browserSupportsWebAuthn,
   decodeRequestOptions,
-  encodeAssertion,
+  encodeAssertion
 } from 'store/api/webauthnCodec';
 import { login as loginAction } from 'store/slices/authSlice';
 
@@ -67,7 +67,7 @@ const LoginMfaVerify = () => {
       const res = await verify({
         challengeId: state.challengeId,
         code: code.trim(),
-        useBackup,
+        useBackup
       }).unwrap();
       dispatch(loginAction({ userData: res.user }));
       navigate('/dashboard/analytics');
@@ -78,7 +78,9 @@ const LoginMfaVerify = () => {
       } else if (anyErr?.status === 429) {
         setLocalError('Too many attempts. Sign in again from the login page.');
       } else {
-        setLocalError(anyErr?.data?.detail ?? 'Unable to verify the code. Please try again.');
+        setLocalError(
+          anyErr?.data?.detail ?? 'Unable to verify the code. Please try again.'
+        );
       }
     }
   };
@@ -88,9 +90,13 @@ const LoginMfaVerify = () => {
     if (!state.challengeId) return;
     setPasskeyBusy(true);
     try {
-      const beginRes = await waBegin({ loginChallengeId: state.challengeId }).unwrap();
+      const beginRes = await waBegin({
+        loginChallengeId: state.challengeId
+      }).unwrap();
       const opts = decodeRequestOptions(beginRes.publicKey);
-      const cred = (await navigator.credentials.get({ publicKey: opts })) as PublicKeyCredential | null;
+      const cred = (await navigator.credentials.get({
+        publicKey: opts
+      })) as PublicKeyCredential | null;
       if (!cred) {
         setPasskeyBusy(false);
         return;
@@ -98,18 +104,26 @@ const LoginMfaVerify = () => {
       const finishRes = await waFinish({
         loginChallengeId: state.challengeId,
         webauthnChallengeId: beginRes.challengeId,
-        assertionResponse: encodeAssertion(cred),
+        assertionResponse: encodeAssertion(cred)
       }).unwrap();
       dispatch(loginAction({ userData: finishRes.user }));
       navigate('/dashboard/analytics');
     } catch (err: unknown) {
-      const anyErr = err as { name?: string; status?: number; data?: { detail?: string } };
+      const anyErr = err as {
+        name?: string;
+        status?: number;
+        data?: { detail?: string };
+      };
       if (anyErr?.name === 'NotAllowedError') {
         setLocalError('The passkey prompt was cancelled or timed out.');
       } else if (anyErr?.status === 401) {
-        setLocalError('Passkey verification failed. Try again or use your authenticator app.');
+        setLocalError(
+          'Passkey verification failed. Try again or use your authenticator app.'
+        );
       } else {
-        setLocalError(anyErr?.data?.detail ?? 'Could not complete passkey sign-in.');
+        setLocalError(
+          anyErr?.data?.detail ?? 'Could not complete passkey sign-in.'
+        );
       }
       setPasskeyBusy(false);
     }
@@ -128,53 +142,75 @@ const LoginMfaVerify = () => {
             </p>
           </div>
 
-        {localError && (
-          <Alert variant="danger" className="mb-3" onClose={() => setLocalError(null)} dismissible>
-            {localError}
-          </Alert>
-        )}
-
-        {passkeyOffered && (
-          <div className="d-grid mb-3">
-            <Button variant="outline-primary" size="lg" disabled={passkeyBusy} onClick={handlePasskey}>
-              {passkeyBusy ? 'Waiting for passkey…' : 'Use a passkey'}
-            </Button>
-            <div className="text-center text-muted fs-10 mt-2">or</div>
-          </div>
-        )}
-
-        <Form onSubmit={handleSubmit} noValidate>
-          <Form.Group className="mb-3">
-            <Form.Label>{useBackup ? 'Backup code' : 'Authenticator code'}</Form.Label>
-            <Form.Control
-              type="text"
-              inputMode={useBackup ? 'text' : 'numeric'}
-              autoComplete="one-time-code"
-              autoFocus
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={useBackup ? 'XXXX-XXXX' : '123 456'}
-              required
-            />
-          </Form.Group>
-
-          <div className="d-grid mb-3">
-            <Button type="submit" variant="primary" size="lg" disabled={isLoading}>
-              {isLoading ? 'Verifying…' : 'Verify and sign in'}
-            </Button>
-          </div>
-
-          <div className="d-flex justify-content-between fs-10">
-            <button
-              type="button"
-              className="btn btn-link p-0"
-              onClick={() => { setUseBackup((v) => !v); setCode(''); }}
+          {localError && (
+            <Alert
+              variant="danger"
+              className="mb-3"
+              onClose={() => setLocalError(null)}
+              dismissible
             >
-              {useBackup ? 'Use authenticator app instead' : 'Use a backup code instead'}
-            </button>
-            <Link to="/login">Back to sign in</Link>
-          </div>
-        </Form>
+              {localError}
+            </Alert>
+          )}
+
+          {passkeyOffered && (
+            <div className="d-grid mb-3">
+              <Button
+                variant="outline-primary"
+                size="lg"
+                disabled={passkeyBusy}
+                onClick={handlePasskey}
+              >
+                {passkeyBusy ? 'Waiting for passkey…' : 'Use a passkey'}
+              </Button>
+              <div className="text-center text-muted fs-10 mt-2">or</div>
+            </div>
+          )}
+
+          <Form onSubmit={handleSubmit} noValidate>
+            <Form.Group className="mb-3">
+              <Form.Label>
+                {useBackup ? 'Backup code' : 'Authenticator code'}
+              </Form.Label>
+              <Form.Control
+                type="text"
+                inputMode={useBackup ? 'text' : 'numeric'}
+                autoComplete="one-time-code"
+                autoFocus
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                placeholder={useBackup ? 'XXXX-XXXX' : '123 456'}
+                required
+              />
+            </Form.Group>
+
+            <div className="d-grid mb-3">
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Verifying…' : 'Verify and sign in'}
+              </Button>
+            </div>
+
+            <div className="d-flex justify-content-between fs-10">
+              <button
+                type="button"
+                className="btn btn-link p-0"
+                onClick={() => {
+                  setUseBackup(v => !v);
+                  setCode('');
+                }}
+              >
+                {useBackup
+                  ? 'Use authenticator app instead'
+                  : 'Use a backup code instead'}
+              </button>
+              <Link to="/login">Back to sign in</Link>
+            </div>
+          </Form>
         </Card.Body>
       </Card>
     </AuthCardLayout>

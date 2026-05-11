@@ -1,4 +1,3 @@
-
 import { BarChart } from 'echarts/charts';
 import {
   DatasetComponent,
@@ -117,10 +116,10 @@ const getOption = (getThemeColor: ThemeColorGetter, data: ReportData) => ({
   grid: { right: '0', left: '40px', bottom: '10%', top: '15%' }
 });
 
-const ReportForThisWeekChart = forwardRef<ReactEChartsCore, ReportForThisWeekChartProps>((
-  { data },
-  ref
-) => {
+const ReportForThisWeekChart = forwardRef<
+  ReactEChartsCore,
+  ReportForThisWeekChartProps
+>(({ data }, ref) => {
   const { getThemeColor } = useAppContext();
   return (
     <ReactEchart

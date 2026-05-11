@@ -1,5 +1,14 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
+import {
+  persistStore,
+  persistReducer,
+  FLUSH,
+  REHYDRATE,
+  PAUSE,
+  PERSIST,
+  PURGE,
+  REGISTER
+} from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 
 import authReducer from './slices/authSlice';
@@ -18,7 +27,7 @@ const rootReducer = combineReducers({
   tenant: tenantReducer,
   kanban: kanbanReducer,
   // Add RTK Query API slice
-  [baseApi.reducerPath]: baseApi.reducer,
+  [baseApi.reducerPath]: baseApi.reducer
 });
 
 const persistedReducer = persistReducer(
@@ -33,12 +42,12 @@ const persistedReducer = persistReducer(
 
 export const store = configureStore({
   reducer: persistedReducer,
-  middleware: (getDefaultMiddleware) => {
+  middleware: getDefaultMiddleware => {
     const middleware = getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         ignoredPaths: ['auth.sessionExpiry']
-      },
+      }
     })
       // Add RTK Query middleware
       .concat(baseApi.middleware);
@@ -52,8 +61,8 @@ export const store = configureStore({
       options: {
         undefined: true,
         function: true,
-        symbol: true,
-      },
+        symbol: true
+      }
     },
     actionSanitizer: (action: any) => {
       return action;
@@ -70,7 +79,7 @@ export const store = configureStore({
       }
       return state;
     }
-  },
+  }
 });
 
 export const persistor = persistStore(store);

@@ -7,7 +7,7 @@ import {
   selectCurrentMembership,
   selectImpersonation,
   startImpersonation,
-  stopImpersonation,
+  stopImpersonation
 } from 'store/slices/tenantSlice';
 import { baseApi, TENANT_SCOPED_TAGS } from 'store/api/baseApi';
 import type { Org } from 'store/api/tenantApi';

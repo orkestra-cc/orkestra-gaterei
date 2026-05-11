@@ -7,25 +7,25 @@ import { baseApi } from './baseApi';
 // Test-only endpoint that hits any URL string. Uses baseQuery, so the
 // X-Tenant-ID injection logic in baseApi.ts runs for every call.
 const probeApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     tenantHeaderProbe: builder.query<{ ok: true }, string>({
-      query: (url) => ({ url, method: 'GET' }),
-    }),
+      query: url => ({ url, method: 'GET' })
+    })
   }),
-  overrideExisting: true,
+  overrideExisting: true
 });
 
 const captureHeaders = () => {
   const captured: { url: string | null; tenant: string | null } = {
     url: null,
-    tenant: null,
+    tenant: null
   };
   server.use(
     http.all('*', ({ request }) => {
       captured.url = request.url;
       captured.tenant = request.headers.get('X-Tenant-ID');
       return HttpResponse.json({ ok: true });
-    }),
+    })
   );
   return captured;
 };
@@ -36,7 +36,7 @@ const fire = async (
     impersonatedTenantId: string | null;
     impersonatedTenantName: string | null;
   }>,
-  url: string,
+  url: string
 ) => {
   const store = setupStore({
     tenant: {
@@ -49,8 +49,8 @@ const fire = async (
       error: null,
       impersonatedTenantId: null,
       impersonatedTenantName: null,
-      ...preloadedTenant,
-    },
+      ...preloadedTenant
+    }
   } as never);
   await store.dispatch(probeApi.endpoints.tenantHeaderProbe.initiate(url));
 };
@@ -77,9 +77,9 @@ describe('baseApi X-Tenant-ID injection', () => {
       {
         currentOrgId: 'admin-real-org',
         impersonatedTenantId: 'target-tenant',
-        impersonatedTenantName: 'Acme Corp',
+        impersonatedTenantName: 'Acme Corp'
       },
-      '/v1/billing/stats',
+      '/v1/billing/stats'
     );
     expect(captured.tenant).toBe('target-tenant');
   });
@@ -104,8 +104,8 @@ describe('baseApi X-Tenant-ID injection', () => {
     '/v1/admin/compliance/soc2/evidence',
     '/v1/me/dsr/exports',
     '/v1/setup/status',
-    '/v1/notifications/preferences',
-  ])('suppresses the header for tenant-agnostic path %s', async (path) => {
+    '/v1/notifications/preferences'
+  ])('suppresses the header for tenant-agnostic path %s', async path => {
     const captured = captureHeaders();
     await fire({ currentOrgId: 'real-org-uuid' }, path);
     expect(captured.tenant, `expected no X-Tenant-ID for ${path}`).toBeNull();

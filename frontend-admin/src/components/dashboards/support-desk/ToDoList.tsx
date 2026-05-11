@@ -64,7 +64,9 @@ const ToDoItems = ({ item, index, length, handleChange }: ToDoItemsProps) => {
 };
 
 const ToDoList = ({ previewClassName }: ToDoListProps) => {
-  const [todoItems, setTodoItems] = useState<ToDoItem[]>(todoList as ToDoItem[]);
+  const [todoItems, setTodoItems] = useState<ToDoItem[]>(
+    todoList as ToDoItem[]
+  );
   const handleChange = (id: string | number, completed: boolean) => {
     const updatedTodos = todoItems.map((item: ToDoItem) =>
       item.id === id ? { ...item, completed } : item

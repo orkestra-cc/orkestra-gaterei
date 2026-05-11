@@ -25,7 +25,9 @@ export const initiateSocialLogin = async (
 ): Promise<void> => {
   try {
     if (!backendUrl || backendUrl === 'undefined') {
-      throw new Error('Backend URL is not configured. Please check your environment variables.');
+      throw new Error(
+        'Backend URL is not configured. Please check your environment variables.'
+      );
     }
 
     // Backend automatically determines the frontend redirect URL from:
@@ -39,13 +41,15 @@ export const initiateSocialLogin = async (
       method: 'POST',
       credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestPayload),
+      body: JSON.stringify(requestPayload)
     });
 
     if (!response.ok) {
-      throw new Error(`${provider} OAuth initiation failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `${provider} OAuth initiation failed: ${response.status} ${response.statusText}`
+      );
     }
 
     const data: SocialOAuthInitResponse = await response.json();
@@ -78,7 +82,7 @@ export const handleSocialCallback = async (
 
     const params = new URLSearchParams({
       code,
-      state,
+      state
     });
 
     const callbackUrl = `${backendUrl}/v1/auth/oauth/${provider}/callback?${params.toString()}`;
@@ -87,8 +91,8 @@ export const handleSocialCallback = async (
       method: 'GET',
       credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     if (!response.ok) {
@@ -117,11 +121,11 @@ export const logoutSocial = async (
       method: 'POST',
       credentials: 'include', // Use HttpOnly cookies for authentication
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        allDevices,
-      }),
+        allDevices
+      })
     });
 
     clearSessionStorage();
@@ -149,19 +153,23 @@ export const getStoredTokens = (): {
   userId: string | null;
   email: string | null;
 } => {
-  console.warn('getStoredTokens is deprecated - using HttpOnly cookies for authentication');
+  console.warn(
+    'getStoredTokens is deprecated - using HttpOnly cookies for authentication'
+  );
   return {
     accessToken: null,
     tokenType: null,
     expiresIn: null,
     userId: null,
-    email: null,
+    email: null
   };
 };
 
 // Deprecated: Cannot determine authentication status from localStorage
 // Use RTK Query auth hooks instead to check authentication via API calls
 export const isAuthenticated = (): boolean => {
-  console.warn('isAuthenticated is deprecated - use RTK Query auth hooks to check authentication status');
+  console.warn(
+    'isAuthenticated is deprecated - use RTK Query auth hooks to check authentication status'
+  );
   return false; // Cannot determine from client-side storage with HttpOnly cookies
 };

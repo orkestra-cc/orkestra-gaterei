@@ -1,4 +1,3 @@
-
 import { Card, ProgressBar, Row, Col, Alert, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Flex from 'components/common/Flex';
@@ -35,11 +34,7 @@ const AdminUserMetrics: React.FC<AdminUserMetricsProps> = ({ userId }) => {
 
   // If no data, use default values
   if (!metricsData) {
-    return (
-      <Alert variant="warning">
-        No metrics available for this user
-      </Alert>
-    );
+    return <Alert variant="warning">No metrics available for this user</Alert>;
   }
 
   const metrics = [

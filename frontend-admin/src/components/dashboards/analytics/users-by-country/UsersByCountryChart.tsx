@@ -10,7 +10,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { useAppContext } from 'providers/AppProvider';
 import ReactEchart from 'components/common/ReactEchart';
 
-
 // TypeScript interfaces
 interface UsersByCountryChartProps {
   data: [string[], number[]]; // [countries, percentages]
@@ -25,7 +24,10 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: [string[], number[]]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: [string[], number[]]
+) => ({
   tooltip: {
     trigger: 'axis',
     padding: [7, 10],

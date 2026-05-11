@@ -180,7 +180,7 @@ export interface CreateTicketRequest {
 
 // Management API slice
 export const managementApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Events endpoints
     getEvents: builder.query<Event[], { start?: string; end?: string }>({
       query: ({ start, end }) => {
@@ -190,106 +190,121 @@ export const managementApi = baseApi.injectEndpoints({
         return `/events?${params.toString()}`;
       },
       providesTags: ['Events'],
-      keepUnusedDataFor: 300,
+      keepUnusedDataFor: 300
     }),
 
     getEvent: builder.query<Event, string>({
-      query: (eventId) => `/events/${eventId}`,
+      query: eventId => `/events/${eventId}`,
       providesTags: (_result, _error, eventId) => [
         { type: 'Events', id: eventId }
-      ],
+      ]
     }),
 
     createEvent: builder.mutation<Event, CreateEventRequest>({
-      query: (event) => ({
+      query: event => ({
         url: '/events',
         method: 'POST',
-        body: event,
+        body: event
       }),
-      invalidatesTags: ['Events'],
+      invalidatesTags: ['Events']
     }),
 
-    updateEvent: builder.mutation<Event, { eventId: string; updates: Partial<CreateEventRequest> }>({
+    updateEvent: builder.mutation<
+      Event,
+      { eventId: string; updates: Partial<CreateEventRequest> }
+    >({
       query: ({ eventId, updates }) => ({
         url: `/events/${eventId}`,
         method: 'PUT',
-        body: updates,
+        body: updates
       }),
       invalidatesTags: (_result, _error, { eventId }) => [
         'Events',
         { type: 'Events', id: eventId }
-      ],
+      ]
     }),
 
     deleteEvent: builder.mutation<void, string>({
-      query: (eventId) => ({
+      query: eventId => ({
         url: `/events/${eventId}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_result, _error, eventId) => [
         'Events',
         { type: 'Events', id: eventId }
-      ],
+      ]
     }),
 
     // Kanban endpoints
     getKanbanBoards: builder.query<KanbanBoard[], void>({
       query: () => '/kanban/boards',
       providesTags: ['Kanban'],
-      keepUnusedDataFor: 300,
+      keepUnusedDataFor: 300
     }),
 
     getKanbanBoard: builder.query<KanbanBoard, string>({
-      query: (boardId) => `/kanban/boards/${boardId}`,
+      query: boardId => `/kanban/boards/${boardId}`,
       providesTags: (_result, _error, boardId) => [
         { type: 'Kanban', id: boardId }
-      ],
+      ]
     }),
 
-    createKanbanBoard: builder.mutation<KanbanBoard, { title: string; description?: string }>({
-      query: (board) => ({
+    createKanbanBoard: builder.mutation<
+      KanbanBoard,
+      { title: string; description?: string }
+    >({
+      query: board => ({
         url: '/kanban/boards',
         method: 'POST',
-        body: board,
+        body: board
       }),
-      invalidatesTags: ['Kanban'],
+      invalidatesTags: ['Kanban']
     }),
 
-    updateKanbanBoard: builder.mutation<KanbanBoard, { boardId: string; updates: Partial<KanbanBoard> }>({
+    updateKanbanBoard: builder.mutation<
+      KanbanBoard,
+      { boardId: string; updates: Partial<KanbanBoard> }
+    >({
       query: ({ boardId, updates }) => ({
         url: `/kanban/boards/${boardId}`,
         method: 'PUT',
-        body: updates,
+        body: updates
       }),
       invalidatesTags: (_result, _error, { boardId }) => [
         'Kanban',
         { type: 'Kanban', id: boardId }
-      ],
+      ]
     }),
 
-    createKanbanTask: builder.mutation<KanbanTask, Omit<KanbanTask, 'id' | 'createdAt' | 'updatedAt'>>({
-      query: (task) => ({
+    createKanbanTask: builder.mutation<
+      KanbanTask,
+      Omit<KanbanTask, 'id' | 'createdAt' | 'updatedAt'>
+    >({
+      query: task => ({
         url: '/kanban/tasks',
         method: 'POST',
-        body: task,
+        body: task
       }),
-      invalidatesTags: ['Kanban'],
+      invalidatesTags: ['Kanban']
     }),
 
-    updateKanbanTask: builder.mutation<KanbanTask, { taskId: string; updates: Partial<KanbanTask> }>({
+    updateKanbanTask: builder.mutation<
+      KanbanTask,
+      { taskId: string; updates: Partial<KanbanTask> }
+    >({
       query: ({ taskId, updates }) => ({
         url: `/kanban/tasks/${taskId}`,
         method: 'PUT',
-        body: updates,
+        body: updates
       }),
-      invalidatesTags: ['Kanban'],
+      invalidatesTags: ['Kanban']
     }),
 
     moveKanbanTask: builder.mutation<KanbanTask, MoveTaskRequest>({
-      query: (moveRequest) => ({
+      query: moveRequest => ({
         url: '/kanban/tasks/move',
         method: 'PUT',
-        body: moveRequest,
+        body: moveRequest
       }),
       invalidatesTags: ['Kanban'],
       // Optimistic update for smooth drag and drop
@@ -300,29 +315,32 @@ export const managementApi = baseApi.injectEndpoints({
         } catch {
           // Revert optimistic update on failure
         }
-      },
+      }
     }),
 
     deleteKanbanTask: builder.mutation<void, string>({
-      query: (taskId) => ({
+      query: taskId => ({
         url: `/kanban/tasks/${taskId}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['Kanban'],
+      invalidatesTags: ['Kanban']
     }),
 
     // Support Desk endpoints
-    getSupportTickets: builder.query<{
-      tickets: SupportTicket[];
-      totalCount: number;
-      hasMore: boolean;
-    }, {
-      status?: string;
-      priority?: string;
-      assignedTo?: string;
-      cursor?: string;
-      limit?: number;
-    }>({
+    getSupportTickets: builder.query<
+      {
+        tickets: SupportTicket[];
+        totalCount: number;
+        hasMore: boolean;
+      },
+      {
+        status?: string;
+        priority?: string;
+        assignedTo?: string;
+        cursor?: string;
+        limit?: number;
+      }
+    >({
       query: ({ status, priority, assignedTo, cursor, limit = 25 }) => {
         const params = new URLSearchParams();
         if (status) params.append('status', status);
@@ -346,78 +364,90 @@ export const managementApi = baseApi.injectEndpoints({
           };
         }
         return newItems;
-      },
+      }
     }),
 
     getSupportTicket: builder.query<SupportTicket, string>({
-      query: (ticketId) => `/support/tickets/${ticketId}`,
+      query: ticketId => `/support/tickets/${ticketId}`,
       providesTags: (_result, _error, ticketId) => [
         { type: 'SupportTicket', id: ticketId }
-      ],
+      ]
     }),
 
     createSupportTicket: builder.mutation<SupportTicket, CreateTicketRequest>({
-      query: (ticket) => ({
+      query: ticket => ({
         url: '/support/tickets',
         method: 'POST',
-        body: ticket,
+        body: ticket
       }),
-      invalidatesTags: ['SupportTicket'],
+      invalidatesTags: ['SupportTicket']
     }),
 
-    updateSupportTicket: builder.mutation<SupportTicket, { ticketId: string; updates: Partial<SupportTicket> }>({
+    updateSupportTicket: builder.mutation<
+      SupportTicket,
+      { ticketId: string; updates: Partial<SupportTicket> }
+    >({
       query: ({ ticketId, updates }) => ({
         url: `/support/tickets/${ticketId}`,
         method: 'PUT',
-        body: updates,
+        body: updates
       }),
       invalidatesTags: (_result, _error, { ticketId }) => [
         'SupportTicket',
         { type: 'SupportTicket', id: ticketId }
-      ],
+      ]
     }),
 
-    addTicketMessage: builder.mutation<TicketMessage, {
-      ticketId: string;
-      content: string;
-      isInternal: boolean;
-      attachments?: File[];
-    }>({
+    addTicketMessage: builder.mutation<
+      TicketMessage,
+      {
+        ticketId: string;
+        content: string;
+        isInternal: boolean;
+        attachments?: File[];
+      }
+    >({
       query: ({ ticketId, content, isInternal, attachments }) => ({
         url: `/support/tickets/${ticketId}/messages`,
         method: 'POST',
-        body: { content, isInternal, attachments },
+        body: { content, isInternal, attachments }
       }),
       invalidatesTags: (_result, _error, { ticketId }) => [
         'SupportTicket',
         { type: 'SupportTicket', id: ticketId }
-      ],
+      ]
     }),
 
-    assignSupportTicket: builder.mutation<SupportTicket, { ticketId: string; assigneeId: string }>({
+    assignSupportTicket: builder.mutation<
+      SupportTicket,
+      { ticketId: string; assigneeId: string }
+    >({
       query: ({ ticketId, assigneeId }) => ({
         url: `/support/tickets/${ticketId}/assign`,
         method: 'PUT',
-        body: { assigneeId },
+        body: { assigneeId }
       }),
       invalidatesTags: (_result, _error, { ticketId }) => [
         'SupportTicket',
         { type: 'SupportTicket', id: ticketId }
-      ],
+      ]
     }),
 
-    closeSupportTicket: builder.mutation<SupportTicket, { ticketId: string; resolution: string }>({
+    closeSupportTicket: builder.mutation<
+      SupportTicket,
+      { ticketId: string; resolution: string }
+    >({
       query: ({ ticketId, resolution }) => ({
         url: `/support/tickets/${ticketId}/close`,
         method: 'PUT',
-        body: { resolution },
+        body: { resolution }
       }),
       invalidatesTags: (_result, _error, { ticketId }) => [
         'SupportTicket',
         { type: 'SupportTicket', id: ticketId }
-      ],
-    }),
-  }),
+      ]
+    })
+  })
 });
 
 // Export hooks
@@ -449,5 +479,5 @@ export const {
   useLazyGetEventsQuery,
   useLazyGetEventQuery,
   useLazyGetKanbanBoardQuery,
-  useLazyGetSupportTicketQuery,
+  useLazyGetSupportTicketQuery
 } = managementApi;

@@ -15,7 +15,7 @@ const TAB_KEYS = [
   'oauth',
   'sessions',
   'devices',
-  'backup-codes',
+  'backup-codes'
 ] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 

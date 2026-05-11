@@ -1,4 +1,3 @@
-
 import { Card, Col, Row } from 'react-bootstrap';
 import Flex from 'components/common/Flex';
 import { Link } from 'react-router';
@@ -38,6 +37,5 @@ const Followers = ({
     </Card>
   );
 };
-
 
 export default Followers;

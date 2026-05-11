@@ -1,4 +1,3 @@
-
 import { Card, CardProps } from 'react-bootstrap';
 import classNames from 'classnames';
 import Background from 'components/common/Background';

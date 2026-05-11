@@ -22,7 +22,9 @@ export const feedReducer = (state: Feed[], action: FeedAction): Feed[] => {
       return [payload, ...state];
 
     case 'UPDATE':
-      return state.map(feed => (feed.id === payload?.id ? payload?.feed || feed : feed));
+      return state.map(feed =>
+        feed.id === payload?.id ? payload?.feed || feed : feed
+      );
     default:
       return state;
   }

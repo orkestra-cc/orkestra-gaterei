@@ -1,4 +1,3 @@
-
 import dayjs from 'dayjs';
 import { BarChart, LineChart } from 'echarts/charts';
 import {
@@ -48,7 +47,11 @@ const tooltipFormatter = (params: TooltipParams) => {
 
 type ThemeColorGetter = (color: string) => string;
 
-const getOptions = (getThemeColor: ThemeColorGetter, data1: number[], data2: number[]) => ({
+const getOptions = (
+  getThemeColor: ThemeColorGetter,
+  data1: number[],
+  data2: number[]
+) => ({
   color: getThemeColor('white'),
   tooltip: {
     trigger: 'axis',

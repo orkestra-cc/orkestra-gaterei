@@ -54,12 +54,20 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [title, setTitle] = useState('');
   const [day, setDay] = useState('');
-  const [calendarApi, setCalendarApi] = useState<ReturnType<FullCalendar['getApi']> | null>(null);
+  const [calendarApi, setCalendarApi] = useState<ReturnType<
+    FullCalendar['getApi']
+  > | null>(null);
   const [isOpenScheduleModal, setIsOpenScheduleModal] = useState(false);
   const [isOpenEventModal, setIsOpenEventModal] = useState(false);
-  const [modalEventContent, setModalEventContent] = useState<ModalEventContent>({ event: null });
-  const [scheduleStartDate, setScheduleStartDate] = useState<Date | null | undefined>();
-  const [scheduleEndDate, setScheduleEndDate] = useState<Date | null | undefined>();
+  const [modalEventContent, setModalEventContent] = useState<ModalEventContent>(
+    { event: null }
+  );
+  const [scheduleStartDate, setScheduleStartDate] = useState<
+    Date | null | undefined
+  >();
+  const [scheduleEndDate, setScheduleEndDate] = useState<
+    Date | null | undefined
+  >();
 
   const handleEventClick = (eventsInfo: CalendarEventData) => {
     if (calendarApi) {

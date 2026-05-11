@@ -1,4 +1,3 @@
-
 import { Link } from 'react-router';
 import { Card, Col, Row } from 'react-bootstrap';
 import Background from 'components/common/Background';

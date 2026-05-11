@@ -67,5 +67,4 @@ const Intelligence = ({ data }: IntelligenceProps) => {
   );
 };
 
-
 export default Intelligence;

@@ -1,4 +1,3 @@
-
 import { Card, Col, Row } from 'react-bootstrap';
 import BasicECharts from 'components/common/BasicEChart';
 import * as echarts from 'echarts/core';

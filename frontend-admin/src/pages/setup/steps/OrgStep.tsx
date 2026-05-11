@@ -74,12 +74,18 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
       return;
     }
     if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
-      setError('Slug must contain only lowercase letters, digits, and hyphens.');
+      setError(
+        'Slug must contain only lowercase letters, digits, and hyphens.'
+      );
       return;
     }
 
     try {
-      const created = await createOrg({ name: trimmedName, slug, plan: 'enterprise' }).unwrap();
+      const created = await createOrg({
+        name: trimmedName,
+        slug,
+        plan: 'enterprise'
+      }).unwrap();
       // Seed tenant state with the freshly created tenant so the remaining
       // wizard steps (and the post-wizard dashboard navigation) run with a
       // valid X-Tenant-ID. createOrg's onQueryStarted already refreshes the
@@ -93,8 +99,8 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
             slug: created.slug,
             plan: created.plan,
             roles: ['owner'],
-            isOwner: true,
-          },
+            isOwner: true
+          }
         ])
       );
       onNext(trimmedName);
@@ -106,7 +112,10 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
             `An organization with slug "${slug}" already exists. Pick a different slug.`
         );
       } else {
-        setError(anyErr?.data?.detail || 'Could not create the organization. Please try again.');
+        setError(
+          anyErr?.data?.detail ||
+            'Could not create the organization. Please try again.'
+        );
       }
     }
   };
@@ -116,15 +125,19 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
       <div className="mb-4">
         <h5 className="mb-1">Create your first organization</h5>
         <p className="text-muted fs-10 mb-0">
-          Orkestra is multi-tenant — every feature lives inside an
-          organization. We&apos;ll create one now and enroll you as the
-          owner. You can rename it or add more organizations later from the
-          admin UI.
+          Orkestra is multi-tenant — every feature lives inside an organization.
+          We&apos;ll create one now and enroll you as the owner. You can rename
+          it or add more organizations later from the admin UI.
         </p>
       </div>
 
       {error && (
-        <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          onClose={() => setError(null)}
+          dismissible
+        >
           {error}
         </Alert>
       )}
@@ -134,7 +147,7 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
         <Form.Control
           type="text"
           value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
+          onChange={e => handleNameChange(e.target.value)}
           required
         />
         <Form.Text className="text-muted">
@@ -147,7 +160,7 @@ const OrgStep = ({ adminFullName, onNext }: OrgStepProps) => {
         <Form.Control
           type="text"
           value={slug}
-          onChange={(e) => {
+          onChange={e => {
             setSlug(e.target.value.toLowerCase());
             setSlugTouched(true);
           }}

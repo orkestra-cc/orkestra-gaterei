@@ -4,7 +4,6 @@ import { isIterableArray } from 'helpers/utils';
 import Flex from './Flex';
 import cloudUpload from 'assets/img/icons/cloud-upload.svg';
 
-
 export interface CustomFile {
   id?: string;
   path?: string;

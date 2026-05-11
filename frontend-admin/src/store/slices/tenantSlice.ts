@@ -63,7 +63,8 @@ const rehydrateImpersonation = (): {
   }
   try {
     const raw = window.sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
-    if (!raw) return { impersonatedTenantId: null, impersonatedTenantName: null };
+    if (!raw)
+      return { impersonatedTenantId: null, impersonatedTenantName: null };
     const parsed = JSON.parse(raw) as {
       tenantId?: string;
       tenantName?: string;
@@ -99,13 +100,16 @@ const tenantSlice = createSlice({
       // at slice init) so a stale id from a previous backend DB can't leak
       // through before memberships are known.
       const stored =
-        typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-      const valid = action.payload.some((m) => m.tenantId === stored);
+        typeof window !== 'undefined'
+          ? window.localStorage.getItem(STORAGE_KEY)
+          : null;
+      const valid = action.payload.some(m => m.tenantId === stored);
       if (valid) {
         state.currentOrgId = stored;
       } else {
-        const owned = action.payload.find((m) => m.isOwner);
-        state.currentOrgId = owned?.tenantId || action.payload[0]?.tenantId || null;
+        const owned = action.payload.find(m => m.isOwner);
+        state.currentOrgId =
+          owned?.tenantId || action.payload[0]?.tenantId || null;
       }
       if (state.currentOrgId && typeof window !== 'undefined') {
         window.localStorage.setItem(STORAGE_KEY, state.currentOrgId);
@@ -115,7 +119,7 @@ const tenantSlice = createSlice({
     },
 
     setCurrentOrg: (state, action: PayloadAction<string>) => {
-      const exists = state.memberships.some((m) => m.tenantId === action.payload);
+      const exists = state.memberships.some(m => m.tenantId === action.payload);
       if (!exists) return;
       state.currentOrgId = action.payload;
       if (typeof window !== 'undefined') {
@@ -126,7 +130,10 @@ const tenantSlice = createSlice({
       state.features = [];
     },
 
-    setEffectivePermissions: (state, action: PayloadAction<EffectivePermissions>) => {
+    setEffectivePermissions: (
+      state,
+      action: PayloadAction<EffectivePermissions>
+    ) => {
       if (action.payload.tenantId !== state.currentOrgId) return;
       state.permissions = action.payload.permissions;
       state.systemRole = action.payload.systemRole;
@@ -193,7 +200,7 @@ const tenantSlice = createSlice({
       }
     },
 
-    stopImpersonation: (state) => {
+    stopImpersonation: state => {
       state.impersonatedTenantId = null;
       state.impersonatedTenantName = null;
       // Leave permissions/features intact — see startImpersonation for why.
@@ -222,11 +229,14 @@ export const {
 
 export const selectTenant = (state: RootState) => state.tenant;
 export const selectMemberships = (state: RootState) => state.tenant.memberships;
-export const selectCurrentOrgId = (state: RootState) => state.tenant.currentOrgId;
-export const selectCurrentMembership = (state: RootState): Membership | null => {
+export const selectCurrentOrgId = (state: RootState) =>
+  state.tenant.currentOrgId;
+export const selectCurrentMembership = (
+  state: RootState
+): Membership | null => {
   const id = state.tenant.currentOrgId;
   if (!id) return null;
-  return state.tenant.memberships.find((m) => m.tenantId === id) || null;
+  return state.tenant.memberships.find(m => m.tenantId === id) || null;
 };
 export const selectPermissions = (state: RootState) => state.tenant.permissions;
 export const selectFeatures = (state: RootState) => state.tenant.features;
@@ -241,7 +251,8 @@ export const selectIsImpersonating = (state: RootState) =>
 
 /** Returns true when the current user holds `permission` in the current org. */
 export const selectHasPermission =
-  (permission: string) => (state: RootState): boolean => {
+  (permission: string) =>
+  (state: RootState): boolean => {
     const perms = state.tenant.permissions;
     if (perms.includes('*')) return true;
     return perms.includes(permission);
@@ -249,23 +260,26 @@ export const selectHasPermission =
 
 /** Returns true when the current user has all of the listed permissions. */
 export const selectHasAllPermissions =
-  (required: string[]) => (state: RootState): boolean => {
+  (required: string[]) =>
+  (state: RootState): boolean => {
     const perms = state.tenant.permissions;
     if (perms.includes('*')) return true;
-    return required.every((p) => perms.includes(p));
+    return required.every(p => perms.includes(p));
   };
 
 /** Returns true when the current user has any of the listed permissions. */
 export const selectHasAnyPermission =
-  (required: string[]) => (state: RootState): boolean => {
+  (required: string[]) =>
+  (state: RootState): boolean => {
     const perms = state.tenant.permissions;
     if (perms.includes('*')) return true;
-    return required.some((p) => perms.includes(p));
+    return required.some(p => perms.includes(p));
   };
 
 /** Returns true when the current org's plan includes the given feature. */
 export const selectHasFeature =
-  (feature: string) => (state: RootState): boolean => {
+  (feature: string) =>
+  (state: RootState): boolean => {
     const features = state.tenant.features;
     return features.includes('*') || features.includes(feature);
   };

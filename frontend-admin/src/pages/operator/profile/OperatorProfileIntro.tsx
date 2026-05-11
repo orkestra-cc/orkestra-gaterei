@@ -7,7 +7,9 @@ interface OperatorProfileIntroProps {
   user: User;
 }
 
-const OperatorProfileIntro: React.FC<OperatorProfileIntroProps> = ({ user }) => {
+const OperatorProfileIntro: React.FC<OperatorProfileIntroProps> = ({
+  user
+}) => {
   // Helper function to format date with time
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-GB', {
@@ -27,7 +29,6 @@ const OperatorProfileIntro: React.FC<OperatorProfileIntroProps> = ({ user }) => 
       day: 'numeric'
     });
   };
-
 
   const [collapsed, setCollapsed] = useState(false);
 
@@ -103,9 +104,7 @@ const OperatorProfileIntro: React.FC<OperatorProfileIntroProps> = ({ user }) => 
                 <p className="mb-2">{formatDateTime(user.createdAt)}</p>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">
-                  Last Updated
-                </small>
+                <small className="text-700 d-block mb-1">Last Updated</small>
                 <p className="mb-2">{formatDateTime(user.updatedAt)}</p>
               </Col>
               <Col md={6}>
@@ -115,7 +114,9 @@ const OperatorProfileIntro: React.FC<OperatorProfileIntroProps> = ({ user }) => 
                 </p>
               </Col>
               <Col md={6}>
-                <small className="text-700 d-block mb-1">Email Verification</small>
+                <small className="text-700 d-block mb-1">
+                  Email Verification
+                </small>
                 <p className="mb-2">
                   <Badge bg={user.emailVerified ? 'success' : 'warning'}>
                     {user.emailVerified ? 'Verified' : 'Not Verified'}

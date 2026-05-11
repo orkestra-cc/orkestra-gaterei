@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useReducer, ReactNode, Dispatch } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  ReactNode,
+  Dispatch
+} from 'react';
 import { feedReducer, Feed, FeedAction } from 'reducers/feedReducer';
 import rawFeeds from 'data/feed';
 
@@ -11,7 +17,9 @@ interface FeedProviderProps {
   children: ReactNode;
 }
 
-export const FeedContext = createContext<FeedContextValue | undefined>(undefined);
+export const FeedContext = createContext<FeedContextValue | undefined>(
+  undefined
+);
 
 const FeedProvider: React.FC<FeedProviderProps> = ({ children }) => {
   const [feeds, feedDispatch] = useReducer(feedReducer, rawFeeds as Feed[]);
@@ -21,11 +29,7 @@ const FeedProvider: React.FC<FeedProviderProps> = ({ children }) => {
     feedDispatch
   };
 
-  return (
-    <FeedContext.Provider value={value}>
-      {children}
-    </FeedContext.Provider>
-  );
+  return <FeedContext.Provider value={value}>{children}</FeedContext.Provider>;
 };
 
 export const useFeedContext = (): FeedContextValue => {

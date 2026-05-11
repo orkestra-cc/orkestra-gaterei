@@ -38,7 +38,12 @@ export interface CompanyLookup {
 // Enrichment Types
 // ========================================
 
-export type EnrichmentType = 'advanced' | 'marketing' | 'stakeholders' | 'aml' | 'full';
+export type EnrichmentType =
+  | 'advanced'
+  | 'marketing'
+  | 'stakeholders'
+  | 'aml'
+  | 'full';
 
 export interface CodeDescription {
   code: string;
@@ -351,11 +356,11 @@ export interface CompanySearchResult {
 export const ACTIVITY_STATUS_COLORS: Record<string, string> = {
   ATTIVA: 'success',
   CESSATA: 'danger',
-  SOSPESA: 'warning',
+  SOSPESA: 'warning'
 };
 
 export const ACTIVITY_STATUS_LABELS: Record<string, string> = {
   ATTIVA: 'Attiva',
   CESSATA: 'Cessata',
-  SOSPESA: 'Sospesa',
+  SOSPESA: 'Sospesa'
 };

@@ -62,10 +62,7 @@ const LayerComponent = ({ data }: LayerComponentProps) => {
       />
       <MarkerClusterGroup chunkedLoading={true} spiderfyOnMaxZoom={false}>
         {data.map((marker: MarkerData) => (
-          <Marker
-            key={marker.id}
-            position={[marker.lat, marker.long]}
-          >
+          <Marker key={marker.id} position={[marker.lat, marker.long]}>
             <Popup>
               <h6 className="mb-1">{marker.name}</h6>
               <p className="m-0 text-500">

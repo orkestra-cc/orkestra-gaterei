@@ -12,7 +12,10 @@ interface UnresolvedTicketsProps {
 
 const UnresolvedTickets = ({ data }: UnresolvedTicketsProps) => {
   const chartRef = useRef<ReactEChartsCore>(null);
-  const handleLegend = (_event: ChangeEvent<HTMLInputElement>, name: string) => {
+  const handleLegend = (
+    _event: ChangeEvent<HTMLInputElement>,
+    name: string
+  ) => {
     chartRef.current?.getEchartsInstance().dispatchAction({
       type: 'legendToggleSelect',
       name: name

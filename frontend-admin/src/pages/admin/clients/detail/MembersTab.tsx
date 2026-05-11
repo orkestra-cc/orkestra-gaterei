@@ -6,11 +6,11 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import type { Org } from 'store/api/tenantApi';
 import {
   useListOrgMembersAdminQuery,
-  useRemoveOrgMemberAdminMutation,
+  useRemoveOrgMemberAdminMutation
 } from 'store/api/tenantApi';
 import {
   useResendVerificationClientUserAdminMutation,
-  useSendPasswordResetClientUserAdminMutation,
+  useSendPasswordResetClientUserAdminMutation
 } from 'store/api/userApi';
 import { Button } from 'react-bootstrap';
 import AttachMemberModal from './AttachMemberModal';
@@ -116,7 +116,7 @@ const MembersTab: React.FC<Props> = ({ org }) => {
           </tr>
         </thead>
         <tbody>
-          {members.map((m) => (
+          {members.map(m => (
             <tr key={m.id} className="align-middle">
               <td>{m.email || <span className="text-muted">—</span>}</td>
               <td className="font-monospace fs-11">{m.userUUID}</td>
@@ -164,7 +164,7 @@ const MembersTab: React.FC<Props> = ({ org }) => {
                         onClick={() =>
                           setMfaTarget({
                             id: m.userUUID,
-                            email: m.email || m.userUUID,
+                            email: m.email || m.userUUID
                           })
                         }
                       >
@@ -180,7 +180,10 @@ const MembersTab: React.FC<Props> = ({ org }) => {
                             className="text-danger"
                             onClick={() => onRemove(m.userUUID)}
                           >
-                            <FontAwesomeIcon icon="trash-alt" className="me-2" />
+                            <FontAwesomeIcon
+                              icon="trash-alt"
+                              className="me-2"
+                            />
                             Remove from tenant
                           </Dropdown.Item>
                         </>

@@ -1,14 +1,28 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  Row, Col, Card, Button, Form, Table, Badge, Spinner, Alert, Modal,
+  Row,
+  Col,
+  Card,
+  Button,
+  Form,
+  Table,
+  Badge,
+  Spinner,
+  Alert,
+  Modal
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faPen, faTrash, faLock } from '@fortawesome/free-solid-svg-icons';
+import {
+  faPlus,
+  faPen,
+  faTrash,
+  faLock
+} from '@fortawesome/free-solid-svg-icons';
 import {
   useListRelationshipTypesQuery,
   useCreateRelationshipTypeMutation,
   useUpdateRelationshipTypeMutation,
-  useDeleteRelationshipTypeMutation,
+  useDeleteRelationshipTypeMutation
 } from '../../../store/api/ragApi';
 import type { RelationshipTypeConfig } from '../../../types/rag';
 
@@ -17,7 +31,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   iso: 'ISO',
   law: 'Law',
   regulation: 'Regulation',
-  generic: 'Generic',
+  generic: 'Generic'
 };
 const NODE_TYPES = ['RagDocument', 'RagSection', 'RagChunk', 'RagDefinition'];
 
@@ -36,12 +50,17 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
   const [toNode, setToNode] = useState('RagChunk');
   const [properties, setProperties] = useState('');
   const [categories, setCategories] = useState<Record<string, boolean>>({
-    iso: true, law: true, regulation: true, generic: true,
+    iso: true,
+    law: true,
+    regulation: true,
+    generic: true
   });
   const [error, setError] = useState('');
 
-  const [createRel, { isLoading: isCreating }] = useCreateRelationshipTypeMutation();
-  const [updateRel, { isLoading: isUpdating }] = useUpdateRelationshipTypeMutation();
+  const [createRel, { isLoading: isCreating }] =
+    useCreateRelationshipTypeMutation();
+  const [updateRel, { isLoading: isUpdating }] =
+    useUpdateRelationshipTypeMutation();
   const isLoading = isCreating || isUpdating;
   const isEdit = !!existing;
 
@@ -65,16 +84,25 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
     }
   }, [existing, show]);
 
-  const handleClose = () => { setError(''); onHide(); };
+  const handleClose = () => {
+    setError('');
+    onHide();
+  };
 
   const handleToggle = (cat: string) => {
     setCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
 
   const handleSubmit = async () => {
-    if (!isEdit && !name.trim()) { setError('Name is required'); return; }
+    if (!isEdit && !name.trim()) {
+      setError('Name is required');
+      return;
+    }
 
-    const propsArr = properties.split(',').map(s => s.trim()).filter(Boolean);
+    const propsArr = properties
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
 
     try {
       if (isEdit && existing) {
@@ -83,8 +111,8 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
           data: {
             description,
             properties: propsArr,
-            categories,
-          },
+            categories
+          }
         }).unwrap();
       } else {
         await createRel({
@@ -93,7 +121,7 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
           fromNode,
           toNode,
           properties: propsArr.length > 0 ? propsArr : undefined,
-          categories,
+          categories
         }).unwrap();
       }
       handleClose();
@@ -106,13 +134,26 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
   return (
     <Modal show={show} onHide={handleClose} centered>
       <Modal.Header closeButton>
-        <Modal.Title className="fs-9">{isEdit ? 'Edit Relationship Type' : 'Add Relationship Type'}</Modal.Title>
+        <Modal.Title className="fs-9">
+          {isEdit ? 'Edit Relationship Type' : 'Add Relationship Type'}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        {error && <Alert variant="danger" dismissible onClose={() => setError('')} className="py-2">{error}</Alert>}
+        {error && (
+          <Alert
+            variant="danger"
+            dismissible
+            onClose={() => setError('')}
+            className="py-2"
+          >
+            {error}
+          </Alert>
+        )}
 
         <Form.Group className="mb-3">
-          <Form.Label className="small">Name <span className="text-danger">*</span></Form.Label>
+          <Form.Label className="small">
+            Name <span className="text-danger">*</span>
+          </Form.Label>
           <Form.Control
             size="sm"
             value={name}
@@ -121,7 +162,9 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
             disabled={isEdit}
             style={{ textTransform: 'uppercase' }}
           />
-          {isEdit && <Form.Text className="text-muted">Name cannot be changed</Form.Text>}
+          {isEdit && (
+            <Form.Text className="text-muted">Name cannot be changed</Form.Text>
+          )}
         </Form.Group>
 
         <Form.Group className="mb-3">
@@ -140,16 +183,34 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
           <Col>
             <Form.Group>
               <Form.Label className="small">From Node</Form.Label>
-              <Form.Select size="sm" value={fromNode} onChange={e => setFromNode(e.target.value)} disabled={isEdit}>
-                {NODE_TYPES.map(t => <option key={`from-${t}`} value={t}>{t}</option>)}
+              <Form.Select
+                size="sm"
+                value={fromNode}
+                onChange={e => setFromNode(e.target.value)}
+                disabled={isEdit}
+              >
+                {NODE_TYPES.map(t => (
+                  <option key={`from-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Group>
           </Col>
           <Col>
             <Form.Group>
               <Form.Label className="small">To Node</Form.Label>
-              <Form.Select size="sm" value={toNode} onChange={e => setToNode(e.target.value)} disabled={isEdit}>
-                {NODE_TYPES.map(t => <option key={`to-${t}`} value={t}>{t}</option>)}
+              <Form.Select
+                size="sm"
+                value={toNode}
+                onChange={e => setToNode(e.target.value)}
+                disabled={isEdit}
+              >
+                {NODE_TYPES.map(t => (
+                  <option key={`to-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Group>
           </Col>
@@ -182,9 +243,29 @@ const RelModal: React.FC<RelModalProps> = ({ show, onHide, existing }) => {
         </Form.Group>
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" size="sm" onClick={handleClose} disabled={isLoading}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={handleSubmit} disabled={isLoading}>
-          {isLoading ? <><Spinner size="sm" className="me-1" /> Saving...</> : isEdit ? 'Save Changes' : 'Create'}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleClose}
+          disabled={isLoading}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSubmit}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Spinner size="sm" className="me-1" /> Saving...
+            </>
+          ) : isEdit ? (
+            'Save Changes'
+          ) : (
+            'Create'
+          )}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -202,9 +283,15 @@ const CategoryToggle: React.FC<CategoryToggleProps> = ({ rel, category }) => {
   const [updateRel] = useUpdateRelationshipTypeMutation();
 
   const handleToggle = async () => {
-    const newCats = { ...rel.categories, [category]: !rel.categories[category] };
+    const newCats = {
+      ...rel.categories,
+      [category]: !rel.categories[category]
+    };
     try {
-      await updateRel({ uuid: rel.uuid, data: { categories: newCats } }).unwrap();
+      await updateRel({
+        uuid: rel.uuid,
+        data: { categories: newCats }
+      }).unwrap();
     } catch {
       // RTK Query handles error
     }
@@ -232,14 +319,17 @@ const GraphRelationships: React.FC = () => {
 
   const rels = data?.relationshipTypes ?? [];
 
-  const handleDelete = useCallback(async (rel: RelationshipTypeConfig) => {
-    if (!confirm(`Delete relationship type "${rel.name}"?`)) return;
-    try {
-      await deleteRel(rel.uuid).unwrap();
-    } catch {
-      // RTK Query handles error
-    }
-  }, [deleteRel]);
+  const handleDelete = useCallback(
+    async (rel: RelationshipTypeConfig) => {
+      if (!confirm(`Delete relationship type "${rel.name}"?`)) return;
+      try {
+        await deleteRel(rel.uuid).unwrap();
+      } catch {
+        // RTK Query handles error
+      }
+    },
+    [deleteRel]
+  );
 
   const handleEdit = useCallback((rel: RelationshipTypeConfig) => {
     setEditRel(rel);
@@ -270,9 +360,13 @@ const GraphRelationships: React.FC = () => {
           <Card>
             <Card.Body className="p-0">
               {isLoading ? (
-                <div className="text-center p-3"><Spinner size="sm" /></div>
+                <div className="text-center p-3">
+                  <Spinner size="sm" />
+                </div>
               ) : rels.length === 0 ? (
-                <Alert variant="info" className="m-3 mb-0">No relationship types configured.</Alert>
+                <Alert variant="info" className="m-3 mb-0">
+                  No relationship types configured.
+                </Alert>
               ) : (
                 <Table size="sm" hover responsive className="mb-0 fs-10">
                   <thead className="bg-body-tertiary">
@@ -282,16 +376,26 @@ const GraphRelationships: React.FC = () => {
                       <th>From → To</th>
                       <th>Properties</th>
                       {CATEGORIES.map(cat => (
-                        <th key={cat} className="text-center" style={{ width: 70 }}>{CATEGORY_LABELS[cat]}</th>
+                        <th
+                          key={cat}
+                          className="text-center"
+                          style={{ width: 70 }}
+                        >
+                          {CATEGORY_LABELS[cat]}
+                        </th>
                       ))}
-                      <th className="text-end" style={{ width: 80 }}>Actions</th>
+                      <th className="text-end" style={{ width: 80 }}>
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {rels.map(rel => (
                       <tr key={rel.uuid} className="align-middle">
                         <td>
-                          <span className="fw-semibold font-monospace">{rel.name}</span>
+                          <span className="fw-semibold font-monospace">
+                            {rel.name}
+                          </span>
                           {rel.isSystem && (
                             <Badge bg="secondary" className="ms-2">
                               <FontAwesomeIcon icon={faLock} className="me-1" />
@@ -299,14 +403,21 @@ const GraphRelationships: React.FC = () => {
                             </Badge>
                           )}
                         </td>
-                        <td className="small text-muted" style={{ maxWidth: 250 }}>{rel.description}</td>
+                        <td
+                          className="small text-muted"
+                          style={{ maxWidth: 250 }}
+                        >
+                          {rel.description}
+                        </td>
                         <td className="small">
                           <Badge bg="info">{rel.fromNode}</Badge>
                           <span className="mx-1">→</span>
                           <Badge bg="info">{rel.toNode}</Badge>
                         </td>
                         <td className="small font-monospace">
-                          {(rel.properties ?? []).join(', ') || <span className="text-muted">-</span>}
+                          {(rel.properties ?? []).join(', ') || (
+                            <span className="text-muted">-</span>
+                          )}
                         </td>
                         {CATEGORIES.map(cat => (
                           <td key={cat} className="text-center">
@@ -347,7 +458,10 @@ const GraphRelationships: React.FC = () => {
 
       <RelModal
         show={showModal}
-        onHide={() => { setShowModal(false); setEditRel(null); }}
+        onHide={() => {
+          setShowModal(false);
+          setEditRel(null);
+        }}
         existing={editRel}
       />
     </>

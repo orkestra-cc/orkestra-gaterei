@@ -7,12 +7,12 @@ import {
   useListSubscriptionServicesQuery,
   useCreateSubscriptionServiceMutation,
   useUpdateSubscriptionServiceMutation,
-  useDeleteSubscriptionServiceMutation,
+  useDeleteSubscriptionServiceMutation
 } from 'store/api/subscriptionsApi';
 import type {
   CreateServiceInput,
   PricingTier,
-  SubscriptionService,
+  SubscriptionService
 } from 'types/subscriptions';
 
 const emptyForm: CreateServiceInput = {
@@ -22,14 +22,19 @@ const emptyForm: CreateServiceInput = {
   description: '',
   active: true,
   setupFeeCents: 0,
-  pricingTiers: [{ code: 'monthly', cycle: 'monthly', amountCents: 0, currency: 'EUR' }],
+  pricingTiers: [
+    { code: 'monthly', cycle: 'monthly', amountCents: 0, currency: 'EUR' }
+  ]
 };
 
 const formatMoney = (cents: number, currency = 'EUR') =>
-  new Intl.NumberFormat('it-IT', { style: 'currency', currency }).format(cents / 100);
+  new Intl.NumberFormat('it-IT', { style: 'currency', currency }).format(
+    cents / 100
+  );
 
 const ServicesListPage: React.FC = () => {
-  const { data, isLoading, refetch } = useListSubscriptionServicesQuery(undefined);
+  const { data, isLoading, refetch } =
+    useListSubscriptionServicesQuery(undefined);
   const [create] = useCreateSubscriptionServiceMutation();
   const [update] = useUpdateSubscriptionServiceMutation();
   const [del] = useDeleteSubscriptionServiceMutation();
@@ -51,7 +56,7 @@ const ServicesListPage: React.FC = () => {
       description: s.description,
       active: s.active,
       setupFeeCents: s.setupFeeCents,
-      pricingTiers: s.pricingTiers,
+      pricingTiers: s.pricingTiers
     });
     setEditing(s);
     setShowModal(true);
@@ -76,20 +81,31 @@ const ServicesListPage: React.FC = () => {
       ...form,
       pricingTiers: [
         ...form.pricingTiers,
-        { code: 'annual', cycle: 'annual', amountCents: 0, currency: 'EUR' },
-      ],
+        { code: 'annual', cycle: 'annual', amountCents: 0, currency: 'EUR' }
+      ]
     });
   const removeTier = (i: number) =>
-    setForm({ ...form, pricingTiers: form.pricingTiers.filter((_, idx) => idx !== i) });
+    setForm({
+      ...form,
+      pricingTiers: form.pricingTiers.filter((_, idx) => idx !== i)
+    });
 
   return (
     <>
-      <PageHeader title="Servizi" description="Catalogo dei servizi AI offerti con prezzi ricorrenti" className="mb-3">
+      <PageHeader
+        title="Servizi"
+        description="Catalogo dei servizi AI offerti con prezzi ricorrenti"
+        className="mb-3"
+      >
         <Flex className="gap-2 mt-3">
           <IconButton icon="plus" variant="primary" onClick={openNew}>
             Nuovo servizio
           </IconButton>
-          <IconButton icon="sync-alt" variant="falcon-default" onClick={() => refetch()}>
+          <IconButton
+            icon="sync-alt"
+            variant="falcon-default"
+            onClick={() => refetch()}
+          >
             Aggiorna
           </IconButton>
         </Flex>
@@ -100,7 +116,9 @@ const ServicesListPage: React.FC = () => {
           {isLoading ? (
             <div className="p-4">Caricamento...</div>
           ) : !data?.items.length ? (
-            <div className="p-4 text-muted text-center">Nessun servizio in catalogo. Creane uno per iniziare.</div>
+            <div className="p-4 text-muted text-center">
+              Nessun servizio in catalogo. Creane uno per iniziare.
+            </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
@@ -114,16 +132,19 @@ const ServicesListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((s) => (
+                {data.items.map(s => (
                   <tr key={s.uuid}>
-                    <td><code>{s.code}</code></td>
+                    <td>
+                      <code>{s.code}</code>
+                    </td>
                     <td>{s.name}</td>
                     <td>{s.category}</td>
                     <td>
-                      {s.pricingTiers.map((t) => (
+                      {s.pricingTiers.map(t => (
                         <div key={t.code}>
                           <small>
-                            <strong>{t.cycle}</strong>: {formatMoney(t.amountCents, t.currency)}
+                            <strong>{t.cycle}</strong>:{' '}
+                            {formatMoney(t.amountCents, t.currency)}
                           </small>
                         </div>
                       ))}
@@ -134,7 +155,11 @@ const ServicesListPage: React.FC = () => {
                       </Badge>
                     </td>
                     <td className="text-end">
-                      <Button size="sm" variant="link" onClick={() => openEdit(s)}>
+                      <Button
+                        size="sm"
+                        variant="link"
+                        onClick={() => openEdit(s)}
+                      >
                         Modifica
                       </Button>
                       <Button
@@ -160,7 +185,9 @@ const ServicesListPage: React.FC = () => {
 
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>{editing ? 'Modifica servizio' : 'Nuovo servizio'}</Modal.Title>
+          <Modal.Title>
+            {editing ? 'Modifica servizio' : 'Nuovo servizio'}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>
@@ -171,7 +198,7 @@ const ServicesListPage: React.FC = () => {
                   <Form.Control
                     value={form.code}
                     disabled={!!editing}
-                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    onChange={e => setForm({ ...form, code: e.target.value })}
                     placeholder="es. n8n-workflow-pro"
                   />
                 </Form.Group>
@@ -179,13 +206,21 @@ const ServicesListPage: React.FC = () => {
               <div className="col-md-8">
                 <Form.Group>
                   <Form.Label>Nome</Form.Label>
-                  <Form.Control value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <Form.Control
+                    value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                  />
                 </Form.Group>
               </div>
               <div className="col-md-6">
                 <Form.Group>
                   <Form.Label>Categoria</Form.Label>
-                  <Form.Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                  <Form.Select
+                    value={form.category}
+                    onChange={e =>
+                      setForm({ ...form, category: e.target.value })
+                    }
+                  >
                     <option value="workflow">Workflow</option>
                     <option value="database">Database</option>
                     <option value="agent">Agent</option>
@@ -200,7 +235,12 @@ const ServicesListPage: React.FC = () => {
                   <Form.Control
                     type="number"
                     value={form.setupFeeCents ?? 0}
-                    onChange={(e) => setForm({ ...form, setupFeeCents: Number(e.target.value) })}
+                    onChange={e =>
+                      setForm({
+                        ...form,
+                        setupFeeCents: Number(e.target.value)
+                      })
+                    }
                   />
                 </Form.Group>
               </div>
@@ -211,7 +251,9 @@ const ServicesListPage: React.FC = () => {
                     as="textarea"
                     rows={2}
                     value={form.description ?? ''}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    onChange={e =>
+                      setForm({ ...form, description: e.target.value })
+                    }
                   />
                 </Form.Group>
               </div>
@@ -220,7 +262,7 @@ const ServicesListPage: React.FC = () => {
                   type="switch"
                   label="Attivo"
                   checked={form.active}
-                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                  onChange={e => setForm({ ...form, active: e.target.checked })}
                 />
               </div>
             </div>
@@ -238,11 +280,18 @@ const ServicesListPage: React.FC = () => {
                   <Form.Control
                     placeholder="code"
                     value={t.code}
-                    onChange={(e) => updateTier(i, { code: e.target.value })}
+                    onChange={e => updateTier(i, { code: e.target.value })}
                   />
                 </div>
                 <div className="col-md-3">
-                  <Form.Select value={t.cycle} onChange={(e) => updateTier(i, { cycle: e.target.value as PricingTier['cycle'] })}>
+                  <Form.Select
+                    value={t.cycle}
+                    onChange={e =>
+                      updateTier(i, {
+                        cycle: e.target.value as PricingTier['cycle']
+                      })
+                    }
+                  >
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly</option>
                     <option value="annual">Annual</option>
@@ -253,18 +302,25 @@ const ServicesListPage: React.FC = () => {
                     type="number"
                     placeholder="amount (cents)"
                     value={t.amountCents}
-                    onChange={(e) => updateTier(i, { amountCents: Number(e.target.value) })}
+                    onChange={e =>
+                      updateTier(i, { amountCents: Number(e.target.value) })
+                    }
                   />
                 </div>
                 <div className="col-md-2">
                   <Form.Control
                     placeholder="EUR"
                     value={t.currency}
-                    onChange={(e) => updateTier(i, { currency: e.target.value })}
+                    onChange={e => updateTier(i, { currency: e.target.value })}
                   />
                 </div>
                 <div className="col-md-1">
-                  <Button variant="link" className="text-danger p-0" onClick={() => removeTier(i)} disabled={form.pricingTiers.length === 1}>
+                  <Button
+                    variant="link"
+                    className="text-danger p-0"
+                    onClick={() => removeTier(i)}
+                    disabled={form.pricingTiers.length === 1}
+                  >
                     ✕
                   </Button>
                 </div>

@@ -1,14 +1,18 @@
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from 'hooks/auth/useAuthRTK';
 import FalconLoader from 'components/common/FalconLoader';
-import { ProtectedRouteProps, PublicRouteProps, WithAuthOptions } from './types';
+import {
+  ProtectedRouteProps,
+  PublicRouteProps,
+  WithAuthOptions
+} from './types';
 
-const ProtectedRoute = ({ 
-  children, 
-  requireAuth = true, 
-  requiredPermissions = [], 
+const ProtectedRoute = ({
+  children,
+  requireAuth = true,
+  requiredPermissions = [],
   fallbackUrl = '/login',
-  loadingComponent = null 
+  loadingComponent = null
 }: ProtectedRouteProps) => {
   const location = useLocation();
   const {
@@ -31,18 +35,15 @@ const ProtectedRoute = ({
     // Check if user is authenticated
     if (!isAuthenticated) {
       // Save the attempted location for redirect after login
-      return <Navigate 
-        to={fallbackUrl} 
-        state={{ from: location }} 
-        replace 
-      />;
+      return <Navigate to={fallbackUrl} state={{ from: location }} replace />;
     }
 
     // Check permissions if required
     if (requiredPermissions.length > 0) {
       // Wait for permissions to be loaded before making access decisions
       // If user is authenticated but permissions array is empty, show loading
-      const permissionsAreLoading = isAuthenticated && permissions.length === 0 && !isLoading;
+      const permissionsAreLoading =
+        isAuthenticated && permissions.length === 0 && !isLoading;
 
       if (permissionsAreLoading) {
         console.log('⏳ Waiting for permissions to load...');
@@ -51,21 +52,30 @@ const ProtectedRoute = ({
 
       const hasRequiredPermission = Array.isArray(requiredPermissions[0])
         ? hasAnyPermission(requiredPermissions.flat()) // If nested array, flatten and check any
-        : (requiredPermissions as string[]).every(permission => hasPermission(permission)); // All permissions required
+        : (requiredPermissions as string[]).every(permission =>
+            hasPermission(permission)
+          ); // All permissions required
 
       if (!hasRequiredPermission) {
         // Redirect to 401 (Unauthorized) page with context information
-        console.warn('❌ Access denied. Required permissions:', requiredPermissions, 'User permissions:', permissions);
-        return <Navigate
-          to="/errors/401"
-          state={{
-            from: location,
-            requiredPermissions,
-            userPermissions: permissions,
-            accessDeniedReason: 'insufficient_permissions'
-          }}
-          replace
-        />;
+        console.warn(
+          '❌ Access denied. Required permissions:',
+          requiredPermissions,
+          'User permissions:',
+          permissions
+        );
+        return (
+          <Navigate
+            to="/errors/401"
+            state={{
+              from: location,
+              requiredPermissions,
+              userPermissions: permissions,
+              accessDeniedReason: 'insufficient_permissions'
+            }}
+            replace
+          />
+        );
       }
     }
   }
@@ -90,7 +100,7 @@ export const PublicRoute = ({
 
 // Higher-order component for protecting routes
 export const withAuth = <P extends object>(
-  Component: React.ComponentType<P>, 
+  Component: React.ComponentType<P>,
   options: WithAuthOptions = {}
 ) => {
   return (props: P) => (

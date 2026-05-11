@@ -1,4 +1,3 @@
-
 import { Card, Col, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Flex from 'components/common/Flex';
@@ -39,7 +38,11 @@ echarts.use([
   CanvasRenderer
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: MarketShareData[], radius?: string | string[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: MarketShareData[],
+  radius?: string | string[]
+) => ({
   color: [
     getThemeColor(data[0].color),
     getThemeColor(data[1].color),
@@ -81,7 +84,11 @@ const getOptions = (getThemeColor: (color: string) => string, data: MarketShareD
   ]
 });
 
-const MarketShareItem: React.FC<MarketShareItemProps> = ({ item, index, total }) => {
+const MarketShareItem: React.FC<MarketShareItemProps> = ({
+  item,
+  index,
+  total
+}) => {
   const { name, color, value } = item;
 
   const percentage = ((value * 100) / total).toFixed(0);

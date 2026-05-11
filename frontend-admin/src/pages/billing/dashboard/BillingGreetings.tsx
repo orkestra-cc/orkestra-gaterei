@@ -1,7 +1,12 @@
 import { Card, Col, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Link } from 'react-router';
-import { faFileInvoiceDollar, faBuilding, faTruck, faBell } from '@fortawesome/free-solid-svg-icons';
+import {
+  faFileInvoiceDollar,
+  faBuilding,
+  faTruck,
+  faBell
+} from '@fortawesome/free-solid-svg-icons';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import Flex from 'components/common/Flex';
 
@@ -11,26 +16,26 @@ const BillingGreetings = () => {
       title: 'Nuova Fattura',
       icon: faFileInvoiceDollar,
       to: '/billing/invoices/issued/new',
-      color: 'primary',
+      color: 'primary'
     },
     {
       title: 'Clienti',
       icon: faBuilding,
       to: '/admin/clients',
-      color: 'info',
+      color: 'info'
     },
     {
       title: 'Fornitori',
       icon: faTruck,
       to: '/billing/suppliers',
-      color: 'success',
+      color: 'success'
     },
     {
       title: 'Notifiche SDI',
       icon: faBell,
       to: '/billing/notifications',
-      color: 'warning',
-    },
+      color: 'warning'
+    }
   ];
 
   return (
@@ -43,12 +48,9 @@ const BillingGreetings = () => {
       />
       <Card.Body className="py-3">
         <Row className="g-3">
-          {quickLinks.map((link) => (
+          {quickLinks.map(link => (
             <Col key={link.title} sm={6} lg={3}>
-              <Link
-                to={link.to}
-                className="text-decoration-none"
-              >
+              <Link to={link.to} className="text-decoration-none">
                 <Flex
                   alignItems="center"
                   className={`p-3 rounded bg-${link.color}-subtle text-${link.color} hover-shadow transition-all`}

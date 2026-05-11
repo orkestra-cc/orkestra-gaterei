@@ -18,7 +18,8 @@ function ModelsGreetings() {
             <span className="text-info fw-medium"> Models</span>
           </h4>
           <p className="mb-0 mt-1 text-muted small">
-            Manage AI model configurations for embedding and language model providers
+            Manage AI model configurations for embedding and language model
+            providers
           </p>
         </div>
       </Card.Header>

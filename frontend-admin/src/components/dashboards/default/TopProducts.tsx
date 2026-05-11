@@ -1,4 +1,3 @@
-
 import CardDropdown from 'components/common/CardDropdown';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import Flex from 'components/common/Flex';
@@ -28,9 +27,17 @@ echarts.use([
 ]);
 
 type ThemeColorGetter = (color: string) => string;
-type TooltipParams = { seriesName: string; name: string; value: (string | number)[]; componentIndex: number };
+type TooltipParams = {
+  seriesName: string;
+  name: string;
+  value: (string | number)[];
+  componentIndex: number;
+};
 
-const getOption = (getThemeColor: ThemeColorGetter, data: (string | number)[][]) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: (string | number)[][]
+) => ({
   color: [getThemeColor('primary'), getThemeColor('gray-300')],
   dataset: { source: data },
   tooltip: {

@@ -23,14 +23,15 @@ export function useResizable({
   initialSize,
   minSize,
   maxSize,
-  storageKey,
+  storageKey
 }: UseResizableOptions): UseResizableReturn {
   const [size, setSize] = useState(() => {
     if (storageKey) {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = Number(stored);
-        if (!isNaN(parsed) && parsed >= minSize && parsed <= maxSize) return parsed;
+        if (!isNaN(parsed) && parsed >= minSize && parsed <= maxSize)
+          return parsed;
       }
     }
     return initialSize;
@@ -69,7 +70,10 @@ export function useResizable({
           direction === 'vertical'
             ? e.clientY - startPos.current
             : e.clientX - startPos.current;
-        const newSize = Math.min(maxSize, Math.max(minSize, startSize.current + delta));
+        const newSize = Math.min(
+          maxSize,
+          Math.max(minSize, startSize.current + delta)
+        );
         setSize(newSize);
       });
     },
@@ -99,7 +103,7 @@ export function useResizable({
     size,
     isDragging,
     handleProps: {
-      onPointerDown: handlePointerDown,
-    },
+      onPointerDown: handlePointerDown
+    }
   };
 }

@@ -96,8 +96,6 @@ const SearchBox = ({ autoCompleteItem }: SearchBoxProps) => {
     } else {
       setResultItem(autoCompleteItem);
     }
-
-    // eslint-disable-next-line
   }, [searchInputValue]);
 
   return (
@@ -161,7 +159,8 @@ const SearchBox = ({ autoCompleteItem }: SearchBoxProps) => {
                         return (
                           <Fragment key={breadCrumbText}>
                             {breadCrumbText}
-                            {(item.breadCrumbTexts?.length ?? 0) - 1 > index && (
+                            {(item.breadCrumbTexts?.length ?? 0) - 1 >
+                              index && (
                               <FontAwesomeIcon
                                 icon="chevron-right"
                                 className="mx-1 text-500 fs-11"

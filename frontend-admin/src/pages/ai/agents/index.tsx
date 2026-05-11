@@ -11,7 +11,7 @@ import {
   Badge,
   Dropdown,
   Spinner,
-  Offcanvas,
+  Offcanvas
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -23,7 +23,7 @@ import {
   faEllipsisV,
   faExclamationTriangle,
   faFileAlt,
-  faSlidersH,
+  faSlidersH
 } from '@fortawesome/free-solid-svg-icons';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
@@ -35,10 +35,15 @@ import {
   useAddProjectDocumentsMutation,
   useRemoveProjectDocumentsMutation,
   useGetProjectSettingsQuery,
-  useUpdateProjectSettingsMutation,
+  useUpdateProjectSettingsMutation
 } from '../../../store/api/agentsApi';
 import { useListDocumentsQuery } from '../../../store/api/ragApi';
-import type { AgentProject, AgentSettings, CreateProjectRequest, UpdateProjectRequest } from '../../../types/agents';
+import type {
+  AgentProject,
+  AgentSettings,
+  CreateProjectRequest,
+  UpdateProjectRequest
+} from '../../../types/agents';
 
 // ---------------------------------------------------------------------------
 // Greetings Banner
@@ -59,7 +64,8 @@ function AgentProjectsGreetings() {
             <span className="text-info fw-medium"> Projects</span>
           </h4>
           <p className="mb-0 mt-1 text-muted small">
-            Manage AI agent projects with scoped RAG documents and Hindsight memory banks
+            Manage AI agent projects with scoped RAG documents and Hindsight
+            memory banks
           </p>
         </div>
       </Card.Header>
@@ -77,7 +83,11 @@ interface ProjectFormModalProps {
   editingProject: AgentProject | null;
 }
 
-function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProps) {
+function ProjectFormModal({
+  show,
+  onHide,
+  editingProject
+}: ProjectFormModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'active' | 'archived'>('active');
@@ -105,7 +115,8 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
       if (editingProject) {
         const body: UpdateProjectRequest = {};
         if (name !== editingProject.name) body.name = name;
-        if (description !== editingProject.description) body.description = description;
+        if (description !== editingProject.description)
+          body.description = description;
         if (status !== editingProject.status) body.status = status;
         await updateProject({ uuid: editingProject.uuid, body }).unwrap();
       } else {
@@ -116,7 +127,15 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
     } catch {
       // Handled by RTK Query
     }
-  }, [createProject, updateProject, editingProject, name, description, status, onHide]);
+  }, [
+    createProject,
+    updateProject,
+    editingProject,
+    name,
+    description,
+    status,
+    onHide
+  ]);
 
   return (
     <Modal show={show} onHide={onHide} onEnter={handleEnter}>
@@ -129,7 +148,7 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
           <Form.Control
             size="sm"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             placeholder="e.g. ISO 9001 Compliance Agent"
           />
         </Form.Group>
@@ -140,7 +159,7 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
             rows={3}
             size="sm"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={e => setDescription(e.target.value)}
             placeholder="Describe the purpose and scope of this agent project..."
           />
         </Form.Group>
@@ -150,7 +169,7 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
             <Form.Select
               size="sm"
               value={status}
-              onChange={(e) => setStatus(e.target.value as 'active' | 'archived')}
+              onChange={e => setStatus(e.target.value as 'active' | 'archived')}
             >
               <option value="active">Active</option>
               <option value="archived">Archived</option>
@@ -168,7 +187,13 @@ function ProjectFormModal({ show, onHide, editingProject }: ProjectFormModalProp
           onClick={handleSave}
           disabled={saving || !name.trim() || !description.trim()}
         >
-          {saving ? <Spinner size="sm" /> : isEditing ? 'Save Changes' : 'Create'}
+          {saving ? (
+            <Spinner size="sm" />
+          ) : isEditing ? (
+            'Save Changes'
+          ) : (
+            'Create'
+          )}
         </Button>
       </Modal.Footer>
     </Modal>
@@ -185,7 +210,11 @@ interface DeleteProjectModalProps {
   project: AgentProject | null;
 }
 
-function DeleteProjectModal({ show, onHide, project }: DeleteProjectModalProps) {
+function DeleteProjectModal({
+  show,
+  onHide,
+  project
+}: DeleteProjectModalProps) {
   const [deleteProject, { isLoading }] = useDeleteProjectMutation();
 
   const handleConfirm = useCallback(async () => {
@@ -208,20 +237,29 @@ function DeleteProjectModal({ show, onHide, project }: DeleteProjectModalProps) 
       </Modal.Header>
       <Modal.Body>
         <p>
-          Are you sure you want to delete{' '}
-          <strong>{project?.name}</strong>?
+          Are you sure you want to delete <strong>{project?.name}</strong>?
           <br />
           <span className="text-muted">
-            This will remove the project, its Hindsight memory bank, and all conversations.
-            This action cannot be undone.
+            This will remove the project, its Hindsight memory bank, and all
+            conversations. This action cannot be undone.
           </span>
         </p>
       </Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" size="sm" onClick={onHide} disabled={isLoading}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onHide}
+          disabled={isLoading}
+        >
           Cancel
         </Button>
-        <Button variant="danger" size="sm" onClick={handleConfirm} disabled={isLoading}>
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={handleConfirm}
+          disabled={isLoading}
+        >
           {isLoading ? <Spinner size="sm" className="me-1" /> : null}
           Delete
         </Button>
@@ -240,13 +278,19 @@ interface ManageDocumentsModalProps {
   project: AgentProject | null;
 }
 
-function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalProps) {
+function ManageDocumentsModal({
+  show,
+  onHide,
+  project
+}: ManageDocumentsModalProps) {
   const { data: ragData, isLoading: loadingDocs } = useListDocumentsQuery(
     { status: 'completed' },
     { skip: !show }
   );
-  const [addDocuments, { isLoading: adding }] = useAddProjectDocumentsMutation();
-  const [removeDocuments, { isLoading: removing }] = useRemoveProjectDocumentsMutation();
+  const [addDocuments, { isLoading: adding }] =
+    useAddProjectDocumentsMutation();
+  const [removeDocuments, { isLoading: removing }] =
+    useRemoveProjectDocumentsMutation();
 
   const allDocs = ragData?.documents ?? [];
   const assignedIds = new Set(project?.documentUuids ?? []);
@@ -257,9 +301,15 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
       if (!project) return;
       try {
         if (isCurrentlyAssigned) {
-          await removeDocuments({ uuid: project.uuid, documentUuids: [docUuid] }).unwrap();
+          await removeDocuments({
+            uuid: project.uuid,
+            documentUuids: [docUuid]
+          }).unwrap();
         } else {
-          await addDocuments({ uuid: project.uuid, documentUuids: [docUuid] }).unwrap();
+          await addDocuments({
+            uuid: project.uuid,
+            documentUuids: [docUuid]
+          }).unwrap();
         }
       } catch {
         // Handled by RTK Query
@@ -284,7 +334,8 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
           </div>
         ) : allDocs.length === 0 ? (
           <p className="text-muted text-center py-3">
-            No completed RAG documents found. Ingest documents first under AI &rarr; Documents.
+            No completed RAG documents found. Ingest documents first under AI
+            &rarr; Documents.
           </p>
         ) : (
           <Table hover size="sm" className="mb-0">
@@ -297,7 +348,7 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
               </tr>
             </thead>
             <tbody>
-              {allDocs.map((doc) => {
+              {allDocs.map(doc => {
                 const assigned = assignedIds.has(doc.uuid);
                 return (
                   <tr
@@ -312,11 +363,13 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
                         checked={assigned}
                         disabled={saving}
                         onChange={() => handleToggle(doc.uuid, assigned)}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={e => e.stopPropagation()}
                       />
                     </td>
                     <td className="fw-semibold">{doc.title}</td>
-                    <td className="text-muted small">{doc.isoStandard || '-'}</td>
+                    <td className="text-muted small">
+                      {doc.isoStandard || '-'}
+                    </td>
                     <td>
                       <Badge bg="secondary" className="bg-opacity-25 text-body">
                         {doc.chunkCount}
@@ -331,7 +384,8 @@ function ManageDocumentsModal({ show, onHide, project }: ManageDocumentsModalPro
       </Modal.Body>
       <Modal.Footer>
         <span className="me-auto text-muted small">
-          {assignedIds.size} document{assignedIds.size !== 1 ? 's' : ''} assigned
+          {assignedIds.size} document{assignedIds.size !== 1 ? 's' : ''}{' '}
+          assigned
         </span>
         <Button variant="primary" size="sm" onClick={onHide}>
           Done
@@ -354,12 +408,15 @@ interface SettingsPanelProps {
 const DISPOSITION_LABELS: Record<string, { low: string; high: string }> = {
   skepticism: { low: 'Trusting', high: 'Strict to docs' },
   literalism: { low: 'Creative', high: 'Literal' },
-  empathy: { low: 'Detached', high: 'Helpful / warm' },
+  empathy: { low: 'Detached', high: 'Helpful / warm' }
 };
 
 function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
-  const { data } = useGetProjectSettingsQuery(project?.uuid ?? '', { skip: !show || !project });
-  const [updateSettings, { isLoading: saving }] = useUpdateProjectSettingsMutation();
+  const { data } = useGetProjectSettingsQuery(project?.uuid ?? '', {
+    skip: !show || !project
+  });
+  const [updateSettings, { isLoading: saving }] =
+    useUpdateProjectSettingsMutation();
 
   const [systemPrompt, setSystemPrompt] = useState('');
   const [directives, setDirectives] = useState('');
@@ -395,13 +452,16 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
     const settings: Partial<AgentSettings> = {
       systemPrompt: systemPrompt || undefined,
       directives: directives.trim()
-        ? directives.split('\n').map((d) => d.trim()).filter(Boolean)
+        ? directives
+            .split('\n')
+            .map(d => d.trim())
+            .filter(Boolean)
         : undefined,
       skepticism: skepticism || undefined,
       literalism: literalism || undefined,
       empathy: empathy || undefined,
       temperature: (temperature as AgentSettings['temperature']) || undefined,
-      language: language || undefined,
+      language: language || undefined
     };
     try {
       await updateSettings({ uuid: project.uuid, settings }).unwrap();
@@ -409,15 +469,37 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
     } catch {
       // Handled by RTK Query
     }
-  }, [updateSettings, project, onHide, systemPrompt, directives, skepticism, literalism, empathy, temperature, language]);
+  }, [
+    updateSettings,
+    project,
+    onHide,
+    systemPrompt,
+    directives,
+    skepticism,
+    literalism,
+    empathy,
+    temperature,
+    language
+  ]);
 
-  const renderSlider = (label: string, value: number, setter: (v: number) => void, key: string) => (
+  const renderSlider = (
+    label: string,
+    value: number,
+    setter: (v: number) => void,
+    key: string
+  ) => (
     <Form.Group className="mb-3" key={key}>
       <div className="d-flex justify-content-between">
         <Form.Label className="small mb-1">{label}</Form.Label>
         <small className="text-muted">{value === 0 ? 'Default' : value}</small>
       </div>
-      <Form.Range min={0} max={5} step={1} value={value} onChange={(e) => setter(Number(e.target.value))} />
+      <Form.Range
+        min={0}
+        max={5}
+        step={1}
+        value={value}
+        onChange={e => setter(Number(e.target.value))}
+      />
       <div className="d-flex justify-content-between">
         <small className="text-muted">{DISPOSITION_LABELS[key]?.low}</small>
         <small className="text-muted">{DISPOSITION_LABELS[key]?.high}</small>
@@ -426,7 +508,12 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
   );
 
   return (
-    <Offcanvas show={show} onHide={onHide} placement="end" style={{ width: 380 }}>
+    <Offcanvas
+      show={show}
+      onHide={onHide}
+      placement="end"
+      style={{ width: 380 }}
+    >
       <Offcanvas.Header closeButton>
         <Offcanvas.Title>
           <FontAwesomeIcon icon={faSlidersH} className="me-2" />
@@ -441,27 +528,35 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
             rows={3}
             size="sm"
             value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
+            onChange={e => setSystemPrompt(e.target.value)}
             placeholder="Custom instructions prepended to every query..."
           />
-          <Form.Text className="text-muted">Overrides the persona's default context</Form.Text>
+          <Form.Text className="text-muted">
+            Overrides the persona's default context
+          </Form.Text>
         </Form.Group>
 
         <Form.Group className="mb-3">
-          <Form.Label className="small fw-semibold">Extra Directives</Form.Label>
+          <Form.Label className="small fw-semibold">
+            Extra Directives
+          </Form.Label>
           <Form.Control
             as="textarea"
             rows={3}
             size="sm"
             value={directives}
-            onChange={(e) => setDirectives(e.target.value)}
+            onChange={e => setDirectives(e.target.value)}
             placeholder="One directive per line..."
           />
-          <Form.Text className="text-muted">Added on top of persona directives</Form.Text>
+          <Form.Text className="text-muted">
+            Added on top of persona directives
+          </Form.Text>
         </Form.Group>
 
         <hr />
-        <p className="small fw-semibold mb-2">Disposition (0 = use persona default)</p>
+        <p className="small fw-semibold mb-2">
+          Disposition (0 = use persona default)
+        </p>
         {renderSlider('Skepticism', skepticism, setSkepticism, 'skepticism')}
         {renderSlider('Literalism', literalism, setLiteralism, 'literalism')}
         {renderSlider('Empathy', empathy, setEmpathy, 'empathy')}
@@ -469,17 +564,29 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
         <hr />
         <Form.Group className="mb-3">
           <Form.Label className="small fw-semibold">Response Style</Form.Label>
-          <Form.Select size="sm" value={temperature} onChange={(e) => setTemperature(e.target.value)}>
+          <Form.Select
+            size="sm"
+            value={temperature}
+            onChange={e => setTemperature(e.target.value)}
+          >
             <option value="">Persona default</option>
             <option value="precise">Precise — factual, no speculation</option>
             <option value="balanced">Balanced</option>
-            <option value="creative">Creative — exploratory, suggests alternatives</option>
+            <option value="creative">
+              Creative — exploratory, suggests alternatives
+            </option>
           </Form.Select>
         </Form.Group>
 
         <Form.Group className="mb-3">
-          <Form.Label className="small fw-semibold">Response Language</Form.Label>
-          <Form.Select size="sm" value={language} onChange={(e) => setLanguage(e.target.value)}>
+          <Form.Label className="small fw-semibold">
+            Response Language
+          </Form.Label>
+          <Form.Select
+            size="sm"
+            value={language}
+            onChange={e => setLanguage(e.target.value)}
+          >
             <option value="">Auto (follow query language)</option>
             <option value="en">English</option>
             <option value="it">Italiano</option>
@@ -489,7 +596,12 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
           </Form.Select>
         </Form.Group>
 
-        <Button variant="primary" className="w-100" onClick={handleSave} disabled={saving}>
+        <Button
+          variant="primary"
+          className="w-100"
+          onClick={handleSave}
+          disabled={saving}
+        >
           {saving ? <Spinner size="sm" className="me-1" /> : null}
           Save Settings
         </Button>
@@ -505,10 +617,16 @@ function SettingsPanel({ show, onHide, project }: SettingsPanelProps) {
 function ProjectsTable() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [showFormModal, setShowFormModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<AgentProject | null>(null);
-  const [deletingProject, setDeletingProject] = useState<AgentProject | null>(null);
+  const [editingProject, setEditingProject] = useState<AgentProject | null>(
+    null
+  );
+  const [deletingProject, setDeletingProject] = useState<AgentProject | null>(
+    null
+  );
   const [docsProjectUuid, setDocsProjectUuid] = useState<string | null>(null);
-  const [settingsProject, setSettingsProject] = useState<AgentProject | null>(null);
+  const [settingsProject, setSettingsProject] = useState<AgentProject | null>(
+    null
+  );
 
   const queryParams = statusFilter ? { status: statusFilter } : undefined;
   const { data, isLoading } = useListProjectsQuery(queryParams);
@@ -539,7 +657,7 @@ function ProjectsTable() {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric',
+      year: 'numeric'
     });
   };
 
@@ -553,7 +671,7 @@ function ProjectsTable() {
               <Form.Select
                 size="sm"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={e => setStatusFilter(e.target.value)}
                 style={{ width: 150 }}
               >
                 <option value="">All statuses</option>
@@ -576,7 +694,11 @@ function ProjectsTable() {
             </div>
           ) : projects.length === 0 ? (
             <div className="text-center py-5">
-              <FontAwesomeIcon icon={faRobot} className="text-muted mb-3" size="3x" />
+              <FontAwesomeIcon
+                icon={faRobot}
+                className="text-muted mb-3"
+                size="3x"
+              />
               <p className="text-muted">No projects found</p>
               <Button variant="outline-primary" size="sm" onClick={openCreate}>
                 Create your first project
@@ -596,7 +718,7 @@ function ProjectsTable() {
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((project) => (
+                  {projects.map(project => (
                     <tr key={project.uuid}>
                       <td className="fw-semibold">
                         <Link
@@ -615,7 +737,11 @@ function ProjectsTable() {
                       </td>
                       <td>
                         <Badge
-                          bg={project.status === 'active' ? 'success' : 'secondary'}
+                          bg={
+                            project.status === 'active'
+                              ? 'success'
+                              : 'secondary'
+                          }
                           className="bg-opacity-25 text-body"
                         >
                           {project.status}
@@ -639,12 +765,22 @@ function ProjectsTable() {
                             <FontAwesomeIcon icon={faEllipsisV} />
                           </Dropdown.Toggle>
                           <Dropdown.Menu>
-                            <Dropdown.Item onClick={() => setDocsProjectUuid(project.uuid)}>
-                              <FontAwesomeIcon icon={faFileAlt} className="me-2" />
+                            <Dropdown.Item
+                              onClick={() => setDocsProjectUuid(project.uuid)}
+                            >
+                              <FontAwesomeIcon
+                                icon={faFileAlt}
+                                className="me-2"
+                              />
                               Documents
                             </Dropdown.Item>
-                            <Dropdown.Item onClick={() => setSettingsProject(project)}>
-                              <FontAwesomeIcon icon={faSlidersH} className="me-2" />
+                            <Dropdown.Item
+                              onClick={() => setSettingsProject(project)}
+                            >
+                              <FontAwesomeIcon
+                                icon={faSlidersH}
+                                className="me-2"
+                              />
                               Settings
                             </Dropdown.Item>
                             <Dropdown.Item onClick={() => openEdit(project)}>
@@ -656,7 +792,10 @@ function ProjectsTable() {
                               className="text-danger"
                               onClick={() => setDeletingProject(project)}
                             >
-                              <FontAwesomeIcon icon={faTrash} className="me-2" />
+                              <FontAwesomeIcon
+                                icon={faTrash}
+                                className="me-2"
+                              />
                               Delete
                             </Dropdown.Item>
                           </Dropdown.Menu>
@@ -686,7 +825,7 @@ function ProjectsTable() {
       <ManageDocumentsModal
         show={!!docsProjectUuid}
         onHide={() => setDocsProjectUuid(null)}
-        project={projects.find((p) => p.uuid === docsProjectUuid) ?? null}
+        project={projects.find(p => p.uuid === docsProjectUuid) ?? null}
       />
 
       <SettingsPanel

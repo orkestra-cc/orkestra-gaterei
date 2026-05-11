@@ -13,7 +13,9 @@ const perms: [string[]] = [['super_admin', 'administrator']];
 const wrap = (node: React.ReactNode, key: string) => (
   <ModuleGate module="payments">
     <ProtectedRoute requiredPermissions={perms}>
-      <Suspense key={key} fallback={<FalconLoader />}>{node}</Suspense>
+      <Suspense key={key} fallback={<FalconLoader />}>
+        {node}
+      </Suspense>
     </ProtectedRoute>
   </ModuleGate>
 );
@@ -21,9 +23,18 @@ const wrap = (node: React.ReactNode, key: string) => (
 export const paymentsManifest: ModuleManifest = {
   name: 'payments',
   routes: () => [
-    { path: 'payments/transactions', element: wrap(<TransactionsPage />, 'payments-transactions') },
-    { path: 'payments/methods', element: wrap(<MethodsPage />, 'payments-methods') },
-    { path: 'payments/webhooks', element: wrap(<WebhooksPage />, 'payments-webhooks') },
+    {
+      path: 'payments/transactions',
+      element: wrap(<TransactionsPage />, 'payments-transactions')
+    },
+    {
+      path: 'payments/methods',
+      element: wrap(<MethodsPage />, 'payments-methods')
+    },
+    {
+      path: 'payments/webhooks',
+      element: wrap(<WebhooksPage />, 'payments-webhooks')
+    }
   ],
-  injectApi: () => import('store/api/paymentsApi'),
+  injectApi: () => import('store/api/paymentsApi')
 };

@@ -4,18 +4,18 @@ import {
   Form,
   ListGroup,
   Spinner,
-  Alert,
+  Alert
 } from 'react-bootstrap';
 import {
   useGetSchemaQuery,
-  useListDatabasesQuery,
+  useListDatabasesQuery
 } from '../../../store/api/graphApi';
 import { useListDocumentsQuery } from '../../../store/api/ragApi';
 import type {
   LabelInfo,
   RelTypeInfo,
   IndexInfo,
-  ConstraintInfo,
+  ConstraintInfo
 } from '../../../types/graph';
 
 interface SchemaPanelProps {
@@ -27,7 +27,13 @@ interface SchemaPanelProps {
   onDocumentChange?: (documentUuid: string) => void;
 }
 
-function LabelItem({ label, onClick }: { label: LabelInfo; onClick?: (name: string) => void }) {
+function LabelItem({
+  label,
+  onClick
+}: {
+  label: LabelInfo;
+  onClick?: (name: string) => void;
+}) {
   return (
     <Accordion.Item eventKey={`label-${label.name}`}>
       <Accordion.Header>
@@ -36,7 +42,7 @@ function LabelItem({ label, onClick }: { label: LabelInfo; onClick?: (name: stri
             role="button"
             className="fw-semibold text-primary"
             style={{ cursor: 'pointer' }}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               onClick?.(label.name);
             }}
@@ -52,7 +58,7 @@ function LabelItem({ label, onClick }: { label: LabelInfo; onClick?: (name: stri
       <Accordion.Body className="p-0">
         {(label.properties?.length ?? 0) > 0 ? (
           <ListGroup variant="flush">
-            {label.properties.map((prop) => (
+            {label.properties.map(prop => (
               <ListGroup.Item key={prop} className="py-1 px-3 fs-10">
                 <i className="fas fa-circle fa-xs text-400 me-2" />
                 <span className="font-monospace">{prop}</span>
@@ -67,7 +73,13 @@ function LabelItem({ label, onClick }: { label: LabelInfo; onClick?: (name: stri
   );
 }
 
-function RelTypeItem({ rel, onClick }: { rel: RelTypeInfo; onClick?: (type: string) => void }) {
+function RelTypeItem({
+  rel,
+  onClick
+}: {
+  rel: RelTypeInfo;
+  onClick?: (type: string) => void;
+}) {
   return (
     <Accordion.Item eventKey={`rel-${rel.name}`}>
       <Accordion.Header>
@@ -76,7 +88,7 @@ function RelTypeItem({ rel, onClick }: { rel: RelTypeInfo; onClick?: (type: stri
             role="button"
             className="fw-semibold text-warning"
             style={{ cursor: 'pointer' }}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               onClick?.(rel.name);
             }}
@@ -92,7 +104,7 @@ function RelTypeItem({ rel, onClick }: { rel: RelTypeInfo; onClick?: (type: stri
       <Accordion.Body className="p-0">
         {(rel.properties?.length ?? 0) > 0 ? (
           <ListGroup variant="flush">
-            {rel.properties.map((prop) => (
+            {rel.properties.map(prop => (
               <ListGroup.Item key={prop} className="py-1 px-3 fs-10">
                 <i className="fas fa-circle fa-xs text-400 me-2" />
                 <span className="font-monospace">{prop}</span>
@@ -131,7 +143,9 @@ function IndexItem({ index }: { index: IndexInfo }) {
         {(index.properties?.length ?? 0) > 0 && (
           <span>
             <strong>Props:</strong>{' '}
-            <span className="font-monospace">{index.properties.join(', ')}</span>
+            <span className="font-monospace">
+              {index.properties.join(', ')}
+            </span>
           </span>
         )}
       </div>
@@ -155,7 +169,9 @@ function ConstraintItem({ constraint }: { constraint: ConstraintInfo }) {
         {(constraint.properties?.length ?? 0) > 0 && (
           <span>
             <strong>Props:</strong>{' '}
-            <span className="font-monospace">{constraint.properties.join(', ')}</span>
+            <span className="font-monospace">
+              {constraint.properties.join(', ')}
+            </span>
           </span>
         )}
       </div>
@@ -169,12 +185,15 @@ const SchemaPanel = ({
   onLabelClick,
   onRelTypeClick,
   onDatabaseChange,
-  onDocumentChange,
+  onDocumentChange
 }: SchemaPanelProps) => {
-  const { data: schema, isLoading, error } = useGetSchemaQuery(
-    database ? { database } : {},
-    { pollingInterval: 15000 }
-  );
+  const {
+    data: schema,
+    isLoading,
+    error
+  } = useGetSchemaQuery(database ? { database } : {}, {
+    pollingInterval: 15000
+  });
   const { data: dbData } = useListDatabasesQuery();
   const { data: docsData } = useListDocumentsQuery({ status: 'completed' });
   const completedDocs = docsData?.documents ?? [];
@@ -182,7 +201,12 @@ const SchemaPanel = ({
   if (isLoading) {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
-        <Spinner animation="border" variant="primary" size="sm" className="me-2" />
+        <Spinner
+          animation="border"
+          variant="primary"
+          size="sm"
+          className="me-2"
+        />
         <span className="text-muted fs-10">Loading schema...</span>
       </div>
     );
@@ -214,11 +238,11 @@ const SchemaPanel = ({
           <Form.Select
             size="sm"
             value={database ?? ''}
-            onChange={(e) => onDatabaseChange?.(e.target.value)}
+            onChange={e => onDatabaseChange?.(e.target.value)}
             className="fs-10"
           >
             <option value="">Default database</option>
-            {databases.map((db) => (
+            {databases.map(db => (
               <option key={db.name} value={db.name}>
                 {db.name}
                 {db.default ? ' (default)' : ''}
@@ -231,15 +255,17 @@ const SchemaPanel = ({
 
       {/* Document filter */}
       <div className="px-3 py-2 border-bottom">
-        <Form.Label className="fs-10 mb-1 text-muted">Document scope</Form.Label>
+        <Form.Label className="fs-10 mb-1 text-muted">
+          Document scope
+        </Form.Label>
         <Form.Select
           size="sm"
           value={selectedDocumentUuid ?? ''}
-          onChange={(e) => onDocumentChange?.(e.target.value)}
+          onChange={e => onDocumentChange?.(e.target.value)}
           className="fs-10"
         >
           <option value="">All documents</option>
-          {completedDocs.map((doc) => (
+          {completedDocs.map(doc => (
             <option key={doc.uuid} value={doc.uuid}>
               {doc.title}
               {doc.isoStandard ? ` (${doc.isoStandard})` : ''}
@@ -268,12 +294,14 @@ const SchemaPanel = ({
           <Accordion.Item eventKey="labels">
             <Accordion.Header>
               <span className="fw-bold me-2">Labels</span>
-              <Badge bg="secondary" pill>{schema.labels?.length ?? 0}</Badge>
+              <Badge bg="secondary" pill>
+                {schema.labels?.length ?? 0}
+              </Badge>
             </Accordion.Header>
             <Accordion.Body className="p-0">
               {(schema.labels?.length ?? 0) > 0 ? (
                 <Accordion flush>
-                  {schema.labels.map((label) => (
+                  {schema.labels.map(label => (
                     <LabelItem
                       key={label.name}
                       label={label}
@@ -282,7 +310,9 @@ const SchemaPanel = ({
                   ))}
                 </Accordion>
               ) : (
-                <div className="px-3 py-2 text-muted fs-10">No labels found</div>
+                <div className="px-3 py-2 text-muted fs-10">
+                  No labels found
+                </div>
               )}
             </Accordion.Body>
           </Accordion.Item>
@@ -291,12 +321,14 @@ const SchemaPanel = ({
           <Accordion.Item eventKey="relationships">
             <Accordion.Header>
               <span className="fw-bold me-2">Relationship Types</span>
-              <Badge bg="secondary" pill>{schema.relationshipTypes?.length ?? 0}</Badge>
+              <Badge bg="secondary" pill>
+                {schema.relationshipTypes?.length ?? 0}
+              </Badge>
             </Accordion.Header>
             <Accordion.Body className="p-0">
               {(schema.relationshipTypes?.length ?? 0) > 0 ? (
                 <Accordion flush>
-                  {schema.relationshipTypes.map((rel) => (
+                  {schema.relationshipTypes.map(rel => (
                     <RelTypeItem
                       key={rel.name}
                       rel={rel}
@@ -305,7 +337,9 @@ const SchemaPanel = ({
                   ))}
                 </Accordion>
               ) : (
-                <div className="px-3 py-2 text-muted fs-10">No relationship types found</div>
+                <div className="px-3 py-2 text-muted fs-10">
+                  No relationship types found
+                </div>
               )}
             </Accordion.Body>
           </Accordion.Item>
@@ -314,7 +348,9 @@ const SchemaPanel = ({
           <Accordion.Item eventKey="indexes">
             <Accordion.Header>
               <span className="fw-bold me-2">Indexes</span>
-              <Badge bg="secondary" pill>{schema.indexes?.length ?? 0}</Badge>
+              <Badge bg="secondary" pill>
+                {schema.indexes?.length ?? 0}
+              </Badge>
             </Accordion.Header>
             <Accordion.Body className="p-0">
               {(schema.indexes?.length ?? 0) > 0 ? (
@@ -324,7 +360,9 @@ const SchemaPanel = ({
                   ))}
                 </ListGroup>
               ) : (
-                <div className="px-3 py-2 text-muted fs-10">No indexes found</div>
+                <div className="px-3 py-2 text-muted fs-10">
+                  No indexes found
+                </div>
               )}
             </Accordion.Body>
           </Accordion.Item>
@@ -333,17 +371,24 @@ const SchemaPanel = ({
           <Accordion.Item eventKey="constraints">
             <Accordion.Header>
               <span className="fw-bold me-2">Constraints</span>
-              <Badge bg="secondary" pill>{schema.constraints?.length ?? 0}</Badge>
+              <Badge bg="secondary" pill>
+                {schema.constraints?.length ?? 0}
+              </Badge>
             </Accordion.Header>
             <Accordion.Body className="p-0">
               {(schema.constraints?.length ?? 0) > 0 ? (
                 <ListGroup variant="flush">
                   {schema.constraints.map((constraint, i) => (
-                    <ConstraintItem key={`${constraint.name}-${i}`} constraint={constraint} />
+                    <ConstraintItem
+                      key={`${constraint.name}-${i}`}
+                      constraint={constraint}
+                    />
                   ))}
                 </ListGroup>
               ) : (
-                <div className="px-3 py-2 text-muted fs-10">No constraints found</div>
+                <div className="px-3 py-2 text-muted fs-10">
+                  No constraints found
+                </div>
               )}
             </Accordion.Body>
           </Accordion.Item>

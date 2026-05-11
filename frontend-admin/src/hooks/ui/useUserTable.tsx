@@ -70,7 +70,11 @@ const UserActivationModal: React.FC<UserActivationModalProps> = ({
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? 'Please wait...' : isActivating ? 'Activate' : 'Deactivate'}
+          {isLoading
+            ? 'Please wait...'
+            : isActivating
+              ? 'Activate'
+              : 'Deactivate'}
         </Button>
       </Modal.Footer>
     </Modal>

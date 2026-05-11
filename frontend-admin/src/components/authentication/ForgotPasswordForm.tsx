@@ -23,8 +23,8 @@ const ForgotPasswordForm = () => {
     return (
       <>
         <Alert variant="success" className="mb-3">
-          If an account with that email exists, a password reset email has been sent. Please check
-          your inbox.
+          If an account with that email exists, a password reset email has been
+          sent. Please check your inbox.
         </Alert>
         <div className="text-center">
           <Link to="/login">Back to sign in</Link>
@@ -36,14 +36,15 @@ const ForgotPasswordForm = () => {
   return (
     <Form onSubmit={handleSubmit}>
       <p className="text-muted mb-4">
-        Enter your email address and we&apos;ll send you a link to reset your password.
+        Enter your email address and we&apos;ll send you a link to reset your
+        password.
       </p>
       <Form.Group className="mb-3">
         <Form.Label>Email</Form.Label>
         <Form.Control
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           autoComplete="email"
           required
         />

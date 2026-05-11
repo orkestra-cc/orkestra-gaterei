@@ -1,4 +1,3 @@
-
 import { Col, Row } from 'react-bootstrap';
 import Logo from 'components/common/Logo';
 import { Outlet } from 'react-router';

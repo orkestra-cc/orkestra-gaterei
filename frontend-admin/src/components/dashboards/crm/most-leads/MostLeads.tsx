@@ -54,13 +54,15 @@ const MostLeads = () => {
         </Col>
         <Col xxl={12} md={7}>
           <hr className="mx-ncard mb-0 d-md-none d-xxl-block" />
-          {(leadsData as LeadItemData[]).map((item: LeadItemData, index: number) => (
-            <LeadItem
-              key={item.id}
-              item={item}
-              isLast={index === leadsData.length - 1}
-            />
-          ))}
+          {(leadsData as LeadItemData[]).map(
+            (item: LeadItemData, index: number) => (
+              <LeadItem
+                key={item.id}
+                item={item}
+                isLast={index === leadsData.length - 1}
+              />
+            )
+          )}
         </Col>
       </Card.Body>
       <FalconCardFooterLink title="View all" size="sm" to="#!" />

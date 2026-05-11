@@ -112,20 +112,23 @@ export interface EmailsResponse {
 
 // Communications API slice
 export const communicationsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Chat endpoints
     getChatChannels: builder.query<ChatChannel[], void>({
       query: () => '/chat/channels',
       providesTags: ['Chat'],
-      keepUnusedDataFor: 300, // 5 minutes
+      keepUnusedDataFor: 300 // 5 minutes
     }),
 
-    getChatMessages: builder.query<ChatMessagesResponse, {
-      channelId?: string;
-      receiverId?: string;
-      cursor?: string;
-      limit?: number;
-    }>({
+    getChatMessages: builder.query<
+      ChatMessagesResponse,
+      {
+        channelId?: string;
+        receiverId?: string;
+        cursor?: string;
+        limit?: number;
+      }
+    >({
       query: ({ channelId, receiverId, cursor, limit = 50 }) => {
         const params = new URLSearchParams();
         if (channelId) params.append('channelId', channelId);
@@ -154,16 +157,18 @@ export const communicationsApi = baseApi.injectEndpoints({
         return newItems;
       },
       forceRefetch: ({ currentArg, previousArg }) => {
-        return currentArg?.channelId !== previousArg?.channelId ||
-               currentArg?.receiverId !== previousArg?.receiverId;
-      },
+        return (
+          currentArg?.channelId !== previousArg?.channelId ||
+          currentArg?.receiverId !== previousArg?.receiverId
+        );
+      }
     }),
 
     sendMessage: builder.mutation<ChatMessage, SendMessageRequest>({
-      query: (message) => ({
+      query: message => ({
         url: '/chat/messages',
         method: 'POST',
-        body: message,
+        body: message
       }),
       invalidatesTags: (_result, _error, { channelId, receiverId }) => [
         'Chat',
@@ -180,7 +185,7 @@ export const communicationsApi = baseApi.injectEndpoints({
           timestamp: new Date().toISOString(),
           type: message.type || 'text',
           status: 'sending',
-          metadata: message.metadata,
+          metadata: message.metadata
         };
 
         // Optimistically update the messages cache
@@ -188,7 +193,7 @@ export const communicationsApi = baseApi.injectEndpoints({
           communicationsApi.util.updateQueryData(
             'getChatMessages',
             { channelId: message.channelId, receiverId: message.receiverId },
-            (draft) => {
+            draft => {
               draft.messages.unshift(optimisticMessage);
             }
           )
@@ -201,8 +206,10 @@ export const communicationsApi = baseApi.injectEndpoints({
             communicationsApi.util.updateQueryData(
               'getChatMessages',
               { channelId: message.channelId, receiverId: message.receiverId },
-              (draft) => {
-                const index = draft.messages.findIndex(m => m.id === optimisticMessage.id);
+              draft => {
+                const index = draft.messages.findIndex(
+                  m => m.id === optimisticMessage.id
+                );
                 if (index >= 0) {
                   draft.messages[index] = sentMessage;
                 }
@@ -213,31 +220,37 @@ export const communicationsApi = baseApi.injectEndpoints({
           // Revert optimistic update on failure
           patchResult.undo();
         }
-      },
+      }
     }),
 
-    markMessagesRead: builder.mutation<void, { channelId?: string; receiverId?: string; messageIds: string[] }>({
+    markMessagesRead: builder.mutation<
+      void,
+      { channelId?: string; receiverId?: string; messageIds: string[] }
+    >({
       query: ({ channelId, receiverId, messageIds }) => ({
         url: '/chat/messages/read',
         method: 'POST',
-        body: { channelId, receiverId, messageIds },
+        body: { channelId, receiverId, messageIds }
       }),
-      invalidatesTags: ['Chat'],
+      invalidatesTags: ['Chat']
     }),
 
     // Email endpoints
     getEmailFolders: builder.query<EmailFolder[], void>({
       query: () => '/email/folders',
       providesTags: ['Email'],
-      keepUnusedDataFor: 300,
+      keepUnusedDataFor: 300
     }),
 
-    getEmails: builder.query<EmailsResponse, {
-      folder?: string;
-      cursor?: string;
-      limit?: number;
-      search?: string;
-    }>({
+    getEmails: builder.query<
+      EmailsResponse,
+      {
+        folder?: string;
+        cursor?: string;
+        limit?: number;
+        search?: string;
+      }
+    >({
       query: ({ folder = 'inbox', cursor, limit = 25, search }) => {
         const params = new URLSearchParams();
         params.append('folder', folder);
@@ -262,69 +275,74 @@ export const communicationsApi = baseApi.injectEndpoints({
           };
         }
         return newItems;
-      },
+      }
     }),
 
     getEmail: builder.query<Email, string>({
-      query: (emailId) => `/email/messages/${emailId}`,
+      query: emailId => `/email/messages/${emailId}`,
       providesTags: (_result, _error, emailId) => [
         { type: 'Email', id: emailId }
-      ],
+      ]
     }),
 
     sendEmail: builder.mutation<Email, SendEmailRequest>({
-      query: (email) => ({
+      query: email => ({
         url: '/email/send',
         method: 'POST',
-        body: email,
+        body: email
       }),
-      invalidatesTags: ['Email', { type: 'Email', id: 'sent' }],
+      invalidatesTags: ['Email', { type: 'Email', id: 'sent' }]
     }),
 
-    markEmailRead: builder.mutation<void, { emailId: string; isRead: boolean }>({
-      query: ({ emailId, isRead }) => ({
-        url: `/email/messages/${emailId}/read`,
-        method: 'PUT',
-        body: { isRead },
-      }),
-      invalidatesTags: (_result, _error, { emailId }) => [
-        'Email',
-        { type: 'Email', id: emailId }
-      ],
-    }),
+    markEmailRead: builder.mutation<void, { emailId: string; isRead: boolean }>(
+      {
+        query: ({ emailId, isRead }) => ({
+          url: `/email/messages/${emailId}/read`,
+          method: 'PUT',
+          body: { isRead }
+        }),
+        invalidatesTags: (_result, _error, { emailId }) => [
+          'Email',
+          { type: 'Email', id: emailId }
+        ]
+      }
+    ),
 
-    markEmailStarred: builder.mutation<void, { emailId: string; isStarred: boolean }>({
+    markEmailStarred: builder.mutation<
+      void,
+      { emailId: string; isStarred: boolean }
+    >({
       query: ({ emailId, isStarred }) => ({
         url: `/email/messages/${emailId}/star`,
         method: 'PUT',
-        body: { isStarred },
+        body: { isStarred }
       }),
       invalidatesTags: (_result, _error, { emailId }) => [
         'Email',
         { type: 'Email', id: emailId }
-      ],
+      ]
     }),
 
     deleteEmail: builder.mutation<void, string>({
-      query: (emailId) => ({
+      query: emailId => ({
         url: `/email/messages/${emailId}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_result, _error, emailId) => [
         'Email',
         { type: 'Email', id: emailId }
-      ],
+      ]
     }),
 
     moveEmail: builder.mutation<void, { emailId: string; folder: string }>({
       query: ({ emailId, folder }) => ({
         url: `/email/messages/${emailId}/move`,
         method: 'PUT',
-        body: { folder },
+        body: { folder }
       }),
-      invalidatesTags: ['Email'],
-    }),
-  }),
+      invalidatesTags: ['Email']
+    })
+  })
 });
 
 // Export hooks
@@ -346,5 +364,5 @@ export const {
   // Lazy queries
   useLazyGetChatMessagesQuery,
   useLazyGetEmailsQuery,
-  useLazyGetEmailQuery,
+  useLazyGetEmailQuery
 } = communicationsApi;

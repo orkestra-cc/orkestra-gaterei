@@ -1,4 +1,3 @@
-
 import educationData from 'data/educations';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import { Card } from 'react-bootstrap';

@@ -40,8 +40,8 @@ const CreateRoleModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
         body: {
           name: name.trim(),
           description: description.trim(),
-          permissions: Array.from(selected),
-        },
+          permissions: Array.from(selected)
+        }
       }).unwrap();
       toast.success(`Custom role "${name.trim()}" created`);
       onHide();
@@ -67,7 +67,7 @@ const CreateRoleModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
                 type="text"
                 placeholder="e.g. finance_viewer"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={e => setName(e.target.value)}
                 maxLength={80}
                 autoFocus
               />
@@ -79,7 +79,7 @@ const CreateRoleModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
                 type="text"
                 placeholder="Short summary shown in the role list"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={e => setDescription(e.target.value)}
               />
             </Form.Group>
           </div>
@@ -94,7 +94,8 @@ const CreateRoleModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
         <Button variant="primary" onClick={onSave} disabled={!canSave}>
           {isSaving ? (
             <>
-              <Spinner size="sm" animation="border" className="me-2" /> Creating…
+              <Spinner size="sm" animation="border" className="me-2" />{' '}
+              Creating…
             </>
           ) : (
             <>Create role</>

@@ -1,5 +1,3 @@
-
-
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import { Card } from 'react-bootstrap';
 import FalconCardFooterLink from 'components/common/FalconCardFooterLink';

@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import greetingImage from '../../../assets/img/illustrations/ticket-greetings.png';
 import greetingsBg from '../../../assets/img/illustrations/ticket-greetings-bg.png';

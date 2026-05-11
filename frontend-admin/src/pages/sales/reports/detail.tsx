@@ -9,19 +9,26 @@ const GRADE_COLORS: Record<string, string> = {
   B: 'primary',
   C: 'warning',
   D: 'danger',
-  F: 'dark',
+  F: 'dark'
 };
 
 const SalesReportDetail = () => {
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
   const { data: report, isLoading } = useGetSalesReportQuery(uuid || '');
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
   if (isLoading || !report) {
     return (
       <Row className="g-3 mb-3">
-        <Col><Card><Card.Body className="text-center py-5"><Spinner /></Card.Body></Card></Col>
+        <Col>
+          <Card>
+            <Card.Body className="text-center py-5">
+              <Spinner />
+            </Card.Body>
+          </Card>
+        </Col>
       </Row>
     );
   }
@@ -32,7 +39,11 @@ const SalesReportDetail = () => {
         <Card>
           <Card.Header className="d-flex justify-content-between align-items-center">
             <div className="d-flex align-items-center gap-2">
-              <Button variant="outline-secondary" size="sm" onClick={() => navigate('/sales/reports')}>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={() => navigate('/sales/reports')}
+              >
                 <FontAwesomeIcon icon={faArrowLeft} />
               </Button>
               <div>
@@ -41,7 +52,10 @@ const SalesReportDetail = () => {
               </div>
             </div>
             <div className="d-flex align-items-center gap-2">
-              <Badge bg={GRADE_COLORS[report.grade] || 'secondary'} className="fs-6">
+              <Badge
+                bg={GRADE_COLORS[report.grade] || 'secondary'}
+                className="fs-6"
+              >
                 {report.score}/100 ({report.grade})
               </Badge>
               <a
@@ -57,11 +71,16 @@ const SalesReportDetail = () => {
           <Card.Body>
             <div
               style={{ maxHeight: '75vh', overflow: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: markdownToHtml(report.contentMd || '') }}
+              dangerouslySetInnerHTML={{
+                __html: markdownToHtml(report.contentMd || '')
+              }}
             />
           </Card.Body>
           <Card.Footer className="text-muted">
-            <small>Generated {new Date(report.createdAt).toLocaleString()} | Job: {report.jobUuid}</small>
+            <small>
+              Generated {new Date(report.createdAt).toLocaleString()} | Job:{' '}
+              {report.jobUuid}
+            </small>
           </Card.Footer>
         </Card>
       </Col>
@@ -72,25 +91,36 @@ const SalesReportDetail = () => {
 /** Simple Markdown to HTML */
 function markdownToHtml(md: string): string {
   let html = md
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-body-tertiary p-3 rounded"><code>$2</code></pre>')
+    .replace(
+      /```(\w*)\n([\s\S]*?)```/g,
+      '<pre class="bg-body-tertiary p-3 rounded"><code>$2</code></pre>'
+    )
     .replace(/^#### (.+)$/gm, '<h6 class="mt-3">$1</h6>')
     .replace(/^### (.+)$/gm, '<h5 class="mt-3">$1</h5>')
     .replace(/^## (.+)$/gm, '<h4 class="mt-4 mb-2 pb-1 border-bottom">$1</h4>')
     .replace(/^# (.+)$/gm, '<h3 class="mb-3">$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^---$/gm, '<hr class="my-3" />')
-    .replace(/^\|(.+)\|$/gm, (match) => {
+    .replace(/^\|(.+)\|$/gm, match => {
       const cells = match.split('|').filter(c => c.trim() !== '');
       if (cells.every(c => /^[\s-:]+$/.test(c))) return '<!--table-sep-->';
-      const row = cells.map(c => `<td class="px-2 py-1">${c.trim()}</td>`).join('');
+      const row = cells
+        .map(c => `<td class="px-2 py-1">${c.trim()}</td>`)
+        .join('');
       return `<tr>${row}</tr>`;
     })
-    .replace(/^> (.+)$/gm, '<div class="alert alert-warning py-1 px-2">$1</div>')
+    .replace(
+      /^> (.+)$/gm,
+      '<div class="alert alert-warning py-1 px-2">$1</div>'
+    )
     .replace(/^- (.+)$/gm, '<li>$1</li>')
     .replace(/\n\n/g, '</p><p>')
-    .replace(/  \n/g, '<br />');
+    .replace(/ {2}\n/g, '<br />');
 
-  html = html.replace(/((?:<tr>.*<\/tr>\n?)+)/g, '<table class="table table-sm table-bordered mb-3">$1</table>');
+  html = html.replace(
+    /((?:<tr>.*<\/tr>\n?)+)/g,
+    '<table class="table table-sm table-bordered mb-3">$1</table>'
+  );
   html = html.replace(/<!--table-sep-->\n?/g, '');
   html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="mb-2">$1</ul>');
 

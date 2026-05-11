@@ -6,7 +6,6 @@ import AuthCornerImage from 'assets/img/illustrations/authentication-corner.png'
 import { breakpoints, capitalize } from 'helpers/utils';
 import { topNavbarBreakpoint } from 'config';
 
-
 interface NavbarDropdownProps {
   title: string;
   children: ReactNode;
@@ -21,14 +20,16 @@ const NavbarDropdown = ({ title, children }: NavbarDropdownProps) => {
       onToggle={() => setDropdownOpen(!dropdownOpen)}
       onMouseOver={() => {
         let windowWidth = window.innerWidth;
-        const breakpointValue = breakpoints[topNavbarBreakpoint as keyof typeof breakpoints];
+        const breakpointValue =
+          breakpoints[topNavbarBreakpoint as keyof typeof breakpoints];
         if (windowWidth >= breakpointValue) {
           setDropdownOpen(true);
         }
       }}
       onMouseLeave={() => {
         let windowWidth = window.innerWidth;
-        const breakpointValue = breakpoints[topNavbarBreakpoint as keyof typeof breakpoints];
+        const breakpointValue =
+          breakpoints[topNavbarBreakpoint as keyof typeof breakpoints];
         if (windowWidth >= breakpointValue) {
           setDropdownOpen(false);
         }

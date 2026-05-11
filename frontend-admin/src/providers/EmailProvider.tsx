@@ -1,9 +1,25 @@
-import React, { createContext, useContext, useReducer, ReactNode, Dispatch } from 'react';
-import { emailReducer, Email as EmailType, EmailState as EmailStateType } from 'reducers/emailReducer';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  ReactNode,
+  Dispatch
+} from 'react';
+import {
+  emailReducer,
+  Email as EmailType,
+  EmailState as EmailStateType
+} from 'reducers/emailReducer';
 import rawEmails from 'data/email/emails';
 
 // Type definitions
-type EmailFilter = 'all' | 'unread' | 'star' | 'attachments' | 'archive' | 'snooze';
+type EmailFilter =
+  | 'all'
+  | 'unread'
+  | 'star'
+  | 'attachments'
+  | 'archive'
+  | 'snooze';
 
 // Extended EmailState with filters array
 interface EmailState extends EmailStateType {
@@ -22,7 +38,9 @@ interface EmailProviderProps {
   children: ReactNode;
 }
 
-export const EmailContext = createContext<EmailContextValue | undefined>(undefined);
+export const EmailContext = createContext<EmailContextValue | undefined>(
+  undefined
+);
 
 const EmailProvider: React.FC<EmailProviderProps> = ({ children }) => {
   const [emailState, emailDispatch] = useReducer(emailReducer, {
@@ -33,7 +51,14 @@ const EmailProvider: React.FC<EmailProviderProps> = ({ children }) => {
 
   const extendedEmailState: EmailState = {
     ...emailState,
-    filters: ['all', 'unread', 'star', 'attachments', 'archive', 'snooze'] as EmailFilter[]
+    filters: [
+      'all',
+      'unread',
+      'star',
+      'attachments',
+      'archive',
+      'snooze'
+    ] as EmailFilter[]
   };
 
   const value: EmailContextValue = {
@@ -42,9 +67,7 @@ const EmailProvider: React.FC<EmailProviderProps> = ({ children }) => {
   };
 
   return (
-    <EmailContext.Provider value={value}>
-      {children}
-    </EmailContext.Provider>
+    <EmailContext.Provider value={value}>{children}</EmailContext.Provider>
   );
 };
 

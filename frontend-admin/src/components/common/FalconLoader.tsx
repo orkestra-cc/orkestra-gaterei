@@ -1,4 +1,3 @@
-
 import logo from 'assets/img/illustrations/falcon.png';
 import classNames from 'classnames';
 
@@ -17,11 +16,36 @@ const FalconLoader: React.FC<FalconLoaderProps> = ({ fullPage }) => {
       )}
     >
       <div>
-        <img src={logo} alt="falcon" className="logo-ripple ripple-1" width={75} />
-        <img src={logo} alt="falcon" className="logo-ripple ripple-2" width={75} />
-        <img src={logo} alt="falcon" className="logo-ripple ripple-3" width={75} />
-        <img src={logo} alt="falcon" className="logo-ripple ripple-4" width={75} />
-        <img src={logo} alt="falcon" className="logo-ripple ripple-5" width={75} />
+        <img
+          src={logo}
+          alt="falcon"
+          className="logo-ripple ripple-1"
+          width={75}
+        />
+        <img
+          src={logo}
+          alt="falcon"
+          className="logo-ripple ripple-2"
+          width={75}
+        />
+        <img
+          src={logo}
+          alt="falcon"
+          className="logo-ripple ripple-3"
+          width={75}
+        />
+        <img
+          src={logo}
+          alt="falcon"
+          className="logo-ripple ripple-4"
+          width={75}
+        />
+        <img
+          src={logo}
+          alt="falcon"
+          className="logo-ripple ripple-5"
+          width={75}
+        />
       </div>
     </div>
   );

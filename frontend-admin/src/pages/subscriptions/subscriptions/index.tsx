@@ -7,7 +7,7 @@ import Flex from 'components/common/Flex';
 import {
   useListSubscriptionsQuery,
   useListSubscriptionServicesQuery,
-  useCreateSubscriptionMutation,
+  useCreateSubscriptionMutation
 } from 'store/api/subscriptionsApi';
 import { useListAllOrgsAdminQuery } from 'store/api/tenantApi';
 import type { SubStatus } from 'types/subscriptions';
@@ -17,31 +17,39 @@ const statusColor: Record<SubStatus, string> = {
   past_due: 'warning',
   suspended: 'danger',
   cancelled: 'secondary',
-  expired: 'secondary',
+  expired: 'secondary'
 };
 
 const SubscriptionsListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const { data, isLoading, refetch } = useListSubscriptionsQuery({ status: statusFilter || undefined });
+  const { data, isLoading, refetch } = useListSubscriptionsQuery({
+    status: statusFilter || undefined
+  });
   const { data: tenantsData } = useListAllOrgsAdminQuery({ kind: 'external' });
   const { data: services } = useListSubscriptionServicesQuery(undefined);
   const [create] = useCreateSubscriptionMutation();
 
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ tenantUUID: '', serviceUUID: '', tierCode: '' });
+  const [form, setForm] = useState({
+    tenantUUID: '',
+    serviceUUID: '',
+    tierCode: ''
+  });
 
   const tenantById = useMemo(() => {
     const m = new Map<string, string>();
-    tenantsData?.tenants.forEach((t) => m.set(t.id, t.name));
+    tenantsData?.tenants.forEach(t => m.set(t.id, t.name));
     return m;
   }, [tenantsData]);
   const serviceById = useMemo(() => {
     const m = new Map<string, string>();
-    services?.items.forEach((s) => m.set(s.uuid, s.name));
+    services?.items.forEach(s => m.set(s.uuid, s.name));
     return m;
   }, [services]);
 
-  const selectedService = services?.items.find((s) => s.uuid === form.serviceUUID);
+  const selectedService = services?.items.find(
+    s => s.uuid === form.serviceUUID
+  );
 
   const submit = async () => {
     await create(form).unwrap();
@@ -51,7 +59,11 @@ const SubscriptionsListPage: React.FC = () => {
 
   return (
     <>
-      <PageHeader title="Sottoscrizioni" description="Clienti × servizi con ciclo di rinnovo automatico" className="mb-3">
+      <PageHeader
+        title="Sottoscrizioni"
+        description="Clienti × servizi con ciclo di rinnovo automatico"
+        className="mb-3"
+      >
         <Flex className="gap-2 mt-3">
           <IconButton
             icon="plus"
@@ -61,7 +73,11 @@ const SubscriptionsListPage: React.FC = () => {
           >
             Nuova sottoscrizione
           </IconButton>
-          <IconButton icon="sync-alt" variant="falcon-default" onClick={() => refetch()}>
+          <IconButton
+            icon="sync-alt"
+            variant="falcon-default"
+            onClick={() => refetch()}
+          >
             Aggiorna
           </IconButton>
         </Flex>
@@ -69,7 +85,11 @@ const SubscriptionsListPage: React.FC = () => {
 
       <Card className="mb-3">
         <Card.Body>
-          <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 220 }}>
+          <Form.Select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            style={{ maxWidth: 220 }}
+          >
             <option value="">Tutti gli stati</option>
             <option value="active">Attive</option>
             <option value="past_due">In ritardo</option>
@@ -85,7 +105,9 @@ const SubscriptionsListPage: React.FC = () => {
           {isLoading ? (
             <div className="p-4">Caricamento...</div>
           ) : !data?.items.length ? (
-            <div className="p-4 text-muted text-center">Nessuna sottoscrizione.</div>
+            <div className="p-4 text-muted text-center">
+              Nessuna sottoscrizione.
+            </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
@@ -100,18 +122,29 @@ const SubscriptionsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((s) => (
+                {data.items.map(s => (
                   <tr key={s.uuid}>
-                    <td>{tenantById.get(s.tenantUUID) ?? s.tenantUUID.slice(0, 8)}</td>
-                    <td>{serviceById.get(s.serviceUUID) ?? s.serviceUUID.slice(0, 8)}</td>
-                    <td><code>{s.tierCode}</code></td>
+                    <td>
+                      {tenantById.get(s.tenantUUID) ?? s.tenantUUID.slice(0, 8)}
+                    </td>
+                    <td>
+                      {serviceById.get(s.serviceUUID) ??
+                        s.serviceUUID.slice(0, 8)}
+                    </td>
+                    <td>
+                      <code>{s.tierCode}</code>
+                    </td>
                     <td>
                       <Badge bg={statusColor[s.status]}>{s.status}</Badge>
                     </td>
-                    <td>{new Date(s.nextBillingAt).toLocaleDateString('it-IT')}</td>
+                    <td>
+                      {new Date(s.nextBillingAt).toLocaleDateString('it-IT')}
+                    </td>
                     <td>{s.failedChargeCount}</td>
                     <td className="text-end">
-                      <Link to={`/subscriptions/subscriptions/${s.uuid}`}>Dettagli</Link>
+                      <Link to={`/subscriptions/subscriptions/${s.uuid}`}>
+                        Dettagli
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -131,12 +164,12 @@ const SubscriptionsListPage: React.FC = () => {
               <Form.Label>Cliente</Form.Label>
               <Form.Select
                 value={form.tenantUUID}
-                onChange={(e) => setForm({ ...form, tenantUUID: e.target.value })}
+                onChange={e => setForm({ ...form, tenantUUID: e.target.value })}
               >
                 <option value="">Seleziona...</option>
                 {tenantsData?.tenants
-                  .filter((t) => t.status === 'active')
-                  .map((t) => (
+                  .filter(t => t.status === 'active')
+                  .map(t => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({t.slug})
                     </option>
@@ -147,12 +180,18 @@ const SubscriptionsListPage: React.FC = () => {
               <Form.Label>Servizio</Form.Label>
               <Form.Select
                 value={form.serviceUUID}
-                onChange={(e) => setForm({ ...form, serviceUUID: e.target.value, tierCode: '' })}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    serviceUUID: e.target.value,
+                    tierCode: ''
+                  })
+                }
               >
                 <option value="">Seleziona...</option>
                 {services?.items
-                  .filter((s) => s.active)
-                  .map((s) => (
+                  .filter(s => s.active)
+                  .map(s => (
                     <option key={s.uuid} value={s.uuid}>
                       {s.name} ({s.code})
                     </option>
@@ -164,12 +203,13 @@ const SubscriptionsListPage: React.FC = () => {
                 <Form.Label>Tier di prezzo</Form.Label>
                 <Form.Select
                   value={form.tierCode}
-                  onChange={(e) => setForm({ ...form, tierCode: e.target.value })}
+                  onChange={e => setForm({ ...form, tierCode: e.target.value })}
                 >
                   <option value="">Seleziona...</option>
-                  {selectedService.pricingTiers.map((t) => (
+                  {selectedService.pricingTiers.map(t => (
                     <option key={t.code} value={t.code}>
-                      {t.code} — {t.cycle} — {(t.amountCents / 100).toFixed(2)} {t.currency}
+                      {t.code} — {t.cycle} — {(t.amountCents / 100).toFixed(2)}{' '}
+                      {t.currency}
                     </option>
                   ))}
                 </Form.Select>

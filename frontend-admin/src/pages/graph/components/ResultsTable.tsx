@@ -15,7 +15,9 @@ function truncate(value: string): string {
     : value;
 }
 
-function isNode(value: unknown): value is { labels: string[]; properties?: Record<string, unknown> } {
+function isNode(
+  value: unknown
+): value is { labels: string[]; properties?: Record<string, unknown> } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -24,7 +26,9 @@ function isNode(value: unknown): value is { labels: string[]; properties?: Recor
   );
 }
 
-function isRelationship(value: unknown): value is { type: string; startNodeId: number } {
+function isRelationship(
+  value: unknown
+): value is { type: string; startNodeId: number } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -41,7 +45,7 @@ function renderCell(value: unknown): React.ReactNode {
   if (isNode(value)) {
     return (
       <span>
-        {value.labels.map((label) => (
+        {value.labels.map(label => (
           <Badge key={label} bg="info" className="me-1">
             :{label}
           </Badge>
@@ -61,29 +65,25 @@ function renderCell(value: unknown): React.ReactNode {
   if (Array.isArray(value)) {
     return (
       <span className="font-monospace fs-10">
-        [{value.map((item, i) => (
+        [
+        {value.map((item, i) => (
           <span key={i}>
             {i > 0 && ', '}
             {renderCell(item)}
           </span>
-        ))}]
+        ))}
+        ]
       </span>
     );
   }
 
   if (typeof value === 'object') {
     const json = JSON.stringify(value, null, 0);
-    return (
-      <code className="fs-10 text-break">{truncate(json)}</code>
-    );
+    return <code className="fs-10 text-break">{truncate(json)}</code>;
   }
 
   if (typeof value === 'boolean') {
-    return (
-      <Badge bg={value ? 'success' : 'secondary'}>
-        {String(value)}
-      </Badge>
-    );
+    return <Badge bg={value ? 'success' : 'secondary'}>{String(value)}</Badge>;
   }
 
   if (typeof value === 'number') {
@@ -99,24 +99,41 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)} s`;
 }
 
-function MetadataBar({ metadata, hasGraph }: { metadata: QueryMetadata; hasGraph: boolean }) {
+function MetadataBar({
+  metadata,
+  hasGraph
+}: {
+  metadata: QueryMetadata;
+  hasGraph: boolean;
+}) {
   const stats = useMemo(() => {
     const items: { label: string; value: number }[] = [];
-    if (metadata.nodesCreated) items.push({ label: 'Nodes created', value: metadata.nodesCreated });
-    if (metadata.nodesDeleted) items.push({ label: 'Nodes deleted', value: metadata.nodesDeleted });
-    if (metadata.relationshipsCreated) items.push({ label: 'Rels created', value: metadata.relationshipsCreated });
-    if (metadata.relationshipsDeleted) items.push({ label: 'Rels deleted', value: metadata.relationshipsDeleted });
-    if (metadata.propertiesSet) items.push({ label: 'Props set', value: metadata.propertiesSet });
-    if (metadata.labelsAdded) items.push({ label: 'Labels added', value: metadata.labelsAdded });
-    if (metadata.labelsRemoved) items.push({ label: 'Labels removed', value: metadata.labelsRemoved });
+    if (metadata.nodesCreated)
+      items.push({ label: 'Nodes created', value: metadata.nodesCreated });
+    if (metadata.nodesDeleted)
+      items.push({ label: 'Nodes deleted', value: metadata.nodesDeleted });
+    if (metadata.relationshipsCreated)
+      items.push({
+        label: 'Rels created',
+        value: metadata.relationshipsCreated
+      });
+    if (metadata.relationshipsDeleted)
+      items.push({
+        label: 'Rels deleted',
+        value: metadata.relationshipsDeleted
+      });
+    if (metadata.propertiesSet)
+      items.push({ label: 'Props set', value: metadata.propertiesSet });
+    if (metadata.labelsAdded)
+      items.push({ label: 'Labels added', value: metadata.labelsAdded });
+    if (metadata.labelsRemoved)
+      items.push({ label: 'Labels removed', value: metadata.labelsRemoved });
     return items;
   }, [metadata]);
 
   return (
     <div className="d-flex flex-wrap align-items-center gap-2 px-3 py-2 bg-body-tertiary border-top fs-10">
-      <Badge bg="secondary">
-        {formatDuration(metadata.executionTimeMs)}
-      </Badge>
+      <Badge bg="secondary">{formatDuration(metadata.executionTimeMs)}</Badge>
       <Badge bg="primary">
         {metadata.resultCount} {metadata.resultCount === 1 ? 'row' : 'rows'}
       </Badge>
@@ -139,7 +156,12 @@ const ResultsTable = ({ result, isLoading }: ResultsTableProps) => {
   if (isLoading) {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
-        <Spinner animation="border" variant="primary" size="sm" className="me-2" />
+        <Spinner
+          animation="border"
+          variant="primary"
+          size="sm"
+          className="me-2"
+        />
         <span className="text-muted">Running query...</span>
       </div>
     );
@@ -152,7 +174,10 @@ const ResultsTable = ({ result, isLoading }: ResultsTableProps) => {
   if (!result.rows || result.rows.length === 0) {
     return (
       <div>
-        <Alert variant="info" className="mb-0 rounded-0 border-start-0 border-end-0">
+        <Alert
+          variant="info"
+          className="mb-0 rounded-0 border-start-0 border-end-0"
+        >
           <span className="fw-semibold">No results.</span>{' '}
           {result.metadata.containsUpdates
             ? 'Query executed successfully with updates.'
@@ -169,7 +194,7 @@ const ResultsTable = ({ result, isLoading }: ResultsTableProps) => {
         <Table striped hover size="sm" className="fs-10 mb-0">
           <thead className="bg-body-tertiary">
             <tr>
-              {(result.columns ?? []).map((col) => (
+              {(result.columns ?? []).map(col => (
                 <th key={col} className="text-900 text-nowrap px-3 py-2">
                   {col}
                 </th>
@@ -179,7 +204,7 @@ const ResultsTable = ({ result, isLoading }: ResultsTableProps) => {
           <tbody>
             {(result.rows ?? []).map((row, rowIndex) => (
               <tr key={rowIndex}>
-                {(result.columns ?? []).map((col) => (
+                {(result.columns ?? []).map(col => (
                   <td key={col} className="px-3 py-2 align-middle">
                     {renderCell(row[col])}
                   </td>

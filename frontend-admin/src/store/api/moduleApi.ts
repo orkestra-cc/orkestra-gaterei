@@ -7,7 +7,14 @@ export interface ConfigField {
   label: string;
   group?: string;
   description: string;
-  type: 'string' | 'bool' | 'int' | 'duration' | 'secret' | 'enum' | 'stringList';
+  type:
+    | 'string'
+    | 'bool'
+    | 'int'
+    | 'duration'
+    | 'secret'
+    | 'enum'
+    | 'stringList';
   required: boolean;
   default: string;
   envVar: string;
@@ -88,45 +95,45 @@ interface UpdateModuleParams {
 // --- API Slice ---
 
 export const moduleApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     getModules: builder.query<ModuleConfig[], void>({
       query: () => '/v1/admin/modules',
       transformResponse: (response: ListModulesResponse) => response.modules,
-      providesTags: (result) =>
+      providesTags: result =>
         result
           ? [
               ...result.map(({ moduleName }) => ({
                 type: 'Module' as const,
-                id: moduleName,
+                id: moduleName
               })),
-              { type: 'Module', id: 'LIST' },
+              { type: 'Module', id: 'LIST' }
             ]
-          : [{ type: 'Module', id: 'LIST' }],
+          : [{ type: 'Module', id: 'LIST' }]
     }),
 
     getModule: builder.query<ModuleConfig, string>({
-      query: (name) => `/v1/admin/modules/${name}`,
-      providesTags: (_result, _error, name) => [{ type: 'Module', id: name }],
+      query: name => `/v1/admin/modules/${name}`,
+      providesTags: (_result, _error, name) => [{ type: 'Module', id: name }]
     }),
 
     updateModule: builder.mutation<ModuleConfig, UpdateModuleParams>({
       query: ({ name, ...body }) => ({
         url: `/v1/admin/modules/${name}`,
         method: 'PATCH',
-        body,
+        body
       }),
       invalidatesTags: (_result, _error, { name }) => [
         { type: 'Module', id: name },
         { type: 'Module', id: 'LIST' },
         'ModuleHealth',
-        'Navigation',
-      ],
+        'Navigation'
+      ]
     }),
 
     getModulesHealth: builder.query<HealthResponse, void>({
       query: () => '/v1/admin/modules/health',
       providesTags: ['ModuleHealth'],
-      keepUnusedDataFor: 30,
+      keepUnusedDataFor: 30
     }),
 
     getModuleEnvironment: builder.query<
@@ -136,8 +143,8 @@ export const moduleApi = baseApi.injectEndpoints({
       query: ({ name, environment }) =>
         `/v1/admin/modules/${name}/environments/${environment}`,
       providesTags: (_result, _error, { name, environment }) => [
-        { type: 'Module', id: `${name}-env-${environment}` },
-      ],
+        { type: 'Module', id: `${name}-env-${environment}` }
+      ]
     }),
 
     updateModuleEnvironment: builder.mutation<
@@ -147,14 +154,14 @@ export const moduleApi = baseApi.injectEndpoints({
       query: ({ name, environment, ...body }) => ({
         url: `/v1/admin/modules/${name}/environments/${environment}`,
         method: 'PATCH',
-        body,
+        body
       }),
       invalidatesTags: (_result, _error, { name, environment }) => [
         { type: 'Module', id: name },
         { type: 'Module', id: `${name}-env-${environment}` },
         { type: 'Module', id: 'LIST' },
-        'ModuleHealth',
-      ],
+        'ModuleHealth'
+      ]
     }),
 
     setActiveEnvironment: builder.mutation<
@@ -164,15 +171,15 @@ export const moduleApi = baseApi.injectEndpoints({
       query: ({ name, environment }) => ({
         url: `/v1/admin/modules/${name}/active-environment`,
         method: 'PUT',
-        body: { environment },
+        body: { environment }
       }),
       invalidatesTags: (_result, _error, { name }) => [
         { type: 'Module', id: name },
         { type: 'Module', id: 'LIST' },
-        'ModuleHealth',
-      ],
-    }),
-  }),
+        'ModuleHealth'
+      ]
+    })
+  })
 });
 
 export const {
@@ -182,5 +189,5 @@ export const {
   useGetModulesHealthQuery,
   useGetModuleEnvironmentQuery,
   useUpdateModuleEnvironmentMutation,
-  useSetActiveEnvironmentMutation,
+  useSetActiveEnvironmentMutation
 } = moduleApi;

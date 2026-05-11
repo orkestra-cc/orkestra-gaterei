@@ -28,12 +28,14 @@ export const getPosition = (
   left: pos[0] - size.contentSize[0] / 2
 });
 
-export const tooltipFormatter = (params: TooltipParam | TooltipParam[]): string => {
+export const tooltipFormatter = (
+  params: TooltipParam | TooltipParam[]
+): string => {
   let tooltipItem = ``;
-  
+
   // Ensure params is an array
   const paramsArray = Array.isArray(params) ? params : [params];
-  
+
   if (paramsArray.length > 0) {
     paramsArray.forEach((el: TooltipParam) => {
       tooltipItem =
@@ -44,13 +46,13 @@ export const tooltipFormatter = (params: TooltipParam | TooltipParam[]): string 
         el.borderColor ? el.borderColor : el.color
       }"></div>
       ${el.seriesName} : ${
-          typeof el.value === 'object' ? el.value[1] : el.value
-        }
+        typeof el.value === 'object' ? el.value[1] : el.value
+      }
       </h6>
       </div>`;
     });
   }
-  
+
   const firstParam = paramsArray[0];
   return `<div>
             <p class='mb-2 text-600'>

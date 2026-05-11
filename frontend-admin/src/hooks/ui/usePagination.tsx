@@ -26,12 +26,20 @@ interface PaginationAction<T> {
   };
 }
 
-const usePagination = <T = any>(items: T[], itemsPerPage: number = 5, currentPage: number = 1) => {
-  const setFrom = (itemsPerPage: number, pageNo: number) => itemsPerPage * (pageNo - 1) + 1;
+const usePagination = <T = any,>(
+  items: T[],
+  itemsPerPage: number = 5,
+  currentPage: number = 1
+) => {
+  const setFrom = (itemsPerPage: number, pageNo: number) =>
+    itemsPerPage * (pageNo - 1) + 1;
   const setTo = (itemsPerPage: number, pageNo: number, pageSize: number) =>
     itemsPerPage * (pageNo - 1) + pageSize;
 
-  const paginationReducer = (state: PaginationState<T>, action: PaginationAction<T>): PaginationState<T> => {
+  const paginationReducer = (
+    state: PaginationState<T>,
+    action: PaginationAction<T>
+  ): PaginationState<T> => {
     const { type, payload } = action;
     switch (type) {
       case 'INIT': {

@@ -4,7 +4,7 @@ import {
   faFileInvoice,
   faFileImport,
   faBell,
-  faExclamationTriangle,
+  faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router';
 import CountUp from 'react-countup';
@@ -40,7 +40,7 @@ const StatCard: React.FC<StatCardProps> = ({
   prefix = '',
   suffix = '',
   decimal = false,
-  badge,
+  badge
 }) => {
   return (
     <Card className="h-100">
@@ -75,9 +75,16 @@ const StatCard: React.FC<StatCardProps> = ({
             <FontAwesomeIcon icon={icon} className={`fs-5 ${iconColor}`} />
           </div>
         </div>
-        <Link to={link} className="fw-semibold fs-10 text-nowrap mt-3 d-inline-block">
+        <Link
+          to={link}
+          className="fw-semibold fs-10 text-nowrap mt-3 d-inline-block"
+        >
           {linkText}
-          <FontAwesomeIcon icon="angle-right" className="ms-1" transform="down-1" />
+          <FontAwesomeIcon
+            icon="angle-right"
+            className="ms-1"
+            transform="down-1"
+          />
         </Link>
       </Card.Body>
     </Card>
@@ -87,20 +94,32 @@ const StatCard: React.FC<StatCardProps> = ({
 const BillingStatCards = () => {
   const ytd = ytdRange();
   const lastYear = lastYearRange();
-  const { data: ytdStats, isLoading: ytdLoading, error: ytdError } = useGetBillingStatsQuery(ytd);
-  const { data: lyStats, isLoading: lyLoading, error: lyError } = useGetBillingStatsQuery(lastYear);
+  const {
+    data: ytdStats,
+    isLoading: ytdLoading,
+    error: ytdError
+  } = useGetBillingStatsQuery(ytd);
+  const {
+    data: lyStats,
+    isLoading: lyLoading,
+    error: lyError
+  } = useGetBillingStatsQuery(lastYear);
 
   const isLoading = ytdLoading || lyLoading;
   const error = ytdError || lyError;
-  const stats = ytdStats && lyStats ? { ytd: ytdStats, lastYear: lyStats } : null;
+  const stats =
+    ytdStats && lyStats ? { ytd: ytdStats, lastYear: lyStats } : null;
 
   if (isLoading) {
     return (
       <Row className="g-3 mb-3">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3, 4].map(i => (
           <Col key={i} sm={6} lg={3}>
             <Card className="h-100">
-              <Card.Body className="d-flex align-items-center justify-content-center" style={{ minHeight: 120 }}>
+              <Card.Body
+                className="d-flex align-items-center justify-content-center"
+                style={{ minHeight: 120 }}
+              >
                 <Spinner animation="border" size="sm" />
               </Card.Body>
             </Card>
@@ -116,7 +135,10 @@ const BillingStatCards = () => {
         <Col>
           <Card className="bg-warning-subtle">
             <Card.Body className="text-center py-3">
-              <FontAwesomeIcon icon={faExclamationTriangle} className="text-warning me-2" />
+              <FontAwesomeIcon
+                icon={faExclamationTriangle}
+                className="text-warning me-2"
+              />
               Impossibile caricare le statistiche
             </Card.Body>
           </Card>
@@ -134,7 +156,10 @@ const BillingStatCards = () => {
       bgColor: 'bg-primary-subtle',
       link: '/billing/invoices/issued',
       linkText: 'Vedi tutte',
-      badge: stats.ytd.issuedDraft > 0 ? { text: `${stats.ytd.issuedDraft} bozze`, bg: 'warning' } : undefined,
+      badge:
+        stats.ytd.issuedDraft > 0
+          ? { text: `${stats.ytd.issuedDraft} bozze`, bg: 'warning' }
+          : undefined
     },
     {
       title: 'Fatture Ricevute (YTD)',
@@ -144,33 +169,52 @@ const BillingStatCards = () => {
       bgColor: 'bg-info-subtle',
       link: '/billing/invoices/received',
       linkText: 'Vedi tutte',
-      badge: stats.ytd.receivedPending > 0 ? { text: `${stats.ytd.receivedPending} da gestire`, bg: 'info' } : undefined,
+      badge:
+        stats.ytd.receivedPending > 0
+          ? { text: `${stats.ytd.receivedPending} da gestire`, bg: 'info' }
+          : undefined
     },
     {
       title: 'Notifiche SDI',
       value: stats.lastYear.unprocessedNotifications,
       icon: faBell,
-      iconColor: stats.lastYear.unprocessedNotifications > 0 ? 'text-warning' : 'text-success',
-      bgColor: stats.lastYear.unprocessedNotifications > 0 ? 'bg-warning-subtle' : 'bg-success-subtle',
+      iconColor:
+        stats.lastYear.unprocessedNotifications > 0
+          ? 'text-warning'
+          : 'text-success',
+      bgColor:
+        stats.lastYear.unprocessedNotifications > 0
+          ? 'bg-warning-subtle'
+          : 'bg-success-subtle',
       link: '/billing/notifications',
       linkText: 'Gestisci',
-      badge: stats.lastYear.unprocessedNotifications > 0 ? { text: 'Da processare', bg: 'warning' } : undefined,
+      badge:
+        stats.lastYear.unprocessedNotifications > 0
+          ? { text: 'Da processare', bg: 'warning' }
+          : undefined
     },
     {
       title: 'Azioni Pendenti',
       value: stats.lastYear.pendingActions,
       icon: faExclamationTriangle,
-      iconColor: stats.lastYear.pendingActions > 0 ? 'text-danger' : 'text-success',
-      bgColor: stats.lastYear.pendingActions > 0 ? 'bg-danger-subtle' : 'bg-success-subtle',
+      iconColor:
+        stats.lastYear.pendingActions > 0 ? 'text-danger' : 'text-success',
+      bgColor:
+        stats.lastYear.pendingActions > 0
+          ? 'bg-danger-subtle'
+          : 'bg-success-subtle',
       link: '/billing/invoices/issued?status=pending',
       linkText: 'Risolvi',
-      badge: stats.lastYear.pendingActions > 0 ? { text: 'Urgente', bg: 'danger' } : { text: 'Tutto ok', bg: 'success' },
-    },
+      badge:
+        stats.lastYear.pendingActions > 0
+          ? { text: 'Urgente', bg: 'danger' }
+          : { text: 'Tutto ok', bg: 'success' }
+    }
   ];
 
   return (
     <Row className="g-3 mb-3">
-      {statCards.map((stat) => (
+      {statCards.map(stat => (
         <Col key={stat.title} sm={6} lg={3}>
           <StatCard {...stat} />
         </Col>

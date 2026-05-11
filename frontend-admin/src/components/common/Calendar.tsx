@@ -1,6 +1,3 @@
-
-
-
 interface CalendarProps {
   month: string;
   day: string | number;

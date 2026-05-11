@@ -23,7 +23,7 @@ interface NavbarLabelProps {
 const NavbarSkeleton = () => (
   <div className="navbar-vertical-content scrollbar">
     <Nav className="flex-column" as="ul">
-      {[1, 2, 3].map((group) => (
+      {[1, 2, 3].map(group => (
         <Fragment key={group}>
           <Nav.Item as="li">
             <Row className="mt-3 mb-2 navbar-vertical-label-wrapper">
@@ -37,7 +37,7 @@ const NavbarSkeleton = () => (
               </Col>
             </Row>
           </Nav.Item>
-          {[1, 2, 3].map((item) => (
+          {[1, 2, 3].map(item => (
             <Nav.Item as="li" key={`${group}-${item}`} className="px-3 py-2">
               <Placeholder as="div" animation="glow">
                 <Placeholder xs={8} />
@@ -162,12 +162,11 @@ const NavbarVertical = () => {
                       <NavbarLabel label={capitalize(realm.label)} />
                       {realm.sections.map(section => (
                         <Fragment key={`${realm.key}::${section.label}`}>
-                          {section.label &&
-                            section.label !== realm.label && (
-                              <NavbarSectionLabel
-                                label={capitalize(section.label)}
-                              />
-                            )}
+                          {section.label && section.label !== realm.label && (
+                            <NavbarSectionLabel
+                              label={capitalize(section.label)}
+                            />
+                          )}
                           <NavbarVerticalMenu routes={section.children} />
                         </Fragment>
                       ))}

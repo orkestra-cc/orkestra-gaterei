@@ -14,7 +14,10 @@ export interface ConfigAction {
   };
 }
 
-export const configReducer = (state: ConfigState, action: ConfigAction): ConfigState => {
+export const configReducer = (
+  state: ConfigState,
+  action: ConfigAction
+): ConfigState => {
   const { type, payload } = action;
   switch (type) {
     case 'SET_CONFIG':

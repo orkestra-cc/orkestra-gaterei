@@ -39,13 +39,13 @@ const WelcomeStep = ({ onNext }: WelcomeStepProps) => {
           </li>
           <li className="mb-2">
             <strong>Configure outbound email.</strong> Password resets and
-            verification links need a working SMTP relay. You can skip this
-            step and configure it later, but those flows will silently drop
-            mail until you do.
+            verification links need a working SMTP relay. You can skip this step
+            and configure it later, but those flows will silently drop mail
+            until you do.
           </li>
           <li>
-            <strong>You&apos;re done.</strong> The wizard won&apos;t reappear
-            on the next boot.
+            <strong>You&apos;re done.</strong> The wizard won&apos;t reappear on
+            the next boot.
           </li>
         </ol>
       </div>

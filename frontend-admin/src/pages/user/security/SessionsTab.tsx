@@ -1,10 +1,18 @@
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Modal, Spinner, Table } from 'react-bootstrap';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Modal,
+  Spinner,
+  Table
+} from 'react-bootstrap';
 import {
   useGetMySessionsQuery,
   useRevokeAllSessionsMutation,
   useRevokeSessionMutation,
-  type SelfSessionInfo,
+  type SelfSessionInfo
 } from 'store/api/authApi';
 
 // Format a session row's friendly device label. The backend stores
@@ -26,7 +34,8 @@ function deviceLabel(s: SelfSessionInfo): string {
 const SessionsTab = () => {
   const { data, isLoading, isFetching } = useGetMySessionsQuery();
   const [revokeOne, { isLoading: revokingOne }] = useRevokeSessionMutation();
-  const [revokeAll, { isLoading: revokingAll }] = useRevokeAllSessionsMutation();
+  const [revokeAll, { isLoading: revokingAll }] =
+    useRevokeAllSessionsMutation();
   const [showRevokeAll, setShowRevokeAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,16 +48,20 @@ const SessionsTab = () => {
   }
 
   const sessions = data?.sessions ?? [];
-  const otherCount = sessions.filter((s) => !s.isCurrent).length;
+  const otherCount = sessions.filter(s => !s.isCurrent).length;
 
   const onRevokeOne = async (s: SelfSessionInfo) => {
     setError(null);
     try {
       await revokeOne({ sessionId: s.sessionId }).unwrap();
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; title?: string; code?: string } };
+      const e = err as {
+        data?: { detail?: string; title?: string; code?: string };
+      };
       if (e?.data?.code === 'step_up_required') return; // StepUpModal handles
-      setError(e?.data?.detail || e?.data?.title || 'Failed to revoke session.');
+      setError(
+        e?.data?.detail || e?.data?.title || 'Failed to revoke session.'
+      );
     }
   };
 
@@ -58,13 +71,15 @@ const SessionsTab = () => {
       await revokeAll().unwrap();
       setShowRevokeAll(false);
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; title?: string; code?: string } };
+      const e = err as {
+        data?: { detail?: string; title?: string; code?: string };
+      };
       if (e?.data?.code === 'step_up_required') {
         setShowRevokeAll(false);
         return;
       }
       setError(
-        e?.data?.detail || e?.data?.title || 'Failed to revoke other sessions.',
+        e?.data?.detail || e?.data?.title || 'Failed to revoke other sessions.'
       );
     }
   };
@@ -105,7 +120,7 @@ const SessionsTab = () => {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((s) => (
+                {sessions.map(s => (
                   <tr key={s.sessionId}>
                     <td>
                       {deviceLabel(s)}
@@ -140,7 +155,11 @@ const SessionsTab = () => {
         </Card.Body>
       </Card>
 
-      <Modal show={showRevokeAll} onHide={() => setShowRevokeAll(false)} centered>
+      <Modal
+        show={showRevokeAll}
+        onHide={() => setShowRevokeAll(false)}
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>Revoke other sessions</Modal.Title>
         </Modal.Header>
@@ -152,8 +171,14 @@ const SessionsTab = () => {
           <Button variant="secondary" onClick={() => setShowRevokeAll(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirmRevokeAll} disabled={revokingAll}>
-            {revokingAll ? 'Revoking…' : `Revoke ${otherCount} session${otherCount === 1 ? '' : 's'}`}
+          <Button
+            variant="danger"
+            onClick={onConfirmRevokeAll}
+            disabled={revokingAll}
+          >
+            {revokingAll
+              ? 'Revoking…'
+              : `Revoke ${otherCount} session${otherCount === 1 ? '' : 's'}`}
           </Button>
         </Modal.Footer>
       </Modal>

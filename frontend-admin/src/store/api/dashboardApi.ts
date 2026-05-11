@@ -117,28 +117,40 @@ export interface StorageStatus {
   }[];
 }
 
-export type DashboardType = 'default' | 'analytics' | 'crm' | 'ecommerce' | 'project-management' | 'saas' | 'support-desk';
+export type DashboardType =
+  | 'default'
+  | 'analytics'
+  | 'crm'
+  | 'ecommerce'
+  | 'project-management'
+  | 'saas'
+  | 'support-desk';
 export type TimeRange = '7d' | '30d' | '90d' | '1y';
 
 // Dashboard API slice
 export const dashboardApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Dashboard statistics
-    getDashboardStats: builder.query<DashboardStats, { dashboardType?: DashboardType }>({
-      query: ({ dashboardType = 'default' }) => `/dashboard/${dashboardType}/stats`,
+    getDashboardStats: builder.query<
+      DashboardStats,
+      { dashboardType?: DashboardType }
+    >({
+      query: ({ dashboardType = 'default' }) =>
+        `/dashboard/${dashboardType}/stats`,
       providesTags: (_result, _error, { dashboardType }) => [
         { type: 'Dashboard', id: `${dashboardType}-stats` }
       ],
-      keepUnusedDataFor: 300, // 5 minutes
+      keepUnusedDataFor: 300 // 5 minutes
     }),
 
     // Weather data
     getWeatherData: builder.query<WeatherData, { location?: string }>({
-      query: ({ location = 'New York' }) => `/weather?location=${encodeURIComponent(location)}`,
+      query: ({ location = 'New York' }) =>
+        `/weather?location=${encodeURIComponent(location)}`,
       providesTags: (_result, _error, { location }) => [
         { type: 'Weather', id: location }
       ],
-      keepUnusedDataFor: 900, // 15 minutes
+      keepUnusedDataFor: 900 // 15 minutes
     }),
 
     // Sales data
@@ -147,7 +159,7 @@ export const dashboardApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, { timeRange }) => [
         { type: 'Sales', id: `total-${timeRange}` }
       ],
-      keepUnusedDataFor: 300, // 5 minutes
+      keepUnusedDataFor: 300 // 5 minutes
     }),
 
     // Orders data
@@ -156,7 +168,7 @@ export const dashboardApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, { timeRange }) => [
         { type: 'Orders', id: `total-${timeRange}` }
       ],
-      keepUnusedDataFor: 300, // 5 minutes
+      keepUnusedDataFor: 300 // 5 minutes
     }),
 
     // Active users
@@ -166,7 +178,7 @@ export const dashboardApi = baseApi.injectEndpoints({
         'User',
         { type: 'Analytics', id: `active-users-${timeRange}` }
       ],
-      keepUnusedDataFor: 600, // 10 minutes
+      keepUnusedDataFor: 600 // 10 minutes
     }),
 
     // Weekly sales
@@ -175,37 +187,40 @@ export const dashboardApi = baseApi.injectEndpoints({
       providesTags: (_result, _error, { weeks }) => [
         { type: 'Sales', id: `weekly-${weeks}` }
       ],
-      keepUnusedDataFor: 900, // 15 minutes
+      keepUnusedDataFor: 900 // 15 minutes
     }),
 
     // Best selling products
-    getBestSellingProducts: builder.query<BestSellingProduct[], { limit?: number }>({
+    getBestSellingProducts: builder.query<
+      BestSellingProduct[],
+      { limit?: number }
+    >({
       query: ({ limit = 10 }) => `/products/best-selling?limit=${limit}`,
       providesTags: ['Sales', 'Analytics'],
-      keepUnusedDataFor: 1800, // 30 minutes
+      keepUnusedDataFor: 1800 // 30 minutes
     }),
 
     // Market share data
     getMarketShare: builder.query<MarketShareData, void>({
       query: () => '/analytics/market-share',
       providesTags: ['Analytics'],
-      keepUnusedDataFor: 1800, // 30 minutes
+      keepUnusedDataFor: 1800 // 30 minutes
     }),
 
     // Running projects
     getRunningProjects: builder.query<RunningProject[], void>({
       query: () => '/projects/running',
       providesTags: ['Projects'],
-      keepUnusedDataFor: 300, // 5 minutes
+      keepUnusedDataFor: 300 // 5 minutes
     }),
 
     // Storage status
     getStorageStatus: builder.query<StorageStatus, void>({
       query: () => '/storage/status',
       providesTags: ['Storage'],
-      keepUnusedDataFor: 300, // 5 minutes
-    }),
-  }),
+      keepUnusedDataFor: 300 // 5 minutes
+    })
+  })
 });
 
 // Export hooks
@@ -230,5 +245,5 @@ export const {
   useLazyGetBestSellingProductsQuery,
   useLazyGetMarketShareQuery,
   useLazyGetRunningProjectsQuery,
-  useLazyGetStorageStatusQuery,
+  useLazyGetStorageStatusQuery
 } = dashboardApi;

@@ -24,7 +24,7 @@ export const complianceManifest: ModuleManifest = {
             <AuditEventsPage />
           </Suspense>
         </ProtectedRoute>
-      ),
+      )
     },
     {
       path: 'admin/compliance/soc2',
@@ -36,7 +36,7 @@ export const complianceManifest: ModuleManifest = {
             <Soc2EvidencePage />
           </Suspense>
         </ProtectedRoute>
-      ),
+      )
     },
     {
       // GDPR DSR self-service — any authenticated user can export / erase
@@ -49,8 +49,8 @@ export const complianceManifest: ModuleManifest = {
             <UserPrivacyPage />
           </Suspense>
         </ProtectedRoute>
-      ),
-    },
+      )
+    }
   ],
-  injectApi: () => import('store/api/complianceApi'),
+  injectApi: () => import('store/api/complianceApi')
 };

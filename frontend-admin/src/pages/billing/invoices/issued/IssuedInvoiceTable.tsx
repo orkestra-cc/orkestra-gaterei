@@ -6,13 +6,14 @@ import AdvanceTableFooter from 'components/common/advance-table/AdvanceTableFoot
 import useIssuedInvoiceTable from 'hooks/ui/useIssuedInvoiceTable';
 
 const IssuedInvoiceTable = () => {
-  const { SendModal, DeleteModal, DuplicateModal, ...table } = useIssuedInvoiceTable({
-    selection: true,
-    sortable: true,
-    pagination: true,
-    perPage: 10,
-    selectionColumnWidth: 52
-  });
+  const { SendModal, DeleteModal, DuplicateModal, ...table } =
+    useIssuedInvoiceTable({
+      selection: true,
+      sortable: true,
+      pagination: true,
+      perPage: 10,
+      selectionColumnWidth: 52
+    });
 
   return (
     <>

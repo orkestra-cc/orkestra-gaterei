@@ -8,15 +8,21 @@ import {
   Row,
   Col,
   Alert,
-  Spinner,
+  Spinner
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faCode, faPaintBrush, faCog, faEye } from '@fortawesome/free-solid-svg-icons';
+import {
+  faTimes,
+  faCode,
+  faPaintBrush,
+  faCog,
+  faEye
+} from '@fortawesome/free-solid-svg-icons';
 import {
   useCreateTemplateMutation,
   useUpdateTemplateMutation,
   useGetTemplateQuery,
-  usePreviewHTMLFromContentMutation,
+  usePreviewHTMLFromContentMutation
 } from '../../../../store/api/documentsApi';
 import {
   TemplateListItem,
@@ -29,7 +35,7 @@ import {
   PAGE_ORIENTATION_LABELS,
   DEFAULT_MARGINS,
   DEFAULT_PAGE_SIZE,
-  DEFAULT_ORIENTATION,
+  DEFAULT_ORIENTATION
 } from '../../../../types/documents';
 
 interface TemplateModalProps {
@@ -43,7 +49,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
   show,
   onHide,
   template,
-  onSuccess,
+  onSuccess
 }) => {
   const isEditMode = !!template;
   const [activeTab, setActiveTab] = useState('general');
@@ -60,20 +66,21 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
     orientation: DEFAULT_ORIENTATION,
     margins: DEFAULT_MARGINS,
     headerHtml: '',
-    footerHtml: '',
+    footerHtml: ''
   });
 
   // Preview state
   const [previewHtml, setPreviewHtml] = useState<string>('');
 
   // API hooks
-  const { data: fullTemplate, isLoading: isLoadingTemplate } = useGetTemplateQuery(
-    template?.id || '',
-    { skip: !template?.id || !show }
-  );
-  const [createTemplate, { isLoading: isCreating }] = useCreateTemplateMutation();
-  const [updateTemplate, { isLoading: isUpdating }] = useUpdateTemplateMutation();
-  const [previewMutation, { isLoading: isPreviewing }] = usePreviewHTMLFromContentMutation();
+  const { data: fullTemplate, isLoading: isLoadingTemplate } =
+    useGetTemplateQuery(template?.id || '', { skip: !template?.id || !show });
+  const [createTemplate, { isLoading: isCreating }] =
+    useCreateTemplateMutation();
+  const [updateTemplate, { isLoading: isUpdating }] =
+    useUpdateTemplateMutation();
+  const [previewMutation, { isLoading: isPreviewing }] =
+    usePreviewHTMLFromContentMutation();
 
   const isLoading = isCreating || isUpdating;
 
@@ -90,7 +97,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
         orientation: fullTemplate.orientation,
         margins: fullTemplate.margins,
         headerHtml: fullTemplate.headerHtml || '',
-        footerHtml: fullTemplate.footerHtml || '',
+        footerHtml: fullTemplate.footerHtml || ''
       });
     }
   }, [fullTemplate, show]);
@@ -108,7 +115,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
         orientation: DEFAULT_ORIENTATION,
         margins: DEFAULT_MARGINS,
         headerHtml: '',
-        footerHtml: '',
+        footerHtml: ''
       });
       setError('');
       setActiveTab('general');
@@ -117,29 +124,31 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
   }, [show]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
 
   const handleMarginChange = (field: keyof PageMargins, value: string) => {
     const numValue = parseFloat(value) || 0;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       margins: {
         ...prev.margins!,
-        [field]: numValue,
-      },
+        [field]: numValue
+      }
     }));
   };
 
   const handlePreview = async () => {
     if (!formData.htmlContent) {
-      setError('Inserisci il contenuto HTML prima di visualizzare l\'anteprima');
+      setError("Inserisci il contenuto HTML prima di visualizzare l'anteprima");
       setActiveTab('html');
       return;
     }
@@ -148,12 +157,12 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
       const html = await previewMutation({
         htmlContent: formData.htmlContent,
         cssContent: formData.cssContent,
-        data: getSampleData(formData.type),
+        data: getSampleData(formData.type)
       }).unwrap();
       setPreviewHtml(html);
       setActiveTab('preview');
     } catch (err) {
-      setError('Errore durante la generazione dell\'anteprima');
+      setError("Errore durante la generazione dell'anteprima");
     }
   };
 
@@ -184,7 +193,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
           orientation: formData.orientation,
           margins: formData.margins,
           headerHtml: formData.headerHtml,
-          footerHtml: formData.footerHtml,
+          footerHtml: formData.footerHtml
         };
         await updateTemplate({ id: template.id, data: updateData }).unwrap();
       } else {
@@ -193,15 +202,23 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
       onSuccess?.();
       onHide();
     } catch (err: any) {
-      setError(err?.data?.error || 'Errore durante il salvataggio del template');
+      setError(
+        err?.data?.error || 'Errore durante il salvataggio del template'
+      );
     }
   };
 
   return (
     <Modal show={show} onHide={onHide} size="xl" centered>
       <Modal.Header>
-        <Modal.Title>{isEditMode ? 'Modifica Template' : 'Nuovo Template'}</Modal.Title>
-        <Button variant="link" className="p-0 text-decoration-none" onClick={onHide}>
+        <Modal.Title>
+          {isEditMode ? 'Modifica Template' : 'Nuovo Template'}
+        </Modal.Title>
+        <Button
+          variant="link"
+          className="p-0 text-decoration-none"
+          onClick={onHide}
+        >
           <FontAwesomeIcon icon={faTimes} />
         </Button>
       </Modal.Header>
@@ -219,7 +236,10 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
           </div>
         ) : (
           <Form onSubmit={handleSubmit}>
-            <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'general')}>
+            <Tab.Container
+              activeKey={activeTab}
+              onSelect={k => setActiveTab(k || 'general')}
+            >
               <Nav variant="pills" className="mb-3">
                 <Nav.Item>
                   <Nav.Link eventKey="general">
@@ -273,11 +293,13 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                           onChange={handleChange}
                           disabled={isEditMode}
                         >
-                          {Object.entries(TEMPLATE_TYPE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
+                          {Object.entries(TEMPLATE_TYPE_LABELS).map(
+                            ([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            )
+                          )}
                         </Form.Select>
                       </Form.Group>
                     </Col>
@@ -302,11 +324,13 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                           value={formData.pageSize}
                           onChange={handleChange}
                         >
-                          {Object.entries(PAGE_SIZE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
+                          {Object.entries(PAGE_SIZE_LABELS).map(
+                            ([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            )
+                          )}
                         </Form.Select>
                       </Form.Group>
                     </Col>
@@ -318,11 +342,13 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                           value={formData.orientation}
                           onChange={handleChange}
                         >
-                          {Object.entries(PAGE_ORIENTATION_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
+                          {Object.entries(PAGE_ORIENTATION_LABELS).map(
+                            ([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            )
+                          )}
                         </Form.Select>
                       </Form.Group>
                     </Col>
@@ -333,11 +359,15 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                     </Col>
                     <Col md={3}>
                       <Form.Group>
-                        <Form.Label className="small text-muted">Sopra</Form.Label>
+                        <Form.Label className="small text-muted">
+                          Sopra
+                        </Form.Label>
                         <Form.Control
                           type="number"
                           value={formData.margins?.top || 20}
-                          onChange={(e) => handleMarginChange('top', e.target.value)}
+                          onChange={e =>
+                            handleMarginChange('top', e.target.value)
+                          }
                           min={0}
                           max={100}
                         />
@@ -345,11 +375,15 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                     </Col>
                     <Col md={3}>
                       <Form.Group>
-                        <Form.Label className="small text-muted">Sotto</Form.Label>
+                        <Form.Label className="small text-muted">
+                          Sotto
+                        </Form.Label>
                         <Form.Control
                           type="number"
                           value={formData.margins?.bottom || 20}
-                          onChange={(e) => handleMarginChange('bottom', e.target.value)}
+                          onChange={e =>
+                            handleMarginChange('bottom', e.target.value)
+                          }
                           min={0}
                           max={100}
                         />
@@ -357,11 +391,15 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                     </Col>
                     <Col md={3}>
                       <Form.Group>
-                        <Form.Label className="small text-muted">Sinistra</Form.Label>
+                        <Form.Label className="small text-muted">
+                          Sinistra
+                        </Form.Label>
                         <Form.Control
                           type="number"
                           value={formData.margins?.left || 20}
-                          onChange={(e) => handleMarginChange('left', e.target.value)}
+                          onChange={e =>
+                            handleMarginChange('left', e.target.value)
+                          }
                           min={0}
                           max={100}
                         />
@@ -369,11 +407,15 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                     </Col>
                     <Col md={3}>
                       <Form.Group>
-                        <Form.Label className="small text-muted">Destra</Form.Label>
+                        <Form.Label className="small text-muted">
+                          Destra
+                        </Form.Label>
                         <Form.Control
                           type="number"
                           value={formData.margins?.right || 20}
-                          onChange={(e) => handleMarginChange('right', e.target.value)}
+                          onChange={e =>
+                            handleMarginChange('right', e.target.value)
+                          }
                           min={0}
                           max={100}
                         />
@@ -397,7 +439,8 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                       required
                     />
                     <Form.Text className="text-muted">
-                      Usa le variabili Go template come {'{{.number}}'}, {'{{.seller.name}}'}, {'{{range .lines}}...{{end}}'}
+                      Usa le variabili Go template come {'{{.number}}'},{' '}
+                      {'{{.seller.name}}'}, {'{{range .lines}}...{{end}}'}
                     </Form.Text>
                   </Form.Group>
                 </Tab.Pane>
@@ -416,7 +459,8 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                       style={{ fontFamily: 'monospace', fontSize: '13px' }}
                     />
                     <Form.Text className="text-muted">
-                      Gli stili CSS verranno inclusi automaticamente nel documento
+                      Gli stili CSS verranno inclusi automaticamente nel
+                      documento
                     </Form.Text>
                   </Form.Group>
                 </Tab.Pane>
@@ -424,7 +468,9 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                 {/* Preview Tab */}
                 <Tab.Pane eventKey="preview">
                   <div className="d-flex justify-content-between align-items-center mb-3">
-                    <span className="text-muted">Anteprima con dati di esempio</span>
+                    <span className="text-muted">
+                      Anteprima con dati di esempio
+                    </span>
                     <Button
                       variant="outline-primary"
                       size="sm"
@@ -432,7 +478,11 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                       disabled={isPreviewing}
                     >
                       {isPreviewing ? (
-                        <Spinner animation="border" size="sm" className="me-1" />
+                        <Spinner
+                          animation="border"
+                          size="sm"
+                          className="me-1"
+                        />
                       ) : (
                         <FontAwesomeIcon icon={faEye} className="me-1" />
                       )}
@@ -446,14 +496,24 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
                     >
                       <iframe
                         srcDoc={previewHtml}
-                        style={{ width: '100%', height: '600px', border: 'none' }}
+                        style={{
+                          width: '100%',
+                          height: '600px',
+                          border: 'none'
+                        }}
                         title="Template Preview"
                       />
                     </div>
                   ) : (
                     <div className="text-center py-5 text-muted">
-                      <FontAwesomeIcon icon={faEye} size="3x" className="mb-3" />
-                      <p>Clicca "Aggiorna anteprima" per visualizzare il template</p>
+                      <FontAwesomeIcon
+                        icon={faEye}
+                        size="3x"
+                        className="mb-3"
+                      />
+                      <p>
+                        Clicca "Aggiorna anteprima" per visualizzare il template
+                      </p>
                     </div>
                   )}
                 </Tab.Pane>
@@ -482,7 +542,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({
 function getSampleData(type: TemplateType): Record<string, unknown> {
   const commonData = {
     number: 'INV-2024-001',
-    date: new Date(),
+    date: new Date()
   };
 
   switch (type) {
@@ -493,23 +553,36 @@ function getSampleData(type: TemplateType): Record<string, unknown> {
           name: 'Azienda Demo S.r.l.',
           address: 'Via Roma 123, 00100 Roma RM',
           vatNumber: 'IT12345678901',
-          pec: 'azienda@pec.it',
+          pec: 'azienda@pec.it'
         },
         buyer: {
           name: 'Cliente Esempio S.p.A.',
           address: 'Via Milano 456, 20100 Milano MI',
           vatNumber: 'IT09876543210',
-          fiscalCode: 'RSSMRA80A01H501U',
+          fiscalCode: 'RSSMRA80A01H501U'
         },
         lines: [
-          { Description: 'Servizio consulenza', Quantity: 10, UnitPrice: 50.0, VATRate: 22, TotalPrice: 500.0 },
-          { Description: 'Sviluppo software', Quantity: 1, UnitPrice: 1500.0, VATRate: 22, TotalPrice: 1500.0 },
+          {
+            Description: 'Servizio consulenza',
+            Quantity: 10,
+            UnitPrice: 50.0,
+            VATRate: 22,
+            TotalPrice: 500.0
+          },
+          {
+            Description: 'Sviluppo software',
+            Quantity: 1,
+            UnitPrice: 1500.0,
+            VATRate: 22,
+            TotalPrice: 1500.0
+          }
         ],
         totalTaxable: 2000.0,
         totalVAT: 440.0,
         totalAmount: 2440.0,
         paymentTerms: 'Bonifico bancario entro 30 giorni',
-        notes: 'Fattura elettronica ai sensi dell\'art. 1, comma 3, D.Lgs. 127/2015',
+        notes:
+          "Fattura elettronica ai sensi dell'art. 1, comma 3, D.Lgs. 127/2015"
       };
     case 'offer':
       return {
@@ -521,22 +594,37 @@ function getSampleData(type: TemplateType): Record<string, unknown> {
           address: 'Via Roma 123, 00100 Roma RM',
           vatNumber: 'IT12345678901',
           email: 'info@aziendademo.it',
-          phone: '+39 06 1234567',
+          phone: '+39 06 1234567'
         },
         customer: {
           name: 'Cliente Esempio S.p.A.',
           address: 'Via Milano 456, 20100 Milano MI',
-          email: 'info@cliente.it',
+          email: 'info@cliente.it'
         },
         items: [
-          { Description: 'Analisi e progettazione', Quantity: 1, UnitPrice: 2000.0, Total: 2000.0 },
-          { Description: 'Sviluppo frontend', Quantity: 1, UnitPrice: 5000.0, Total: 5000.0 },
-          { Description: 'Sviluppo backend', Quantity: 1, UnitPrice: 5000.0, Total: 5000.0 },
+          {
+            Description: 'Analisi e progettazione',
+            Quantity: 1,
+            UnitPrice: 2000.0,
+            Total: 2000.0
+          },
+          {
+            Description: 'Sviluppo frontend',
+            Quantity: 1,
+            UnitPrice: 5000.0,
+            Total: 5000.0
+          },
+          {
+            Description: 'Sviluppo backend',
+            Quantity: 1,
+            UnitPrice: 5000.0,
+            Total: 5000.0
+          }
         ],
         subtotal: 12000.0,
         tax: 2640.0,
         total: 14640.0,
-        notes: 'Il preventivo ha validità 30 giorni dalla data di emissione.',
+        notes: 'Il preventivo ha validità 30 giorni dalla data di emissione.'
       };
     default:
       return commonData;

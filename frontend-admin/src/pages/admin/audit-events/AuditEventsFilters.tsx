@@ -21,7 +21,7 @@ const ACTION_FAMILIES: { label: string; value: string }[] = [
   { label: 'Identity / IdP / SCIM (identity.*)', value: 'identity.' },
   { label: 'Subscriptions (subscription.*)', value: 'subscription.' },
   { label: 'Onboarding (onboarding.*)', value: 'onboarding.' },
-  { label: 'GDPR DSR (gdpr.*)', value: 'gdpr.' },
+  { label: 'GDPR DSR (gdpr.*)', value: 'gdpr.' }
 ];
 
 const OUTCOMES: AuditOutcome[] = ['success', 'failure', 'denied'];
@@ -38,7 +38,7 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
   }, [value]);
 
   const handleChange = (patch: Partial<ListAuditEventsParams>) => {
-    setDraft((prev) => ({ ...prev, ...patch }));
+    setDraft(prev => ({ ...prev, ...patch }));
   };
 
   const submit = (e: React.FormEvent) => {
@@ -56,9 +56,11 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
           <Form.Select
             size="sm"
             value={draft.actionPrefix ?? ''}
-            onChange={(e) => handleChange({ actionPrefix: e.target.value || undefined })}
+            onChange={e =>
+              handleChange({ actionPrefix: e.target.value || undefined })
+            }
           >
-            {ACTION_FAMILIES.map((f) => (
+            {ACTION_FAMILIES.map(f => (
               <option key={f.value} value={f.value}>
                 {f.label}
               </option>
@@ -72,7 +74,9 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
             type="text"
             placeholder="auth.login.succeeded"
             value={draft.action ?? ''}
-            onChange={(e) => handleChange({ action: e.target.value || undefined })}
+            onChange={e =>
+              handleChange({ action: e.target.value || undefined })
+            }
           />
         </Col>
         <Col md={6} lg={2}>
@@ -80,14 +84,16 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
           <Form.Select
             size="sm"
             value={draft.outcome ?? ''}
-            onChange={(e) =>
+            onChange={e =>
               handleChange({
-                outcome: (e.target.value || undefined) as AuditOutcome | undefined,
+                outcome: (e.target.value || undefined) as
+                  | AuditOutcome
+                  | undefined
               })
             }
           >
             <option value="">Any outcome</option>
-            {OUTCOMES.map((o) => (
+            {OUTCOMES.map(o => (
               <option key={o} value={o}>
                 {o}
               </option>
@@ -101,7 +107,9 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
             type="text"
             placeholder="UUID"
             value={draft.tenantId ?? ''}
-            onChange={(e) => handleChange({ tenantId: e.target.value || undefined })}
+            onChange={e =>
+              handleChange({ tenantId: e.target.value || undefined })
+            }
           />
         </Col>
         <Col md={6} lg={2}>
@@ -111,7 +119,9 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
             type="text"
             placeholder="UUID"
             value={draft.actorUserId ?? ''}
-            onChange={(e) => handleChange({ actorUserId: e.target.value || undefined })}
+            onChange={e =>
+              handleChange({ actorUserId: e.target.value || undefined })
+            }
           />
         </Col>
 
@@ -121,7 +131,7 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
             size="sm"
             type="datetime-local"
             value={toDatetimeLocal(draft.since)}
-            onChange={(e) =>
+            onChange={e =>
               handleChange({ since: fromDatetimeLocal(e.target.value) })
             }
           />
@@ -132,7 +142,7 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
             size="sm"
             type="datetime-local"
             value={toDatetimeLocal(draft.until)}
-            onChange={(e) =>
+            onChange={e =>
               handleChange({ until: fromDatetimeLocal(e.target.value) })
             }
           />
@@ -142,7 +152,7 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
           <Form.Select
             size="sm"
             value={draft.limit ?? 50}
-            onChange={(e) => handleChange({ limit: Number(e.target.value) })}
+            onChange={e => handleChange({ limit: Number(e.target.value) })}
           >
             <option value={25}>25</option>
             <option value={50}>50</option>
@@ -152,7 +162,12 @@ const AuditEventsFilters: React.FC<Props> = ({ value, onApply, onReset }) => {
           </Form.Select>
         </Col>
         <Col md={12} lg={4} className="d-flex gap-2">
-          <Button type="submit" variant="primary" size="sm" className="flex-grow-1">
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            className="flex-grow-1"
+          >
             Apply filters
           </Button>
           <Button
@@ -182,7 +197,7 @@ function toDatetimeLocal(iso?: string): string {
   if (Number.isNaN(d.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
+    d.getHours()
   )}:${pad(d.getMinutes())}`;
 }
 

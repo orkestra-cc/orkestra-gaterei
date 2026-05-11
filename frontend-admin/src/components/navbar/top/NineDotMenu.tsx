@@ -20,13 +20,22 @@ const NineDotMenu = () => {
   const [show, setShow] = useState<boolean>(false);
 
   useEffect(() => {
-    window.addEventListener('scroll', () => {
-      window.innerWidth < 1200 && setShow(false);
-    }, { passive: true });
+    window.addEventListener(
+      'scroll',
+      () => {
+        window.innerWidth < 1200 && setShow(false);
+      },
+      { passive: true }
+    );
   }, []);
 
   return (
-    <Dropdown navbar={true} as="li" show={show} onToggle={() => setShow(prev => !prev)}>
+    <Dropdown
+      navbar={true}
+      as="li"
+      show={show}
+      onToggle={() => setShow(prev => !prev)}
+    >
       <Dropdown.Toggle
         bsPrefix="toggle"
         as={Link}
@@ -78,7 +87,14 @@ const NineDotMenu = () => {
   );
 };
 
-const QuickLinkItem = ({ avatar, avatarText, img, title, link, hr }: QuickLinkItemProps) => {
+const QuickLinkItem = ({
+  avatar,
+  avatarText,
+  img,
+  title,
+  link,
+  hr
+}: QuickLinkItemProps) => {
   return (
     <>
       {hr ? (

@@ -9,9 +9,14 @@ interface AdvanceTableProviderProps {
   [key: string]: any;
 }
 
-export const AdvanceTableContext = createContext<AdvanceTableContextValue | undefined>(undefined);
+export const AdvanceTableContext = createContext<
+  AdvanceTableContextValue | undefined
+>(undefined);
 
-const AdvanceTableProvider: React.FC<AdvanceTableProviderProps> = ({ children, ...rest }) => {
+const AdvanceTableProvider: React.FC<AdvanceTableProviderProps> = ({
+  children,
+  ...rest
+}) => {
   return (
     <AdvanceTableContext.Provider value={{ ...rest }}>
       {children}
@@ -22,7 +27,9 @@ const AdvanceTableProvider: React.FC<AdvanceTableProviderProps> = ({ children, .
 export const useAdvanceTableContext = (): AdvanceTableContextValue => {
   const context = useContext(AdvanceTableContext);
   if (!context) {
-    throw new Error('useAdvanceTableContext must be used within AdvanceTableProvider');
+    throw new Error(
+      'useAdvanceTableContext must be used within AdvanceTableProvider'
+    );
   }
   return context;
 };

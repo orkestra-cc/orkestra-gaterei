@@ -12,7 +12,9 @@ const SalesReports = lazy(() => import('pages/sales/reports'));
 const SalesReportDetail = lazy(() => import('pages/sales/reports/detail'));
 const SalesSettings = lazy(() => import('pages/sales/settings'));
 
-const salesPerms: [string[]] = [['super_admin', 'administrator', 'developer', 'manager']];
+const salesPerms: [string[]] = [
+  ['super_admin', 'administrator', 'developer', 'manager']
+];
 
 export const salesManifest: ModuleManifest = {
   name: 'sales',
@@ -27,7 +29,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/skills/:skill',
@@ -39,7 +41,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/jobs',
@@ -51,7 +53,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/jobs/:uuid',
@@ -63,7 +65,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/reports',
@@ -75,7 +77,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/reports/:uuid',
@@ -87,7 +89,7 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'sales/settings',
@@ -99,8 +101,8 @@ export const salesManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
-  injectApi: () => import('store/api/salesApi'),
+  injectApi: () => import('store/api/salesApi')
 };

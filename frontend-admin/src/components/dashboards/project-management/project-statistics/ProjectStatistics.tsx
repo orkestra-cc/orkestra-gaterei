@@ -31,7 +31,11 @@ interface ProjectStatisticsProps {
   projectUsers: ProjectUser[];
 }
 
-const ProjectStatistics = ({ progressBar, projectsTable, projectUsers }: ProjectStatisticsProps) => {
+const ProjectStatistics = ({
+  progressBar,
+  projectsTable,
+  projectUsers
+}: ProjectStatisticsProps) => {
   return (
     <Card className="h-100">
       <FalconCardHeader

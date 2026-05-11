@@ -13,7 +13,10 @@ interface CustomDateInputProps {
 }
 
 const CustomDateInput = forwardRef<HTMLInputElement, CustomDateInputProps>(
-  ({ value, onClick, isInvalid, isValid, formControlProps, errorMessage }, ref) => {
+  (
+    { value, onClick, isInvalid, isValid, formControlProps, errorMessage },
+    ref
+  ) => {
     return (
       <>
         <Form.Control
@@ -38,11 +41,27 @@ interface WizardInputProps {
   label?: string | React.ReactNode;
   name: string;
   errors: FieldErrors;
-  type?: 'text' | 'email' | 'password' | 'date' | 'checkbox' | 'switch' | 'radio' | 'select' | 'textarea' | 'number';
+  type?:
+    | 'text'
+    | 'email'
+    | 'password'
+    | 'date'
+    | 'checkbox'
+    | 'switch'
+    | 'radio'
+    | 'select'
+    | 'textarea'
+    | 'number';
   options?: string[];
   placeholder?: string;
   formControlProps?: FormControlProps & { [key: string]: unknown };
-  formGroupProps?: FormGroupProps & { as?: React.ElementType; sm?: number; md?: number; lg?: number; [key: string]: unknown };
+  formGroupProps?: FormGroupProps & {
+    as?: React.ElementType;
+    sm?: number;
+    md?: number;
+    lg?: number;
+    [key: string]: unknown;
+  };
   setValue?: UseFormSetValue<Record<string, unknown>>;
   datepickerProps?: Partial<Omit<DatePickerProps, 'onChange'>>;
 }
@@ -66,7 +85,7 @@ const WizardInput = ({
       <Form.Group {...formGroupProps}>
         {!!label && <Form.Label>{label}</Form.Label>}
 
-{/* @ts-expect-error react-datepicker has complex discriminated union types for onChange */}
+        {/* @ts-expect-error react-datepicker has complex discriminated union types for onChange */}
         <DatePicker
           selected={date}
           onChange={(newDate: Date | null) => {
@@ -88,9 +107,16 @@ const WizardInput = ({
   }
 
   if (type === 'checkbox' || type === 'switch') {
-    const { type: _type, size: _size, ...checkboxProps } = formControlProps || {};
+    const {
+      type: _type,
+      size: _size,
+      ...checkboxProps
+    } = formControlProps || {};
     return (
-      <Form.Check type={type === 'switch' ? 'switch' : 'checkbox'} id={name + Math.floor(Math.random() * 100)}>
+      <Form.Check
+        type={type === 'switch' ? 'switch' : 'checkbox'}
+        id={name + Math.floor(Math.random() * 100)}
+      >
         <Form.Check.Input
           {...checkboxProps}
           type="checkbox"
@@ -127,7 +153,10 @@ const WizardInput = ({
       <Form.Group {...formGroupProps}>
         <Form.Label>{label}</Form.Label>
         <Form.Select
-          {...(selectProps as Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'>)}
+          {...(selectProps as Omit<
+            React.SelectHTMLAttributes<HTMLSelectElement>,
+            'size'
+          >)}
           isInvalid={!!errors[name]}
           isValid={Object.keys(errors).length > 0 && !errors[name]}
         >

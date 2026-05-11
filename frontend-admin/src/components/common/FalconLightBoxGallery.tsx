@@ -7,7 +7,10 @@ interface FalconLightBoxGalleryProps {
   children: (setImgIndex: Dispatch<SetStateAction<number | null>>) => ReactNode;
 }
 
-const FalconLightBoxGallery = ({ images, children }: FalconLightBoxGalleryProps) => {
+const FalconLightBoxGallery = ({
+  images,
+  children
+}: FalconLightBoxGalleryProps) => {
   const [imgIndex, setImgIndex] = useState<number | null>(null);
   return (
     <div>

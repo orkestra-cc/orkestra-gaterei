@@ -27,7 +27,7 @@ export const ROLE_HIERARCHY: UserRole[] = [
   'developer',
   'manager',
   'operator',
-  'guest',
+  'guest'
 ];
 
 /**
@@ -42,7 +42,7 @@ export const ROLE_MAPPING: Record<string, UserRole> = {
   developer: 'developer',
   manager: 'manager',
   operator: 'operator',
-  guest: 'guest',
+  guest: 'guest'
 };
 
 /**
@@ -66,22 +66,31 @@ export const getRoleLevel = (role: UserRole): number => {
  * Check whether a user's role meets a minimum required role. Higher roles
  * inherit access from lower roles.
  */
-export const hasRoleAccess = (userRole: UserRole, requiredRole: UserRole): boolean => {
+export const hasRoleAccess = (
+  userRole: UserRole,
+  requiredRole: UserRole
+): boolean => {
   return getRoleLevel(userRole) <= getRoleLevel(requiredRole);
 };
 
 /**
  * Check whether a user's role matches any of the specified roles.
  */
-export const hasAnyRole = (userRole: UserRole, allowedRoles: UserRole[]): boolean => {
-  return allowedRoles.some((role) => hasRoleAccess(userRole, role));
+export const hasAnyRole = (
+  userRole: UserRole,
+  allowedRoles: UserRole[]
+): boolean => {
+  return allowedRoles.some(role => hasRoleAccess(userRole, role));
 };
 
 /**
  * Filter a list of roles down to the ones the user can access.
  */
-export const getAccessibleRoles = (userRole: UserRole, targetRoles: UserRole[]): UserRole[] => {
-  return targetRoles.filter((role) => hasRoleAccess(userRole, role));
+export const getAccessibleRoles = (
+  userRole: UserRole,
+  targetRoles: UserRole[]
+): UserRole[] => {
+  return targetRoles.filter(role => hasRoleAccess(userRole, role));
 };
 
 /**
@@ -92,11 +101,14 @@ export const getUserAccessibleRoles = (userRole: UserRole): UserRole[] => {
   return ROLE_HIERARCHY.slice(userLevel);
 };
 
-export const isSuperAdmin = (userRole: UserRole): boolean => userRole === 'super_admin';
+export const isSuperAdmin = (userRole: UserRole): boolean =>
+  userRole === 'super_admin';
 
-export const isAdministrator = (userRole: UserRole): boolean => userRole === 'administrator';
+export const isAdministrator = (userRole: UserRole): boolean =>
+  userRole === 'administrator';
 
-export const isDeveloper = (userRole: UserRole): boolean => userRole === 'developer';
+export const isDeveloper = (userRole: UserRole): boolean =>
+  userRole === 'developer';
 
 export const isAdminOrAbove = (userRole: UserRole): boolean =>
   hasRoleAccess(userRole, 'administrator');
@@ -132,7 +144,7 @@ export const extractUserRole = (authData: any): UserRole | null => {
       available_fields: Object.keys(authData),
       role_value: role,
       expected_roles: ROLE_HIERARCHY,
-      supported_mappings: Object.keys(ROLE_MAPPING),
+      supported_mappings: Object.keys(ROLE_MAPPING)
     });
   }
 
@@ -170,5 +182,5 @@ export const ROUTE_ROLE_CONFIG = {
   BASIC_DASHBOARD: ['operator'] as UserRole[],
   PROFILE_MANAGEMENT: ['operator'] as UserRole[],
   TASK_EXECUTION: ['operator'] as UserRole[],
-  BASIC_TRACKING: ['operator'] as UserRole[],
+  BASIC_TRACKING: ['operator'] as UserRole[]
 };

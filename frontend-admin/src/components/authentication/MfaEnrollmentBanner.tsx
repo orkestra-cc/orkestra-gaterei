@@ -14,7 +14,7 @@ export default function MfaEnrollmentBanner() {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const user = useAppSelector(selectUser);
   const { data: mfa } = useGetMfaStatusQuery(undefined, {
-    skip: !isAuthenticated || !user,
+    skip: !isAuthenticated || !user
   });
 
   if (!isAuthenticated || !user) return null;
@@ -30,7 +30,7 @@ export default function MfaEnrollmentBanner() {
       style={{
         background: expired ? '#f8d7da' : '#fff3cd',
         color: expired ? '#58151c' : '#664d03',
-        fontSize: '0.875rem',
+        fontSize: '0.875rem'
       }}
     >
       <span>

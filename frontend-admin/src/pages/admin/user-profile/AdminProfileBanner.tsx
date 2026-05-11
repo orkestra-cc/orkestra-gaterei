@@ -9,7 +9,11 @@ interface ProfileBannerHeaderProps {
   className?: string;
 }
 
-const ProfileBannerHeader: React.FC<ProfileBannerHeaderProps> = ({ avatar, coverSrc, className }) => {
+const ProfileBannerHeader: React.FC<ProfileBannerHeaderProps> = ({
+  avatar,
+  coverSrc,
+  className
+}) => {
   return (
     <Card.Header
       className={classNames(className, 'position-relative mb-7')}

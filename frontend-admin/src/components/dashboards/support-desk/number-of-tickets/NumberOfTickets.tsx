@@ -26,7 +26,13 @@ interface NumberOfTicketsProps {
   data: number[][];
 }
 
-const FormCheck = ({ title, id, inputClass, checkBoxClass, handleLegend }: FormCheckProps) => {
+const FormCheck = ({
+  title,
+  id,
+  inputClass,
+  checkBoxClass,
+  handleLegend
+}: FormCheckProps) => {
   return (
     <Form.Check
       className={classNames(checkBoxClass, 'd-flex align-items-center mb-0')}
@@ -51,7 +57,13 @@ const FormCheck = ({ title, id, inputClass, checkBoxClass, handleLegend }: FormC
   );
 };
 
-const TicketsCategory = ({ title, number, percentage, icon, badgeColor }: TicketsCategoryProps) => {
+const TicketsCategory = ({
+  title,
+  number,
+  percentage,
+  icon,
+  badgeColor
+}: TicketsCategoryProps) => {
   return (
     <div>
       <h6 className="fs-9 d-flex align-items-center text-700 mb-1">
@@ -68,7 +80,10 @@ const TicketsCategory = ({ title, number, percentage, icon, badgeColor }: Ticket
 
 const NumberOfTickets = ({ data }: NumberOfTicketsProps) => {
   const chartRef = useRef<ReactEChartsCore | null>(null);
-  const handleLegend = (_event: ChangeEvent<HTMLInputElement>, name: string) => {
+  const handleLegend = (
+    _event: ChangeEvent<HTMLInputElement>,
+    name: string
+  ) => {
     if (chartRef.current) {
       chartRef.current.getEchartsInstance().dispatchAction({
         type: 'legendToggleSelect',

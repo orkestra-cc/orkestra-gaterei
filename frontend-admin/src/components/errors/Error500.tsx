@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 
 const Error500 = () => (
@@ -10,8 +9,8 @@ const Error500 = () => (
       </p>
       <hr />
       <p>
-        Try refreshing the page, or go back and attempt the action again.
-        If the problem persists,
+        Try refreshing the page, or go back and attempt the action again. If the
+        problem persists,
         <a href="mailto:info@exmaple.com" className="ms-1">
           contact us
         </a>

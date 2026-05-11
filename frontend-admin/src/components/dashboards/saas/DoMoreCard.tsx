@@ -1,4 +1,3 @@
-
 import { Alert, Card } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import IconButton from 'components/common/IconButton';

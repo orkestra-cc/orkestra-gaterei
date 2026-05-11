@@ -18,7 +18,9 @@ interface BubbleDataPoint {
 
 type GetThemeColorFunction = (colorName: string) => string;
 
-export const chartJsDefaultTooltip = (getThemeColor: GetThemeColorFunction): ChartJsTooltipConfig => ({
+export const chartJsDefaultTooltip = (
+  getThemeColor: GetThemeColorFunction
+): ChartJsTooltipConfig => ({
   backgroundColor: getThemeColor('gray-100'),
   borderColor: getThemeColor('gray-300'),
   borderWidth: 1,
@@ -31,10 +33,10 @@ export const chartJsDefaultTooltip = (getThemeColor: GetThemeColorFunction): Cha
 });
 
 export const getBubbleDataset = (
-  count: number, 
-  rmin: number, 
-  rmax: number, 
-  min: number, 
+  count: number,
+  rmin: number,
+  rmax: number,
+  min: number,
   max: number
 ): BubbleDataPoint[] => {
   const arr = Array.from(Array(count).keys());

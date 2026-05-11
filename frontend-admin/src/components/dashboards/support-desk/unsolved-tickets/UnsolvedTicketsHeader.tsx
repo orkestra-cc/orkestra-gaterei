@@ -1,4 +1,3 @@
-
 import { Button, Col, Dropdown, Form, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
@@ -10,7 +9,10 @@ interface UnsolvedTicketsHeaderProps {
   layout: string;
 }
 
-const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps) => {
+const UnsolvedTicketsHeader = ({
+  setLayout,
+  layout
+}: UnsolvedTicketsHeaderProps) => {
   const { getSelectedRowModel } = useAdvanceTableContext();
 
   return (

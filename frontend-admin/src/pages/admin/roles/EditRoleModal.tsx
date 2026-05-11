@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import {
   useUpdateRoleMutation,
   type Role,
-  type UpdateRoleInput,
+  type UpdateRoleInput
 } from 'store/api/tenantApi';
 import PermissionPicker from './PermissionPicker';
 
@@ -57,7 +57,8 @@ const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
     if (!readOnly) {
       const trimmedName = name.trim();
       if (trimmedName !== role.name) patch.name = trimmedName;
-      if (description !== (role.description ?? '')) patch.description = description;
+      if (description !== (role.description ?? ''))
+        patch.description = description;
       const nextPerms = Array.from(selected).sort();
       const prevPerms = [...(role.permissions ?? [])].sort();
       if (
@@ -113,9 +114,9 @@ const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
           <Alert variant="info" className="mb-3 fs-10">
             <FontAwesomeIcon icon="info-circle" className="me-2" />
             System roles come from code. Their name, description, and
-            permissions are re-seeded on every boot, so they're read-only
-            here. You can still disable this role to prevent it from being
-            granted to users.
+            permissions are re-seeded on every boot, so they're read-only here.
+            You can still disable this role to prevent it from being granted to
+            users.
           </Alert>
         )}
 
@@ -126,7 +127,7 @@ const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
             id="role-active-switch"
             className="m-0"
             checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
+            onChange={e => setIsActive(e.target.checked)}
             label={
               <span>
                 <strong className="d-block">Active</strong>
@@ -146,7 +147,7 @@ const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
               <Form.Control
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={e => setName(e.target.value)}
                 maxLength={80}
                 disabled={readOnly}
               />
@@ -156,7 +157,7 @@ const EditRoleModal: React.FC<Props> = ({ tenantId, role, show, onHide }) => {
               <Form.Control
                 type="text"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={e => setDescription(e.target.value)}
                 disabled={readOnly}
               />
             </Form.Group>

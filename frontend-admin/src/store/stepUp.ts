@@ -23,8 +23,10 @@ let resolver: ((verified: boolean) => void) | null = null;
  */
 export function requestStepUp(): Promise<boolean> {
   if (!pending) {
-    pending = new Promise<boolean>((res) => { resolver = res; });
-    listeners.forEach((l) => l(true));
+    pending = new Promise<boolean>(res => {
+      resolver = res;
+    });
+    listeners.forEach(l => l(true));
   }
   return pending;
 }
@@ -37,7 +39,7 @@ export function completeStepUp(verified: boolean) {
   const r = resolver;
   resolver = null;
   pending = null;
-  listeners.forEach((l) => l(false));
+  listeners.forEach(l => l(false));
   r?.(verified);
 }
 
@@ -46,5 +48,7 @@ export function completeStepUp(verified: boolean) {
  */
 export function subscribeStepUp(listener: Listener): () => void {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 }

@@ -24,23 +24,21 @@ export const emptyBillingStats: BillingStats = {
   pendingActions: 0,
   weeklyData: [],
   periodStart: '2000-01-01T00:00:00Z',
-  periodEnd: '2099-12-31T23:59:59Z',
+  periodEnd: '2099-12-31T23:59:59Z'
 };
 
 // Captured params from the most recent /v1/billing/stats request — used by
 // regression tests that need to assert what fromDate/toDate the SPA sent.
 // Reset between tests via resetCapturedRequests() in setup.ts.
 export const capturedRequests = {
-  billingStatsParams: null as URLSearchParams | null,
+  billingStatsParams: null as URLSearchParams | null
 };
 
 export const resetCapturedRequests = () => {
   capturedRequests.billingStatsParams = null;
 };
 
-export const billingStatsHandler = (
-  body: BillingStats = emptyBillingStats,
-) =>
+export const billingStatsHandler = (body: BillingStats = emptyBillingStats) =>
   http.get(url('/v1/billing/stats'), ({ request }) => {
     capturedRequests.billingStatsParams = new URL(request.url).searchParams;
     return HttpResponse.json(body);
@@ -65,14 +63,14 @@ export const emptySelfAuthMethods = {
     email: string;
     linkedAt: string;
     isPrimary: boolean;
-  }>,
+  }>
 };
 
 export const selfAuthMethodsHandler = (
-  body: typeof emptySelfAuthMethods = emptySelfAuthMethods,
+  body: typeof emptySelfAuthMethods = emptySelfAuthMethods
 ) =>
   http.get(url('/v1/auth/operator/me/auth-methods'), () =>
-    HttpResponse.json(body),
+    HttpResponse.json(body)
   );
 
 export const emptySessions = {
@@ -88,7 +86,7 @@ export const emptySessions = {
     expiresAt: string;
     isCurrent: boolean;
   }>,
-  activeCount: 0,
+  activeCount: 0
 };
 
 export const mySessionsHandler = (body: typeof emptySessions = emptySessions) =>
@@ -102,14 +100,14 @@ export const emptyTrustedDevices = {
     platform: string;
     trustedAt: string;
     trustedUntil: string;
-  }>,
+  }>
 };
 
 export const trustedDevicesHandler = (
-  body: typeof emptyTrustedDevices = emptyTrustedDevices,
+  body: typeof emptyTrustedDevices = emptyTrustedDevices
 ) =>
   http.get(url('/v1/auth/operator/me/devices/trust'), () =>
-    HttpResponse.json(body),
+    HttpResponse.json(body)
   );
 
 // Default handlers used by every test unless overridden. Keep this list

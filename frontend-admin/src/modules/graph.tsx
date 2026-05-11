@@ -28,7 +28,7 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/algorithms',
@@ -40,7 +40,7 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/databases',
@@ -52,7 +52,7 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/vector',
@@ -64,11 +64,11 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/models',
-      element: <Navigate to="/ai/models" replace />,
+      element: <Navigate to="/ai/models" replace />
     },
     {
       path: 'graph/documents',
@@ -80,7 +80,7 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/relationships',
@@ -92,7 +92,7 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'graph/rag',
@@ -104,13 +104,13 @@ export const graphManifest: ModuleManifest = {
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
   injectApi: () =>
     Promise.all([
       import('store/api/graphApi'),
       import('store/api/ragApi'),
-      import('store/api/aiModelsApi'),
-    ]),
+      import('store/api/aiModelsApi')
+    ])
 };

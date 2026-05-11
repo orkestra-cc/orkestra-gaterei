@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import DealForeCastTable from './DealForeCastTable';

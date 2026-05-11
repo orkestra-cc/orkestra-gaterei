@@ -1,4 +1,3 @@
-
 import dayjs from 'dayjs';
 import { LineChart } from 'echarts/charts';
 import {
@@ -56,12 +55,17 @@ const dates = (month: string) => {
     dayjs().month(months.indexOf(month)).date(1).toDate(),
     dayjs()
       .month(Number(months.indexOf(month)) + 1)
-      .date(0).toDate(),
+      .date(0)
+      .toDate(),
     1000 * 60 * 60 * 24 * 3
   );
 };
 
-const tooltipFormatter = (params: TooltipParam[], selectedMonth: string, previousMonth: string) => {
+const tooltipFormatter = (
+  params: TooltipParam[],
+  selectedMonth: string,
+  previousMonth: string
+) => {
   let tooltipItem = ``;
   params.forEach((el: TooltipParam) => {
     const currentDate = dayjs(el.axisValue);
@@ -79,7 +83,12 @@ const tooltipFormatter = (params: TooltipParam[], selectedMonth: string, previou
           </div>`;
 };
 
-const getOption = (getThemeColor: ThemeColorGetter, data: GrossRevenueData, selectedMonth: string, previousMonth: string) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: GrossRevenueData,
+  selectedMonth: string,
+  previousMonth: string
+) => ({
   title: {
     text: 'Sales over time',
     textStyle: {
@@ -96,7 +105,8 @@ const getOption = (getThemeColor: ThemeColorGetter, data: GrossRevenueData, sele
     borderColor: getThemeColor('gray-300'),
     textStyle: { color: getThemeColor('gray-1100') },
     borderWidth: 1,
-    formatter: (params: TooltipParam[]) => tooltipFormatter(params, selectedMonth, previousMonth),
+    formatter: (params: TooltipParam[]) =>
+      tooltipFormatter(params, selectedMonth, previousMonth),
     transitionDuration: 0
   },
   legend: {
@@ -185,21 +195,20 @@ const getOption = (getThemeColor: ThemeColorGetter, data: GrossRevenueData, sele
   grid: { right: '8px', left: '40px', bottom: '15%', top: '20%' }
 });
 
-const GrossRevenueChart = forwardRef<ReactEChartsCore, GrossRevenueChartProps>((
-  { data, selectedMonth, previousMonth, className, style },
-  ref
-) => {
-  const { getThemeColor } = useAppContext();
-  return (
-    <ReactEchart
-      echarts={echarts}
-      ref={ref}
-      option={getOption(getThemeColor, data, selectedMonth, previousMonth)}
-      className={className}
-      style={style}
-    />
-  );
-});
+const GrossRevenueChart = forwardRef<ReactEChartsCore, GrossRevenueChartProps>(
+  ({ data, selectedMonth, previousMonth, className, style }, ref) => {
+    const { getThemeColor } = useAppContext();
+    return (
+      <ReactEchart
+        echarts={echarts}
+        ref={ref}
+        option={getOption(getThemeColor, data, selectedMonth, previousMonth)}
+        className={className}
+        style={style}
+      />
+    );
+  }
+);
 
 GrossRevenueChart.displayName = 'GrossRevenueChart';
 

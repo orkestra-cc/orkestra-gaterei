@@ -1,4 +1,3 @@
-
 import { Card, Row, Col } from 'react-bootstrap';
 import { Link } from 'react-router';
 import editing from 'assets/img/illustrations/4.png';

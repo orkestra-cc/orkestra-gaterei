@@ -1,19 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { Alert, Badge, Button, ButtonGroup, Card, Dropdown, Modal, Spinner, Table } from 'react-bootstrap';
+import {
+  Alert,
+  Badge,
+  Button,
+  ButtonGroup,
+  Card,
+  Dropdown,
+  Modal,
+  Spinner,
+  Table
+} from 'react-bootstrap';
 import {
   useGetSelfAuthMethodsQuery,
   useInitiateOauthLinkSelfMutation,
   useUnlinkOauthSelfMutation,
   type OAuthProvider,
-  type SelfAuthOAuthProvider,
+  type SelfAuthOAuthProvider
 } from 'store/api/authApi';
 
 const PROVIDER_LABELS: Record<OAuthProvider, string> = {
   google: 'Google',
   apple: 'Apple',
   github: 'GitHub',
-  discord: 'Discord',
+  discord: 'Discord'
 };
 
 const ALL_PROVIDERS: OAuthProvider[] = ['google', 'apple', 'github', 'discord'];
@@ -22,7 +32,7 @@ const LINK_FAILURE_MESSAGES: Record<string, string> = {
   already_linked: 'That account is already linked to another user.',
   duplicate_provider: 'You already have a provider of this kind linked.',
   invalid_userinfo: 'The provider returned incomplete profile data.',
-  internal: 'Something went wrong while linking. Try again.',
+  internal: 'Something went wrong while linking. Try again.'
 };
 
 // LinkedProvidersTab lists the OAuth identities the user has linked
@@ -32,10 +42,15 @@ const LINK_FAILURE_MESSAGES: Record<string, string> = {
 const LinkedProvidersTab = () => {
   const { data, isLoading, isFetching, refetch } = useGetSelfAuthMethodsQuery();
   const [unlink, { isLoading: unlinkPending }] = useUnlinkOauthSelfMutation();
-  const [initiateLink, { isLoading: linkPending }] = useInitiateOauthLinkSelfMutation();
+  const [initiateLink, { isLoading: linkPending }] =
+    useInitiateOauthLinkSelfMutation();
   const [target, setTarget] = useState<SelfAuthOAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [linkBanner, setLinkBanner] = useState<{ kind: 'success' | 'failed'; provider?: string; code?: string } | null>(null);
+  const [linkBanner, setLinkBanner] = useState<{
+    kind: 'success' | 'failed';
+    provider?: string;
+    code?: string;
+  } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Drain the link=... query params left by the OAuth callback into a
@@ -48,7 +63,11 @@ const LinkedProvidersTab = () => {
     if (!link) return;
     const provider = searchParams.get('provider') ?? undefined;
     const code = searchParams.get('code') ?? undefined;
-    setLinkBanner({ kind: link === 'success' ? 'success' : 'failed', provider, code });
+    setLinkBanner({
+      kind: link === 'success' ? 'success' : 'failed',
+      provider,
+      code
+    });
     const next = new URLSearchParams(searchParams);
     next.delete('link');
     next.delete('provider');
@@ -65,8 +84,8 @@ const LinkedProvidersTab = () => {
   // every render so the useMemo dep is still stable.)
   const providers = data?.oauthProviders ?? [];
   const availableProviders = useMemo(() => {
-    const linked = new Set(providers.map((p) => p.provider));
-    return ALL_PROVIDERS.filter((p) => !linked.has(p));
+    const linked = new Set(providers.map(p => p.provider));
+    return ALL_PROVIDERS.filter(p => !linked.has(p));
   }, [providers]);
 
   if (isLoading) {
@@ -77,8 +96,7 @@ const LinkedProvidersTab = () => {
     );
   }
 
-  const onlyCredential =
-    !data?.hasUsablePassword && providers.length === 1;
+  const onlyCredential = !data?.hasUsablePassword && providers.length === 1;
 
   const onStartLink = async (provider: OAuthProvider) => {
     setError(null);
@@ -90,9 +108,13 @@ const LinkedProvidersTab = () => {
       // the useEffect above renders the outcome banner.
       window.location.assign(res.authUrl);
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; title?: string; code?: string } };
+      const e = err as {
+        data?: { detail?: string; title?: string; code?: string };
+      };
       if (e?.data?.code === 'step_up_required') return; // StepUpModal handles
-      setError(e?.data?.detail || e?.data?.title || 'Failed to start linking flow.');
+      setError(
+        e?.data?.detail || e?.data?.title || 'Failed to start linking flow.'
+      );
     }
   };
 
@@ -103,18 +125,22 @@ const LinkedProvidersTab = () => {
       await unlink({ provider: target.provider }).unwrap();
       setTarget(null);
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; title?: string; code?: string } };
+      const e = err as {
+        data?: { detail?: string; title?: string; code?: string };
+      };
       const code = e?.data?.code;
       if (code === 'last_credential') {
         setError(
-          'You have no other login method. Set a password before unlinking this provider.',
+          'You have no other login method. Set a password before unlinking this provider.'
         );
       } else if (code === 'step_up_required') {
         // The global StepUpModal will pick this up and replay; close
         // the inline modal so the prompt isn't obscured.
         setTarget(null);
       } else {
-        setError(e?.data?.detail || e?.data?.title || 'Failed to unlink provider.');
+        setError(
+          e?.data?.detail || e?.data?.title || 'Failed to unlink provider.'
+        );
       }
     }
   };
@@ -128,11 +154,15 @@ const LinkedProvidersTab = () => {
           </Card.Title>
           {availableProviders.length > 0 && (
             <Dropdown as={ButtonGroup}>
-              <Dropdown.Toggle variant="outline-primary" size="sm" disabled={linkPending}>
+              <Dropdown.Toggle
+                variant="outline-primary"
+                size="sm"
+                disabled={linkPending}
+              >
                 {linkPending ? 'Starting…' : 'Link a sign-in'}
               </Dropdown.Toggle>
               <Dropdown.Menu align="end">
-                {availableProviders.map((p) => (
+                {availableProviders.map(p => (
                   <Dropdown.Item key={p} onClick={() => onStartLink(p)}>
                     {PROVIDER_LABELS[p]}
                   </Dropdown.Item>
@@ -196,7 +226,7 @@ const LinkedProvidersTab = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {providers.map((p) => (
+                  {providers.map(p => (
                     <tr key={p.provider}>
                       <td>
                         {PROVIDER_LABELS[p.provider]}
@@ -231,7 +261,9 @@ const LinkedProvidersTab = () => {
 
       <Modal show={!!target} onHide={() => setTarget(null)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Unlink {target ? PROVIDER_LABELS[target.provider] : ''}</Modal.Title>
+          <Modal.Title>
+            Unlink {target ? PROVIDER_LABELS[target.provider] : ''}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {error && (
@@ -248,7 +280,11 @@ const LinkedProvidersTab = () => {
           <Button variant="secondary" onClick={() => setTarget(null)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirmUnlink} disabled={unlinkPending}>
+          <Button
+            variant="danger"
+            onClick={onConfirmUnlink}
+            disabled={unlinkPending}
+          >
             {unlinkPending ? 'Unlinking…' : 'Unlink'}
           </Button>
         </Modal.Footer>

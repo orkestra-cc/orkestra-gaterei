@@ -15,21 +15,30 @@
  */
 
 /** True when the user holds `required`. The `*` wildcard grants everything. */
-export const hasPermission = (permissions: string[], required: string): boolean => {
+export const hasPermission = (
+  permissions: string[],
+  required: string
+): boolean => {
   if (!permissions || permissions.length === 0) return false;
   return permissions.includes('*') || permissions.includes(required);
 };
 
 /** True when the user holds every permission in `required`. */
-export const hasAllPermissions = (permissions: string[], required: string[]): boolean => {
+export const hasAllPermissions = (
+  permissions: string[],
+  required: string[]
+): boolean => {
   if (permissions.includes('*')) return true;
-  return required.every((p) => permissions.includes(p));
+  return required.every(p => permissions.includes(p));
 };
 
 /** True when the user holds any permission in `required`. */
-export const hasAnyPermission = (permissions: string[], required: string[]): boolean => {
+export const hasAnyPermission = (
+  permissions: string[],
+  required: string[]
+): boolean => {
   if (permissions.includes('*')) return true;
-  return required.some((p) => permissions.includes(p));
+  return required.some(p => permissions.includes(p));
 };
 
 /**
@@ -38,7 +47,9 @@ export const hasAnyPermission = (permissions: string[], required: string[]): boo
  * becomes { billing: [...], rag: [...] }. Useful for rendering the
  * role editor where permissions are organized by module.
  */
-export const groupPermissionsByModule = (permissions: string[]): Record<string, string[]> => {
+export const groupPermissionsByModule = (
+  permissions: string[]
+): Record<string, string[]> => {
   const out: Record<string, string[]> = {};
   for (const p of permissions) {
     const dot = p.indexOf('.');

@@ -34,8 +34,8 @@ const OverviewTab: React.FC<Props> = ({ org }) => {
         tenantId: org.id,
         body: {
           name: name !== org.name ? name : undefined,
-          slug: slug !== org.slug ? slug : undefined,
-        },
+          slug: slug !== org.slug ? slug : undefined
+        }
       }).unwrap();
       toast.success('Client updated');
     } catch (err: unknown) {
@@ -48,11 +48,11 @@ const OverviewTab: React.FC<Props> = ({ org }) => {
       <div className="row g-3">
         <Form.Group className="col-md-6">
           <Form.Label className="fw-semibold fs-10">Name</Form.Label>
-          <Form.Control value={name} onChange={(e) => setName(e.target.value)} />
+          <Form.Control value={name} onChange={e => setName(e.target.value)} />
         </Form.Group>
         <Form.Group className="col-md-6">
           <Form.Label className="fw-semibold fs-10">Slug</Form.Label>
-          <Form.Control value={slug} onChange={(e) => setSlug(e.target.value)} />
+          <Form.Control value={slug} onChange={e => setSlug(e.target.value)} />
         </Form.Group>
         <Form.Group className="col-md-6">
           <Form.Label className="fw-semibold fs-10">Plan</Form.Label>
@@ -68,7 +68,11 @@ const OverviewTab: React.FC<Props> = ({ org }) => {
         </Form.Group>
         <Form.Group className="col-md-6">
           <Form.Label className="fw-semibold fs-10">Tenant ID</Form.Label>
-          <Form.Control readOnly value={org.id} className="fs-11 font-monospace" />
+          <Form.Control
+            readOnly
+            value={org.id}
+            className="fs-11 font-monospace"
+          />
         </Form.Group>
         <Form.Group className="col-md-6">
           <Form.Label className="fw-semibold fs-10">Owner</Form.Label>

@@ -5,11 +5,14 @@ import {
   faBell,
   faExclamationCircle,
   faCheckCircle,
-  faArrowRight,
+  faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import { Link } from 'react-router';
-import { useGetBillingStatsQuery, useGetNotificationsQuery } from 'store/api/billingApi';
+import {
+  useGetBillingStatsQuery,
+  useGetNotificationsQuery
+} from 'store/api/billingApi';
 import { lastYearRange } from './dateRanges';
 
 interface PendingAction {
@@ -24,12 +27,13 @@ interface PendingAction {
 
 const PendingActions = () => {
   const lastYear = lastYearRange();
-  const { data: stats, isLoading: statsLoading } = useGetBillingStatsQuery(lastYear);
+  const { data: stats, isLoading: statsLoading } =
+    useGetBillingStatsQuery(lastYear);
   const { isLoading: notificationsLoading } = useGetNotificationsQuery({
     processed: false,
     pageSize: 5,
     fromDate: lastYear.fromDate,
-    toDate: lastYear.toDate,
+    toDate: lastYear.toDate
   });
 
   const isLoading = statsLoading || notificationsLoading;
@@ -38,7 +42,10 @@ const PendingActions = () => {
     return (
       <Card className="h-100">
         <FalconCardHeader title="Azioni Richieste" titleTag="h6" light />
-        <Card.Body className="d-flex align-items-center justify-content-center" style={{ minHeight: 200 }}>
+        <Card.Body
+          className="d-flex align-items-center justify-content-center"
+          style={{ minHeight: 200 }}
+        >
           <Spinner animation="border" size="sm" />
         </Card.Body>
       </Card>
@@ -56,7 +63,7 @@ const PendingActions = () => {
       icon: faFileInvoice,
       iconColor: 'text-warning',
       link: '/billing/invoices/issued?status=draft',
-      priority: 'medium',
+      priority: 'medium'
     });
   }
 
@@ -69,7 +76,7 @@ const PendingActions = () => {
       icon: faExclamationCircle,
       iconColor: 'text-danger',
       link: '/billing/invoices/issued?status=rejected',
-      priority: 'high',
+      priority: 'high'
     });
   }
 
@@ -82,7 +89,7 @@ const PendingActions = () => {
       icon: faFileInvoice,
       iconColor: 'text-info',
       link: '/billing/invoices/received?status=pending',
-      priority: 'medium',
+      priority: 'medium'
     });
   }
 
@@ -95,7 +102,7 @@ const PendingActions = () => {
       icon: faBell,
       iconColor: 'text-warning',
       link: '/billing/notifications?processed=false',
-      priority: 'medium',
+      priority: 'medium'
     });
   }
 
@@ -106,11 +113,23 @@ const PendingActions = () => {
   const getPriorityBadge = (priority: PendingAction['priority']) => {
     switch (priority) {
       case 'high':
-        return <Badge bg="danger" className="fs-11">Urgente</Badge>;
+        return (
+          <Badge bg="danger" className="fs-11">
+            Urgente
+          </Badge>
+        );
       case 'medium':
-        return <Badge bg="warning" className="fs-11">Medio</Badge>;
+        return (
+          <Badge bg="warning" className="fs-11">
+            Medio
+          </Badge>
+        );
       case 'low':
-        return <Badge bg="secondary" className="fs-11">Basso</Badge>;
+        return (
+          <Badge bg="secondary" className="fs-11">
+            Basso
+          </Badge>
+        );
     }
   };
 
@@ -138,13 +157,11 @@ const PendingActions = () => {
             <p className="text-success fs-10 mb-0 fw-medium">
               Nessuna azione pendente
             </p>
-            <p className="text-body-tertiary fs-11 mb-0">
-              Tutto in ordine!
-            </p>
+            <p className="text-body-tertiary fs-11 mb-0">Tutto in ordine!</p>
           </div>
         ) : (
           <ListGroup variant="flush">
-            {actions.map((action) => (
+            {actions.map(action => (
               <ListGroup.Item
                 key={action.id}
                 as={Link}

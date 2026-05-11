@@ -11,7 +11,12 @@ interface TinymceEditorProps {
   isInvalid?: boolean;
 }
 
-const TinymceEditor = ({ value = '', handleChange, height = '50vh', isInvalid }: TinymceEditorProps) => {
+const TinymceEditor = ({
+  value = '',
+  handleChange,
+  height = '50vh',
+  isInvalid
+}: TinymceEditorProps) => {
   const {
     config: { isDark, isRTL },
     getThemeColor

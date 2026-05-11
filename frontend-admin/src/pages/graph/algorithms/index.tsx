@@ -1,15 +1,27 @@
 import { useState, useCallback } from 'react';
-import { Row, Col, Card, Button, Form, Table, Badge, Spinner, Accordion } from 'react-bootstrap';
+import {
+  Row,
+  Col,
+  Card,
+  Button,
+  Form,
+  Table,
+  Badge,
+  Spinner,
+  Accordion
+} from 'react-bootstrap';
 import {
   useRunAlgorithmMutation,
-  useListAlgorithmsQuery,
+  useListAlgorithmsQuery
 } from '../../../store/api/graphApi';
 import ResultsTable from '../components/ResultsTable';
 import type { QueryResult } from '../../../types/graph';
 
 const GraphAlgorithms: React.FC = () => {
   const [database, setDatabase] = useState('');
-  const [algorithmResult, setAlgorithmResult] = useState<QueryResult | null>(null);
+  const [algorithmResult, setAlgorithmResult] = useState<QueryResult | null>(
+    null
+  );
 
   // Algorithms
   const { data: algoData } = useListAlgorithmsQuery();
@@ -31,7 +43,7 @@ const GraphAlgorithms: React.FC = () => {
       const res = await runAlgorithm({
         algorithm: selectedAlgo,
         config,
-        database: database || undefined,
+        database: database || undefined
       }).unwrap();
       setAlgorithmResult(res);
     } catch {
@@ -40,11 +52,15 @@ const GraphAlgorithms: React.FC = () => {
   }, [runAlgorithm, selectedAlgo, algoConfig, database]);
 
   // Group algorithms by category
-  const algosByCategory = algoData?.algorithms?.reduce((acc, algo) => {
-    if (!acc[algo.category]) acc[algo.category] = [];
-    acc[algo.category].push(algo);
-    return acc;
-  }, {} as Record<string, typeof algoData.algorithms>) ?? {};
+  const algosByCategory =
+    algoData?.algorithms?.reduce(
+      (acc, algo) => {
+        if (!acc[algo.category]) acc[algo.category] = [];
+        acc[algo.category].push(algo);
+        return acc;
+      },
+      {} as Record<string, typeof algoData.algorithms>
+    ) ?? {};
 
   return (
     <>
@@ -53,7 +69,9 @@ const GraphAlgorithms: React.FC = () => {
           <div className="d-flex align-items-center justify-content-between">
             <h5 className="mb-0">Graph Algorithms</h5>
             <Form.Group className="d-flex align-items-center gap-2">
-              <Form.Label className="mb-0 small text-muted">Database:</Form.Label>
+              <Form.Label className="mb-0 small text-muted">
+                Database:
+              </Form.Label>
               <Form.Control
                 size="sm"
                 type="text"
@@ -74,7 +92,9 @@ const GraphAlgorithms: React.FC = () => {
             <Card.Header>
               <div className="d-flex align-items-center justify-content-between">
                 <h6 className="mb-0">Available Algorithms (MAGE)</h6>
-                <Badge bg="secondary">{algoData?.algorithms?.length ?? 0}</Badge>
+                <Badge bg="secondary">
+                  {algoData?.algorithms?.length ?? 0}
+                </Badge>
               </div>
             </Card.Header>
             <Card.Body className="p-0">
@@ -95,8 +115,14 @@ const GraphAlgorithms: React.FC = () => {
                       onClick={() => setSelectedAlgo(a.name)}
                     >
                       <td className="fw-semibold">{a.name}</td>
-                      <td><Badge bg="info" className="text-capitalize">{a.category}</Badge></td>
-                      <td><code className="small">{a.procedure}</code></td>
+                      <td>
+                        <Badge bg="info" className="text-capitalize">
+                          {a.category}
+                        </Badge>
+                      </td>
+                      <td>
+                        <code className="small">{a.procedure}</code>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -114,12 +140,23 @@ const GraphAlgorithms: React.FC = () => {
             <Card.Body>
               <Form.Group className="mb-3">
                 <Form.Label className="small">Algorithm</Form.Label>
-                <Form.Select size="sm" value={selectedAlgo} onChange={e => setSelectedAlgo(e.target.value)}>
+                <Form.Select
+                  size="sm"
+                  value={selectedAlgo}
+                  onChange={e => setSelectedAlgo(e.target.value)}
+                >
                   <option value="">Select algorithm...</option>
                   {Object.entries(algosByCategory).map(([category, algos]) => (
-                    <optgroup key={category} label={category.charAt(0).toUpperCase() + category.slice(1)}>
+                    <optgroup
+                      key={category}
+                      label={
+                        category.charAt(0).toUpperCase() + category.slice(1)
+                      }
+                    >
                       {algos.map(a => (
-                        <option key={a.name} value={a.name}>{a.name} - {a.description}</option>
+                        <option key={a.name} value={a.name}>
+                          {a.name} - {a.description}
+                        </option>
                       ))}
                     </optgroup>
                   ))}
@@ -128,7 +165,9 @@ const GraphAlgorithms: React.FC = () => {
 
               <Accordion className="mb-3">
                 <Accordion.Item eventKey="0">
-                  <Accordion.Header><small>Algorithm Configuration (JSON)</small></Accordion.Header>
+                  <Accordion.Header>
+                    <small>Algorithm Configuration (JSON)</small>
+                  </Accordion.Header>
                   <Accordion.Body className="p-2">
                     <Form.Control
                       as="textarea"
@@ -137,7 +176,7 @@ const GraphAlgorithms: React.FC = () => {
                       className="font-monospace"
                       value={algoConfig}
                       onChange={e => setAlgoConfig(e.target.value)}
-                      placeholder='{}'
+                      placeholder="{}"
                     />
                   </Accordion.Body>
                 </Accordion.Item>
@@ -149,7 +188,13 @@ const GraphAlgorithms: React.FC = () => {
                 onClick={handleRunAlgorithm}
                 disabled={running || !selectedAlgo}
               >
-                {running ? <><Spinner size="sm" className="me-1" /> Running...</> : 'Run Algorithm'}
+                {running ? (
+                  <>
+                    <Spinner size="sm" className="me-1" /> Running...
+                  </>
+                ) : (
+                  'Run Algorithm'
+                )}
               </Button>
             </Card.Body>
           </Card>

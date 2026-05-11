@@ -35,28 +35,32 @@ export interface UpdateSettingsRequest {
 
 // Settings API slice
 export const settingsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Get user settings
     getUserSettings: builder.query<UserSettings, void>({
       query: () => '/user/settings',
       providesTags: ['User'],
-      keepUnusedDataFor: 600, // 10 minutes
+      keepUnusedDataFor: 600 // 10 minutes
     }),
 
     // Update user settings
     updateUserSettings: builder.mutation<UserSettings, UpdateSettingsRequest>({
-      query: (updates) => ({
+      query: updates => ({
         url: '/user/settings',
         method: 'PUT',
-        body: updates,
+        body: updates
       }),
       invalidatesTags: ['User'],
       // Optimistic update
       onQueryStarted: async (updates, { dispatch, queryFulfilled }) => {
         const patchResult = dispatch(
-          settingsApi.util.updateQueryData('getUserSettings', undefined, (draft) => {
-            Object.assign(draft, updates);
-          })
+          settingsApi.util.updateQueryData(
+            'getUserSettings',
+            undefined,
+            draft => {
+              Object.assign(draft, updates);
+            }
+          )
         );
 
         try {
@@ -64,42 +68,42 @@ export const settingsApi = baseApi.injectEndpoints({
         } catch {
           patchResult.undo();
         }
-      },
+      }
     }),
 
     // Reset settings to defaults
     resetUserSettings: builder.mutation<UserSettings, void>({
       query: () => ({
         url: '/user/settings/reset',
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['User'],
+      invalidatesTags: ['User']
     }),
 
     // Export user settings
     exportUserSettings: builder.query<Blob, void>({
       query: () => ({
         url: '/user/settings/export',
-        responseHandler: (response) => response.blob(),
+        responseHandler: response => response.blob()
       }),
       // Don't cache exports
-      keepUnusedDataFor: 0,
+      keepUnusedDataFor: 0
     }),
 
     // Import user settings
     importUserSettings: builder.mutation<UserSettings, File>({
-      query: (file) => {
+      query: file => {
         const formData = new FormData();
         formData.append('settings', file);
         return {
           url: '/user/settings/import',
           method: 'POST',
-          body: formData,
+          body: formData
         };
       },
-      invalidatesTags: ['User'],
-    }),
-  }),
+      invalidatesTags: ['User']
+    })
+  })
 });
 
 // Export hooks
@@ -108,7 +112,7 @@ export const {
   useUpdateUserSettingsMutation,
   useResetUserSettingsMutation,
   useLazyExportUserSettingsQuery,
-  useImportUserSettingsMutation,
+  useImportUserSettingsMutation
 } = settingsApi;
 
 // Enhanced settings hook with common operations
@@ -120,9 +124,12 @@ export const useSettings = () => {
     refetch
   } = useGetUserSettingsQuery();
 
-  const [updateSettings, { isLoading: isUpdating }] = useUpdateUserSettingsMutation();
-  const [resetSettings, { isLoading: isResetting }] = useResetUserSettingsMutation();
-  const [importSettings, { isLoading: isImporting }] = useImportUserSettingsMutation();
+  const [updateSettings, { isLoading: isUpdating }] =
+    useUpdateUserSettingsMutation();
+  const [resetSettings, { isLoading: isResetting }] =
+    useResetUserSettingsMutation();
+  const [importSettings, { isLoading: isImporting }] =
+    useImportUserSettingsMutation();
 
   // Helper functions for common settings operations
   const updateTheme = async (theme: UserSettings['theme']) => {
@@ -134,7 +141,9 @@ export const useSettings = () => {
     }
   };
 
-  const updateNotifications = async (notifications: Partial<UserSettings['notifications']>) => {
+  const updateNotifications = async (
+    notifications: Partial<UserSettings['notifications']>
+  ) => {
     try {
       await updateSettings({ notifications }).unwrap();
     } catch (error) {
@@ -143,7 +152,9 @@ export const useSettings = () => {
     }
   };
 
-  const updatePreferences = async (preferences: Partial<UserSettings['preferences']>) => {
+  const updatePreferences = async (
+    preferences: Partial<UserSettings['preferences']>
+  ) => {
     try {
       await updateSettings({ preferences }).unwrap();
     } catch (error) {
@@ -182,6 +193,6 @@ export const useSettings = () => {
     updateTheme,
     updateNotifications,
     updatePreferences,
-    updatePrivacy,
+    updatePrivacy
   };
 };

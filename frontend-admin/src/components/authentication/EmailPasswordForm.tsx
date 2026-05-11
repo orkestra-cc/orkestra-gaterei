@@ -39,8 +39,8 @@ const EmailPasswordForm = () => {
           state: {
             challengeId: result.mfaToken,
             email,
-            webauthnAvailable: result.webauthnAvailable ?? false,
-          },
+            webauthnAvailable: result.webauthnAvailable ?? false
+          }
         });
         return;
       }
@@ -57,11 +57,15 @@ const EmailPasswordForm = () => {
       if (anyErr?.status === 401) {
         setLocalError('Invalid email or password.');
       } else if (anyErr?.status === 403) {
-        setLocalError(anyErr?.data?.detail || 'Your email has not been verified.');
+        setLocalError(
+          anyErr?.data?.detail || 'Your email has not been verified.'
+        );
       } else if (anyErr?.status === 429) {
         setLocalError('Too many failed attempts. Please try again later.');
       } else {
-        setLocalError(anyErr?.data?.detail || 'Unable to sign in. Please try again.');
+        setLocalError(
+          anyErr?.data?.detail || 'Unable to sign in. Please try again.'
+        );
       }
     }
   };
@@ -70,11 +74,17 @@ const EmailPasswordForm = () => {
     <Form onSubmit={handleSubmit}>
       {!loginEnabled && (
         <Alert variant="warning" className="mb-3">
-          Login is temporarily disabled by an administrator. Please try again later.
+          Login is temporarily disabled by an administrator. Please try again
+          later.
         </Alert>
       )}
       {localError && (
-        <Alert variant="danger" className="mb-3" onClose={() => setLocalError(null)} dismissible>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          onClose={() => setLocalError(null)}
+          dismissible
+        >
           {localError}
         </Alert>
       )}
@@ -86,7 +96,7 @@ const EmailPasswordForm = () => {
           name="email"
           placeholder="you@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           autoComplete="email"
           required
         />
@@ -104,14 +114,19 @@ const EmailPasswordForm = () => {
           name="password"
           placeholder="••••••••"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
           autoComplete="current-password"
           required
         />
       </Form.Group>
 
       <div className="d-grid mb-3">
-        <Button type="submit" variant="primary" size="lg" disabled={isLoading || !loginEnabled}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          disabled={isLoading || !loginEnabled}
+        >
           {isLoading ? 'Signing in…' : 'Sign in'}
         </Button>
       </div>

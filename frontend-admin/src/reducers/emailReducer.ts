@@ -13,11 +13,21 @@ export interface EmailState {
 }
 
 export interface EmailAction {
-  type: 'FILTER' | 'BULK_UPDATE' | 'ARCHIVE' | 'DELETE' | 'READ' | 'SNOOZE' | 'RESET';
+  type:
+    | 'FILTER'
+    | 'BULK_UPDATE'
+    | 'ARCHIVE'
+    | 'DELETE'
+    | 'READ'
+    | 'SNOOZE'
+    | 'RESET';
   payload?: any;
 }
 
-export const emailReducer = (state: EmailState, action: EmailAction): EmailState => {
+export const emailReducer = (
+  state: EmailState,
+  action: EmailAction
+): EmailState => {
   const { type, payload } = action;
   switch (type) {
     case 'FILTER':

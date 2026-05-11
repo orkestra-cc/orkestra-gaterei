@@ -13,7 +13,11 @@ const escapeCsvValue = (value: any): string => {
   const stringValue = String(value);
 
   // If the value contains comma, quote, or newline, wrap it in quotes
-  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+  if (
+    stringValue.includes(',') ||
+    stringValue.includes('"') ||
+    stringValue.includes('\n')
+  ) {
     // Escape existing quotes by doubling them
     return `"${stringValue.replace(/"/g, '""')}"`;
   }
@@ -81,7 +85,10 @@ export const formatDateForCSV = (dateString: string | undefined): string => {
 /**
  * Generate filename with timestamp
  */
-export const generateTimestampedFilename = (baseName: string, extension: string = 'csv'): string => {
+export const generateTimestampedFilename = (
+  baseName: string,
+  extension: string = 'csv'
+): string => {
   const now = new Date();
   const timestamp = now.toISOString().split('T')[0]; // YYYY-MM-DD
   return `${baseName}_${timestamp}.${extension}`;

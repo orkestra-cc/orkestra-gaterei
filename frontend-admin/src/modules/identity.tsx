@@ -17,15 +17,17 @@ export const identityManifest: ModuleManifest = {
       element: (
         <ModuleGate module="identity">
           <ProtectedRoute
-            requiredPermissions={[['super_admin', 'administrator', 'developer']]}
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer']
+            ]}
           >
             <Suspense key="identity-admin" fallback={<FalconLoader />}>
               <IdentityAdminPage />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
-  injectApi: () => import('store/api/identityApi'),
+  injectApi: () => import('store/api/identityApi')
 };

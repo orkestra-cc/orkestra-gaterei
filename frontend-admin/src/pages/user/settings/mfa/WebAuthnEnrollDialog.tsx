@@ -2,12 +2,12 @@ import { useState, FormEvent } from 'react';
 import { Alert, Button, Form, Modal } from 'react-bootstrap';
 import {
   useWebAuthnRegisterBeginMutation,
-  useWebAuthnRegisterFinishMutation,
+  useWebAuthnRegisterFinishMutation
 } from 'store/api/mfaApi';
 import {
   browserSupportsWebAuthn,
   decodeCreationOptions,
-  encodeAttestation,
+  encodeAttestation
 } from 'store/api/webauthnCodec';
 
 interface Props {
@@ -48,7 +48,9 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
     event.preventDefault();
     setError(null);
     if (!browserSupportsWebAuthn()) {
-      setError('This browser does not support passkeys. Try Chrome, Safari, or Firefox over HTTPS.');
+      setError(
+        'This browser does not support passkeys. Try Chrome, Safari, or Firefox over HTTPS.'
+      );
       return;
     }
     const trimmed = name.trim() || 'Passkey';
@@ -56,7 +58,9 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
     try {
       const beginRes = await begin().unwrap();
       const opts = decodeCreationOptions(beginRes.publicKey);
-      const cred = (await navigator.credentials.create({ publicKey: opts })) as PublicKeyCredential | null;
+      const cred = (await navigator.credentials.create({
+        publicKey: opts
+      })) as PublicKeyCredential | null;
       if (!cred) {
         setError('Enrollment was cancelled. Try again when you are ready.');
         setBusy(false);
@@ -65,12 +69,17 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
       await finish({
         challengeId: beginRes.challengeId,
         name: trimmed,
-        attestationResponse: encodeAttestation(cred),
+        attestationResponse: encodeAttestation(cred)
       }).unwrap();
       reset();
       onHide();
     } catch (err: unknown) {
-      const anyErr = err as { name?: string; message?: string; status?: number; data?: { detail?: string } };
+      const anyErr = err as {
+        name?: string;
+        message?: string;
+        status?: number;
+        data?: { detail?: string };
+      };
       // DOMException from navigator.credentials.create — typically the
       // user cancelled the prompt or the authenticator timed out.
       if (anyErr?.name === 'NotAllowedError') {
@@ -80,7 +89,11 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
       } else if (anyErr?.status === 401) {
         setError('Could not verify the attestation. Please try again.');
       } else {
-        setError(anyErr?.data?.detail ?? anyErr?.message ?? 'Could not register the passkey.');
+        setError(
+          anyErr?.data?.detail ??
+            anyErr?.message ??
+            'Could not register the passkey.'
+        );
       }
       setBusy(false);
     }
@@ -94,12 +107,18 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Body>
           <p className="fs-10 mb-3">
-            A passkey replaces the authenticator-app code with a tap or biometric prompt.
-            You can use a built-in fingerprint reader, Face ID, or a hardware security key.
+            A passkey replaces the authenticator-app code with a tap or
+            biometric prompt. You can use a built-in fingerprint reader, Face
+            ID, or a hardware security key.
           </p>
 
           {error && (
-            <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+            <Alert
+              variant="danger"
+              className="mb-3"
+              onClose={() => setError(null)}
+              dismissible
+            >
               {error}
             </Alert>
           )}
@@ -110,17 +129,22 @@ const WebAuthnEnrollDialog = ({ show, onHide }: Props) => {
               type="text"
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="e.g. Yubikey 5C, iPhone Touch ID"
               maxLength={60}
             />
             <Form.Text muted>
-              A label so you can recognise this passkey later in the settings list.
+              A label so you can recognise this passkey later in the settings
+              list.
             </Form.Text>
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={handleClose} disabled={busy}>
+          <Button
+            variant="outline-secondary"
+            onClick={handleClose}
+            disabled={busy}
+          >
             Cancel
           </Button>
           <Button type="submit" variant="primary" disabled={busy}>

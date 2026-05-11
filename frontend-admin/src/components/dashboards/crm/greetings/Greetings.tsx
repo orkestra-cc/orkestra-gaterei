@@ -1,4 +1,3 @@
-
 import Flex from 'components/common/Flex';
 import { Card, Col, Row } from 'react-bootstrap';
 import barChart from 'assets/img/illustrations/crm-bar-chart.png';

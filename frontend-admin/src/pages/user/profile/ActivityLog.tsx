@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import Notification from 'components/notification/Notification';
 import classNames from 'classnames';

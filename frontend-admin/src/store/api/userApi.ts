@@ -57,7 +57,6 @@ export interface DeleteUserResponse {
   message: string;
 }
 
-
 export interface UserMetrics {
   tasksCompleted: number;
   totalTasks: number;
@@ -222,54 +221,58 @@ export interface AdminClientUserListParams {
 
 // User management API slice
 export const userApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // List users with filtering and pagination
     getUsers: builder.query<UserListResponse, UserListParams | undefined>({
-      query: (params) => {
+      query: params => {
         const searchParams = new URLSearchParams();
 
         // Add parameters if they exist
         if (params?.role) searchParams.append('role', params.role);
-        if (params?.isActive !== undefined) searchParams.append('isActive', String(params.isActive));
-        if (params?.emailVerified !== undefined) searchParams.append('emailVerified', String(params.emailVerified));
+        if (params?.isActive !== undefined)
+          searchParams.append('isActive', String(params.isActive));
+        if (params?.emailVerified !== undefined)
+          searchParams.append('emailVerified', String(params.emailVerified));
         if (params?.search) searchParams.append('search', params.search);
-        if (params?.page !== undefined) searchParams.append('page', String(params.page));
-        if (params?.pageSize !== undefined) searchParams.append('pageSize', String(params.pageSize));
+        if (params?.page !== undefined)
+          searchParams.append('page', String(params.page));
+        if (params?.pageSize !== undefined)
+          searchParams.append('pageSize', String(params.pageSize));
 
         return {
           url: `/v1/users?${searchParams.toString()}`,
-          method: 'GET',
+          method: 'GET'
         };
       },
-      providesTags: (result) =>
+      providesTags: result =>
         result
           ? [
               ...result.users.map(({ id }) => ({ type: 'User' as const, id })),
-              { type: 'User', id: 'LIST' },
+              { type: 'User', id: 'LIST' }
             ]
-          : [{ type: 'User', id: 'LIST' }],
+          : [{ type: 'User', id: 'LIST' }]
     }),
 
     // Get user by ID
     getUserById: builder.query<User, string>({
-      query: (id) => `/v1/users/${id}`,
-      providesTags: (_result, _error, id) => [{ type: 'User', id }],
+      query: id => `/v1/users/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'User', id }]
     }),
 
     // Get user by email
     getUserByEmail: builder.query<User, string>({
-      query: (email) => `/v1/users/by-email?email=${email}`,
-      providesTags: (result) => result ? [{ type: 'User', id: result.id }] : [],
+      query: email => `/v1/users/by-email?email=${email}`,
+      providesTags: result => (result ? [{ type: 'User', id: result.id }] : [])
     }),
 
     // Create new user
     createUser: builder.mutation<User, CreateUserInput>({
-      query: (userData) => ({
+      query: userData => ({
         url: '/v1/users',
         method: 'POST',
-        body: userData,
+        body: userData
       }),
-      invalidatesTags: [{ type: 'User', id: 'LIST' }],
+      invalidatesTags: [{ type: 'User', id: 'LIST' }]
     }),
 
     // Update user
@@ -277,65 +280,71 @@ export const userApi = baseApi.injectEndpoints({
       query: ({ id, data }) => ({
         url: `/v1/users/${id}`,
         method: 'PUT',
-        body: data,
+        body: data
       }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'User', id },
-        { type: 'User', id: 'LIST' },
-      ],
+        { type: 'User', id: 'LIST' }
+      ]
     }),
 
     // Delete user
     deleteUser: builder.mutation<DeleteUserResponse, string>({
-      query: (id) => ({
+      query: id => ({
         url: `/v1/users/${id}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_result, _error, id) => [
         { type: 'User', id },
-        { type: 'User', id: 'LIST' },
-      ],
+        { type: 'User', id: 'LIST' }
+      ]
     }),
 
     // Get user metrics
     getUserMetrics: builder.query<UserMetrics, string>({
-      query: (userId) => `/v1/users/${userId}/metrics`,
+      query: userId => `/v1/users/${userId}/metrics`,
       providesTags: (_result, _error, userId) => [
         { type: 'User' as const, id: `metrics-${userId}` }
-      ],
+      ]
     }),
 
     // Admin — list Tier-2 client users with tenant memberships joined.
     // Powers the /admin/clients page (user-centric view of client_users).
-    listClientUsersAdmin: builder.query<AdminClientUserListResponse, AdminClientUserListParams | undefined>({
-      query: (params) => {
+    listClientUsersAdmin: builder.query<
+      AdminClientUserListResponse,
+      AdminClientUserListParams | undefined
+    >({
+      query: params => {
         const sp = new URLSearchParams();
         if (params?.role) sp.append('role', params.role);
-        if (params?.isActive !== undefined) sp.append('isActive', String(params.isActive));
-        if (params?.emailVerified !== undefined) sp.append('emailVerified', String(params.emailVerified));
+        if (params?.isActive !== undefined)
+          sp.append('isActive', String(params.isActive));
+        if (params?.emailVerified !== undefined)
+          sp.append('emailVerified', String(params.emailVerified));
         if (params?.search) sp.append('search', params.search);
         if (params?.page !== undefined) sp.append('page', String(params.page));
-        if (params?.pageSize !== undefined) sp.append('pageSize', String(params.pageSize));
+        if (params?.pageSize !== undefined)
+          sp.append('pageSize', String(params.pageSize));
         const qs = sp.toString();
         return {
           url: qs ? `/v1/admin/client-users?${qs}` : '/v1/admin/client-users',
-          method: 'GET',
+          method: 'GET'
         };
       },
-      providesTags: (result) =>
+      providesTags: result =>
         result
           ? [
               ...result.users.map(({ id }) => ({ type: 'User' as const, id })),
-              { type: 'User', id: 'CLIENT_LIST' },
+              { type: 'User', id: 'CLIENT_LIST' }
             ]
-          : [{ type: 'User', id: 'CLIENT_LIST' }],
+          : [{ type: 'User', id: 'CLIENT_LIST' }]
     }),
 
     // Admin — single Tier-2 client user with tenant memberships and
     // OAuth providers joined in. Powers /admin/clients/:userId.
     getClientUserAdmin: builder.query<AdminClientUserItem, string>({
-      query: (id) => `/v1/admin/client-users/${id}`,
-      providesTags: (_result, _error, id) => [{ type: 'User', id }],
+      query: id => `/v1/admin/client-users/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'User', id }]
     }),
 
     // Admin — patch profile / role / active status for a client user.
@@ -346,24 +355,24 @@ export const userApi = baseApi.injectEndpoints({
       query: ({ id, data }) => ({
         url: `/v1/admin/client-users/${id}`,
         method: 'PATCH',
-        body: data,
+        body: data
       }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'User', id },
-        { type: 'User', id: 'CLIENT_LIST' },
-      ],
+        { type: 'User', id: 'CLIENT_LIST' }
+      ]
     }),
 
     // Admin — soft-delete a client user with email aliasing.
     deleteClientUserAdmin: builder.mutation<{ message: string }, string>({
-      query: (id) => ({
+      query: id => ({
         url: `/v1/admin/client-users/${id}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_result, _error, id) => [
         { type: 'User', id },
-        { type: 'User', id: 'CLIENT_LIST' },
-      ],
+        { type: 'User', id: 'CLIENT_LIST' }
+      ]
     }),
 
     // Admin — create a Tier-2 client user directly (pre-verified).
@@ -371,12 +380,12 @@ export const userApi = baseApi.injectEndpoints({
       AdminClientUserItem,
       CreateClientUserAdminInput
     >({
-      query: (data) => ({
+      query: data => ({
         url: '/v1/admin/client-users',
         method: 'POST',
-        body: data,
+        body: data
       }),
-      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }],
+      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }]
     }),
 
     // Admin — invite a new Tier-2 client user. Server creates the row
@@ -385,12 +394,12 @@ export const userApi = baseApi.injectEndpoints({
       AdminClientUserItem,
       InviteClientUserAdminInput
     >({
-      query: (data) => ({
+      query: data => ({
         url: '/v1/admin/client-users/invite',
         method: 'POST',
-        body: data,
+        body: data
       }),
-      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }],
+      invalidatesTags: [{ type: 'User', id: 'CLIENT_LIST' }]
     }),
 
     // Admin — re-send the invite email for an existing user.
@@ -401,68 +410,79 @@ export const userApi = baseApi.injectEndpoints({
       query: ({ id, inviterName }) => ({
         url: `/v1/admin/client-users/${id}/invite/resend`,
         method: 'POST',
-        body: { inviterName },
-      }),
+        body: { inviterName }
+      })
     }),
 
     // Admin — re-send the email-verification link.
-    resendVerificationClientUserAdmin: builder.mutation<AdminTriggerResponse, string>({
-      query: (id) => ({
+    resendVerificationClientUserAdmin: builder.mutation<
+      AdminTriggerResponse,
+      string
+    >({
+      query: id => ({
         url: `/v1/admin/client-users/${id}/resend-verification`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: (_r, _e, id) => [{ type: 'User', id }],
+      invalidatesTags: (_r, _e, id) => [{ type: 'User', id }]
     }),
 
     // Admin — trigger a password-reset email.
-    sendPasswordResetClientUserAdmin: builder.mutation<AdminTriggerResponse, string>({
-      query: (id) => ({
+    sendPasswordResetClientUserAdmin: builder.mutation<
+      AdminTriggerResponse,
+      string
+    >({
+      query: id => ({
         url: `/v1/admin/client-users/${id}/send-password-reset`,
-        method: 'POST',
-      }),
+        method: 'POST'
+      })
     }),
 
     // Admin — aggregate auth state of an operator user. Drives the
     // Authentication Methods card on /admin/user/profile/:userId.
     getUserAuthMethodsAdmin: builder.query<AdminAuthMethods, string>({
-      query: (id) => `/v1/admin/users/${id}/auth-methods`,
-      providesTags: (_r, _e, id) => [{ type: 'User', id: `auth-methods-${id}` }],
+      query: id => `/v1/admin/users/${id}/auth-methods`,
+      providesTags: (_r, _e, id) => [{ type: 'User', id: `auth-methods-${id}` }]
     }),
 
     // Admin — trigger a password-reset email for an operator user.
     sendPasswordResetUserAdmin: builder.mutation<AdminTriggerResponse, string>({
-      query: (id) => ({
+      query: id => ({
         url: `/v1/admin/users/${id}/send-password-reset`,
-        method: 'POST',
-      }),
+        method: 'POST'
+      })
       // No tag invalidation: send-password-reset has no read-side
       // effect on the user record; the card stays accurate.
     }),
 
     // Admin — resend the email-verification message for an operator user.
-    resendVerificationUserAdmin: builder.mutation<AdminTriggerResponse, string>({
-      query: (id) => ({
-        url: `/v1/admin/users/${id}/resend-verification`,
-        method: 'POST',
-      }),
-      invalidatesTags: (_r, _e, id) => [
-        { type: 'User', id },
-        { type: 'User', id: `auth-methods-${id}` },
-      ],
-    }),
+    resendVerificationUserAdmin: builder.mutation<AdminTriggerResponse, string>(
+      {
+        query: id => ({
+          url: `/v1/admin/users/${id}/resend-verification`,
+          method: 'POST'
+        }),
+        invalidatesTags: (_r, _e, id) => [
+          { type: 'User', id },
+          { type: 'User', id: `auth-methods-${id}` }
+        ]
+      }
+    ),
 
     // Admin — unlink an OAuth identity from an operator user.
-    unlinkOAuthUserAdmin: builder.mutation<{ success: boolean }, { id: string; provider: OAuthProviderName }>({
+    unlinkOAuthUserAdmin: builder.mutation<
+      { success: boolean },
+      { id: string; provider: OAuthProviderName }
+    >({
       query: ({ id, provider }) => ({
         url: `/v1/admin/users/${id}/oauth/${provider}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_r, _e, { id }) => [
         { type: 'User', id },
-        { type: 'User', id: `auth-methods-${id}` },
-      ],
-    }),
-  }),
+        { type: 'User', id: `auth-methods-${id}` }
+      ]
+    })
+  })
 });
 
 // Export hooks for usage in components
@@ -487,5 +507,5 @@ export const {
   useGetUserAuthMethodsAdminQuery,
   useSendPasswordResetUserAdminMutation,
   useResendVerificationUserAdminMutation,
-  useUnlinkOAuthUserAdminMutation,
+  useUnlinkOAuthUserAdminMutation
 } = userApi;

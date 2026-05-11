@@ -18,7 +18,11 @@ interface PerfomanceTableProps {
   data: CampaignItem[];
 }
 
-const PerfomanceTableRow = ({ campaigns, cost, revenue }: PerfomanceTableRowProps) => {
+const PerfomanceTableRow = ({
+  campaigns,
+  cost,
+  revenue
+}: PerfomanceTableRowProps) => {
   return (
     <tr>
       <td className="text-truncate">{campaigns}</td>
@@ -27,7 +31,6 @@ const PerfomanceTableRow = ({ campaigns, cost, revenue }: PerfomanceTableRowProp
     </tr>
   );
 };
-
 
 const PerfomanceTable = ({ data }: PerfomanceTableProps) => {
   return (

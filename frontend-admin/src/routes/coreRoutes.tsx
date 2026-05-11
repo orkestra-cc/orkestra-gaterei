@@ -35,7 +35,7 @@ const ModuleDetail = lazy(() => import('pages/admin/modules/detail'));
 const RoleManagement = lazy(() => import('pages/admin/roles'));
 const InternalTenants = lazy(() => import('pages/admin/internal-tenants'));
 const InternalTenantDetail = lazy(
-  () => import('pages/admin/internal-tenants/detail'),
+  () => import('pages/admin/internal-tenants/detail')
 );
 const ClientManagement = lazy(() => import('pages/admin/clients'));
 const ClientDetail = lazy(() => import('pages/admin/clients/detail'));
@@ -45,12 +45,8 @@ const AdminUserProfile = lazy(
 const OperatorProfile = lazy(
   () => import('pages/operator/profile/OperatorProfile')
 );
-const UserDashboard = lazy(
-  () => import('pages/user/dashboard/UserDashboard')
-);
-const UserCalendar = lazy(
-  () => import('pages/user/calendar/UserCalendar')
-);
+const UserDashboard = lazy(() => import('pages/user/dashboard/UserDashboard'));
+const UserCalendar = lazy(() => import('pages/user/calendar/UserCalendar'));
 const Settings = lazy(() => import('pages/user/settings/Settings'));
 const SecurityPage = lazy(() => import('pages/user/security'));
 
@@ -68,7 +64,7 @@ export function buildCoreRoutes(
       children: [
         {
           path: 'landing',
-          element: <Navigate to="/login" replace />,
+          element: <Navigate to="/login" replace />
         },
         {
           path: 'errors',
@@ -76,8 +72,8 @@ export function buildCoreRoutes(
           children: [
             { path: '401', element: <Error401 /> },
             { path: '404', element: <Error404 /> },
-            { path: '500', element: <Error500 /> },
-          ],
+            { path: '500', element: <Error500 /> }
+          ]
         },
         {
           path: 'setup',
@@ -85,7 +81,7 @@ export function buildCoreRoutes(
             <Suspense key="setup-wizard" fallback={<FalconLoader />}>
               <SetupWizard />
             </Suspense>
-          ),
+          )
         },
         { path: 'login', element: <Login /> },
         { path: 'mfa/verify', element: <LoginMfaVerify /> },
@@ -104,7 +100,7 @@ export function buildCoreRoutes(
           children: [
             {
               index: true,
-              element: <Navigate to="/user/dashboard" replace />,
+              element: <Navigate to="/user/dashboard" replace />
             },
             // ── Admin routes (core) ──
             {
@@ -115,7 +111,7 @@ export function buildCoreRoutes(
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -125,31 +121,28 @@ export function buildCoreRoutes(
                         <UserManagement />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   path: 'modules',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
-                      <Suspense
-                        key="admin-modules"
-                        fallback={<FalconLoader />}
-                      >
+                      <Suspense key="admin-modules" fallback={<FalconLoader />}>
                         <ModuleManagement />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   path: 'modules/:moduleName',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -159,7 +152,7 @@ export function buildCoreRoutes(
                         <ModuleDetail />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   path: 'roles',
@@ -170,18 +163,15 @@ export function buildCoreRoutes(
                           'authz.role.read',
                           'super_admin',
                           'administrator',
-                          'developer',
-                        ],
+                          'developer'
+                        ]
                       ]}
                     >
-                      <Suspense
-                        key="admin-roles"
-                        fallback={<FalconLoader />}
-                      >
+                      <Suspense key="admin-roles" fallback={<FalconLoader />}>
                         <RoleManagement />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 // Two-tier split (ADR-0001 Phase 3): legacy /admin/tenants
                 // redirects to /admin/clients — most historical traffic here
@@ -189,14 +179,14 @@ export function buildCoreRoutes(
                 // /admin/internal/tenants for the operator-side view.
                 {
                   path: 'tenants',
-                  element: <Navigate to="/admin/clients" replace />,
+                  element: <Navigate to="/admin/clients" replace />
                 },
                 {
                   path: 'internal/tenants',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -206,14 +196,14 @@ export function buildCoreRoutes(
                         <InternalTenants />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   path: 'internal/tenants/:tenantId',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -223,24 +213,21 @@ export function buildCoreRoutes(
                         <InternalTenantDetail />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   path: 'clients',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
-                      <Suspense
-                        key="admin-clients"
-                        fallback={<FalconLoader />}
-                      >
+                      <Suspense key="admin-clients" fallback={<FalconLoader />}>
                         <ClientManagement />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   // Phase 6 (Unified Client Aggregate): the legacy
@@ -254,7 +241,7 @@ export function buildCoreRoutes(
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -264,21 +251,21 @@ export function buildCoreRoutes(
                         <ClientDetail />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
+                  )
                 },
                 {
                   // 301-style redirect — preserves any deep links that
                   // referenced /admin/external-tenants/:tenantId before the
                   // URL merge.
                   path: 'external-tenants/:tenantId',
-                  element: <ExternalTenantToClientsRedirect />,
+                  element: <ExternalTenantToClientsRedirect />
                 },
                 {
                   path: 'user/profile/:userId',
                   element: (
                     <ProtectedRoute
                       requiredPermissions={[
-                        ['super_admin', 'administrator', 'developer'],
+                        ['super_admin', 'administrator', 'developer']
                       ]}
                     >
                       <Suspense
@@ -288,9 +275,9 @@ export function buildCoreRoutes(
                         <AdminUserProfile />
                       </Suspense>
                     </ProtectedRoute>
-                  ),
-                },
-              ],
+                  )
+                }
+              ]
             },
             // ── User / Operator routes (core) ──
             {
@@ -305,63 +292,51 @@ export function buildCoreRoutes(
                     >
                       <OperatorProfile />
                     </Suspense>
-                  ),
+                  )
                 },
                 {
                   path: 'dashboard',
                   element: (
-                    <Suspense
-                      key="user-dashboard"
-                      fallback={<FalconLoader />}
-                    >
+                    <Suspense key="user-dashboard" fallback={<FalconLoader />}>
                       <UserDashboard />
                     </Suspense>
-                  ),
+                  )
                 },
                 {
                   path: 'calendar',
                   element: (
-                    <Suspense
-                      key="user-calendar"
-                      fallback={<FalconLoader />}
-                    >
+                    <Suspense key="user-calendar" fallback={<FalconLoader />}>
                       <UserCalendar />
                     </Suspense>
-                  ),
+                  )
                 },
                 {
                   path: 'settings',
                   element: (
-                    <Suspense
-                      key="user-settings"
-                      fallback={<FalconLoader />}
-                    >
+                    <Suspense key="user-settings" fallback={<FalconLoader />}>
                       <Settings />
                     </Suspense>
-                  ),
+                  )
                 },
                 {
                   path: 'security',
                   element: (
-                    <Suspense
-                      key="user-security"
-                      fallback={<FalconLoader />}
-                    >
+                    <Suspense key="user-security" fallback={<FalconLoader />}>
                       <SecurityPage />
                     </Suspense>
-                  ),
-                },
-              ],
+                  )
+                }
+              ]
             },
             // ── Module + Reference routes (injected) ──
-            ...additionalChildren,
-          ],
+            ...additionalChildren
+          ]
         },
         {
           path: '*',
-          element: <Navigate to={paths.error404} replace />,
-        },
-      ],
-    },
+          element: <Navigate to={paths.error404} replace />
+        }
+      ]
+    }
   ];
 }

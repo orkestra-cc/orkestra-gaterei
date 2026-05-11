@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Accordion, Badge, Button, Form, InputGroup, Spinner } from 'react-bootstrap';
+import {
+  Accordion,
+  Badge,
+  Button,
+  Form,
+  InputGroup,
+  Spinner
+} from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useListPermissionsQuery, type Permission } from 'store/api/tenantApi';
 
@@ -23,7 +30,11 @@ interface Props {
  * hands it a selected set and receives updates via onChange. That keeps the
  * form logic (name/description/isActive/diffing) in the modal that uses it.
  */
-const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => {
+const PermissionPicker: React.FC<Props> = ({
+  selected,
+  onChange,
+  readOnly
+}) => {
   const { data, isLoading } = useListPermissionsQuery();
   const [query, setQuery] = useState('');
 
@@ -45,17 +56,20 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
     const out: Record<string, Permission[]> = {};
     for (const [mod, perms] of Object.entries(grouped)) {
       const hits = perms.filter(
-        (p) =>
+        p =>
           p.key.toLowerCase().includes(q) ||
           p.description.toLowerCase().includes(q) ||
-          mod.toLowerCase().includes(q),
+          mod.toLowerCase().includes(q)
       );
       if (hits.length > 0) out[mod] = hits;
     }
     return out;
   }, [grouped, q]);
 
-  const sortedMods = useMemo(() => Object.keys(filteredGroups).sort(), [filteredGroups]);
+  const sortedMods = useMemo(
+    () => Object.keys(filteredGroups).sort(),
+    [filteredGroups]
+  );
 
   const toggle = (key: string) => {
     if (readOnly) return;
@@ -68,14 +82,17 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
   const toggleModule = (perms: Permission[]) => {
     if (readOnly) return;
     const next = new Set(selected);
-    const allSelected = perms.every((p) => next.has(p.key));
-    if (allSelected) perms.forEach((p) => next.delete(p.key));
-    else perms.forEach((p) => next.add(p.key));
+    const allSelected = perms.every(p => next.has(p.key));
+    if (allSelected) perms.forEach(p => next.delete(p.key));
+    else perms.forEach(p => next.add(p.key));
     onChange(next);
   };
 
   const selectedCount = selected.size;
-  const visibleCount = sortedMods.reduce((sum, m) => sum + filteredGroups[m].length, 0);
+  const visibleCount = sortedMods.reduce(
+    (sum, m) => sum + filteredGroups[m].length,
+    0
+  );
   const totalCount = data?.permissions.length ?? 0;
 
   // Open every matching group automatically while a filter is active, so a
@@ -116,7 +133,7 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
           type="search"
           placeholder="Filter permissions by key, description or module…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={e => setQuery(e.target.value)}
           aria-label="Filter permissions"
         />
         {query && (
@@ -139,8 +156,8 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
         <Accordion alwaysOpen activeKey={q ? openKeys : undefined}>
           {sortedMods.map((mod, idx) => {
             const perms = filteredGroups[mod];
-            const selectedInMod = perms.filter((p) => selected.has(p.key)).length;
-            const allSelected = perms.every((p) => selected.has(p.key));
+            const selectedInMod = perms.filter(p => selected.has(p.key)).length;
+            const allSelected = perms.every(p => selected.has(p.key));
             return (
               <Accordion.Item eventKey={String(idx)} key={mod}>
                 <Accordion.Header>
@@ -148,11 +165,15 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
                     <span>
                       <strong>{mod}</strong>{' '}
                       <span className="text-muted small">
-                        ({perms.length} permission{perms.length === 1 ? '' : 's'})
+                        ({perms.length} permission
+                        {perms.length === 1 ? '' : 's'})
                       </span>
                     </span>
                     {selectedInMod > 0 && (
-                      <Badge bg={allSelected ? 'success' : 'primary'} className="ms-2">
+                      <Badge
+                        bg={allSelected ? 'success' : 'primary'}
+                        className="ms-2"
+                      >
                         {selectedInMod}/{perms.length}
                       </Badge>
                     )}
@@ -173,7 +194,7 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
                     disabled={readOnly}
                   />
                   <hr className="my-2" />
-                  {perms.map((p) => (
+                  {perms.map(p => (
                     <Form.Check
                       key={p.key}
                       type="checkbox"
@@ -190,7 +211,9 @@ const PermissionPicker: React.FC<Props> = ({ selected, onChange, readOnly }) => 
                               system
                             </Badge>
                           )}
-                          <span className="text-muted small">{p.description}</span>
+                          <span className="text-muted small">
+                            {p.description}
+                          </span>
                         </span>
                       }
                     />

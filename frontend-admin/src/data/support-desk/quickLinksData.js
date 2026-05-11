@@ -1,4 +1,3 @@
-/* eslint-disable react/react-in-jsx-scope */
 import img1 from 'assets/img/support-desk/reports/1.png';
 import img2 from 'assets/img/support-desk/reports/2.png';
 import img3 from 'assets/img/support-desk/reports/3.png';

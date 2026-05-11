@@ -10,7 +10,9 @@ import { useGetOrgAdminQuery } from 'store/api/tenantApi';
 // they only take an `org` prop and are equally valid for internal tenants.
 // The Divisions/Subscriptions/Payments/BillingIdentity tabs stay
 // external-only.
-const OverviewTab = lazy(() => import('pages/admin/clients/detail/OverviewTab'));
+const OverviewTab = lazy(
+  () => import('pages/admin/clients/detail/OverviewTab')
+);
 const MembersTab = lazy(() => import('pages/admin/clients/detail/MembersTab'));
 
 const TAB_KEYS = ['overview', 'members'] as const;
@@ -25,7 +27,7 @@ function readTab(param: string | null): TabKey {
 const planColors: Record<string, BadgeColor> = {
   free: 'secondary',
   pro: 'primary',
-  enterprise: 'success',
+  enterprise: 'success'
 };
 
 const InternalTenantDetailPage: React.FC = () => {
@@ -33,8 +35,12 @@ const InternalTenantDetailPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
 
-  const { data: org, isLoading, error } = useGetOrgAdminQuery(tenantId ?? '', {
-    skip: !tenantId,
+  const {
+    data: org,
+    isLoading,
+    error
+  } = useGetOrgAdminQuery(tenantId ?? '', {
+    skip: !tenantId
   });
 
   const statusBadge = useMemo(() => {
@@ -88,7 +94,10 @@ const InternalTenantDetailPage: React.FC = () => {
   return (
     <>
       <Breadcrumb className="mb-3 fs-10">
-        <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/admin/internal/tenants' }}>
+        <Breadcrumb.Item
+          linkAs={Link}
+          linkProps={{ to: '/admin/internal/tenants' }}
+        >
           Internal Tenants
         </Breadcrumb.Item>
         <Breadcrumb.Item active>{org.name}</Breadcrumb.Item>

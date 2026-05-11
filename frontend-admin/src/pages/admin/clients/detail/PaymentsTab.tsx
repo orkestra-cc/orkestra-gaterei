@@ -14,7 +14,7 @@ const statusColors: Record<string, BadgeColor> = {
   requires_action: 'warning',
   failed: 'danger',
   refunded: 'secondary',
-  partially_refunded: 'secondary',
+  partially_refunded: 'secondary'
 };
 
 function formatAmount(cents: number, currency: string): string {
@@ -44,7 +44,10 @@ const PaymentsTab: React.FC<Props> = ({ org }) => {
 
   if (rows.length === 0) {
     return (
-      <Alert variant="light" className="fs-10 py-3 border text-center text-muted">
+      <Alert
+        variant="light"
+        className="fs-10 py-3 border text-center text-muted"
+      >
         No payment transactions for this client yet.
       </Alert>
     );
@@ -63,7 +66,7 @@ const PaymentsTab: React.FC<Props> = ({ org }) => {
         </tr>
       </thead>
       <tbody>
-        {rows.map((p) => (
+        {rows.map(p => (
           <tr key={p.uuid} className="align-middle">
             <td>
               <SubtleBadge bg="primary" pill>

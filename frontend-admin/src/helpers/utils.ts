@@ -29,9 +29,9 @@ export const breakpoints: Breakpoints = {
   xxl: 1540
 };
 
-export const getItemFromStore = function<T>(
-  key: string, 
-  defaultValue: T, 
+export const getItemFromStore = function <T>(
+  key: string,
+  defaultValue: T,
   store: Storage = localStorage
 ): T {
   try {
@@ -44,8 +44,8 @@ export const getItemFromStore = function<T>(
 };
 
 export const setItemToStore = (
-  key: string, 
-  payload: string, 
+  key: string,
+  payload: string,
   store: Storage = localStorage
 ): void => {
   store.setItem(key, payload);
@@ -69,25 +69,32 @@ export const getCookieValue = (name: string): string | null => {
   return value ? value.pop() || null : null;
 };
 
-export const createCookie = (name: string, value: string, cookieExpireTime: number): void => {
+export const createCookie = (
+  name: string,
+  value: string,
+  cookieExpireTime: number
+): void => {
   const date = new Date();
   date.setTime(date.getTime() + cookieExpireTime);
   const expires = '; expires=' + date.toUTCString();
   document.cookie = name + '=' + value + expires + '; path=/';
 };
 
-export const numberFormatter = (number: number | string, fixed: number = 2): string => {
+export const numberFormatter = (
+  number: number | string,
+  fixed: number = 2
+): string => {
   const num = Math.abs(Number(number));
   // Nine Zeroes for Billions
   return num >= 1.0e9
     ? (num / 1.0e9).toFixed(fixed) + 'B'
     : // Six Zeroes for Millions
-    num >= 1.0e6
-    ? (num / 1.0e6).toFixed(fixed) + 'M'
-    : // Three Zeroes for Thousands
-    num >= 1.0e3
-    ? (num / 1.0e3).toFixed(fixed) + 'K'
-    : num.toFixed(fixed);
+      num >= 1.0e6
+      ? (num / 1.0e6).toFixed(fixed) + 'M'
+      : // Three Zeroes for Thousands
+        num >= 1.0e3
+        ? (num / 1.0e3).toFixed(fixed) + 'K'
+        : num.toFixed(fixed);
 };
 
 //===============================
@@ -114,9 +121,12 @@ export const hexToRgb = (hexValue: string): RgbTuple | null => {
     : null;
 };
 
-export const rgbColor = (color: string = colors[0]): string => `rgb(${hexToRgb(color)})`;
-export const rgbaColor = (color: string = colors[0], alpha: number = 0.5): string =>
-  `rgba(${hexToRgb(color)},${alpha})`;
+export const rgbColor = (color: string = colors[0]): string =>
+  `rgb(${hexToRgb(color)})`;
+export const rgbaColor = (
+  color: string = colors[0],
+  alpha: number = 0.5
+): string => `rgba(${hexToRgb(color)},${alpha})`;
 
 export const colors: string[] = [
   '#2c7be5',
@@ -201,7 +211,8 @@ export const darkGrays: GrayColors = {
   black: '#000'
 };
 
-export const getGrays = (isDark: boolean): GrayColors => (isDark ? darkGrays : grays);
+export const getGrays = (isDark: boolean): GrayColors =>
+  isDark ? darkGrays : grays;
 
 export const rgbColors: string[] = colors.map(color => rgbColor(color));
 export const rgbaColors: string[] = colors.map(color => rgbaColor(color));
@@ -224,10 +235,10 @@ interface EchartsTooltipPosition {
 }
 
 export const getPosition = (
-  pos: [number, number], 
-  _params: any, 
-  _dom: HTMLElement, 
-  _rect: DOMRect, 
+  pos: [number, number],
+  _params: any,
+  _dom: HTMLElement,
+  _rect: DOMRect,
   size: EchartsTooltipSize
 ): EchartsTooltipPosition => ({
   top: pos[1] - size.contentSize[1] - 10,
@@ -237,7 +248,10 @@ export const getPosition = (
 //===============================
 // Helpers
 //===============================
-export const getPaginationArray = (totalSize: number, sizePerPage: number): number[] => {
+export const getPaginationArray = (
+  totalSize: number,
+  sizePerPage: number
+): number[] => {
   const noOfPages = Math.ceil(totalSize / sizePerPage);
   const array: number[] = [];
   let pageNo = 1;
@@ -316,7 +330,11 @@ export const getFlatRoutes = (children: Route[]): FlatRoutesResult =>
     { unTitled: [] }
   );
 
-export const routesSlicer = ({ routes, columns = 3, rows }: RoutesSlicerParams): Route[][] => {
+export const routesSlicer = ({
+  routes,
+  columns = 3,
+  rows
+}: RoutesSlicerParams): Route[][] => {
   const routesCollection: Route[] = [];
   routes.map(route => {
     if (route.children) {
@@ -343,7 +361,9 @@ export const getPageName = (pageName: string): boolean => {
   return window.location.pathname.split('/').slice(-1)[0] === pageName;
 };
 
-export const copyToClipBoard = (textFieldRef: RefObject<HTMLInputElement | HTMLTextAreaElement>): void => {
+export const copyToClipBoard = (
+  textFieldRef: RefObject<HTMLInputElement | HTMLTextAreaElement>
+): void => {
   const textField = textFieldRef.current;
   if (textField) {
     textField.focus();
@@ -352,7 +372,8 @@ export const copyToClipBoard = (textFieldRef: RefObject<HTMLInputElement | HTMLT
   }
 };
 
-export const reactBootstrapDocsUrl: string = 'https://react-bootstrap.github.io';
+export const reactBootstrapDocsUrl: string =
+  'https://react-bootstrap.github.io';
 
 export const pagination = (currentPage: number, size: number): number[] => {
   const pages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -387,8 +408,8 @@ export const tooltipFormatter = (params: TooltipParam[]): string => {
           el.borderColor ? el.borderColor : el.color
         }"></span>
           ${el.seriesName} : ${
-        typeof el.value === 'object' ? el.value[1] : el.value
-      }
+            typeof el.value === 'object' ? el.value[1] : el.value
+          }
         </h6>
       </div>`;
   });
@@ -404,7 +425,9 @@ export const tooltipFormatter = (params: TooltipParam[]): string => {
           </div>`;
 };
 
-export const addIdField = function<T extends Record<string, any>>(items: T[]): (T & { id: number })[] {
+export const addIdField = function <T extends Record<string, any>>(
+  items: T[]
+): (T & { id: number })[] {
   return items.map((item, index) => ({
     id: index + 1,
     ...item
@@ -448,7 +471,9 @@ export const getDates = (
 };
 
 /* Get Past Dates */
-export const getPastDates = (duration: 'week' | 'month' | 'year' | number): Date[] => {
+export const getPastDates = (
+  duration: 'week' | 'month' | 'year' | number
+): Date[] => {
   let days: number;
 
   switch (duration) {
@@ -473,7 +498,9 @@ export const getPastDates = (duration: 'week' | 'month' | 'year' | number): Date
 };
 
 // Add id to items in array
-export const addId = function<T extends Record<string, any>>(items: T[]): (T & { id: number })[] {
+export const addId = function <T extends Record<string, any>>(
+  items: T[]
+): (T & { id: number })[] {
   return items.map((item, index) => ({
     id: index + 1,
     ...item
@@ -481,17 +508,28 @@ export const addId = function<T extends Record<string, any>>(items: T[]): (T & {
 };
 
 //
-export const getTimeDuration = (startDate: dayjs.Dayjs, endDate: dayjs.Dayjs, format: string = ''): string => {
+export const getTimeDuration = (
+  startDate: dayjs.Dayjs,
+  endDate: dayjs.Dayjs,
+  format: string = ''
+): string => {
   return dayjs.duration(endDate.diff(startDate)).format(format);
 };
 
 // Get Percentage
-export const getPercentage = (number: number | string, percent: number | string): number => {
+export const getPercentage = (
+  number: number | string,
+  percent: number | string
+): number => {
   return (Number(number) / 100) * Number(percent);
 };
 
 //get chunk from array
-export const chunk = function<T>(arr: T[], chunkSize: number = 1, cache: T[][] = []): T[][] {
+export const chunk = function <T>(
+  arr: T[],
+  chunkSize: number = 1,
+  cache: T[][] = []
+): T[][] {
   const tmp = [...arr];
   if (chunkSize <= 0) return cache;
   while (tmp.length) cache.push(tmp.splice(0, chunkSize));

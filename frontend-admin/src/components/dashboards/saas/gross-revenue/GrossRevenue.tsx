@@ -88,7 +88,9 @@ const GrossRevenue = ({ data }: GrossRevenueProps) => {
         name: name
       });
     }
-    (event.target as HTMLElement).closest('button')?.classList.toggle('opacity-50');
+    (event.target as HTMLElement)
+      .closest('button')
+      ?.classList.toggle('opacity-50');
   };
 
   return (
@@ -137,7 +139,11 @@ const GrossRevenue = ({ data }: GrossRevenueProps) => {
                   >
                     {row.marketValue.value && (
                       <FontAwesomeIcon
-                        icon={(row.marketValue.up ? 'long-arrow-alt-up' : 'long-arrow-alt-down') as IconProp}
+                        icon={
+                          (row.marketValue.up
+                            ? 'long-arrow-alt-up'
+                            : 'long-arrow-alt-down') as IconProp
+                        }
                         className={classNames('me-1', {
                           'text-success': row.marketValue.up,
                           'text-danger': !row.marketValue.up

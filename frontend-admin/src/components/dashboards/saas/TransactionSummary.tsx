@@ -1,4 +1,3 @@
-
 import { Card, Col, Form, Image, Row, Table } from 'react-bootstrap';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import CardDropdown from 'components/common/CardDropdown';
@@ -66,10 +65,7 @@ const TransactionItem = ({
         className={classNames('align-middle px-4', { 'border-0': isLast })}
         style={{ width: '1%' }}
       >
-        <SubtleBadge
-          bg={getBadgeColor(status)}
-          className="fs-10 w-100"
-        >
+        <SubtleBadge bg={getBadgeColor(status)} className="fs-10 w-100">
           {status}
         </SubtleBadge>
       </td>
@@ -96,7 +92,9 @@ const TransactionItem = ({
   );
 };
 
-const TransactionSummary = ({ data: transactions }: TransactionSummaryProps) => {
+const TransactionSummary = ({
+  data: transactions
+}: TransactionSummaryProps) => {
   return (
     <Card className="overflow-hidden">
       <FalconCardHeader

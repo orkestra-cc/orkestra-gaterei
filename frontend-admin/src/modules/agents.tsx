@@ -6,7 +6,9 @@ import FalconLoader from 'components/common/FalconLoader';
 
 const AgentProjects = lazy(() => import('pages/ai/agents'));
 const AgentChat = lazy(() => import('pages/ai/agents/AgentChat'));
-const PersonalAgentChat = lazy(() => import('pages/ai/personal-agent/PersonalAgentChat'));
+const PersonalAgentChat = lazy(
+  () => import('pages/ai/personal-agent/PersonalAgentChat')
+);
 
 export const agentsManifest: ModuleManifest = {
   name: 'agents',
@@ -15,43 +17,68 @@ export const agentsManifest: ModuleManifest = {
       path: 'ai/personal-agent',
       element: (
         <ModuleGate module="agents">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager', 'operator', 'guest']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              [
+                'super_admin',
+                'administrator',
+                'developer',
+                'manager',
+                'operator',
+                'guest'
+              ]
+            ]}
+          >
             <Suspense key="ai-personal-agent" fallback={<FalconLoader />}>
               <PersonalAgentChat />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'ai/agents',
       element: (
         <ModuleGate module="agents">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer', 'manager']
+            ]}
+          >
             <Suspense key="ai-agents" fallback={<FalconLoader />}>
               <AgentProjects />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'ai/agents/:uuid/chat',
       element: (
         <ModuleGate module="agents">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager', 'operator']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              [
+                'super_admin',
+                'administrator',
+                'developer',
+                'manager',
+                'operator'
+              ]
+            ]}
+          >
             <Suspense key="ai-agent-chat" fallback={<FalconLoader />}>
               <AgentChat />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
   injectApi: () =>
     Promise.all([
       import('store/api/agentsApi'),
       import('store/api/personalAgentApi'),
-      import('store/api/ragApi'),
-    ]),
+      import('store/api/ragApi')
+    ])
 };

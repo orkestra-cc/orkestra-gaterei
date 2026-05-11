@@ -1,4 +1,3 @@
-
 import { useAppContext } from 'providers/AppProvider';
 import classNames from 'classnames';
 import { CloseButton, CloseButtonProps } from 'react-bootstrap';
@@ -24,7 +23,7 @@ const FalconCloseButton: React.FC<FalconCloseButtonProps> = ({
   const {
     config: { isDark }
   } = useAppContext();
-  
+
   return (
     <CloseButton
       variant={variant ? variant : isDark ? 'white' : undefined}

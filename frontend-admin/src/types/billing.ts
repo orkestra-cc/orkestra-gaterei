@@ -1033,7 +1033,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   TD26: 'Cessione beni ammortizzabili',
   TD27: 'Autoconsumo/cessioni gratuite',
   TD28: 'Acquisti da San Marino con IVA',
-  TD29: 'Operazioni legate al sisma',
+  TD29: 'Operazioni legate al sisma'
 };
 
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
@@ -1044,7 +1044,7 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   rejected: 'Scartata',
   accepted: 'Accettata',
   paid: 'Pagata',
-  cancelled: 'Annullata',
+  cancelled: 'Annullata'
 };
 
 export const SDI_STATUS_LABELS: Record<SDIStatus, string> = {
@@ -1054,7 +1054,7 @@ export const SDI_STATUS_LABELS: Record<SDIStatus, string> = {
   MC: 'Mancata Consegna',
   NE: 'Notifica Esito',
   DT: 'Decorrenza Termini',
-  AT: 'Attestazione',
+  AT: 'Attestazione'
 };
 
 export const REGIME_FISCALE_LABELS: Record<RegimeFiscale, string> = {
@@ -1076,10 +1076,13 @@ export const REGIME_FISCALE_LABELS: Record<RegimeFiscale, string> = {
   RF17: 'IVA per cassa',
   RF18: 'Altro',
   RF19: 'Regime forfettario',
-  RF20: 'Regime forfettario agricolo',
+  RF20: 'Regime forfettario agricolo'
 };
 
-export const REGIME_FISCALE_OPTIONS: Array<{ value: RegimeFiscale; label: string }> = [
+export const REGIME_FISCALE_OPTIONS: Array<{
+  value: RegimeFiscale;
+  label: string;
+}> = [
   { value: 'RF01', label: 'RF01 - Ordinario' },
   { value: 'RF02', label: 'RF02 - Contribuenti minimi' },
   { value: 'RF04', label: 'RF04 - Agricoltura e pesca' },
@@ -1098,7 +1101,7 @@ export const REGIME_FISCALE_OPTIONS: Array<{ value: RegimeFiscale; label: string
   { value: 'RF17', label: 'RF17 - IVA per cassa' },
   { value: 'RF18', label: 'RF18 - Altro' },
   { value: 'RF19', label: 'RF19 - Regime forfettario' },
-  { value: 'RF20', label: 'RF20 - Regime forfettario agricolo' },
+  { value: 'RF20', label: 'RF20 - Regime forfettario agricolo' }
 ];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -1124,13 +1127,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   MP20: 'SEPA Direct Debit CORE',
   MP21: 'SEPA Direct Debit B2B',
   MP22: 'Trattenuta su somme riscosse',
-  MP23: 'PagoPA',
+  MP23: 'PagoPA'
 };
 
 export const PAYMENT_CONDITION_LABELS: Record<PaymentCondition, string> = {
   TP01: 'Pagamento a rate',
   TP02: 'Pagamento completo',
-  TP03: 'Anticipo',
+  TP03: 'Anticipo'
 };
 
 export const UNIT_OF_MEASURE_LABELS: Record<UnitOfMeasure, string> = {
@@ -1144,7 +1147,7 @@ export const UNIT_OF_MEASURE_LABELS: Record<UnitOfMeasure, string> = {
   GG: 'Giorno',
   MESE: 'Mese',
   ANNO: 'Anno',
-  '%': 'Percentuale',
+  '%': 'Percentuale'
 };
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
@@ -1153,7 +1156,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   MC: 'Mancata Consegna',
   NE: 'Notifica Esito',
   DT: 'Decorrenza Termini',
-  AT: 'Attestazione',
+  AT: 'Attestazione'
 };
 
 export const TIPO_RITENUTA_LABELS: Record<TipoRitenuta, string> = {
@@ -1162,7 +1165,7 @@ export const TIPO_RITENUTA_LABELS: Record<TipoRitenuta, string> = {
   RT03: 'Contributo INPS',
   RT04: 'Contributo ENASARCO',
   RT05: 'Contributo ENPAM',
-  RT06: 'Altro contributo previdenziale',
+  RT06: 'Altro contributo previdenziale'
 };
 
 export const TIPO_CASSA_LABELS: Record<TipoCassa, string> = {
@@ -1187,14 +1190,16 @@ export const TIPO_CASSA_LABELS: Record<TipoCassa, string> = {
   TC19: 'ENPAB (Biologi)',
   TC20: 'ENPAPI (Infermieri)',
   TC21: 'ENPAP (Psicologi)',
-  TC22: 'INPS',
+  TC22: 'INPS'
 };
 
 // ========================================
 // Helper Functions
 // ========================================
 
-export function getPartyDisplayName(party: PartyData | Customer | Supplier): string {
+export function getPartyDisplayName(
+  party: PartyData | Customer | Supplier
+): string {
   if (party.isCompany && party.denomination) {
     return party.denomination;
   }
@@ -1210,7 +1215,7 @@ export function getPartyDisplayName(party: PartyData | Customer | Supplier): str
 export function formatCurrency(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('it-IT', {
     style: 'currency',
-    currency,
+    currency
   }).format(amount);
 }
 
@@ -1219,6 +1224,6 @@ export function formatItalianDate(dateString: string): string {
   return new Intl.DateTimeFormat('it-IT', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
+    year: 'numeric'
   }).format(date);
 }

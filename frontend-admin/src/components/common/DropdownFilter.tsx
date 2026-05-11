@@ -4,7 +4,6 @@ import Flex from './Flex';
 import classNames from 'classnames';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
-
 interface DropdownItemFilterProps {
   filter: string;
   currentFilter: string;

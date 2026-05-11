@@ -23,11 +23,11 @@ export interface TrustedDevicesListResponse {
 // JSON, so no `{body: ...}` wrapper handling needed.
 
 export const deviceTrustApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // List active trust grants for the current user.
     listTrustedDevices: builder.query<TrustedDevicesListResponse, void>({
       query: () => 'v1/auth/operator/me/devices/trust',
-      providesTags: ['TrustedDevices'],
+      providesTags: ['TrustedDevices']
     }),
 
     // Drop trust for one device. Idempotent — returns 204 even when
@@ -36,25 +36,25 @@ export const deviceTrustApi = baseApi.injectEndpoints({
     revokeTrustedDevice: builder.mutation<void, { deviceId: string }>({
       query: ({ deviceId }) => ({
         url: `v1/auth/operator/me/devices/trust/${encodeURIComponent(deviceId)}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['TrustedDevices'],
+      invalidatesTags: ['TrustedDevices']
     }),
 
     // Drop every active trust grant. Same idempotency as revoke-one.
     revokeAllTrustedDevices: builder.mutation<void, void>({
       query: () => ({
         url: 'v1/auth/operator/me/devices/trust',
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['TrustedDevices'],
-    }),
+      invalidatesTags: ['TrustedDevices']
+    })
   }),
-  overrideExisting: false,
+  overrideExisting: false
 });
 
 export const {
   useListTrustedDevicesQuery,
   useRevokeTrustedDeviceMutation,
-  useRevokeAllTrustedDevicesMutation,
+  useRevokeAllTrustedDevicesMutation
 } = deviceTrustApi;

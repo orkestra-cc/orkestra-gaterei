@@ -15,7 +15,7 @@ import type {
   WidgetListParams,
   WidgetListResponse,
   CreateWidgetInput,
-  UpdateWidgetInput,
+  UpdateWidgetInput
 } from './types';
 
 const buildQueryParams = (params: Record<string, unknown>): string => {
@@ -29,61 +29,70 @@ const buildQueryParams = (params: Record<string, unknown>): string => {
 };
 
 export const widgetsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
-    listWidgets: builder.query<WidgetListResponse, WidgetListParams | undefined>({
-      query: (params) => {
+  endpoints: builder => ({
+    listWidgets: builder.query<
+      WidgetListResponse,
+      WidgetListParams | undefined
+    >({
+      query: params => {
         const qs = params ? buildQueryParams(params) : '';
         return {
           url: `/v1/widgets${qs ? `?${qs}` : ''}`,
-          method: 'GET',
+          method: 'GET'
         };
       },
-      providesTags: (result) =>
+      providesTags: result =>
         result?.widgets
           ? [
-              ...result.widgets.map(({ uuid }) => ({ type: 'Widget' as const, id: uuid })),
-              { type: 'Widget', id: 'LIST' },
+              ...result.widgets.map(({ uuid }) => ({
+                type: 'Widget' as const,
+                id: uuid
+              })),
+              { type: 'Widget', id: 'LIST' }
             ]
-          : [{ type: 'Widget', id: 'LIST' }],
+          : [{ type: 'Widget', id: 'LIST' }]
     }),
 
     getWidget: builder.query<Widget, string>({
-      query: (id) => `/v1/widgets/${id}`,
-      providesTags: (_result, _error, id) => [{ type: 'Widget', id }],
+      query: id => `/v1/widgets/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'Widget', id }]
     }),
 
     createWidget: builder.mutation<Widget, CreateWidgetInput>({
-      query: (body) => ({
+      query: body => ({
         url: '/v1/widgets',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: [{ type: 'Widget', id: 'LIST' }],
+      invalidatesTags: [{ type: 'Widget', id: 'LIST' }]
     }),
 
-    updateWidget: builder.mutation<Widget, { id: string; patch: UpdateWidgetInput }>({
+    updateWidget: builder.mutation<
+      Widget,
+      { id: string; patch: UpdateWidgetInput }
+    >({
       query: ({ id, patch }) => ({
         url: `/v1/widgets/${id}`,
         method: 'PATCH',
-        body: patch,
+        body: patch
       }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: 'Widget', id },
-        { type: 'Widget', id: 'LIST' },
-      ],
+        { type: 'Widget', id: 'LIST' }
+      ]
     }),
 
     deleteWidget: builder.mutation<void, string>({
-      query: (id) => ({
+      query: id => ({
         url: `/v1/widgets/${id}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_result, _error, id) => [
         { type: 'Widget', id },
-        { type: 'Widget', id: 'LIST' },
-      ],
-    }),
-  }),
+        { type: 'Widget', id: 'LIST' }
+      ]
+    })
+  })
 });
 
 export const {
@@ -91,5 +100,5 @@ export const {
   useGetWidgetQuery,
   useCreateWidgetMutation,
   useUpdateWidgetMutation,
-  useDeleteWidgetMutation,
+  useDeleteWidgetMutation
 } = widgetsApi;

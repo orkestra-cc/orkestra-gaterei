@@ -43,7 +43,7 @@ export default function AdminTenantSwitcher() {
 
   const filtered = useMemo(() => {
     const rows = data?.tenants ?? [];
-    return rows.filter((t) => {
+    return rows.filter(t => {
       if (tierFilter !== 'all' && t.kind !== tierFilter) return false;
       if (!search) return true;
       const q = search.toLowerCase();
@@ -86,14 +86,13 @@ export default function AdminTenantSwitcher() {
       >
         {toggleLabel}
       </Dropdown.Toggle>
-      <Dropdown.Menu style={{ minWidth: 320, maxHeight: 480, overflowY: 'auto' }}>
+      <Dropdown.Menu
+        style={{ minWidth: 320, maxHeight: 480, overflowY: 'auto' }}
+      >
         <Dropdown.Header>Operator impersonation</Dropdown.Header>
         {isImpersonating && (
           <>
-            <Dropdown.Item
-              onClick={onStop}
-              className="text-danger fw-semibold"
-            >
+            <Dropdown.Item onClick={onStop} className="text-danger fw-semibold">
               Stop impersonating
             </Dropdown.Item>
             <Dropdown.Divider />
@@ -105,11 +104,11 @@ export default function AdminTenantSwitcher() {
             size="sm"
             placeholder="Search by name, slug, or id"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
             autoFocus
           />
           <div className="d-flex gap-1 mt-2">
-            {(['all', 'internal', 'external'] as TierFilter[]).map((t) => (
+            {(['all', 'internal', 'external'] as TierFilter[]).map(t => (
               <button
                 key={t}
                 type="button"
@@ -130,7 +129,7 @@ export default function AdminTenantSwitcher() {
             No tenants match.
           </Dropdown.ItemText>
         )}
-        {filtered.slice(0, 200).map((t) => (
+        {filtered.slice(0, 200).map(t => (
           <Dropdown.Item
             key={t.id}
             active={impersonation.tenantId === t.id}

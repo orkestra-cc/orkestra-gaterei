@@ -13,12 +13,12 @@ const statusColors: Record<string, BadgeColor> = {
   past_due: 'warning',
   suspended: 'danger',
   cancelled: 'secondary',
-  expired: 'dark',
+  expired: 'dark'
 };
 
 const SubscriptionsTab: React.FC<Props> = ({ org }) => {
   const { data, isLoading, error } = useListTenantSubscriptionsAdminQuery(
-    org.id,
+    org.id
   );
 
   if (isLoading) {
@@ -41,7 +41,10 @@ const SubscriptionsTab: React.FC<Props> = ({ org }) => {
 
   if (subs.length === 0) {
     return (
-      <Alert variant="light" className="fs-10 py-3 border text-center text-muted">
+      <Alert
+        variant="light"
+        className="fs-10 py-3 border text-center text-muted"
+      >
         No subscriptions for this client yet. When one lands, it will appear
         here — the entitlement syncer grants capabilities on activation.
       </Alert>
@@ -60,7 +63,7 @@ const SubscriptionsTab: React.FC<Props> = ({ org }) => {
         </tr>
       </thead>
       <tbody>
-        {subs.map((s) => (
+        {subs.map(s => (
           <tr key={s.uuid} className="align-middle">
             <td>
               <code className="fs-11">{s.tierCode}</code>

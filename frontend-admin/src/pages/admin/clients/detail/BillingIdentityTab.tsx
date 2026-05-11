@@ -6,11 +6,11 @@ import type {
   Org,
   SetBillingIdentityInput,
   TenantAddress,
-  FatturaPAProfile,
+  FatturaPAProfile
 } from 'store/api/tenantApi';
 import {
   useSetTenantBillingIdentityAdminMutation,
-  useSetTenantItalianBillableAdminMutation,
+  useSetTenantItalianBillableAdminMutation
 } from 'store/api/tenantApi';
 
 interface Props {
@@ -32,7 +32,7 @@ const EMPTY_ADDRESS: Required<TenantAddress> = {
   city: '',
   province: '',
   postalCode: '',
-  country: '',
+  country: ''
 };
 
 const EMPTY_FATTURAPA: Required<FatturaPAProfile> = {
@@ -41,7 +41,7 @@ const EMPTY_FATTURAPA: Required<FatturaPAProfile> = {
   isPA: false,
   codiceUfficio: '',
   riferimentoAmm: '',
-  convenzioneNumero: '',
+  convenzioneNumero: ''
 };
 
 function orgToForm(org: Org): FormState {
@@ -51,7 +51,7 @@ function orgToForm(org: Org): FormState {
     vatNumber: org.vatNumber ?? '',
     fiscalCode: org.fiscalCode ?? '',
     billingAddress: { ...EMPTY_ADDRESS, ...(org.billingAddress ?? {}) },
-    fatturaPA: { ...EMPTY_FATTURAPA, ...(org.fatturaPA ?? {}) },
+    fatturaPA: { ...EMPTY_FATTURAPA, ...(org.fatturaPA ?? {}) }
   };
 }
 
@@ -67,7 +67,7 @@ function buildPatch(form: FormState): SetBillingIdentityInput {
     isPA: form.fatturaPA.isPA,
     codiceUfficio: emptyToUndefined(form.fatturaPA.codiceUfficio),
     riferimentoAmm: emptyToUndefined(form.fatturaPA.riferimentoAmm),
-    convenzioneNumero: emptyToUndefined(form.fatturaPA.convenzioneNumero),
+    convenzioneNumero: emptyToUndefined(form.fatturaPA.convenzioneNumero)
   };
   const billingAddress: TenantAddress = {
     line1: emptyToUndefined(form.billingAddress.line1),
@@ -75,7 +75,7 @@ function buildPatch(form: FormState): SetBillingIdentityInput {
     city: emptyToUndefined(form.billingAddress.city),
     province: emptyToUndefined(form.billingAddress.province),
     postalCode: emptyToUndefined(form.billingAddress.postalCode),
-    country: emptyToUndefined(form.billingAddress.country),
+    country: emptyToUndefined(form.billingAddress.country)
   };
   return {
     isCompany: form.isCompany,
@@ -83,7 +83,7 @@ function buildPatch(form: FormState): SetBillingIdentityInput {
     vatNumber: form.vatNumber,
     fiscalCode: form.fiscalCode,
     billingAddress,
-    fatturaPA,
+    fatturaPA
   };
 }
 
@@ -134,7 +134,7 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
       toast.success(
         next
           ? 'Italian billable mode enabled'
-          : 'Italian billable mode disabled',
+          : 'Italian billable mode disabled'
       );
     } catch (err) {
       toast.error('Toggle failed: ' + extractError(err));
@@ -190,10 +190,12 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Check
               type="switch"
               id="isCompany"
-              label={form.isCompany ? 'Company' : 'Natural person / sole proprietor'}
+              label={
+                form.isCompany ? 'Company' : 'Natural person / sole proprietor'
+              }
               checked={form.isCompany}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, isCompany: e.target.checked }))
+              onChange={e =>
+                setForm(s => ({ ...s, isCompany: e.target.checked }))
               }
             />
           </Form.Group>
@@ -203,8 +205,8 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">Legal name</Form.Label>
             <Form.Control
               value={form.legalName}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, legalName: e.target.value }))
+              onChange={e =>
+                setForm(s => ({ ...s, legalName: e.target.value }))
               }
               placeholder={form.isCompany ? 'Acme S.r.l.' : 'Mario Rossi'}
             />
@@ -218,8 +220,8 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">VAT number</Form.Label>
             <Form.Control
               value={form.vatNumber}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, vatNumber: e.target.value }))
+              onChange={e =>
+                setForm(s => ({ ...s, vatNumber: e.target.value }))
               }
               placeholder="IT12345678901"
             />
@@ -230,8 +232,8 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">Fiscal code</Form.Label>
             <Form.Control
               value={form.fiscalCode}
-              onChange={(e) =>
-                setForm((s) => ({ ...s, fiscalCode: e.target.value }))
+              onChange={e =>
+                setForm(s => ({ ...s, fiscalCode: e.target.value }))
               }
               placeholder="RSSMRA80A01H501T"
             />
@@ -243,13 +245,15 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
       <Row>
         <Col md={8}>
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold fs-10">Address line 1</Form.Label>
+            <Form.Label className="fw-semibold fs-10">
+              Address line 1
+            </Form.Label>
             <Form.Control
               value={form.billingAddress.line1}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
-                  billingAddress: { ...s.billingAddress, line1: e.target.value },
+                  billingAddress: { ...s.billingAddress, line1: e.target.value }
                 }))
               }
             />
@@ -257,13 +261,15 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
         </Col>
         <Col md={4}>
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold fs-10">Address line 2</Form.Label>
+            <Form.Label className="fw-semibold fs-10">
+              Address line 2
+            </Form.Label>
             <Form.Control
               value={form.billingAddress.line2}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
-                  billingAddress: { ...s.billingAddress, line2: e.target.value },
+                  billingAddress: { ...s.billingAddress, line2: e.target.value }
                 }))
               }
             />
@@ -276,10 +282,10 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">City</Form.Label>
             <Form.Control
               value={form.billingAddress.city}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
-                  billingAddress: { ...s.billingAddress, city: e.target.value },
+                  billingAddress: { ...s.billingAddress, city: e.target.value }
                 }))
               }
             />
@@ -290,13 +296,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">Province</Form.Label>
             <Form.Control
               value={form.billingAddress.province}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
                   billingAddress: {
                     ...s.billingAddress,
-                    province: e.target.value,
-                  },
+                    province: e.target.value
+                  }
                 }))
               }
             />
@@ -307,13 +313,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">Postal code</Form.Label>
             <Form.Control
               value={form.billingAddress.postalCode}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
                   billingAddress: {
                     ...s.billingAddress,
-                    postalCode: e.target.value,
-                  },
+                    postalCode: e.target.value
+                  }
                 }))
               }
             />
@@ -324,13 +330,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Label className="fw-semibold fs-10">Country</Form.Label>
             <Form.Control
               value={form.billingAddress.country}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
                   billingAddress: {
                     ...s.billingAddress,
-                    country: e.target.value,
-                  },
+                    country: e.target.value
+                  }
                 }))
               }
               placeholder="IT"
@@ -350,13 +356,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
             <Form.Control
               className="font-monospace"
               value={form.fatturaPA.codiceDestinatario}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
                   fatturaPA: {
                     ...s.fatturaPA,
-                    codiceDestinatario: e.target.value,
-                  },
+                    codiceDestinatario: e.target.value
+                  }
                 }))
               }
               placeholder="ABC1234"
@@ -366,14 +372,16 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
         </Col>
         <Col md={6}>
           <Form.Group className="mb-3">
-            <Form.Label className="fw-semibold fs-10">PEC Destinatario</Form.Label>
+            <Form.Label className="fw-semibold fs-10">
+              PEC Destinatario
+            </Form.Label>
             <Form.Control
               type="email"
               value={form.fatturaPA.pecDestinatario}
-              onChange={(e) =>
-                setForm((s) => ({
+              onChange={e =>
+                setForm(s => ({
                   ...s,
-                  fatturaPA: { ...s.fatturaPA, pecDestinatario: e.target.value },
+                  fatturaPA: { ...s.fatturaPA, pecDestinatario: e.target.value }
                 }))
               }
               placeholder="fatture@pec.example.it"
@@ -388,10 +396,10 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
           id="isPA"
           label="Public administration (FatturaPA-PA)"
           checked={form.fatturaPA.isPA}
-          onChange={(e) =>
-            setForm((s) => ({
+          onChange={e =>
+            setForm(s => ({
               ...s,
-              fatturaPA: { ...s.fatturaPA, isPA: e.target.checked },
+              fatturaPA: { ...s.fatturaPA, isPA: e.target.checked }
             }))
           }
         />
@@ -406,10 +414,10 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
               </Form.Label>
               <Form.Control
                 value={form.fatturaPA.codiceUfficio}
-                onChange={(e) =>
-                  setForm((s) => ({
+                onChange={e =>
+                  setForm(s => ({
                     ...s,
-                    fatturaPA: { ...s.fatturaPA, codiceUfficio: e.target.value },
+                    fatturaPA: { ...s.fatturaPA, codiceUfficio: e.target.value }
                   }))
                 }
               />
@@ -422,13 +430,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
               </Form.Label>
               <Form.Control
                 value={form.fatturaPA.riferimentoAmm}
-                onChange={(e) =>
-                  setForm((s) => ({
+                onChange={e =>
+                  setForm(s => ({
                     ...s,
                     fatturaPA: {
                       ...s.fatturaPA,
-                      riferimentoAmm: e.target.value,
-                    },
+                      riferimentoAmm: e.target.value
+                    }
                   }))
                 }
               />
@@ -441,13 +449,13 @@ const BillingIdentityTab: React.FC<Props> = ({ org }) => {
               </Form.Label>
               <Form.Control
                 value={form.fatturaPA.convenzioneNumero}
-                onChange={(e) =>
-                  setForm((s) => ({
+                onChange={e =>
+                  setForm(s => ({
                     ...s,
                     fatturaPA: {
                       ...s.fatturaPA,
-                      convenzioneNumero: e.target.value,
-                    },
+                      convenzioneNumero: e.target.value
+                    }
                   }))
                 }
               />

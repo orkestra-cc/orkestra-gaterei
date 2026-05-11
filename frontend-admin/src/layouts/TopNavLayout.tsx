@@ -1,4 +1,3 @@
-
 import ModalAuth from 'components/authentication/modal/ModalAuth';
 import TopNavLayoutNavbarTop from 'components/navbar/top/TopNavLayoutNavbarTop';
 import { Outlet } from 'react-router';

@@ -116,9 +116,12 @@ export const useKanban = () => {
   const currentUser = useAppSelector(selectCurrentUser);
 
   // Modal actions
-  const openModal = useCallback((image: string) => {
-    dispatch(openKanbanModal(image));
-  }, [dispatch]);
+  const openModal = useCallback(
+    (image: string) => {
+      dispatch(openKanbanModal(image));
+    },
+    [dispatch]
+  );
 
   const toggleModal = useCallback(() => {
     dispatch(toggleKanbanModal());
@@ -129,95 +132,154 @@ export const useKanban = () => {
   }, [dispatch]);
 
   // Column actions
-  const addColumn = useCallback((newColumn: KanbanItem) => {
-    dispatch(addKanbanColumn(newColumn));
-  }, [dispatch]);
+  const addColumn = useCallback(
+    (newColumn: KanbanItem) => {
+      dispatch(addKanbanColumn(newColumn));
+    },
+    [dispatch]
+  );
 
-  const removeColumn = useCallback((columnId: string) => {
-    dispatch(removeKanbanColumn(columnId));
-  }, [dispatch]);
+  const removeColumn = useCallback(
+    (columnId: string) => {
+      dispatch(removeKanbanColumn(columnId));
+    },
+    [dispatch]
+  );
 
-  const updateColumn = useCallback((id: string, updates: Partial<KanbanItem>) => {
-    dispatch(updateKanbanColumn({ id, updates }));
-  }, [dispatch]);
+  const updateColumn = useCallback(
+    (id: string, updates: Partial<KanbanItem>) => {
+      dispatch(updateKanbanColumn({ id, updates }));
+    },
+    [dispatch]
+  );
 
   // Task card actions
-  const addTask = useCallback((targetListId: string, newCard: TaskCard) => {
-    dispatch(addTaskCard({ targetListId, newCard }));
-  }, [dispatch]);
+  const addTask = useCallback(
+    (targetListId: string, newCard: TaskCard) => {
+      dispatch(addTaskCard({ targetListId, newCard }));
+    },
+    [dispatch]
+  );
 
-  const removeTask = useCallback((cardId: string) => {
-    dispatch(removeTaskCard(cardId));
-  }, [dispatch]);
+  const removeTask = useCallback(
+    (cardId: string) => {
+      dispatch(removeTaskCard(cardId));
+    },
+    [dispatch]
+  );
 
-  const updateTask = useCallback((cardId: string, updates: Partial<TaskCard>) => {
-    dispatch(updateTaskCard({ cardId, updates }));
-  }, [dispatch]);
+  const updateTask = useCallback(
+    (cardId: string, updates: Partial<TaskCard>) => {
+      dispatch(updateTaskCard({ cardId, updates }));
+    },
+    [dispatch]
+  );
 
   // Drag and drop actions
-  const updateSingleCol = useCallback((columnId: string, reorderedItems: TaskCard[]) => {
-    dispatch(updateSingleColumn({ columnId, reorderedItems }));
-  }, [dispatch]);
+  const updateSingleCol = useCallback(
+    (columnId: string, reorderedItems: TaskCard[]) => {
+      dispatch(updateSingleColumn({ columnId, reorderedItems }));
+    },
+    [dispatch]
+  );
 
-  const updateDualCol = useCallback((
-    sourceColumnId: string,
-    destColumnId: string,
-    updatedSourceItems: TaskCard[],
-    updatedDestItems: TaskCard[]
-  ) => {
-    dispatch(updateDualColumn({
-      sourceColumnId,
-      destColumnId,
-      updatedSourceItems,
-      updatedDestItems
-    }));
-  }, [dispatch]);
+  const updateDualCol = useCallback(
+    (
+      sourceColumnId: string,
+      destColumnId: string,
+      updatedSourceItems: TaskCard[],
+      updatedDestItems: TaskCard[]
+    ) => {
+      dispatch(
+        updateDualColumn({
+          sourceColumnId,
+          destColumnId,
+          updatedSourceItems,
+          updatedDestItems
+        })
+      );
+    },
+    [dispatch]
+  );
 
   // UI state actions
-  const updateCardHeight = useCallback((height: number) => {
-    dispatch(setCardHeight(height));
-  }, [dispatch]);
+  const updateCardHeight = useCallback(
+    (height: number) => {
+      dispatch(setCardHeight(height));
+    },
+    [dispatch]
+  );
 
-  const updateUser = useCallback((updates: Partial<CurrentUser>) => {
-    dispatch(updateCurrentUser(updates));
-  }, [dispatch]);
+  const updateUser = useCallback(
+    (updates: Partial<CurrentUser>) => {
+      dispatch(updateCurrentUser(updates));
+    },
+    [dispatch]
+  );
 
   // Data management actions
-  const addNewMember = useCallback((member: Member) => {
-    dispatch(addMember(member));
-  }, [dispatch]);
+  const addNewMember = useCallback(
+    (member: Member) => {
+      dispatch(addMember(member));
+    },
+    [dispatch]
+  );
 
-  const removeMemberById = useCallback((memberId: string) => {
-    dispatch(removeMember(memberId));
-  }, [dispatch]);
+  const removeMemberById = useCallback(
+    (memberId: string) => {
+      dispatch(removeMember(memberId));
+    },
+    [dispatch]
+  );
 
-  const addNewLabel = useCallback((label: Label) => {
-    dispatch(addLabel(label));
-  }, [dispatch]);
+  const addNewLabel = useCallback(
+    (label: Label) => {
+      dispatch(addLabel(label));
+    },
+    [dispatch]
+  );
 
-  const removeLabelByText = useCallback((labelText: string) => {
-    dispatch(removeLabel(labelText));
-  }, [dispatch]);
+  const removeLabelByText = useCallback(
+    (labelText: string) => {
+      dispatch(removeLabel(labelText));
+    },
+    [dispatch]
+  );
 
-  const addNewAttachment = useCallback((attachment: Attachment) => {
-    dispatch(addAttachment(attachment));
-  }, [dispatch]);
+  const addNewAttachment = useCallback(
+    (attachment: Attachment) => {
+      dispatch(addAttachment(attachment));
+    },
+    [dispatch]
+  );
 
-  const removeAttachmentById = useCallback((attachmentId: string) => {
-    dispatch(removeAttachment(attachmentId));
-  }, [dispatch]);
+  const removeAttachmentById = useCallback(
+    (attachmentId: string) => {
+      dispatch(removeAttachment(attachmentId));
+    },
+    [dispatch]
+  );
 
-  const addNewComment = useCallback((comment: Comment) => {
-    dispatch(addComment(comment));
-  }, [dispatch]);
+  const addNewComment = useCallback(
+    (comment: Comment) => {
+      dispatch(addComment(comment));
+    },
+    [dispatch]
+  );
 
-  const removeCommentById = useCallback((commentId: string) => {
-    dispatch(removeComment(commentId));
-  }, [dispatch]);
+  const removeCommentById = useCallback(
+    (commentId: string) => {
+      dispatch(removeComment(commentId));
+    },
+    [dispatch]
+  );
 
-  const addNewActivity = useCallback((activity: Activity) => {
-    dispatch(addActivity(activity));
-  }, [dispatch]);
+  const addNewActivity = useCallback(
+    (activity: Activity) => {
+      dispatch(addActivity(activity));
+    },
+    [dispatch]
+  );
 
   // Utility actions
   const resetKanban = useCallback(() => {
@@ -225,20 +287,29 @@ export const useKanban = () => {
   }, [dispatch]);
 
   // Selector functions
-  const getKanbanItemById = useCallback((id: string) => {
-    const selector = selectKanbanItemById(id);
-    return selector(kanban as any);
-  }, [kanban]);
+  const getKanbanItemById = useCallback(
+    (id: string) => {
+      const selector = selectKanbanItemById(id);
+      return selector(kanban as any);
+    },
+    [kanban]
+  );
 
-  const getTaskById = useCallback((taskId: string) => {
-    const selector = selectTaskById(taskId);
-    return selector(kanban as any);
-  }, [kanban]);
+  const getTaskById = useCallback(
+    (taskId: string) => {
+      const selector = selectTaskById(taskId);
+      return selector(kanban as any);
+    },
+    [kanban]
+  );
 
-  const getTasksByColumnId = useCallback((columnId: string) => {
-    const selector = selectTasksByColumnId(columnId);
-    return selector(kanban as any);
-  }, [kanban]);
+  const getTasksByColumnId = useCallback(
+    (columnId: string) => {
+      const selector = selectTasksByColumnId(columnId);
+      return selector(kanban as any);
+    },
+    [kanban]
+  );
 
   return {
     // State

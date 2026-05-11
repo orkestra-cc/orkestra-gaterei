@@ -1,4 +1,3 @@
-
 import { rgbaColor } from 'helpers/utils';
 import * as echarts from 'echarts/core';
 import {

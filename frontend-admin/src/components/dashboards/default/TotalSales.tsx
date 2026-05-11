@@ -32,7 +32,11 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, month: string, data: number[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  month: string,
+  data: number[]
+) => ({
   color: getThemeColor('gray-100'),
   tooltip: {
     trigger: 'axis',
@@ -67,7 +71,8 @@ const getOptions = (getThemeColor: (color: string) => string, month: string, dat
     axisTick: { show: false },
     axisLabel: {
       color: getThemeColor('gray-400'),
-      formatter: (value: string | number) => `${capitalize(month.slice(0, 3))} ${value}`,
+      formatter: (value: string | number) =>
+        `${capitalize(month.slice(0, 3))} ${value}`,
       margin: 15
     }
   },

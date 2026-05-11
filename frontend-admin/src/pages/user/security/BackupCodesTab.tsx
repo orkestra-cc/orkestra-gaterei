@@ -11,12 +11,13 @@ import BackupCodesDisplay from './BackupCodesDisplay';
 // when the freshness gate fires.
 const BackupCodesTab = () => {
   const { data, isLoading } = useGetSelfAuthMethodsQuery();
-  const [regenerate, { isLoading: regenerating }] = useRegenerateBackupCodesMutation();
+  const [regenerate, { isLoading: regenerating }] =
+    useRegenerateBackupCodesMutation();
   const [showConfirm, setShowConfirm] = useState(false);
   const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const totp = data?.mfaFactors.find((f) => f.type === 'totp');
+  const totp = data?.mfaFactors.find(f => f.type === 'totp');
   const remaining = totp?.backupCodesRemaining ?? 0;
   const enrolled = !!totp;
 
@@ -27,13 +28,17 @@ const BackupCodesTab = () => {
       setFreshCodes(res.codes);
       setShowConfirm(false);
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; title?: string; code?: string } };
+      const e = err as {
+        data?: { detail?: string; title?: string; code?: string };
+      };
       if (e?.data?.code === 'step_up_required') {
         setShowConfirm(false);
         return;
       }
       setError(
-        e?.data?.detail || e?.data?.title || 'Failed to regenerate backup codes.',
+        e?.data?.detail ||
+          e?.data?.title ||
+          'Failed to regenerate backup codes.'
       );
     }
   };

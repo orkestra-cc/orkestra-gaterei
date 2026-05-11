@@ -27,7 +27,7 @@ export interface CreateAdminResponse {
 }
 
 export const setupApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Lightweight status probe. Used by SetupGate on app boot and again after
     // the wizard completes so the gate can stop redirecting.
     getSetupStatus: builder.query<SetupStatus, void>({
@@ -35,26 +35,26 @@ export const setupApi = baseApi.injectEndpoints({
       providesTags: ['Setup'],
       // Cache for longer than the default — the underlying state only flips
       // once per deployment. The wizard explicitly invalidates on success.
-      keepUnusedDataFor: 300,
+      keepUnusedDataFor: 300
     }),
 
     // Create the first administrator. Returns a full login response so the
     // caller can dispatch the standard auth slice `login` action and the
     // remaining wizard steps run authenticated.
-    createInitialAdmin: builder.mutation<CreateAdminResponse, CreateAdminInput>({
-      query: (body) => ({
-        url: '/v1/setup/admin',
-        method: 'POST',
-        body,
-      }),
-      // A successful admin creation flips setupCompleted to true; invalidate
-      // the status cache so any subscribed SetupGate re-checks immediately.
-      invalidatesTags: ['Setup', 'Auth', 'User', 'Navigation'],
-    }),
-  }),
+    createInitialAdmin: builder.mutation<CreateAdminResponse, CreateAdminInput>(
+      {
+        query: body => ({
+          url: '/v1/setup/admin',
+          method: 'POST',
+          body
+        }),
+        // A successful admin creation flips setupCompleted to true; invalidate
+        // the status cache so any subscribed SetupGate re-checks immediately.
+        invalidatesTags: ['Setup', 'Auth', 'User', 'Navigation']
+      }
+    )
+  })
 });
 
-export const {
-  useGetSetupStatusQuery,
-  useCreateInitialAdminMutation,
-} = setupApi;
+export const { useGetSetupStatusQuery, useCreateInitialAdminMutation } =
+  setupApi;

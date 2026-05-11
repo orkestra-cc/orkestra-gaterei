@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useRef, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  ReactNode
+} from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from 'hooks/auth/useAuthRTK';
 import { setNavigateToLogin } from 'store/api/baseApi';
@@ -51,7 +57,9 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const timeout = setTimeout(() => {
       const current = authStoreRef.current;
       if (current.isLoading) {
-        console.warn('🔐 Auth check timeout - enabling login buttons regardless of auth state');
+        console.warn(
+          '🔐 Auth check timeout - enabling login buttons regardless of auth state'
+        );
         console.warn('🔐 Current auth store state:', {
           isLoading: current.isLoading,
           isAuthenticated: current.isAuthenticated,
@@ -66,9 +74,7 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Auth state logging removed - handled by useAuth hook
 
   return (
-    <AuthContext.Provider value={authStore}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={authStore}>{children}</AuthContext.Provider>
   );
 };
 

@@ -1,4 +1,3 @@
-
 import orderBy from 'lodash/orderBy';
 import { toast } from 'react-toastify';
 
@@ -17,7 +16,10 @@ export interface ArrayAction {
   isUpdatedStart?: boolean;
 }
 
-export const arrayReducer = (state: ArrayItem[], action: ArrayAction): ArrayItem[] => {
+export const arrayReducer = (
+  state: ArrayItem[],
+  action: ArrayAction
+): ArrayItem[] => {
   const { type, id, payload, sortBy, order, isAddToStart, isUpdatedStart } =
     action;
   switch (type) {

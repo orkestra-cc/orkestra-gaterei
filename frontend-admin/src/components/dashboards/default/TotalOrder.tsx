@@ -1,4 +1,3 @@
-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Badge, Card } from 'react-bootstrap';
 import Flex from 'components/common/Flex';
@@ -28,7 +27,10 @@ echarts.use([
   CanvasRenderer
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: number[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: number[]
+) => ({
   tooltip: {
     trigger: 'axis',
     formatter: '<strong>{b0}</strong> : {c0}'

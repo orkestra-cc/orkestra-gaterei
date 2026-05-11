@@ -1,5 +1,10 @@
 export type ThemeVariant = 'light' | 'dark' | 'auto';
-export type NavbarPosition = 'vertical' | 'horizontal' | 'combo' | 'top' | 'double-top';
+export type NavbarPosition =
+  | 'vertical'
+  | 'horizontal'
+  | 'combo'
+  | 'top'
+  | 'double-top';
 export type NavbarStyle = 'transparent' | 'card' | 'vibrant';
 
 export interface AppSettings {
@@ -17,7 +22,11 @@ export interface AppSettings {
 export const version: string = '0.0.1';
 export const navbarBreakPoint: string = 'xl'; // Vertical navbar breakpoint
 export const topNavbarBreakpoint: string = 'lg';
-export const themeVariants: readonly ThemeVariant[] = ['light', 'dark', 'auto'] as const;
+export const themeVariants: readonly ThemeVariant[] = [
+  'light',
+  'dark',
+  'auto'
+] as const;
 
 export const settings: AppSettings = {
   isFluid: true,

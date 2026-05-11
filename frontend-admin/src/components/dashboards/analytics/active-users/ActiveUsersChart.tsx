@@ -13,7 +13,6 @@ import { tooltipFormatter } from 'helpers/echart-utils';
 import { getPastDates } from 'helpers/utils';
 import { useAppContext } from 'providers/AppProvider';
 
-
 // TypeScript interfaces for chart data
 interface ActiveUsersChartData {
   mobile: number[];
@@ -34,7 +33,10 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: ActiveUsersChartData) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: ActiveUsersChartData
+) => ({
   color: [
     getThemeColor('primary'),
     getThemeColor('success'),

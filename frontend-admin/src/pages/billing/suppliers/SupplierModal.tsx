@@ -1,10 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Alert, Tab, Nav, Row, Col } from 'react-bootstrap';
+import {
+  Modal,
+  Button,
+  Form,
+  Alert,
+  Tab,
+  Nav,
+  Row,
+  Col
+} from 'react-bootstrap';
 import {
   useCreateSupplierMutation,
-  useUpdateSupplierMutation,
+  useUpdateSupplierMutation
 } from 'store/api/billingApi';
-import type { Supplier, CreateSupplierInput, UpdateSupplierInput, RegimeFiscale } from 'types/billing';
+import type {
+  Supplier,
+  CreateSupplierInput,
+  UpdateSupplierInput,
+  RegimeFiscale
+} from 'types/billing';
 import { REGIME_FISCALE_LABELS } from 'types/billing';
 import FalconCloseButton from 'components/common/FalconCloseButton';
 
@@ -22,8 +36,10 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
   onSuccess
 }) => {
   const isEditMode = !!supplier;
-  const [createSupplier, { isLoading: isCreating }] = useCreateSupplierMutation();
-  const [updateSupplier, { isLoading: isUpdating }] = useUpdateSupplierMutation();
+  const [createSupplier, { isLoading: isCreating }] =
+    useCreateSupplierMutation();
+  const [updateSupplier, { isLoading: isUpdating }] =
+    useUpdateSupplierMutation();
   const isLoading = isCreating || isUpdating;
 
   const [error, setError] = useState<string>('');
@@ -49,10 +65,11 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
     phone: '',
     iban: '',
     bic: '',
-    notes: '',
+    notes: ''
   };
 
-  const [formData, setFormData] = useState<CreateSupplierInput>(initialFormData);
+  const [formData, setFormData] =
+    useState<CreateSupplierInput>(initialFormData);
 
   // Populate form when editing
   useEffect(() => {
@@ -77,13 +94,15 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
         phone: supplier.phone || '',
         iban: supplier.iban || '',
         bic: supplier.bic || '',
-        notes: supplier.notes || '',
+        notes: supplier.notes || ''
       });
     }
   }, [supplier, show]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -112,13 +131,20 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
       return;
     }
 
-    if (!formData.isCompany && (!formData.name?.trim() || !formData.surname?.trim())) {
+    if (
+      !formData.isCompany &&
+      (!formData.name?.trim() || !formData.surname?.trim())
+    ) {
       setError('Nome e Cognome sono obbligatori per le persone fisiche');
       setActiveTab('general');
       return;
     }
 
-    if (!formData.address.trim() || !formData.city.trim() || !formData.postalCode.trim()) {
+    if (
+      !formData.address.trim() ||
+      !formData.city.trim() ||
+      !formData.postalCode.trim()
+    ) {
       setError('Indirizzo, Città e CAP sono obbligatori');
       setActiveTab('address');
       return;
@@ -141,7 +167,7 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
           phone: formData.phone,
           iban: formData.iban,
           bic: formData.bic,
-          notes: formData.notes,
+          notes: formData.notes
         };
         await updateSupplier({ id: supplier.id, data: updateData }).unwrap();
       } else {
@@ -151,7 +177,10 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
       handleClose();
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      setError(err?.data?.message || `Errore durante il ${isEditMode ? 'salvataggio' : 'creazione'} del fornitore`);
+      setError(
+        err?.data?.message ||
+          `Errore durante il ${isEditMode ? 'salvataggio' : 'creazione'} del fornitore`
+      );
     }
   };
 
@@ -186,7 +215,10 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
             </Alert>
           )}
 
-          <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'general')}>
+          <Tab.Container
+            activeKey={activeTab}
+            onSelect={k => setActiveTab(k || 'general')}
+          >
             <Nav variant="tabs" className="mb-3">
               <Nav.Item>
                 <Nav.Link eventKey="general">Dati Generali</Nav.Link>
@@ -506,13 +538,21 @@ const SupplierModal: React.FC<SupplierModalProps> = ({
           </Tab.Container>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
+          <Button
+            variant="secondary"
+            onClick={handleClose}
+            disabled={isLoading}
+          >
             Annulla
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
             {isLoading
-              ? (isEditMode ? 'Salvataggio...' : 'Creazione...')
-              : (isEditMode ? 'Salva Modifiche' : 'Crea Fornitore')}
+              ? isEditMode
+                ? 'Salvataggio...'
+                : 'Creazione...'
+              : isEditMode
+                ? 'Salva Modifiche'
+                : 'Crea Fornitore'}
           </Button>
         </Modal.Footer>
       </Form>

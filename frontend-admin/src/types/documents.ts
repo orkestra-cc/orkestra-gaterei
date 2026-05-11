@@ -182,26 +182,26 @@ export const TEMPLATE_TYPE_LABELS: Record<TemplateType, string> = {
   invoice: 'Fattura',
   offer: 'Preventivo',
   receipt: 'Ricevuta',
-  custom: 'Personalizzato',
+  custom: 'Personalizzato'
 };
 
 export const PAGE_SIZE_LABELS: Record<PageSize, string> = {
   A4: 'A4',
   A3: 'A3',
   Letter: 'Letter',
-  Legal: 'Legal',
+  Legal: 'Legal'
 };
 
 export const PAGE_ORIENTATION_LABELS: Record<PageOrientation, string> = {
   portrait: 'Verticale',
-  landscape: 'Orizzontale',
+  landscape: 'Orizzontale'
 };
 
 export const TEMPLATE_TYPE_COLORS: Record<TemplateType, string> = {
   invoice: 'primary',
   offer: 'success',
   receipt: 'info',
-  custom: 'secondary',
+  custom: 'secondary'
 };
 
 // Default values
@@ -210,7 +210,7 @@ export const DEFAULT_MARGINS: PageMargins = {
   top: 20,
   bottom: 20,
   left: 20,
-  right: 20,
+  right: 20
 };
 
 export const DEFAULT_PAGE_SIZE: PageSize = 'A4';
@@ -231,7 +231,7 @@ export const formatDate = (dateString: string): string => {
   return date.toLocaleDateString('it-IT', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
+    year: 'numeric'
   });
 };
 
@@ -242,6 +242,6 @@ export const formatDateTime = (dateString: string): string => {
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit',
+    minute: '2-digit'
   });
 };

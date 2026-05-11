@@ -3,15 +3,29 @@ import { ColumnDef, createColumnHelper } from '@tanstack/react-table';
 import { Link } from 'react-router';
 import { Badge, Button, Modal, Dropdown, Spinner, Form } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileImport, faCheck, faTimes, faEye, faDownload } from '@fortawesome/free-solid-svg-icons';
-import { useGetInvoicesQuery, useAcceptInvoiceMutation, useRejectInvoiceMutation } from 'store/api/billingApi';
+import {
+  faFileImport,
+  faCheck,
+  faTimes,
+  faEye,
+  faDownload
+} from '@fortawesome/free-solid-svg-icons';
+import {
+  useGetInvoicesQuery,
+  useAcceptInvoiceMutation,
+  useRejectInvoiceMutation
+} from 'store/api/billingApi';
 import useAdvanceTable from './useAdvanceTable';
-import type { InvoiceSummary, InvoiceStatus, DocumentType } from 'types/billing';
+import type {
+  InvoiceSummary,
+  InvoiceStatus,
+  DocumentType
+} from 'types/billing';
 import {
   INVOICE_STATUS_LABELS,
   DOCUMENT_TYPE_LABELS,
   formatCurrency,
-  formatItalianDate,
+  formatItalianDate
 } from 'types/billing';
 
 interface UseReceivedInvoiceTableOptions {
@@ -31,7 +45,7 @@ const getStatusBadgeVariant = (status: InvoiceStatus): string => {
     rejected: 'danger',
     accepted: 'success',
     paid: 'success',
-    cancelled: 'secondary',
+    cancelled: 'secondary'
   };
   return variants[status] || 'secondary';
 };
@@ -43,17 +57,23 @@ const useReceivedInvoiceTable = ({
   perPage = 10,
   selectionColumnWidth = 52
 }: UseReceivedInvoiceTableOptions = {}) => {
-  const [invoiceToAccept, setInvoiceToAccept] = useState<InvoiceSummary | null>(null);
-  const [invoiceToReject, setInvoiceToReject] = useState<InvoiceSummary | null>(null);
+  const [invoiceToAccept, setInvoiceToAccept] = useState<InvoiceSummary | null>(
+    null
+  );
+  const [invoiceToReject, setInvoiceToReject] = useState<InvoiceSummary | null>(
+    null
+  );
   const [rejectReason, setRejectReason] = useState('');
 
   const { data, isLoading, error } = useGetInvoicesQuery({
     direction: 'received',
-    pageSize: 100,
+    pageSize: 100
   });
 
-  const [acceptInvoice, { isLoading: isAccepting }] = useAcceptInvoiceMutation();
-  const [rejectInvoice, { isLoading: isRejecting }] = useRejectInvoiceMutation();
+  const [acceptInvoice, { isLoading: isAccepting }] =
+    useAcceptInvoiceMutation();
+  const [rejectInvoice, { isLoading: isRejecting }] =
+    useRejectInvoiceMutation();
 
   const handleAccept = useCallback(async () => {
     if (!invoiceToAccept) return;
@@ -68,7 +88,10 @@ const useReceivedInvoiceTable = ({
   const handleReject = useCallback(async () => {
     if (!invoiceToReject) return;
     try {
-      await rejectInvoice({ id: invoiceToReject.id, reason: rejectReason }).unwrap();
+      await rejectInvoice({
+        id: invoiceToReject.id,
+        reason: rejectReason
+      }).unwrap();
       setInvoiceToReject(null);
       setRejectReason('');
     } catch (err) {
@@ -87,11 +110,14 @@ const useReceivedInvoiceTable = ({
             to={`/billing/invoices/received/${row.original.id}`}
             className="fw-semibold"
           >
-            <FontAwesomeIcon icon={faFileImport} className="text-success me-2" />
+            <FontAwesomeIcon
+              icon={faFileImport}
+              className="text-success me-2"
+            />
             {row.original.number}
           </Link>
         ),
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.accessor('documentType', {
         header: 'Tipo',
@@ -103,28 +129,31 @@ const useReceivedInvoiceTable = ({
             </span>
           );
         },
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.accessor('date', {
         header: 'Data',
         cell: ({ getValue }) => formatItalianDate(getValue()),
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.accessor('partyName', {
         header: 'Fornitore',
         cell: ({ getValue }) => (
-          <span className="text-truncate d-inline-block" style={{ maxWidth: 180 }}>
+          <span
+            className="text-truncate d-inline-block"
+            style={{ maxWidth: 180 }}
+          >
             {getValue()}
           </span>
         ),
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.accessor('totalAmount', {
         header: 'Importo',
         cell: ({ getValue }) => (
           <span className="fw-medium">{formatCurrency(getValue())}</span>
         ),
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.accessor('status', {
         header: 'Stato',
@@ -142,14 +171,16 @@ const useReceivedInvoiceTable = ({
         enableSorting: sortable,
         filterFn: (row, columnId, filterValue) => {
           return row.getValue(columnId) === filterValue;
-        },
+        }
       }),
       columnHelper.accessor('createdAt', {
         header: 'Ricevuta',
         cell: ({ getValue }) => (
-          <span className="text-body-tertiary">{formatItalianDate(getValue())}</span>
+          <span className="text-body-tertiary">
+            {formatItalianDate(getValue())}
+          </span>
         ),
-        enableSorting: sortable,
+        enableSorting: sortable
       }),
       columnHelper.display({
         id: 'actions',
@@ -168,154 +199,188 @@ const useReceivedInvoiceTable = ({
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-10" />
               </Dropdown.Toggle>
               <Dropdown.Menu className="border py-2">
-                <Dropdown.Item as={Link} to={`/billing/invoices/received/${invoice.id}`}>
+                <Dropdown.Item
+                  as={Link}
+                  to={`/billing/invoices/received/${invoice.id}`}
+                >
                   <FontAwesomeIcon icon={faEye} className="me-2" fixedWidth />
                   Visualizza
                 </Dropdown.Item>
                 {canRespond && (
                   <>
                     <Dropdown.Item onClick={() => setInvoiceToAccept(invoice)}>
-                      <FontAwesomeIcon icon={faCheck} className="me-2 text-success" fixedWidth />
+                      <FontAwesomeIcon
+                        icon={faCheck}
+                        className="me-2 text-success"
+                        fixedWidth
+                      />
                       Accetta
                     </Dropdown.Item>
                     <Dropdown.Item onClick={() => setInvoiceToReject(invoice)}>
-                      <FontAwesomeIcon icon={faTimes} className="me-2 text-danger" fixedWidth />
+                      <FontAwesomeIcon
+                        icon={faTimes}
+                        className="me-2 text-danger"
+                        fixedWidth
+                      />
                       Rifiuta
                     </Dropdown.Item>
                   </>
                 )}
                 <Dropdown.Item>
-                  <FontAwesomeIcon icon={faDownload} className="me-2" fixedWidth />
+                  <FontAwesomeIcon
+                    icon={faDownload}
+                    className="me-2"
+                    fixedWidth
+                  />
                   Scarica XML
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
           );
-        },
-      }),
+        }
+      })
     ],
     [sortable, columnHelper]
   );
 
   // Accept confirmation modal component
-  const AcceptModal = useCallback(() => (
-    <Modal
-      show={!!invoiceToAccept}
-      onHide={() => setInvoiceToAccept(null)}
-      centered
-    >
-      <Modal.Header closeButton>
-        <Modal.Title>Accetta Fattura</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        {invoiceToAccept && (
-          <div>
-            <p className="mb-2">
-              Confermi di accettare la fattura <strong>{invoiceToAccept.number}</strong>?
-            </p>
-            <div className="bg-success-subtle p-3 rounded">
-              <small className="text-success">
-                <FontAwesomeIcon icon="check-circle" className="me-2" />
-                La fattura verrà registrata come accettata e sarà visibile nel ciclo passivo.
-              </small>
+  const AcceptModal = useCallback(
+    () => (
+      <Modal
+        show={!!invoiceToAccept}
+        onHide={() => setInvoiceToAccept(null)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Accetta Fattura</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {invoiceToAccept && (
+            <div>
+              <p className="mb-2">
+                Confermi di accettare la fattura{' '}
+                <strong>{invoiceToAccept.number}</strong>?
+              </p>
+              <div className="bg-success-subtle p-3 rounded">
+                <small className="text-success">
+                  <FontAwesomeIcon icon="check-circle" className="me-2" />
+                  La fattura verrà registrata come accettata e sarà visibile nel
+                  ciclo passivo.
+                </small>
+              </div>
             </div>
-          </div>
-        )}
-      </Modal.Body>
-      <Modal.Footer>
-        <Button
-          variant="secondary"
-          onClick={() => setInvoiceToAccept(null)}
-          disabled={isAccepting}
-        >
-          Annulla
-        </Button>
-        <Button variant="success" onClick={handleAccept} disabled={isAccepting}>
-          {isAccepting ? (
-            <>
-              <Spinner size="sm" className="me-2" />
-              Elaborazione...
-            </>
-          ) : (
-            <>
-              <FontAwesomeIcon icon={faCheck} className="me-2" />
-              Accetta
-            </>
           )}
-        </Button>
-      </Modal.Footer>
-    </Modal>
-  ), [invoiceToAccept, isAccepting, handleAccept]);
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setInvoiceToAccept(null)}
+            disabled={isAccepting}
+          >
+            Annulla
+          </Button>
+          <Button
+            variant="success"
+            onClick={handleAccept}
+            disabled={isAccepting}
+          >
+            {isAccepting ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Elaborazione...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faCheck} className="me-2" />
+                Accetta
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    ),
+    [invoiceToAccept, isAccepting, handleAccept]
+  );
 
   // Reject confirmation modal component
-  const RejectModal = useCallback(() => (
-    <Modal
-      show={!!invoiceToReject}
-      onHide={() => {
-        setInvoiceToReject(null);
-        setRejectReason('');
-      }}
-      centered
-    >
-      <Modal.Header closeButton>
-        <Modal.Title>Rifiuta Fattura</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        {invoiceToReject && (
-          <div>
-            <p className="mb-3">
-              Stai per rifiutare la fattura <strong>{invoiceToReject.number}</strong>.
-            </p>
-            <Form.Group className="mb-3">
-              <Form.Label>Motivo del rifiuto <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Inserisci il motivo del rifiuto..."
-              />
-            </Form.Group>
-            <div className="bg-warning-subtle p-3 rounded">
-              <small className="text-warning">
-                <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
-                Il fornitore riceverà una notifica di rifiuto con il motivo specificato.
-              </small>
+  const RejectModal = useCallback(
+    () => (
+      <Modal
+        show={!!invoiceToReject}
+        onHide={() => {
+          setInvoiceToReject(null);
+          setRejectReason('');
+        }}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Rifiuta Fattura</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {invoiceToReject && (
+            <div>
+              <p className="mb-3">
+                Stai per rifiutare la fattura{' '}
+                <strong>{invoiceToReject.number}</strong>.
+              </p>
+              <Form.Group className="mb-3">
+                <Form.Label>
+                  Motivo del rifiuto <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Inserisci il motivo del rifiuto..."
+                />
+              </Form.Group>
+              <div className="bg-warning-subtle p-3 rounded">
+                <small className="text-warning">
+                  <FontAwesomeIcon
+                    icon="exclamation-triangle"
+                    className="me-2"
+                  />
+                  Il fornitore riceverà una notifica di rifiuto con il motivo
+                  specificato.
+                </small>
+              </div>
             </div>
-          </div>
-        )}
-      </Modal.Body>
-      <Modal.Footer>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setInvoiceToReject(null);
-            setRejectReason('');
-          }}
-          disabled={isRejecting}
-        >
-          Annulla
-        </Button>
-        <Button
-          variant="danger"
-          onClick={handleReject}
-          disabled={isRejecting || !rejectReason.trim()}
-        >
-          {isRejecting ? (
-            <>
-              <Spinner size="sm" className="me-2" />
-              Elaborazione...
-            </>
-          ) : (
-            <>
-              <FontAwesomeIcon icon={faTimes} className="me-2" />
-              Rifiuta
-            </>
           )}
-        </Button>
-      </Modal.Footer>
-    </Modal>
-  ), [invoiceToReject, rejectReason, isRejecting, handleReject]);
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setInvoiceToReject(null);
+              setRejectReason('');
+            }}
+            disabled={isRejecting}
+          >
+            Annulla
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleReject}
+            disabled={isRejecting || !rejectReason.trim()}
+          >
+            {isRejecting ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Elaborazione...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faTimes} className="me-2" />
+                Rifiuta
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    ),
+    [invoiceToReject, rejectReason, isRejecting, handleReject]
+  );
 
   const table = useAdvanceTable({
     columns,
@@ -324,7 +389,7 @@ const useReceivedInvoiceTable = ({
     sortable,
     pagination,
     perPage,
-    selectionColumnWidth,
+    selectionColumnWidth
   });
 
   return {
@@ -332,7 +397,7 @@ const useReceivedInvoiceTable = ({
     isLoading,
     error,
     AcceptModal,
-    RejectModal,
+    RejectModal
   };
 };
 

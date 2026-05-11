@@ -35,23 +35,25 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
   secretStatus,
   includeKeys,
   onConfigChange,
-  onSecretChange,
+  onSecretChange
 }) => {
-  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
+  const [revealedSecrets, setRevealedSecrets] = useState<
+    Record<string, boolean>
+  >({});
 
   const toggleReveal = (key: string) => {
-    setRevealedSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
+    setRevealedSecrets(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const fields = includeKeys
-    ? (includeKeys
-        .map((key) => schema.find((f) => f.key === key))
-        .filter((f): f is ConfigField => Boolean(f)))
+    ? includeKeys
+        .map(key => schema.find(f => f.key === key))
+        .filter((f): f is ConfigField => Boolean(f))
     : schema;
 
   return (
     <>
-      {fields.map((field) => {
+      {fields.map(field => {
         const key = field.key;
 
         if (field.type === 'secret') {
@@ -62,15 +64,19 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
               <Form.Label className="fs-10 fw-semibold">
                 {field.label}
                 {alreadySet && (
-                  <span className="badge badge-subtle-success ms-2 fs-11">Set</span>
+                  <span className="badge badge-subtle-success ms-2 fs-11">
+                    Set
+                  </span>
                 )}
               </Form.Label>
               <InputGroup size="sm">
                 <Form.Control
                   type={revealed ? 'text' : 'password'}
-                  placeholder={alreadySet ? 'Leave empty to keep current' : 'Enter value'}
+                  placeholder={
+                    alreadySet ? 'Leave empty to keep current' : 'Enter value'
+                  }
                   value={secretValues[key] || ''}
-                  onChange={(e) => onSecretChange(key, e.target.value)}
+                  onChange={e => onSecretChange(key, e.target.value)}
                 />
                 <Button
                   variant="outline-secondary"
@@ -81,7 +87,9 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
                 </Button>
               </InputGroup>
               {field.description && (
-                <Form.Text className="text-muted">{field.description}</Form.Text>
+                <Form.Text className="text-muted">
+                  {field.description}
+                </Form.Text>
               )}
             </Form.Group>
           );
@@ -94,17 +102,24 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
           // toggles render OFF until the user explicitly saves a value
           // — admins read it as "disabled" and act on a wrong premise.
           const stored = configValues[key];
-          const effective = stored !== undefined && stored !== '' ? stored : (field.default || 'false');
+          const effective =
+            stored !== undefined && stored !== ''
+              ? stored
+              : field.default || 'false';
           return (
             <Form.Group key={key} className="mb-3">
               <Form.Check
                 type="switch"
                 label={field.label}
                 checked={effective === 'true'}
-                onChange={(e) => onConfigChange(key, e.target.checked ? 'true' : 'false')}
+                onChange={e =>
+                  onConfigChange(key, e.target.checked ? 'true' : 'false')
+                }
               />
               {field.description && (
-                <Form.Text className="text-muted">{field.description}</Form.Text>
+                <Form.Text className="text-muted">
+                  {field.description}
+                </Form.Text>
               )}
             </Form.Group>
           );
@@ -122,17 +137,19 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
               <Form.Select
                 size="sm"
                 value={enumValue}
-                onChange={(e) => onConfigChange(key, e.target.value)}
+                onChange={e => onConfigChange(key, e.target.value)}
               >
                 {!field.required && <option value="">—</option>}
-                {options.map((opt) => (
+                {options.map(opt => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>
                 ))}
               </Form.Select>
               {field.description && (
-                <Form.Text className="text-muted">{field.description}</Form.Text>
+                <Form.Text className="text-muted">
+                  {field.description}
+                </Form.Text>
               )}
             </Form.Group>
           );
@@ -140,7 +157,10 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
 
         const value = configValues[key] || '';
         const isEmpty = field.required && !value;
-        const isDurationInvalid = field.type === 'duration' && value !== '' && !/^\d+[smh]$/.test(value);
+        const isDurationInvalid =
+          field.type === 'duration' &&
+          value !== '' &&
+          !/^\d+[smh]$/.test(value);
         const isStringList = field.type === 'stringList';
 
         return (
@@ -156,7 +176,7 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
                 size="sm"
                 placeholder={field.default || 'comma,separated,values'}
                 value={value}
-                onChange={(e) => onConfigChange(key, e.target.value)}
+                onChange={e => onConfigChange(key, e.target.value)}
                 isInvalid={isEmpty}
               />
             ) : (
@@ -165,7 +185,7 @@ const ModuleConfigFields: React.FC<ModuleConfigFieldsProps> = ({
                 size="sm"
                 placeholder={field.default || ''}
                 value={value}
-                onChange={(e) => onConfigChange(key, e.target.value)}
+                onChange={e => onConfigChange(key, e.target.value)}
                 isInvalid={isEmpty || isDurationInvalid}
               />
             )}

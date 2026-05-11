@@ -1,4 +1,3 @@
-
 import { Card, Col, Form, Row } from 'react-bootstrap';
 import FalconCardHeader from 'components/common/FalconCardHeader';
 import CardDropdown from 'components/common/CardDropdown';
@@ -46,7 +45,12 @@ const CampaignPerfomance = () => {
       <Card.Footer className="bg-body-tertiary py-2">
         <Row className="g-0 flex-between-center">
           <Col xs="auto">
-            <Form.Select size="sm" className="me-2" name="date-range" aria-label="Date range">
+            <Form.Select
+              size="sm"
+              className="me-2"
+              name="date-range"
+              aria-label="Date range"
+            >
               <option>Last 7 days</option>
               <option>Last Month</option>
               <option>Last Year</option>

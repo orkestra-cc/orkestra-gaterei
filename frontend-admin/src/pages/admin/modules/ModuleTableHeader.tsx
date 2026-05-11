@@ -16,7 +16,7 @@ const defaultCategoryOptions = [
   { value: '', label: 'All Categories' },
   { value: 'core', label: 'Core' },
   { value: 'toggleable', label: 'Toggleable' },
-  { value: 'external', label: 'External' },
+  { value: 'external', label: 'External' }
 ];
 
 const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
@@ -28,7 +28,7 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
   categoryOptions = defaultCategoryOptions,
   hideCategoryFilter = false,
   statusFilter,
-  onStatusChange,
+  onStatusChange
 }) => {
   return (
     <Row className="align-items-center g-3">
@@ -42,7 +42,7 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
           size="sm"
           autoComplete="off"
           value={searchTerm}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={e => onSearchChange(e.target.value)}
         />
       </Col>
       {!hideCategoryFilter && (
@@ -50,9 +50,9 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
           <Form.Select
             size="sm"
             value={categoryFilter}
-            onChange={(e) => onCategoryChange(e.target.value)}
+            onChange={e => onCategoryChange(e.target.value)}
           >
-            {categoryOptions.map((opt) => (
+            {categoryOptions.map(opt => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -64,7 +64,7 @@ const ModuleTableHeader: React.FC<ModuleTableHeaderProps> = ({
         <Form.Select
           size="sm"
           value={statusFilter}
-          onChange={(e) => onStatusChange(e.target.value)}
+          onChange={e => onStatusChange(e.target.value)}
         >
           <option value="">All Statuses</option>
           <option value="running">Running</option>

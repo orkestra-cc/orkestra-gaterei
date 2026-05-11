@@ -28,10 +28,9 @@ const DivisionsTab: React.FC<Props> = ({ org }) => {
     <>
       <Alert variant="light" className="fs-10 py-2 border">
         <FontAwesomeIcon icon="info-circle" className="me-2 text-info" />
-        Divisions are organisational: each child is an independent Tier-2
-        tenant that holds its own subscriptions, entitlements, and members.
-        Adding a division does <strong>not</strong> propagate the parent's
-        subscriptions.
+        Divisions are organisational: each child is an independent Tier-2 tenant
+        that holds its own subscriptions, entitlements, and members. Adding a
+        division does <strong>not</strong> propagate the parent's subscriptions.
       </Alert>
 
       <Card className="shadow-none border-0">
@@ -69,7 +68,7 @@ const DivisionsTab: React.FC<Props> = ({ org }) => {
                 </tr>
               </thead>
               <tbody>
-                {divisions.map((d) => (
+                {divisions.map(d => (
                   <tr key={d.id} className="align-middle">
                     <td>
                       <Link to={`/admin/clients/${d.id}`}>{d.name}</Link>

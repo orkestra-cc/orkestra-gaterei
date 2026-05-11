@@ -8,111 +8,129 @@ import type {
   RelationshipTypeConfig,
   CreateRelationshipTypeRequest,
   UpdateRelationshipTypeRequest,
-  DocumentRelationsResponse,
+  DocumentRelationsResponse
 } from '../../types/rag';
 
 export const ragApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // --- Documents ---
 
     uploadDocument: builder.mutation<RagDocument, FormData>({
-      query: (formData) => ({
+      query: formData => ({
         url: '/v1/rag/documents',
         method: 'POST',
         body: formData,
-        formData: true,
+        formData: true
       }),
-      invalidatesTags: ['RagDocument', 'GraphSchema'],
+      invalidatesTags: ['RagDocument', 'GraphSchema']
     }),
 
-    listDocuments: builder.query<{ documents: RagDocument[] }, { status?: string; isoStandard?: string } | void>({
-      query: (params) => {
+    listDocuments: builder.query<
+      { documents: RagDocument[] },
+      { status?: string; isoStandard?: string } | void
+    >({
+      query: params => {
         const searchParams = new URLSearchParams();
         if (params?.status) searchParams.append('status', params.status);
-        if (params?.isoStandard) searchParams.append('isoStandard', params.isoStandard);
+        if (params?.isoStandard)
+          searchParams.append('isoStandard', params.isoStandard);
         const qs = searchParams.toString();
         return `/v1/rag/documents${qs ? `?${qs}` : ''}`;
       },
-      providesTags: ['RagDocument'],
+      providesTags: ['RagDocument']
     }),
 
     getDocument: builder.query<RagDocument, string>({
-      query: (uuid) => `/v1/rag/documents/${uuid}`,
-      providesTags: ['RagDocument'],
+      query: uuid => `/v1/rag/documents/${uuid}`,
+      providesTags: ['RagDocument']
     }),
 
-    updateDocument: builder.mutation<RagDocument, { uuid: string; data: UpdateDocumentRequest }>({
+    updateDocument: builder.mutation<
+      RagDocument,
+      { uuid: string; data: UpdateDocumentRequest }
+    >({
       query: ({ uuid, data }) => ({
         url: `/v1/rag/documents/${uuid}`,
         method: 'PATCH',
-        body: data,
+        body: data
       }),
-      invalidatesTags: ['RagDocument'],
+      invalidatesTags: ['RagDocument']
     }),
 
     getDocumentChunks: builder.query<{ chunks: RagChunk[] }, string>({
-      query: (uuid) => `/v1/rag/documents/${uuid}/chunks`,
-      providesTags: ['RagDocument'],
+      query: uuid => `/v1/rag/documents/${uuid}/chunks`,
+      providesTags: ['RagDocument']
     }),
 
     deleteDocument: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/rag/documents/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['RagDocument', 'GraphSchema'],
+      invalidatesTags: ['RagDocument', 'GraphSchema']
     }),
 
     // --- Relationship Types ---
 
-    listRelationshipTypes: builder.query<{ relationshipTypes: RelationshipTypeConfig[] }, void>({
+    listRelationshipTypes: builder.query<
+      { relationshipTypes: RelationshipTypeConfig[] },
+      void
+    >({
       query: () => '/v1/rag/relationships',
-      providesTags: ['RagRelationship'],
+      providesTags: ['RagRelationship']
     }),
 
-    createRelationshipType: builder.mutation<RelationshipTypeConfig, CreateRelationshipTypeRequest>({
-      query: (body) => ({
+    createRelationshipType: builder.mutation<
+      RelationshipTypeConfig,
+      CreateRelationshipTypeRequest
+    >({
+      query: body => ({
         url: '/v1/rag/relationships',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['RagRelationship'],
+      invalidatesTags: ['RagRelationship']
     }),
 
-    updateRelationshipType: builder.mutation<RelationshipTypeConfig, { uuid: string; data: UpdateRelationshipTypeRequest }>({
+    updateRelationshipType: builder.mutation<
+      RelationshipTypeConfig,
+      { uuid: string; data: UpdateRelationshipTypeRequest }
+    >({
       query: ({ uuid, data }) => ({
         url: `/v1/rag/relationships/${uuid}`,
         method: 'PATCH',
-        body: data,
+        body: data
       }),
-      invalidatesTags: ['RagRelationship'],
+      invalidatesTags: ['RagRelationship']
     }),
 
     deleteRelationshipType: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/rag/relationships/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['RagRelationship'],
+      invalidatesTags: ['RagRelationship']
     }),
 
     // --- Cross-Document Relations ---
 
     getDocumentRelations: builder.query<DocumentRelationsResponse, string>({
-      query: (uuid) => `/v1/rag/documents/${uuid}/relations`,
-      providesTags: (_result, _err, uuid) => [{ type: 'RagDocument', id: `relations-${uuid}` }],
+      query: uuid => `/v1/rag/documents/${uuid}/relations`,
+      providesTags: (_result, _err, uuid) => [
+        { type: 'RagDocument', id: `relations-${uuid}` }
+      ]
     }),
 
     // --- RAG Query ---
 
     ragQuery: builder.mutation<RagQueryResponse, RagQueryRequest>({
-      query: (body) => ({
+      query: body => ({
         url: '/v1/rag/query',
         method: 'POST',
-        body,
-      }),
-    }),
-  }),
+        body
+      })
+    })
+  })
 });
 
 export const {
@@ -127,5 +145,5 @@ export const {
   useUpdateRelationshipTypeMutation,
   useDeleteRelationshipTypeMutation,
   useGetDocumentRelationsQuery,
-  useRagQueryMutation,
+  useRagQueryMutation
 } = ragApi;

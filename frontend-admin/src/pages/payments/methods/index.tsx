@@ -9,13 +9,23 @@ import { useListAllOrgsAdminQuery } from 'store/api/tenantApi';
 const PaymentMethodsPage: React.FC = () => {
   const [tenantUUID, setTenantUUID] = useState('');
   const { data: tenantsData } = useListAllOrgsAdminQuery({ kind: 'external' });
-  const { data, isLoading, refetch } = useListPaymentMethodsQuery(tenantUUID, { skip: !tenantUUID });
+  const { data, isLoading, refetch } = useListPaymentMethodsQuery(tenantUUID, {
+    skip: !tenantUUID
+  });
 
   return (
     <>
-      <PageHeader title="Metodi di pagamento" description="Carte e metodi salvati per cliente" className="mb-3">
+      <PageHeader
+        title="Metodi di pagamento"
+        description="Carte e metodi salvati per cliente"
+        className="mb-3"
+      >
         <Flex className="gap-2 mt-3">
-          <IconButton icon="sync-alt" variant="falcon-default" onClick={() => refetch()}>
+          <IconButton
+            icon="sync-alt"
+            variant="falcon-default"
+            onClick={() => refetch()}
+          >
             Aggiorna
           </IconButton>
         </Flex>
@@ -24,9 +34,12 @@ const PaymentMethodsPage: React.FC = () => {
       <Card className="mb-3">
         <Card.Body>
           <Form.Label>Seleziona tenant esterno</Form.Label>
-          <Form.Select value={tenantUUID} onChange={(e) => setTenantUUID(e.target.value)}>
+          <Form.Select
+            value={tenantUUID}
+            onChange={e => setTenantUUID(e.target.value)}
+          >
             <option value="">—</option>
-            {tenantsData?.tenants.map((t) => (
+            {tenantsData?.tenants.map(t => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.slug})
               </option>
@@ -38,11 +51,15 @@ const PaymentMethodsPage: React.FC = () => {
       <Card>
         <Card.Body className="p-0">
           {!tenantUUID ? (
-            <div className="p-4 text-muted text-center">Seleziona un tenant esterno per visualizzare i metodi salvati.</div>
+            <div className="p-4 text-muted text-center">
+              Seleziona un tenant esterno per visualizzare i metodi salvati.
+            </div>
           ) : isLoading ? (
             <div className="p-4">Caricamento...</div>
           ) : !data?.items.length ? (
-            <div className="p-4 text-muted text-center">Nessun metodo salvato per questo cliente.</div>
+            <div className="p-4 text-muted text-center">
+              Nessun metodo salvato per questo cliente.
+            </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
@@ -56,14 +73,24 @@ const PaymentMethodsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((pm) => (
+                {data.items.map(pm => (
                   <tr key={pm.uuid}>
-                    <td><Badge bg="dark">{pm.provider}</Badge></td>
+                    <td>
+                      <Badge bg="dark">{pm.provider}</Badge>
+                    </td>
                     <td>{pm.brand || '—'}</td>
                     <td>{pm.last4 ? `•••• ${pm.last4}` : '—'}</td>
-                    <td>{pm.expiryMonth && pm.expiryYear ? `${pm.expiryMonth}/${pm.expiryYear}` : '—'}</td>
-                    <td>{pm.isDefault ? <Badge bg="success">default</Badge> : '—'}</td>
-                    <td>{new Date(pm.createdAt).toLocaleDateString('it-IT')}</td>
+                    <td>
+                      {pm.expiryMonth && pm.expiryYear
+                        ? `${pm.expiryMonth}/${pm.expiryYear}`
+                        : '—'}
+                    </td>
+                    <td>
+                      {pm.isDefault ? <Badge bg="success">default</Badge> : '—'}
+                    </td>
+                    <td>
+                      {new Date(pm.createdAt).toLocaleDateString('it-IT')}
+                    </td>
                   </tr>
                 ))}
               </tbody>

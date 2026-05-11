@@ -15,38 +15,50 @@ export const companyManifest: ModuleManifest = {
       path: 'company/lookup',
       element: (
         <ModuleGate module="company">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer', 'manager']
+            ]}
+          >
             <Suspense key="company-lookup" fallback={<FalconLoader />}>
               <CompanyLookup />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'company/lookup/:companyId',
       element: (
         <ModuleGate module="company">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer', 'manager']
+            ]}
+          >
             <Suspense key="company-detail" fallback={<FalconLoader />}>
               <CompanyDetail />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
+      )
     },
     {
       path: 'company/search',
       element: (
         <ModuleGate module="company">
-          <ProtectedRoute requiredPermissions={[['super_admin', 'administrator', 'developer', 'manager']]}>
+          <ProtectedRoute
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer', 'manager']
+            ]}
+          >
             <Suspense key="company-search" fallback={<FalconLoader />}>
               <CompanySearch />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
-  injectApi: () => import('store/api/companyApi'),
+  injectApi: () => import('store/api/companyApi')
 };

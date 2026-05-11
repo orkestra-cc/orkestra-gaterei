@@ -44,20 +44,28 @@ const NotificationDropdown = () => {
   };
 
   useEffect(() => {
-    window.addEventListener('scroll', () => {
-      window.innerWidth < 1200 && setIsOpen(false);
-    }, { passive: true });
+    window.addEventListener(
+      'scroll',
+      () => {
+        window.innerWidth < 1200 && setIsOpen(false);
+      },
+      { passive: true }
+    );
   }, []);
 
   const markAsRead = (e: React.MouseEvent) => {
     e.preventDefault();
 
-    const updatedNewNotifications = (newNotifications as NotificationItem[]).map((notification: NotificationItem) =>
+    const updatedNewNotifications = (
+      newNotifications as NotificationItem[]
+    ).map((notification: NotificationItem) =>
       Object.prototype.hasOwnProperty.call(notification, 'unread')
         ? { ...notification, unread: false }
         : notification
     );
-    const updatedEarlierNotifications = (earlierNotifications as NotificationItem[]).map((notification: NotificationItem) =>
+    const updatedEarlierNotifications = (
+      earlierNotifications as NotificationItem[]
+    ).map((notification: NotificationItem) =>
       Object.prototype.hasOwnProperty.call(notification, 'unread')
         ? { ...notification, unread: false }
         : notification
@@ -105,18 +113,28 @@ const NotificationDropdown = () => {
             <ListGroup variant="flush" className="fw-normal fs-10">
               <div className="list-group-title">NEW</div>{' '}
               {isIterableArray(newNotifications) &&
-                (newNotifications as NotificationItem[]).map((notification: NotificationItem) => (
-                  <ListGroup.Item key={notification.id} onClick={handleToggle}>
-                    <Notification {...notification} flush />
-                  </ListGroup.Item>
-                ))}
+                (newNotifications as NotificationItem[]).map(
+                  (notification: NotificationItem) => (
+                    <ListGroup.Item
+                      key={notification.id}
+                      onClick={handleToggle}
+                    >
+                      <Notification {...notification} flush />
+                    </ListGroup.Item>
+                  )
+                )}
               <div className="list-group-title">EARLIER</div>
               {isIterableArray(earlierNotifications) &&
-                (earlierNotifications as NotificationItem[]).map((notification: NotificationItem) => (
-                  <ListGroup.Item key={notification.id} onClick={handleToggle}>
-                    <Notification {...notification} flush />
-                  </ListGroup.Item>
-                ))}
+                (earlierNotifications as NotificationItem[]).map(
+                  (notification: NotificationItem) => (
+                    <ListGroup.Item
+                      key={notification.id}
+                      onClick={handleToggle}
+                    >
+                      <Notification {...notification} flush />
+                    </ListGroup.Item>
+                  )
+                )}
             </ListGroup>
           </SimpleBar>
           <div

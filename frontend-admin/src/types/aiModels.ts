@@ -60,9 +60,16 @@ export interface AvailableModel {
 }
 
 // Provider metadata for UI rendering
-export const PROVIDER_INFO: Record<Provider, { label: string; category: ProviderCategory; color: string }> = {
+export const PROVIDER_INFO: Record<
+  Provider,
+  { label: string; category: ProviderCategory; color: string }
+> = {
   ollama: { label: 'Ollama', category: 'local', color: 'info' },
   openai: { label: 'OpenAI / Compatible', category: 'cloud', color: 'success' },
-  anthropic: { label: 'Anthropic (Claude)', category: 'cloud', color: 'warning' },
-  gemini: { label: 'Google (Gemini)', category: 'cloud', color: 'primary' },
+  anthropic: {
+    label: 'Anthropic (Claude)',
+    category: 'cloud',
+    color: 'warning'
+  },
+  gemini: { label: 'Google (Gemini)', category: 'cloud', color: 'primary' }
 };

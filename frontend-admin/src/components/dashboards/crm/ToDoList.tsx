@@ -70,7 +70,9 @@ const ToDoListItem = ({ item, index, handleChange }: ToDoListItemProps) => {
 };
 
 const ToDoList = () => {
-  const [todoItems, setTodoItems] = useState<ToDoItem[]>(toDoList as ToDoItem[]);
+  const [todoItems, setTodoItems] = useState<ToDoItem[]>(
+    toDoList as ToDoItem[]
+  );
   const handleChange = (id: string | number, completed: boolean) => {
     const updatedTodos = todoItems.map((item: ToDoItem) =>
       item.id === id ? { ...item, completed } : item
@@ -108,10 +110,7 @@ const ToDoList = () => {
         ))}
       </Card.Body>
       <Card.Footer className="p-0 bg-body-tertiary">
-        <Link
-          to="#!"
-          className="btn btn-link btn-sm w-100 py-2"
-        >
+        <Link to="#!" className="btn btn-link btn-sm w-100 py-2">
           <FontAwesomeIcon icon="plus" className="me-1 fs-11" />
           Add New Task
         </Link>
