@@ -2,7 +2,7 @@
 
 <img src=".github/assets/orkestra-logo.webp" alt="Orkestra" width="480" />
 
-**Modular, multi-tenant orchestrator platform. Pluggable business capabilities (electronic invoicing, AI sales intelligence, RAG, payments, identity) on a two-tier tenancy model.**
+**The plumbing every SaaS rebuilds — users, auth, RBAC, multi-tenancy, billing — already done. Plus 13 pluggable addons (electronic invoicing, AI sales, RAG, payments, identity, compliance) on a two-tier tenancy model.**
 
 [![Backend CI](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml)
 [![Frontend Admin CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml)
@@ -34,12 +34,13 @@
 
 ## What is Orkestra
 
-Orkestra is not a single-purpose business app. It is a host that exposes business capabilities (invoicing, billing, AI sales, RAG, documents, payments, identity, compliance) as pluggable modules, and manages *who* can consume those capabilities across a **two-tier tenancy model**:
+Every SaaS reinvents the same wheel: users, roles, password resets, OAuth with five providers, MFA, sessions, audit logs, multi-tenant isolation, billing. Three months of plumbing before the first real feature.
 
-- **Tier 1, internal tenants** (operator side). The companies that run Orkestra; their staff, RBAC, FatturaPA/SDI invoicing, module configuration.
-- **Tier 2, external client tenants** (customer side). Clients register on the platform, subscribe to services via Stripe-backed billing, and consume the capabilities Tier-1 enables.
+Orkestra is that plumbing, already done. Six core modules — `user`, `auth`, `authz`, `tenant`, `notification`, `navigation` — always load and give you email/password (argon2id) + OAuth 2.1 (Google, Apple, GitHub, Discord) + TOTP/WebAuthn MFA, RBAC with Cedar policies, orgs + memberships, and audited-everything on day one.
 
-Module enable/disable is per-internal-tenant; service consumption is gated per-external-client subscription. The two are deliberately separate concerns. See [CLAUDE.md](CLAUDE.md) for the full model.
+Layered on top: 13 optional addon modules (invoicing, payments, subscriptions, RAG, AI agents, compliance, identity, ...) toggled per tenant at `/admin/modules`, hot-reloaded without a restart. Build your SaaS as the next addon, not as another from-scratch repo.
+
+It runs on a **two-tier tenancy model**: Tier-1 operators manage staff and module configuration; Tier-2 external clients register, subscribe via Stripe-backed billing, and consume the addons scoped to their own org. Module enable/disable is per-Tier-1; service consumption is gated per-Tier-2 subscription. See [CLAUDE.md](CLAUDE.md) for the full model.
 
 ## Architecture at a glance
 

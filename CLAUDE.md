@@ -1,6 +1,6 @@
 # ORKESTRA
 
-**Orkestra is a modular, multi-tenant orchestrator platform.** It is not a single-purpose business app — it is a host that exposes business capabilities (invoicing, billing, AI sales, RAG, documents, payments, etc.) as pluggable modules/addons, and manages *who* can consume those capabilities across a two-tier tenancy model.
+**Orkestra is the SaaS plumbing every product rebuilds — users, auth, RBAC, multi-tenancy, billing — already done.** Six core modules (`user`, `auth`, `authz`, `tenant`, `notification`, `navigation`) supply the baseline on day one; a catalog of optional addons (invoicing/SDI, payments, subscriptions, RAG, AI agents, documents, identity, compliance, ...) sits on top and is toggled per internal tenant at `/admin/modules`. Orkestra manages *who* can consume those addons across a **two-tier tenancy model**.
 
 ## Tenancy Model
 
