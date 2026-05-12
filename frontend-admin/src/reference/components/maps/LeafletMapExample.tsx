@@ -32,27 +32,18 @@ function LayerComponent() {
     map.invalidateSize();
   }, [config]);
 
+  // Single tile layer with the colorFilter option (leaflet.tilelayer.colorfilter v2 API).
+  // Recreated on isDark change; cleanup removes the previous layer.
   useEffect(() => {
-    if (map) {
-      L.tileLayer
-        .colorFilter(
-          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          {
-            attribution: null,
-            transparent: true,
-            filter: filter
-          }
-        )
-        .addTo(map);
-    }
+    const layer = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      { colorFilter: filter }
+    ).addTo(map);
+    return () => { map.removeLayer(layer); };
   }, [isDark]);
 
   return (
     <>
-      <TileLayer
-        attribution={null}
-        url={'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
-      />
       <MarkerClusterGroup chunkedLoading={true} spiderfyOnMaxZoom={false}>
         {markers.map(marker => (
           <Marker
@@ -86,6 +77,7 @@ function LeafletMap() {
       <MapContainer
         zoom={isRTL ? 1.8 : 1.5}
         minZoom={isRTL ? 1.8 : 1.3}
+        maxZoom={18}
         zoomSnap={0.5}
         center={position}
         radius={200}

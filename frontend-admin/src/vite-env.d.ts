@@ -6,18 +6,26 @@ declare module 'd3';
 declare module 'react-leaflet-markercluster';
 declare module 'leaflet.tilelayer.colorfilter';
 
-// Extend leaflet types
+// Minimal leaflet typing — @types/leaflet isn't installed (it's only a
+// devDependency of react-leaflet, so it doesn't propagate), and we only
+// touch a tiny surface of the API directly via `L.tileLayer(...)`.
+// The colorFilter mixins below are for leaflet.tilelayer.colorfilter v2.x —
+// the plugin no longer exposes an `L.tileLayer.colorFilter()` factory
+// (that was v1); it adds a `colorFilter` TileLayerOption and an
+// `updateColorFilter` method to TileLayer.
 declare module 'leaflet' {
-  namespace tileLayer {
-    function colorFilter(
-      url: string,
-      options?: {
-        attribution?: string | null;
-        transparent?: boolean;
-        filter?: string[];
-      }
-    ): TileLayer;
+  interface TileLayerOptions {
+    attribution?: string;
+    colorFilter?: string[];
   }
+  interface TileLayer {
+    addTo(map: unknown): this;
+    updateColorFilter(filter: string[]): this;
+  }
+  function tileLayer(
+    urlTemplate: string,
+    options?: TileLayerOptions
+  ): TileLayer;
 }
 
 interface ImportMetaEnv {
