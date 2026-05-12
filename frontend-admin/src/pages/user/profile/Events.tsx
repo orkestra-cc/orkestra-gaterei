@@ -23,7 +23,11 @@ const Events = ({ cardTitle, events, ...rest }: EventsProps) => {
           />
         ))}
       </Card.Body>
-      <OrkestraCardFooterLink title="All Events" to={paths.eventList} size="sm" />
+      <OrkestraCardFooterLink
+        title="All Events"
+        to={paths.eventList}
+        size="sm"
+      />
     </Card>
   );
 };

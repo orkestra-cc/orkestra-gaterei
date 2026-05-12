@@ -129,7 +129,10 @@ const Audience = ({ chartData, className }: AudienceProps) => {
             </Form.Select>
           </Col>
           <Col xs="auto">
-            <OrkestraLink title="Visitors overview" className="px-0 fw-medium" />
+            <OrkestraLink
+              title="Visitors overview"
+              className="px-0 fw-medium"
+            />
           </Col>
         </Row>
       </Card.Footer>

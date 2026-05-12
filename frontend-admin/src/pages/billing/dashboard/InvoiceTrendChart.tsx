@@ -225,7 +225,11 @@ const InvoiceTrendChart = () => {
   if (isLoading) {
     return (
       <Card className="h-100">
-        <OrkestraCardHeader title="Andamento Fatturazione" titleTag="h6" light />
+        <OrkestraCardHeader
+          title="Andamento Fatturazione"
+          titleTag="h6"
+          light
+        />
         <Card.Body
           className="d-flex align-items-center justify-content-center"
           style={{ minHeight: 300 }}
@@ -239,7 +243,11 @@ const InvoiceTrendChart = () => {
   if (error || !stats) {
     return (
       <Card className="h-100">
-        <OrkestraCardHeader title="Andamento Fatturazione" titleTag="h6" light />
+        <OrkestraCardHeader
+          title="Andamento Fatturazione"
+          titleTag="h6"
+          light
+        />
         <Card.Body
           className="d-flex align-items-center justify-content-center"
           style={{ minHeight: 300 }}

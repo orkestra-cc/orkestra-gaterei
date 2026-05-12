@@ -103,7 +103,10 @@ export const billingManifest: ModuleManifest = {
               ['super_admin', 'administrator', 'developer']
             ]}
           >
-            <Suspense key="billing-invoices-issued" fallback={<OrkestraLoader />}>
+            <Suspense
+              key="billing-invoices-issued"
+              fallback={<OrkestraLoader />}
+            >
               <IssuedInvoices />
             </Suspense>
           </ProtectedRoute>

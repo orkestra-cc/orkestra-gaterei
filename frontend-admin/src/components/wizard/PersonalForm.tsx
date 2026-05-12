@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import WizardInput from './WizardInput';
-import OrkestraDropzone, { CustomFile } from 'components/common/OrkestraDropzone';
+import OrkestraDropzone, {
+  CustomFile
+} from 'components/common/OrkestraDropzone';
 import avatarImg from 'assets/img/team/avatar.png';
 import { isIterableArray } from 'helpers/utils';
 import Avatar from 'components/common/Avatar';

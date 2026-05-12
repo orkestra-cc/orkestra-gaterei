@@ -131,7 +131,10 @@ export function buildCoreRoutes(
                         ['super_admin', 'administrator', 'developer']
                       ]}
                     >
-                      <Suspense key="admin-modules" fallback={<OrkestraLoader />}>
+                      <Suspense
+                        key="admin-modules"
+                        fallback={<OrkestraLoader />}
+                      >
                         <ModuleManagement />
                       </Suspense>
                     </ProtectedRoute>
@@ -223,7 +226,10 @@ export function buildCoreRoutes(
                         ['super_admin', 'administrator', 'developer']
                       ]}
                     >
-                      <Suspense key="admin-clients" fallback={<OrkestraLoader />}>
+                      <Suspense
+                        key="admin-clients"
+                        fallback={<OrkestraLoader />}
+                      >
                         <ClientManagement />
                       </Suspense>
                     </ProtectedRoute>
@@ -297,7 +303,10 @@ export function buildCoreRoutes(
                 {
                   path: 'dashboard',
                   element: (
-                    <Suspense key="user-dashboard" fallback={<OrkestraLoader />}>
+                    <Suspense
+                      key="user-dashboard"
+                      fallback={<OrkestraLoader />}
+                    >
                       <UserDashboard />
                     </Suspense>
                   )
