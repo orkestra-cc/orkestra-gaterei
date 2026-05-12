@@ -1,2 +1,65 @@
-# Ensure shell scripts always use LF line endings
-*.sh text eol=lf
+# Default: text files are normalized to LF on checkin and checked out as LF
+# on every platform. Fixes the recurring Prettier-CRLF failures we hit when
+# files were edited from a Windows-side IDE into a WSL2 working tree.
+* text=auto eol=lf
+
+# Force LF on toolchain-sensitive file types regardless of editor settings.
+*.sh         text eol=lf
+*.bash       text eol=lf
+Makefile     text eol=lf
+*.mk         text eol=lf
+*.go         text eol=lf
+*.ts         text eol=lf
+*.tsx        text eol=lf
+*.js         text eol=lf
+*.jsx        text eol=lf
+*.mjs        text eol=lf
+*.cjs        text eol=lf
+*.dart       text eol=lf
+*.py         text eol=lf
+*.rb         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.json       text eol=lf
+*.toml       text eol=lf
+*.md         text eol=lf
+*.css        text eol=lf
+*.scss       text eol=lf
+*.html       text eol=lf
+*.xml        text eol=lf
+*.sql        text eol=lf
+Dockerfile   text eol=lf
+*.dockerfile text eol=lf
+
+# Binary file types — never normalize, never diff as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.tgz   binary
+*.jar   binary
+*.so    binary
+*.dylib binary
+*.dll   binary
+*.exe   binary
+*.keystore binary
+
+# SVGs are XML — keep them as text so they show up in diffs.
+*.svg   text eol=lf
+
+# Generated artifacts — hide from PR diff stats and GitHub language stats.
+go.sum                                  linguist-generated=true
+**/package-lock.json                    linguist-generated=true
+**/pubspec.lock                         linguist-generated=true
+frontend-client/src/api/openapi.gen.ts  linguist-generated=true
+docs/openapi/*.json                     linguist-generated=true
