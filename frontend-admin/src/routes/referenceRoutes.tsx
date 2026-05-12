@@ -10,7 +10,6 @@ import FalconLoader from 'components/common/FalconLoader';
 import ProtectedRoute from 'components/authentication/ProtectedRoute';
 
 // Layouts
-import MainLayout from 'layouts/MainLayout';
 import VerticalNavLayout from 'layouts/VerticalNavLayout';
 import TopNavLayout from 'layouts/TopNavLayout';
 import ComboNavLayout from 'layouts/ComboNavLayout';
@@ -172,8 +171,6 @@ import FaqBasic from 'reference/pages/faq/faq-basic/FaqBasic';
 import FaqAccordion from 'reference/pages/faq/faq-accordion/FaqAccordion';
 import PrivacyPolicy from 'reference/pages/miscellaneous/privacy-policy/PrivacyPolicy';
 import InvitePeople from 'reference/pages/miscellaneous/invite-people/InvitePeople';
-import AuthTestPage from 'reference/test/AuthTestPage';
-import RoleNavigationTester from 'reference/test/RoleNavigationTester';
 import PricingDefault from 'reference/pages/pricing/pricing-default/PricingDefault';
 import PricingAlt from 'reference/pages/pricing/pricing-alt/PricingAlt';
 import CreateEvent from 'reference/app-examples/events/create-an-event/CreateEvent';
@@ -355,8 +352,7 @@ export function getReferenceRoutes(): RouteObject[] {
       children: [
         { path: paths.associations, element: <Associations /> },
         { path: paths.invitePeople, element: <InvitePeople /> },
-        { path: paths.privacyPolicy, element: <PrivacyPolicy /> },
-        { path: paths.authTest, element: <AuthTestPage /> }
+        { path: paths.privacyPolicy, element: <PrivacyPolicy /> }
       ]
     },
     // Forms
@@ -1181,13 +1177,6 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: 'changelog', element: <Changelog /> },
             { path: 'migration', element: <Migration /> }
           ]
-        },
-        {
-          path: 'test',
-          children: [
-            { path: 'auth-test', element: <AuthTestPage /> },
-            { path: 'role-navigation', element: <RoleNavigationTester /> }
-          ]
         }
       ]
     }
@@ -1204,15 +1193,6 @@ export function getLayoutVariantRoutes(): RouteObject[] {
   }
 
   return [
-    {
-      path: '/test',
-      element: (
-        <ProtectedRoute>
-          <MainLayout />
-        </ProtectedRoute>
-      ),
-      children: [{ path: 'role-navigation', element: <RoleNavigationTester /> }]
-    },
     {
       path: '/',
       element: (

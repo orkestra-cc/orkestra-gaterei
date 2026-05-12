@@ -1032,27 +1032,6 @@ export const modulesRoutes: RouteGroup = {
   ]
 };
 
-export const testRoutes: RouteGroup = {
-  label: 'TEST',
-  roles: ['developer'], // Only CEO can see test routes
-  children: [
-    {
-      name: 'Authentication Test',
-      icon: 'shield-alt',
-      to: paths.authTest,
-      active: true,
-      roles: ['developer']
-    },
-    {
-      name: 'Role Navigation Tester',
-      icon: 'users',
-      to: paths.roleNavigationTester,
-      active: true,
-      roles: ['developer']
-    }
-  ]
-};
-
 export const documentationRoutes: RouteGroup = {
   label: 'Documentation',
   roles: ['developer'],
@@ -1633,20 +1612,6 @@ export const referenceRoutes: RouteGroup = {
         { name: 'Design File', to: paths.refDocDesignFile, active: true },
         { name: 'Changelog', to: paths.refDocChangelog, active: true },
         { name: 'Migration', to: paths.refDocMigration, active: true }
-      ]
-    },
-    {
-      name: 'Test',
-      active: true,
-      icon: 'flask',
-      roles: ['developer'],
-      children: [
-        { name: 'Auth Test', to: paths.refTestAuth, active: true },
-        {
-          name: 'Role Navigation',
-          to: paths.refTestRoleNavigation,
-          active: true
-        }
       ]
     }
   ]

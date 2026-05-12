@@ -152,14 +152,6 @@ const { user } = useAuth();
 const userRole = user?.role; // "manager"
 ```
 
-## 🛠️ Development Tools
-
-### 1. **Role Navigation Tester** (`/test/role-navigation`)
-Updated to work with Redux auth:
-- Shows real user role from Redux
-- Tests navigation filtering based on Redux auth state
-- Compares mock scenarios with actual user data
-
 ## 🔄 Auto-Sync Behavior
 
 The AuthSyncProvider automatically:

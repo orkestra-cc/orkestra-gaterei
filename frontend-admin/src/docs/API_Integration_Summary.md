@@ -28,20 +28,6 @@ The role-based navigation system has been successfully integrated with the `v1/a
 - Updated dependencies to remove Redux-specific functions
 - Added placeholder permission functions (ready for future enhancement)
 
-### 4. **Development Tools**
-
-#### Auth Test Page (`pages/test/AuthTestPage.tsx`)
-- Comprehensive authentication endpoint testing
-- Cookie-based authentication testing
-- Bearer token testing (deprecated for security)
-- API client testing with auto-refresh
-- Available at `/miscellaneous/auth-test`
-
-#### Enhanced Role Tester (`components/development/RoleNavigationTester.tsx`)
-- Shows real user authentication status alongside test scenarios
-- Compares actual filtered navigation with simulated roles
-- Provides side-by-side role testing
-
 ## 🎯 Current Role-Based Access
 
 ### Production Route Groups
@@ -51,7 +37,6 @@ The role-based navigation system has been successfully integrated with the `v1/a
 - **System Administration** (`super_admin`): User management, system settings
 
 ### Development Tools (Development Environment Only)
-- **Test Routes** (`super_admin`): Auth testing, role navigation tester, auth debugger
 - **Development Routes**: Component library, forms, modules (based on role)
 
 ## 🔧 API Endpoint Integration
@@ -75,13 +60,7 @@ The role-based navigation system has been successfully integrated with the `v1/a
 
 ## 🧪 Testing & Debugging
 
-### 1. **Role Navigation Tester** (`/test/role-navigation`)
-Use this to verify:
-- Navigation filtering works for different roles
-- Real user navigation vs simulated navigation
-- Route visibility based on role hierarchy
-
-### 2. **Browser Console**
+### Browser Console
 In development, the system logs warnings for:
 - Invalid role values
 - Role extraction failures
