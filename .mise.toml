@@ -13,9 +13,10 @@
 go            = "1.25.10"
 node          = "22"
 flutter       = "3.35"
-# CI uses 'latest'; we pin here for reproducibility and bump deliberately.
-# When bumping, also update .github/workflows/backend.yml.
-golangci-lint = "2.5"
+# Matches what `golangci/golangci-lint-action@v7` resolved `latest` to in
+# the last green run on dev (2026-05-11). Bump deliberately, not lazily —
+# minor-version moves regress on legacy code (G402, prealloc rule scope).
+golangci-lint = "2.12.2"
 pre-commit    = "4"
 jq            = "1.7"
 

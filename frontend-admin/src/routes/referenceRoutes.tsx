@@ -423,7 +423,10 @@ export function getReferenceRoutes(): RouteObject[] {
             {
               path: paths.candlestickCharts,
               element: (
-                <Suspense key="echarts-candleStick" fallback={<OrkestraLoader />}>
+                <Suspense
+                  key="echarts-candleStick"
+                  fallback={<OrkestraLoader />}
+                >
                   <CandlestickCharts />
                 </Suspense>
               )
@@ -458,7 +461,10 @@ export function getReferenceRoutes(): RouteObject[] {
             {
               path: paths.radarCharts,
               element: (
-                <Suspense key="echarts-radarChart" fallback={<OrkestraLoader />}>
+                <Suspense
+                  key="echarts-radarChart"
+                  fallback={<OrkestraLoader />}
+                >
                   <RadarCharts />
                 </Suspense>
               )
@@ -707,7 +713,10 @@ export function getReferenceRoutes(): RouteObject[] {
             {
               path: 'saas',
               element: (
-                <Suspense key="ref-dashboard-saas" fallback={<OrkestraLoader />}>
+                <Suspense
+                  key="ref-dashboard-saas"
+                  fallback={<OrkestraLoader />}
+                >
                   <Saas />
                 </Suspense>
               )
@@ -806,7 +815,10 @@ export function getReferenceRoutes(): RouteObject[] {
             {
               path: 'accordion',
               element: (
-                <Suspense key="ref-comp-accordion" fallback={<OrkestraLoader />}>
+                <Suspense
+                  key="ref-comp-accordion"
+                  fallback={<OrkestraLoader />}
+                >
                   <Accordion />
                 </Suspense>
               )
@@ -997,7 +1009,10 @@ export function getReferenceRoutes(): RouteObject[] {
                 {
                   path: 'bar-charts',
                   element: (
-                    <Suspense key="ref-echarts-bar" fallback={<OrkestraLoader />}>
+                    <Suspense
+                      key="ref-echarts-bar"
+                      fallback={<OrkestraLoader />}
+                    >
                       <BarCharts />
                     </Suspense>
                   )
@@ -1016,7 +1031,10 @@ export function getReferenceRoutes(): RouteObject[] {
                 {
                   path: 'geo-map',
                   element: (
-                    <Suspense key="ref-echarts-geo" fallback={<OrkestraLoader />}>
+                    <Suspense
+                      key="ref-echarts-geo"
+                      fallback={<OrkestraLoader />}
+                    >
                       <GeoMaps />
                     </Suspense>
                   )
@@ -1035,7 +1053,10 @@ export function getReferenceRoutes(): RouteObject[] {
                 {
                   path: 'pie-charts',
                   element: (
-                    <Suspense key="ref-echarts-pie" fallback={<OrkestraLoader />}>
+                    <Suspense
+                      key="ref-echarts-pie"
+                      fallback={<OrkestraLoader />}
+                    >
                       <PieCharts />
                     </Suspense>
                   )
@@ -1133,7 +1154,10 @@ export function getReferenceRoutes(): RouteObject[] {
                 {
                   path: 'top-nav',
                   element: (
-                    <Suspense key="ref-layout-top" fallback={<OrkestraLoader />}>
+                    <Suspense
+                      key="ref-layout-top"
+                      fallback={<OrkestraLoader />}
+                    >
                       <Dashboard />
                     </Suspense>
                   )
