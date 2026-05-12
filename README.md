@@ -6,6 +6,7 @@
 
 [![Backend CI](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml)
 [![Frontend Admin CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml)
+[![Frontend Client CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-client.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-client.yml)
 [![Mobile CI](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml)
 [![Security CI](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml)
 
