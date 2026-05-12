@@ -253,11 +253,13 @@ The coverage badges in the header are SVGs committed to `.github/badges/`. Each 
 We welcome contributions. The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md); the short version:
 
 ```bash
-curl https://mise.run | sh && exec $SHELL    # install mise (one binary)
-mise install                                 # provision Go/Node/Flutter at pinned versions
-make install                                 # bootstrap all dependencies
-pre-commit install --install-hooks           # auto-format on commit, CI on push
-make ci                                      # run the same checks GitHub Actions runs
+curl https://mise.run | sh && exec $SHELL                  # install mise (one binary)
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc           # activate shims (zsh: ~/.zshrc + `zsh`)
+exec $SHELL                                                # reload so the eval takes effect
+mise install                                               # provision Go/Node/Flutter at pinned versions
+make install                                               # bootstrap all dependencies
+pre-commit install --install-hooks                         # auto-format on commit, CI on push
+make ci                                                    # run the same checks GitHub Actions runs
 ```
 
 `make ci` auto-detects which surfaces (`backend`, `frontend-admin`, `frontend-client`, `mobile`) you touched and runs only those. CI workflows invoke the same `make` targets, so local-green ≡ CI-green by construction. Run `make ci-help` for the full target list.

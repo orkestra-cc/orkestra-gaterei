@@ -8,19 +8,36 @@ Thanks for considering a contribution. Orkestra is a Go + React + Flutter monore
 # 1. Install mise — a single static binary that manages every toolchain.
 curl https://mise.run | sh && exec $SHELL
 
-# 2. Provision the languages at the versions pinned in .mise.toml
+# 2. Activate mise in your shell so its tools land on PATH.
+#    `mise install` provisions tools into ~/.local/share/mise but they
+#    only resolve through PATH once mise's shims are activated. Add this
+#    once to ~/.bashrc (or ~/.zshrc) — replace `bash` with `zsh` if needed:
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc
+exec $SHELL                 # reload the shell so the eval takes effect
+
+# 3. Provision the languages at the versions pinned in .mise.toml
 mise install                # Go 1.25.10, Node 22, Flutter 3.35, golangci-lint, pre-commit, ...
 
-# 3. Bootstrap dependencies for the surface(s) you'll touch
+# 4. Bootstrap dependencies for the surface(s) you'll touch
 make install                # everything; or scope manually:
                             #   cd backend         && go mod download
                             #   cd frontend-admin  && npm ci
                             #   cd frontend-client && npm ci
                             #   cd mobile          && flutter pub get
 
-# 4. Install git hooks (auto-format on commit, run CI on push)
+# 5. Install git hooks (auto-format on commit, run CI on push)
 pre-commit install --install-hooks
 ```
+
+Sanity check after step 2 — if these print versions, mise is wired up correctly:
+
+```bash
+mise --version
+which pre-commit            # should resolve under ~/.local/share/mise/shims/
+go version && node --version && flutter --version
+```
+
+If `pre-commit: command not found` after `mise install`, you skipped step 2 — activate mise in your current shell with `eval "$(mise activate bash)"` and re-try.
 
 Optional but recommended — make `git blame` skip the line-ending-normalization commit:
 
