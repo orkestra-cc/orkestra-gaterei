@@ -14,10 +14,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/graph/repository"
 	"github.com/orkestra/backend/internal/addons/graph/services"
 	"github.com/orkestra/backend/internal/shared/database"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Default image reference for the Memgraph container. Overridable via the
@@ -167,7 +167,7 @@ func (m *GraphModule) Init(deps *module.Dependencies) error {
 
 func (m *GraphModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("graph.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("graph.query.read"))
 		api := humachi.New(r, ri.APIConfig)

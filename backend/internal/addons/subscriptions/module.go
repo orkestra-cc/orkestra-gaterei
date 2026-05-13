@@ -12,9 +12,9 @@ import (
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings is the typed view of the subscriptions module's config schema.
@@ -234,7 +234,7 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// gate already restricts callers to aud=client tokens, so the Tier-2
 	// scope is enforced at the surface boundary.
 	ri.Client.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Client.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
@@ -249,7 +249,7 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// cannot create subscriptions, change pricing, cancel subscriptions, etc.
 	// All admin routes require an internal tenant.
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
 		// Services (catalog) — operator admin only.
 		gated.Group(func(r chi.Router) {

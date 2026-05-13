@@ -18,7 +18,7 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/core/authz/services"
 	tenantServices "github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
 )
@@ -157,7 +157,7 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		// Dev-token fallback: synthetic users have no DB record.
 		// Three guards: non-production + dev- UUID prefix + valid role in JWT.
 		if !deps.Platform.IsProduction() && strings.HasPrefix(userUUID, "dev-") {
-			if role, ok := middleware.GetSystemRole(ctx); ok {
+			if role, ok := ctxauth.GetSystemRole(ctx); ok {
 				if _, valid := validDevRoles[role]; valid {
 					return role, nil
 				}

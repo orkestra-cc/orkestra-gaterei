@@ -11,6 +11,7 @@ import (
 
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	sharedErrors "github.com/orkestra/backend/internal/shared/errors"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -159,15 +160,15 @@ func TestSetUserContext_NonMember_WithSystemAdmin_Impersonates(t *testing.T) {
 	if seen == nil {
 		t.Fatalf("handler must run when admin impersonation resolves the tenant")
 	}
-	tenantID, ok := GetTenantID(seen)
+	tenantID, ok := ctxauth.GetTenantID(seen)
 	if !ok || tenantID != "tenant-X" {
 		t.Fatalf("expected tenantID=tenant-X, got %q ok=%v", tenantID, ok)
 	}
-	if kind := TenantKindFromContext(seen); kind != iface.TenantKindExternal {
+	if kind := ctxauth.TenantKindFromContext(seen); kind != iface.TenantKindExternal {
 		t.Fatalf("expected external kind, got %q", kind)
 	}
-	if !IsImpersonating(seen) {
-		t.Fatalf("expected IsImpersonating(ctx)=true")
+	if !ctxauth.IsImpersonating(seen) {
+		t.Fatalf("expected ctxauth.IsImpersonating(ctx)=true")
 	}
 	if len(sink.events) != 1 {
 		t.Fatalf("expected 1 audit event, got %d", len(sink.events))
@@ -250,8 +251,8 @@ func TestSetUserContext_PersonalTarget_WithMFA_ImpersonatesAndAuditsPersonal(t *
 	if seen == nil {
 		t.Fatalf("handler must run when personal-target impersonation passes the MFA gate")
 	}
-	if !IsImpersonating(seen) {
-		t.Fatalf("expected IsImpersonating(ctx)=true")
+	if !ctxauth.IsImpersonating(seen) {
+		t.Fatalf("expected ctxauth.IsImpersonating(ctx)=true")
 	}
 	if len(sink.events) != 1 {
 		t.Fatalf("expected 1 audit event, got %d", len(sink.events))
@@ -286,10 +287,10 @@ func TestSetUserContext_Member_PathUnchanged(t *testing.T) {
 	if seen == nil {
 		t.Fatalf("handler must run for a regular member")
 	}
-	if IsImpersonating(seen) {
+	if ctxauth.IsImpersonating(seen) {
 		t.Fatalf("regular members must not be flagged as impersonating")
 	}
-	if tenantID, _ := GetTenantID(seen); tenantID != "tenant-Y" {
+	if tenantID, _ := ctxauth.GetTenantID(seen); tenantID != "tenant-Y" {
 		t.Fatalf("expected tenantID=tenant-Y, got %q", tenantID)
 	}
 }

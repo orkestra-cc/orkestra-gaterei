@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -26,16 +27,16 @@ import (
 func TenantBaggage(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		span := trace.SpanFromContext(r.Context())
-		if tenantID, ok := GetTenantID(r.Context()); ok {
+		if tenantID, ok := ctxauth.GetTenantID(r.Context()); ok {
 			span.SetAttributes(attribute.String("tenant.id", tenantID))
 		}
-		if kind := TenantKindFromContext(r.Context()); kind != "" {
+		if kind := ctxauth.TenantKindFromContext(r.Context()); kind != "" {
 			span.SetAttributes(attribute.String("tenant.kind", kind))
 		}
-		if userID, ok := GetUserUUID(r.Context()); ok {
+		if userID, ok := ctxauth.GetUserUUID(r.Context()); ok {
 			span.SetAttributes(attribute.String("user.id", userID))
 		}
-		if role, ok := GetSystemRole(r.Context()); ok {
+		if role, ok := ctxauth.GetSystemRole(r.Context()); ok {
 			span.SetAttributes(attribute.String("user.role", role))
 		}
 		next.ServeHTTP(w, r)

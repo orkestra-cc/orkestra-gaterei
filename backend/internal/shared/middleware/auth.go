@@ -16,6 +16,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/metrics"
 )
@@ -30,29 +31,14 @@ func slogString(key, value string) slog.Attr { return slog.String(key, value) }
 // string constants so existing handlers that read ctx.Value("userUUID")
 // directly keep working — they can migrate to the typed helpers below
 // incrementally.
+// Context keys for auth-internal values that did NOT move to pkg/sdk/ctxauth.
+// The values that DID move (userUUID/userEmail/systemRole/tenantID/tenantRoles/
+// clientIP/tenantKind/tenantImpersonated) are written using the exported
+// ctxauth.Key* constants below — search for "ctxauth.Key" to find the
+// stamping sites.
 const (
-	ctxUserUUID          = "userUUID"
-	ctxUserEmail         = "userEmail"
-	ctxSystemRole        = "userRole" // legacy key name: "userRole" still holds the system role
 	ctxClaims            = "claims"
-	ctxTenantID          = "tenantID"
 	ctxTenantMemberships = "tenantMemberships"
-	ctxTenantRoles       = "tenantRoles"
-	// ctxClientIP carries the caller's source IP as resolved by
-	// utils.GetClientIP. Stamped on every authenticated request so
-	// downstream consumers (Cedar's ip_bucket ABAC attribute, audit
-	// trails, risk scoring) can read the same value the middleware
-	// observed without another request-scoped helper.
-	ctxClientIP = "clientIP"
-	// ctxTenantKind carries the tier ("internal" | "external") of the tenant
-	// the current request is acting in. Populated from claims.ActingTenantKind
-	// or resolved from the matched membership. See ADR-0001.
-	ctxTenantKind = "tenantKind"
-	// ctxTenantImpersonated is set when the current tenant context was
-	// resolved via the operator-admin impersonation bypass rather than a
-	// real membership. Handlers that want to block self-destructive actions
-	// while impersonating (e.g. demote own user) read this flag.
-	ctxTenantImpersonated = "tenantImpersonated"
 )
 
 // TenantIDHeader is the HTTP header clients use to pick the current tenant
@@ -326,21 +312,21 @@ func (m *AuthMiddleware) sendSessionRevoked(w http.ResponseWriter, r *http.Reque
 //  4. empty — only allowed on RequireGlobal() routes.
 func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, next http.Handler) {
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
-	ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
-	ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, claims.UserUUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, claims.Email)
+	ctx = context.WithValue(ctx, ctxauth.KeySystemRole, claims.SystemRole)
 	ctx = context.WithValue(ctx, ctxClaims, claims)
 	ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 	if ip := utils.GetClientIP(r); ip != "" {
-		ctx = context.WithValue(ctx, ctxClientIP, ip)
+		ctx = context.WithValue(ctx, ctxauth.KeyClientIP, ip)
 	}
 
 	tenantID, roles, kind, ok := resolveCurrentTenant(r, claims)
 	if ok {
-		ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-		ctx = context.WithValue(ctx, ctxTenantRoles, roles)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, roles)
 		if kind != "" {
-			ctx = context.WithValue(ctx, ctxTenantKind, kind)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, kind)
 		}
 	}
 
@@ -423,12 +409,12 @@ func (m *AuthMiddleware) tryImpersonationBypass(
 		return ctx, target.Kind, impersonationBypassMFARequired
 	}
 
-	ctx = context.WithValue(ctx, ctxTenantID, target.UUID)
-	ctx = context.WithValue(ctx, ctxTenantRoles, []string{"administrator"})
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantID, target.UUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, []string{"administrator"})
 	if target.Kind != "" {
-		ctx = context.WithValue(ctx, ctxTenantKind, target.Kind)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, target.Kind)
 	}
-	ctx = context.WithValue(ctx, ctxTenantImpersonated, true)
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantImpersonated, true)
 
 	action := auditActionImpersonateBusiness
 	if personal {
@@ -536,35 +522,6 @@ func resolveCurrentTenant(r *http.Request, claims *models.JWTClaims) (string, []
 	return "", nil, "", false
 }
 
-// TenantKindFromContext returns the tier ("internal" | "external") for the
-// tenant this request is acting in, or empty when no tier is known (global
-// routes, or pre-ADR-0001 tokens). See ADR-0001.
-func TenantKindFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxTenantKind).(string); ok {
-		return v
-	}
-	return ""
-}
-
-// WithTenantKind returns ctx with the tier stamped under the same key the
-// auth middleware writes during request resolution. Exposed for tests that
-// need to exercise tier-aware logic (Cedar tenant_scope.cedar forbids,
-// tenant-kind gates) without booting the middleware chain. Production
-// code paths should never call this — the kind comes from the resolved
-// tenant in resolveCurrentTenant.
-func WithTenantKind(ctx context.Context, kind string) context.Context {
-	return context.WithValue(ctx, ctxTenantKind, kind)
-}
-
-// IsImpersonating returns true when the current tenant context was resolved
-// via the operator-admin impersonation bypass rather than a real membership.
-// Handlers that want to guard destructive self-targeted actions can read
-// this flag and refuse when set.
-func IsImpersonating(ctx context.Context) bool {
-	v, _ := ctx.Value(ctxTenantImpersonated).(bool)
-	return v
-}
-
 // tenantKindEnforcementMode returns "warn" when TENANT_KIND_ENFORCEMENT=warn,
 // otherwise "enforce". Read once per invocation rather than cached so an
 // operator flipping the env var on a hot-reloaded process takes effect on the
@@ -591,7 +548,7 @@ func tenantKindEnforcementMode() string {
 func (m *AuthMiddleware) RequireTenantKind(expected string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			kind := TenantKindFromContext(r.Context())
+			kind := ctxauth.TenantKindFromContext(r.Context())
 			if kind == "" {
 				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_tenant_kind").
@@ -669,19 +626,19 @@ func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 		claims, err := m.jwtService.ValidateAccessToken(token)
 		if err == nil {
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
-			ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
-			ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+			ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, claims.UserUUID)
+			ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, claims.Email)
+			ctx = context.WithValue(ctx, ctxauth.KeySystemRole, claims.SystemRole)
 			ctx = context.WithValue(ctx, ctxClaims, claims)
 			ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 			if ip := utils.GetClientIP(r); ip != "" {
-				ctx = context.WithValue(ctx, ctxClientIP, ip)
+				ctx = context.WithValue(ctx, ctxauth.KeyClientIP, ip)
 			}
 			if tenantID, roles, kind, ok := resolveCurrentTenant(r, claims); ok {
-				ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-				ctx = context.WithValue(ctx, ctxTenantRoles, roles)
+				ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+				ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, roles)
 				if kind != "" {
-					ctx = context.WithValue(ctx, ctxTenantKind, kind)
+					ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, kind)
 				}
 			}
 			r = r.WithContext(ctx)
@@ -706,35 +663,15 @@ func isOAuthCallbackRequest(r *http.Request) bool {
 		r.URL.Path == "/v1/auth/github/callback")
 }
 
-// --- Context accessors ---
-
-// GetUserUUID extracts the user UUID from the request context.
-func GetUserUUID(ctx context.Context) (string, bool) {
-	userUUID, ok := ctx.Value(ctxUserUUID).(string)
-	return userUUID, ok
-}
-
-// GetUserEmail extracts the user email from the request context.
-func GetUserEmail(ctx context.Context) (string, bool) {
-	email, ok := ctx.Value(ctxUserEmail).(string)
-	return email, ok
-}
-
-// GetSystemRole extracts the user's global system role from the context.
-func GetSystemRole(ctx context.Context) (string, bool) {
-	role, ok := ctx.Value(ctxSystemRole).(string)
-	return role, ok
-}
-
-// GetTenantID extracts the current tenant UUID from the request context.
-// Returns ok=false when the request has no resolved tenant (global routes).
-func GetTenantID(ctx context.Context) (string, bool) {
-	tenantID, ok := ctx.Value(ctxTenantID).(string)
-	if !ok || tenantID == "" {
-		return "", false
-	}
-	return tenantID, true
-}
+// --- Context accessors (auth-internal, JWT-claims-dependent) ---
+//
+// Plain getters that don't touch claims (GetUserUUID, GetUserEmail,
+// GetSystemRole, GetTenantID, GetTenantRoles, GetClientIP, IsImpersonating,
+// TenantKindFromContext, WithTenantKind, WithClientIP) live in
+// pkg/sdk/ctxauth so extracted addons can read them without importing
+// backend internals. The accessors below stay here because they read
+// *models.JWTClaims, which is auth-module-internal — Phase 1c exposes
+// them through an iface.ClaimsAccessor SDK contract.
 
 // GetSessionID extracts the JWT sid claim (session identifier) from the
 // request context. Used by the logout handler to revoke the current
@@ -747,12 +684,6 @@ func GetSessionID(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return claims.SessionID, true
-}
-
-// GetTenantRoles extracts the user's roles in the current tenant.
-func GetTenantRoles(ctx context.Context) ([]string, bool) {
-	roles, ok := ctx.Value(ctxTenantRoles).([]string)
-	return roles, ok
 }
 
 // GetMemberships returns all tenant memberships the user has.
@@ -784,25 +715,6 @@ func IsMFAEnrolled(ctx context.Context) bool {
 		return false
 	}
 	return amrSatisfiesMFA(amr)
-}
-
-// GetClientIP returns the caller's source IP as resolved by
-// utils.GetClientIP at the middleware boundary. Background jobs and
-// service-to-service calls made outside the HTTP stack return ok=false.
-func GetClientIP(ctx context.Context) (string, bool) {
-	ip, ok := ctx.Value(ctxClientIP).(string)
-	if !ok || ip == "" {
-		return "", false
-	}
-	return ip, true
-}
-
-// WithClientIP stamps a client IP onto the context under the same key
-// AuthMiddleware uses. Exposed for tests that want to exercise IP-gated
-// ABAC policies without booting the middleware chain. Production code
-// paths receive the IP from utils.GetClientIP in setUserContext.
-func WithClientIP(ctx context.Context, ip string) context.Context {
-	return context.WithValue(ctx, ctxClientIP, ip)
 }
 
 // WithAMR stamps an amr slice onto the request's JWT claims so tests can
@@ -844,13 +756,13 @@ func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler)
 					WithOperation("require_permission").Build())
 				return
 			}
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_permission").Build())
 				return
 			}
-			tenantID, hasTenant := GetTenantID(r.Context())
+			tenantID, hasTenant := ctxauth.GetTenantID(r.Context())
 			if !hasTenant {
 				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_permission").
@@ -884,7 +796,7 @@ func (m *AuthMiddleware) RequireSystemPermission(permission string) func(http.Ha
 					WithOperation("require_system_permission").Build())
 				return
 			}
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_system_permission").Build())
@@ -965,7 +877,7 @@ func (m *AuthMiddleware) RequireCapability(capabilityID string) func(http.Handle
 // undefined post Unified Client Aggregate (every billable principal is a
 // tenant).
 func capabilityTenantFromRequest(r *http.Request) (string, bool) {
-	if tenantID, ok := GetTenantID(r.Context()); ok && tenantID != "" {
+	if tenantID, ok := ctxauth.GetTenantID(r.Context()); ok && tenantID != "" {
 		return tenantID, true
 	}
 	return "", false
@@ -977,7 +889,7 @@ func capabilityTenantFromRequest(r *http.Request) (string, bool) {
 func (m *AuthMiddleware) RequireGlobal() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := GetUserUUID(r.Context()); !ok {
+			if _, ok := ctxauth.GetUserUUID(r.Context()); !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_global").Build())
 				return

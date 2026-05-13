@@ -8,7 +8,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/payments/models"
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -187,7 +187,7 @@ func assertTenantScope(ctx context.Context, tenantUUID string) error {
 	if tenantUUID == "" {
 		return nil
 	}
-	requestTenant, hasTenant := middleware.GetTenantID(ctx)
+	requestTenant, hasTenant := ctxauth.GetTenantID(ctx)
 	if !hasTenant {
 		return nil
 	}

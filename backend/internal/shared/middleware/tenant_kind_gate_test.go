@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -18,7 +19,7 @@ func runKindGate(t *testing.T, expected string, ctxKind string) (bool, int) {
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/anything", nil)
 	if ctxKind != "" {
-		ctx := context.WithValue(req.Context(), ctxTenantKind, ctxKind)
+		ctx := context.WithValue(req.Context(), ctxauth.KeyTenantKind, ctxKind)
 		req = req.WithContext(ctx)
 	}
 	rec := httptest.NewRecorder()

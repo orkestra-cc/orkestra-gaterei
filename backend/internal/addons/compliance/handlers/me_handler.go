@@ -10,7 +10,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/addons/compliance/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -60,7 +60,7 @@ type EraseOutput struct {
 // the job and return a job ID if the walk ever outgrows an HTTP
 // timeout.
 func (h *MeHandler) Export(ctx context.Context, _ *struct{}) (*ExportOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -83,7 +83,7 @@ func (h *MeHandler) Export(ctx context.Context, _ *struct{}) (*ExportOutput, err
 // it expires (15 min by default), but subsequent refresh attempts fail
 // because the refresh-token rows are gone.
 func (h *MeHandler) Erase(ctx context.Context, _ *struct{}) (*EraseOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}

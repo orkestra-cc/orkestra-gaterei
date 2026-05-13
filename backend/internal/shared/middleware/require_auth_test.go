@@ -30,6 +30,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -121,7 +122,7 @@ type downstreamHandler struct {
 func (h *downstreamHandler) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.called = true
-		uid, _ := GetUserUUID(r.Context())
+		uid, _ := ctxauth.GetUserUUID(r.Context())
 		h.userUUID = uid
 		sid, _ := GetSessionID(r.Context())
 		h.sid = sid

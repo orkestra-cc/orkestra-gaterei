@@ -4,8 +4,8 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/orkestra/backend/internal/core/navigation/handlers"
 	"github.com/orkestra/backend/internal/core/navigation/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 type NavigationModule struct {
@@ -27,9 +27,9 @@ func (m *NavigationModule) Init(deps *module.Dependencies) error {
 	}
 
 	// Get config service for runtime enabled/disabled checks.
-	var enabledChecker middleware.ModuleEnabledChecker
+	var enabledChecker modulegate.ModuleEnabledChecker
 	if svc := deps.Services.Get(module.ServiceConfigService); svc != nil {
-		enabledChecker = svc.(middleware.ModuleEnabledChecker)
+		enabledChecker = svc.(modulegate.ModuleEnabledChecker)
 	}
 
 	svc := services.NewDynamicNavigationService(navItems, enabledChecker)

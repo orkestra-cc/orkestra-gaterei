@@ -11,10 +11,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/aimodels/handlers"
 	"github.com/orkestra/backend/internal/addons/aimodels/repository"
 	"github.com/orkestra/backend/internal/addons/aimodels/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the aimodels ConfigSchema 1:1. Unlike other addons, this
@@ -129,7 +129,7 @@ func (m *AIModelsModule) Init(deps *module.Dependencies) error {
 
 func (m *AIModelsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("aimodels.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("aimodels.admin"))
 		api := humachi.New(r, ri.APIConfig)

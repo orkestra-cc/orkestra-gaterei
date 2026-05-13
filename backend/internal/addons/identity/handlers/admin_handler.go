@@ -16,8 +16,8 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/identity/models"
 	"github.com/orkestra/backend/internal/addons/identity/repository"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
@@ -49,9 +49,9 @@ func (h *AdminHandler) emitIdPChange(ctx context.Context, action, idpConfigUUID 
 	if h.auditSink == nil {
 		return
 	}
-	tenantID, _ := middleware.GetTenantID(ctx)
-	userUUID, _ := middleware.GetUserUUID(ctx)
-	email, _ := middleware.GetUserEmail(ctx)
+	tenantID, _ := ctxauth.GetTenantID(ctx)
+	userUUID, _ := ctxauth.GetUserUUID(ctx)
+	email, _ := ctxauth.GetUserEmail(ctx)
 	h.auditSink.Emit(ctx, iface.AuditEvent{
 		TenantID:     tenantID,
 		ActorUserID:  userUUID,

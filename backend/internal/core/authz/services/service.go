@@ -16,6 +16,7 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/metrics"
 	"go.mongodb.org/mongo-driver/bson"
@@ -376,8 +377,8 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 			systemRole = r
 		}
 	}
-	tenantRoles, _ := middleware.GetTenantRoles(ctx)
-	tenantKind := middleware.TenantKindFromContext(ctx)
+	tenantRoles, _ := ctxauth.GetTenantRoles(ctx)
+	tenantKind := ctxauth.TenantKindFromContext(ctx)
 	if tenantKind == "" {
 		// Fall back to "internal" for global/pre-ADR-0001 calls so
 		// tier-aware forbid rules don't fire against an unknown kind.
@@ -405,7 +406,7 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 	// helpers return zero values and the engine stamps mfa_enrolled=false.
 	amr, _ := middleware.GetAMR(ctx)
 	mfaEnrolled := middleware.IsMFAEnrolled(ctx)
-	clientIP, _ := middleware.GetClientIP(ctx)
+	clientIP, _ := ctxauth.GetClientIP(ctx)
 	// Risk signals: pull the session's most recent score via the lookup
 	// callback (wired post-InitAll) and derive the level locally. Score
 	// is in [0.0, 1.0]; the engine multiplies by 100 when stamping the

@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/documents/models"
 	"github.com/orkestra/backend/internal/addons/documents/repository"
 	"github.com/orkestra/backend/internal/addons/documents/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the documents ConfigSchema 1:1 and is the typed surface
@@ -139,7 +139,7 @@ func (m *DocumentsModule) Init(deps *module.Dependencies) error {
 
 func (m *DocumentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("documents.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("documents.template.read"))
 		api := humachi.New(r, ri.APIConfig)

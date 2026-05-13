@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/sales/repository"
 	"github.com/orkestra/backend/internal/addons/sales/services"
 	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the sales ConfigSchema 1:1. Init() unmarshals into a
@@ -236,7 +236,7 @@ func (m *SalesModule) Init(deps *module.Dependencies) error {
 
 func (m *SalesModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("sales.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("sales.job.read"))
 		api := humachi.New(r, ri.APIConfig)

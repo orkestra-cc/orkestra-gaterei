@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/billing/jobs"
 	"github.com/orkestra/backend/internal/addons/billing/repository"
 	"github.com/orkestra/backend/internal/addons/billing/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the billing ConfigSchema 1:1. Captured once at Init for
@@ -268,7 +268,7 @@ func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
 	// (warn|enforce) so operators can probe traffic before the gate starts
 	// returning 403.
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireInternalTenant())
 		r.Use(ri.Operator.AuthMW.RequireCapability("billing.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("billing.invoice.read"))

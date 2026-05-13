@@ -12,9 +12,9 @@ import (
 	"github.com/orkestra/backend/internal/addons/company/handlers"
 	"github.com/orkestra/backend/internal/addons/company/repository"
 	"github.com/orkestra/backend/internal/addons/company/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the company ConfigSchema 1:1 plus the legacy
@@ -150,7 +150,7 @@ func (m *CompanyModule) RegisterRoutes(ri *module.RouteInfo) {
 	// business registry data), so routes require the permission but not
 	// a plan entitlement.
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequirePermission("company.lookup.read"))
 		api := humachi.New(r, ri.APIConfig)
 		RegisterRoutes(api, m.handler)

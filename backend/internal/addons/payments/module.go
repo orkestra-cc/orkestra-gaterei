@@ -12,9 +12,9 @@ import (
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
 	"github.com/orkestra/backend/internal/addons/payments/webhooks"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the payments ConfigSchema 1:1. Init() unmarshals into a
@@ -226,7 +226,7 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// distinct `payments.transaction.refund` grant so read access cannot
 	// authorise a mutation.
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
@@ -268,7 +268,7 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// entirely when m.clientHandler is nil (tenant module disabled).
 	if m.clientHandler != nil {
 		ri.Client.ProtectedRouter.Group(func(gated chi.Router) {
-			gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+			gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 			gated.Group(func(r chi.Router) {
 				r.Use(ri.Client.AuthMW.RequireGlobal())
 				api := humachi.New(r, ri.APIConfig)

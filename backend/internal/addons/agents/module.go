@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/agents/handlers"
 	"github.com/orkestra/backend/internal/addons/agents/repository"
 	"github.com/orkestra/backend/internal/addons/agents/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Default image reference for the Hindsight container. Overridable via the
@@ -160,7 +160,7 @@ func (m *AgentsModule) Init(deps *module.Dependencies) error {
 
 func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		gated.Use(ri.Operator.AuthMW.RequireCapability("agents.access"))
 
 		gated.Group(func(r chi.Router) {

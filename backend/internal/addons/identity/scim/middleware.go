@@ -13,7 +13,7 @@ import (
 )
 
 // ctxTenantIDKey mirrors the middleware.ctxTenantID string literal so
-// downstream code reading with middleware.GetTenantID (and transitively
+// downstream code reading with ctxauth.GetTenantID (and transitively
 // tenantrepo.Scope) sees the tenant this SCIM request is acting in. The
 // auth middleware uses the untyped string "tenantID" as its key; we
 // match it by value, not by exporting a constant from the middleware

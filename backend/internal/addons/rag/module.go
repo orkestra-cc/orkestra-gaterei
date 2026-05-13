@@ -12,10 +12,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/rag/repository"
 	"github.com/orkestra/backend/internal/addons/rag/services"
 	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/capability"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/module"
+	"github.com/orkestra/backend/pkg/sdk/modulegate"
 )
 
 // Settings mirrors the rag ConfigSchema 1:1. OllamaBaseURL/OpenAIAPIKey are
@@ -198,7 +198,7 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 
 func (m *RAGModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("rag.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("rag.document.read"))
 		api := humachi.New(r, ri.APIConfig)

@@ -7,6 +7,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/testkit"
+	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/tenantrepo"
 )
 
@@ -22,19 +23,19 @@ func TestContextKeysRoundTrip(t *testing.T) {
 
 	ctx := id.ContextFor(context.Background(), "tenant-b")
 
-	if got, ok := middleware.GetUserUUID(ctx); !ok || got != "user-1" {
+	if got, ok := ctxauth.GetUserUUID(ctx); !ok || got != "user-1" {
 		t.Errorf("GetUserUUID: got (%q, %v), want (\"user-1\", true)", got, ok)
 	}
-	if got, ok := middleware.GetUserEmail(ctx); !ok || got != "alice@example.com" {
+	if got, ok := ctxauth.GetUserEmail(ctx); !ok || got != "alice@example.com" {
 		t.Errorf("GetUserEmail: got (%q, %v)", got, ok)
 	}
-	if got, ok := middleware.GetSystemRole(ctx); !ok || got != "administrator" {
+	if got, ok := ctxauth.GetSystemRole(ctx); !ok || got != "administrator" {
 		t.Errorf("GetSystemRole: got (%q, %v)", got, ok)
 	}
-	if got, ok := middleware.GetTenantID(ctx); !ok || got != "tenant-b" {
+	if got, ok := ctxauth.GetTenantID(ctx); !ok || got != "tenant-b" {
 		t.Errorf("GetTenantID: got (%q, %v), want (\"tenant-b\", true)", got, ok)
 	}
-	roles, ok := middleware.GetTenantRoles(ctx)
+	roles, ok := ctxauth.GetTenantRoles(ctx)
 	if !ok || len(roles) != 1 || roles[0] != "org_member" {
 		t.Errorf("GetTenantRoles: got (%v, %v), want ([org_member], true)", roles, ok)
 	}
@@ -51,7 +52,7 @@ func TestDefaultTenantFallback(t *testing.T) {
 	id := testkit.NewIdentity("user-1", "a@b", "manager").
 		WithTenant("tenant-a", []string{"org_owner"}, true)
 	ctx := id.ContextFor(context.Background(), "")
-	got, ok := middleware.GetTenantID(ctx)
+	got, ok := ctxauth.GetTenantID(ctx)
 	if !ok || got != "tenant-a" {
 		t.Fatalf("expected default tenant-a, got (%q, %v)", got, ok)
 	}
@@ -63,7 +64,7 @@ func TestGlobalSentinel(t *testing.T) {
 	id := testkit.NewIdentity("user-1", "a@b", "super_admin").
 		WithTenant("tenant-a", []string{"org_owner"}, true)
 	ctx := id.ContextFor(context.Background(), "-")
-	if got, ok := middleware.GetTenantID(ctx); ok {
+	if got, ok := ctxauth.GetTenantID(ctx); ok {
 		t.Fatalf("expected no tenantID for global sentinel, got %q", got)
 	}
 }
