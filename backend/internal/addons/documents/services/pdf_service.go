@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-addon-documents/config"
+	"github.com/orkestra-cc/orkestra-addon-documents/models"
+	"github.com/orkestra-cc/orkestra-addon-documents/repository"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/documents/config"
-	"github.com/orkestra/backend/internal/addons/documents/models"
-	"github.com/orkestra/backend/internal/addons/documents/repository"
 )
 
 // Errors for PDF service

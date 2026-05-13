@@ -12,7 +12,7 @@
 
 .PHONY: help up down status logs reset
 .PHONY: mongo-shell redis-cli
-.PHONY: backend-build backend-test sdk-test backend-deps backend-clean
+.PHONY: backend-build backend-test sdk-test addon-documents-test backend-deps backend-clean
 .PHONY: frontend-admin-build frontend-admin-test frontend-admin-deps
 .PHONY: frontend-admin-clean frontend-admin-preview frontend-admin-type-check
 .PHONY: frontend-client-build frontend-client-typecheck frontend-client-clean
@@ -95,7 +95,7 @@ backend-build:
 	@cd backend && go build -o bin/server cmd/server/main.go
 	@echo "Backend built: backend/bin/server"
 
-backend-test: sdk-test
+backend-test: sdk-test addon-documents-test
 	@echo "Running backend tests..."
 	@cd backend && go test ./...
 
@@ -106,10 +106,21 @@ sdk-test:
 	@echo "Running SDK tests..."
 	@cd backend/pkg/sdk && go test ./...
 
+# addon-documents-test mirrors sdk-test for the documents addon, which
+# Phase 5a carved into its own Go module
+# (github.com/orkestra-cc/orkestra-addon-documents). Source still lives
+# in-tree at backend/internal/addons/documents/ behind a `replace`
+# directive; the test target runs from that directory so the workspace
+# resolves the dependency graph correctly.
+addon-documents-test:
+	@echo "Running documents addon tests..."
+	@cd backend/internal/addons/documents && go test ./...
+
 backend-deps:
 	@echo "Installing backend dependencies..."
 	@cd backend && go mod download && go mod tidy
 	@cd backend/pkg/sdk && go mod download && go mod tidy
+	@cd backend/internal/addons/documents && go mod download && go mod tidy
 	@echo "Backend dependencies installed."
 
 backend-clean:
@@ -156,7 +167,7 @@ frontend-client-clean:
 
 .PHONY: install install-hooks fmt ci-help
 .PHONY: ci ci-all ci-backend ci-backend-matrix ci-frontend-admin ci-frontend-client ci-mobile
-.PHONY: backend-lint sdk-lint backend-test-ci sdk-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
+.PHONY: backend-lint sdk-lint addon-documents-lint backend-test-ci sdk-test-ci addon-documents-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
 .PHONY: admin-typecheck admin-lint admin-test admin-audit admin-build
 .PHONY: client-typecheck client-lint client-build
 .PHONY: mobile-analyze mobile-test
@@ -207,7 +218,7 @@ ci-all: ci-backend ci-frontend-admin ci-frontend-client ci-mobile
 
 # ---- Backend ----
 
-ci-backend: backend-lint sdk-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
+ci-backend: backend-lint sdk-lint addon-documents-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
 	@echo "Backend CI: OK"
 
 ci-backend-matrix: ci-backend
@@ -223,10 +234,15 @@ backend-lint:
 sdk-lint:
 	@cd backend/pkg/sdk && golangci-lint run --config=../../.golangci.yml ./...
 
+# addon-documents-lint mirrors sdk-lint for the documents addon's own
+# Go module. Shares the backend lint config.
+addon-documents-lint:
+	@cd backend/internal/addons/documents && golangci-lint run --config=../../../.golangci.yml ./...
+
 # `-race` requires cgo. CI runners have CGO_ENABLED=1 by default, but the
 # Go toolchain mise installs locally defaults to 0 — force it on so local
 # and CI behave the same. Needs a working C compiler on PATH (gcc/clang).
-backend-test-ci: sdk-test-ci
+backend-test-ci: sdk-test-ci addon-documents-test-ci
 	@cd backend && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend && go tool cover -func=coverage.out | tail -1
 
@@ -234,6 +250,11 @@ backend-test-ci: sdk-test-ci
 sdk-test-ci:
 	@cd backend/pkg/sdk && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend/pkg/sdk && go tool cover -func=coverage.out | tail -1
+
+# addon-documents-test-ci mirrors sdk-test-ci for the documents addon.
+addon-documents-test-ci:
+	@cd backend/internal/addons/documents && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
+	@cd backend/internal/addons/documents && go tool cover -func=coverage.out | tail -1
 
 backend-tenantscope:
 	@cd backend && go test ./tools/tenantscope/...

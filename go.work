@@ -24,4 +24,5 @@ go 1.25.10
 use (
 	./backend
 	./backend/pkg/sdk
+	./backend/internal/addons/documents
 )
