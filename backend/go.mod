@@ -140,7 +140,7 @@ require (
 	github.com/orkestra-cc/orkestra-addon-dev v0.1.0
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
-	github.com/orkestra-cc/orkestra-addon-identity v0.1.0
+	github.com/orkestra-cc/orkestra-addon-identity v0.1.1
 	github.com/orkestra-cc/orkestra-addon-payments v0.1.0
 	github.com/orkestra-cc/orkestra-addon-sales v0.1.0
 	github.com/orkestra-cc/orkestra-addon-subscriptions v0.1.0
