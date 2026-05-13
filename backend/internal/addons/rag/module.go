@@ -16,6 +16,17 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
+// Settings mirrors the rag ConfigSchema 1:1. OllamaBaseURL/OpenAIAPIKey are
+// duplicated with aimodels' schema but kept here because rag's standalone
+// model-service fallback path (when aimodels is disabled) reads them.
+type Settings struct {
+	OllamaBaseURL string `module:"ollamaBaseURL"`
+	OpenAIAPIKey  string `module:"openaiAPIKey"`
+	ChunkSize     int    `module:"chunkSize"`
+	ChunkOverlap  int    `module:"chunkOverlap"`
+	DefaultTopK   int    `module:"defaultTopK"`
+}
+
 type RAGModule struct {
 	module.BaseModule
 	documentHandler     *handlers.DocumentHandler
@@ -27,16 +38,42 @@ type RAGModule struct {
 
 func NewModule() *RAGModule { return &RAGModule{} }
 
-func (m *RAGModule) Name() string                   { return "rag" }
-func (m *RAGModule) DisplayName() string             { return "RAG Pipeline" }
-func (m *RAGModule) Description() string             { return "Document ingestion, embedding, and retrieval-augmented generation" }
+func (m *RAGModule) Name() string        { return "rag" }
+func (m *RAGModule) DisplayName() string { return "RAG Pipeline" }
+func (m *RAGModule) Description() string {
+	return "Document ingestion, embedding, and retrieval-augmented generation"
+}
 func (m *RAGModule) Category() module.ModuleCategory { return module.CategoryToggleable }
 func (m *RAGModule) Enabled(cfg *config.Config) bool { return cfg.RAG.Enabled }
 func (m *RAGModule) Dependencies() []string          { return []string{"graph", "aimodels"} }
 
-func (m *RAGModule) ProvidedServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceRAGQuery} }
-func (m *RAGModule) RequiredServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceGraphRepo} }
-func (m *RAGModule) OptionalServices() []module.ServiceKey  { return []module.ServiceKey{module.ServiceAIModelProvider} }
+func (m *RAGModule) ProvidedServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceRAGQuery}
+}
+func (m *RAGModule) RequiredServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceGraphRepo}
+}
+func (m *RAGModule) OptionalServices() []module.ServiceKey {
+	return []module.ServiceKey{module.ServiceAIModelProvider}
+}
+
+// ConfigSchema declares the per-module runtime tunables. Fields previously
+// read from cfg.RAG (shared/config) move here so they can be adjusted at
+// /admin/modules without a restart. Defaults match the env-var defaults in
+// shared/config so existing deployments keep their behaviour.
+func (m *RAGModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "ollamaBaseURL", Label: "Ollama Base URL", Type: module.FieldString, Default: "http://localhost:11434", EnvVar: "OLLAMA_BASE_URL"},
+		{Key: "openaiAPIKey", Label: "OpenAI API Key (fallback)", Type: module.FieldSecret, EnvVar: "OPENAI_API_KEY",
+			Description: "Used only when aimodels is disabled and the standalone rag model service falls back to it."},
+		{Key: "chunkSize", Label: "Chunk Size", Type: module.FieldInt, Default: "512", EnvVar: "RAG_CHUNK_SIZE",
+			Description: "Default text chunk size in characters."},
+		{Key: "chunkOverlap", Label: "Chunk Overlap", Type: module.FieldInt, Default: "50", EnvVar: "RAG_CHUNK_OVERLAP",
+			Description: "Overlap between chunks in characters."},
+		{Key: "defaultTopK", Label: "Default Top-K", Type: module.FieldInt, Default: "10", EnvVar: "RAG_DEFAULT_TOP_K",
+			Description: "Default number of results for vector search. Also consumed by the agents module's RAG bridge."},
+	}
+}
 
 func (m *RAGModule) Collections() []module.CollectionSpec {
 	return []module.CollectionSpec{
@@ -78,7 +115,31 @@ func (m *RAGModule) Capabilities() []capability.Capability {
 }
 
 func (m *RAGModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.ChunkSize <= 0 {
+		settings.ChunkSize = 512
+	}
+	if settings.ChunkOverlap < 0 {
+		settings.ChunkOverlap = 50
+	}
+	if settings.DefaultTopK <= 0 {
+		settings.DefaultTopK = 10
+	}
+
+	// Build the legacy RAGConfig (shared/config type) from Settings so
+	// services.NewModelService keeps its signature unchanged. Enabled is
+	// true by construction — Init only runs when the module is enabled.
+	ragCfg := config.RAGConfig{
+		Enabled:       true,
+		OllamaBaseURL: settings.OllamaBaseURL,
+		OpenAIAPIKey:  settings.OpenAIAPIKey,
+		ChunkSize:     settings.ChunkSize,
+		ChunkOverlap:  settings.ChunkOverlap,
+		DefaultTopK:   settings.DefaultTopK,
+	}
 
 	documentRepository := repository.NewDocumentRepository(deps.DB)
 	relTypeRepo := repository.NewRelationshipTypeRepository(deps.DB)
@@ -91,25 +152,27 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 		ragModelProvider = mp
 	} else {
 		modelRepository := repository.NewModelRepository(deps.DB)
-		localModelService := services.NewModelService(modelRepository, cfg.RAG, deps.Logger)
+		localModelService := services.NewModelService(modelRepository, ragCfg, deps.Logger)
 		if err := localModelService.SeedDefaults(context.Background()); err != nil {
 			deps.Logger.Warn("Failed to seed default RAG models", slog.String("error", err.Error()))
 		}
 		ragModelProvider = localModelService
 	}
 
-	// Text extractor using Gotenberg
-	textExtractor := services.NewTextExtractor(cfg.Documents.GotenbergURL)
+	// Text extractor uses Gotenberg from the documents module. Reads through
+	// the global config struct for now — cross-addon coupling cleanup is
+	// PR-1a-14 territory.
+	textExtractor := services.NewTextExtractor(deps.Config.Documents.GotenbergURL)
 
 	// Ingestion + query services require graph repository
 	if graphProvider, ok := module.GetTyped[iface.GraphProvider](deps.Services, module.ServiceGraphRepo); ok {
 		ingestionService := services.NewIngestionService(
 			documentRepository, relTypeRepo, graphProvider, ragModelProvider, textExtractor,
-			cfg.RAG.ChunkSize, cfg.RAG.ChunkOverlap, deps.Logger,
+			settings.ChunkSize, settings.ChunkOverlap, deps.Logger,
 		)
 		m.documentHandler = handlers.NewDocumentHandler(ingestionService)
 
-		ragQueryService := services.NewQueryService(graphProvider, ragModelProvider, cfg.RAG.DefaultTopK, deps.Logger)
+		ragQueryService := services.NewQueryService(graphProvider, ragModelProvider, settings.DefaultTopK, deps.Logger)
 		m.queryHandler = handlers.NewQueryHandler(ragQueryService)
 		m.streamHandler = handlers.NewStreamHandler(ragQueryService, deps.Logger)
 		m.internalHandler = handlers.NewInternalHandler(ragQueryService)
@@ -146,6 +209,6 @@ func (m *RAGModule) RegisterRoutes(ri *module.RouteInfo) {
 	})
 }
 
-func (m *RAGModule) Start(_ context.Context) error      { return nil }
-func (m *RAGModule) Stop(_ context.Context) error       { return nil }
+func (m *RAGModule) Start(_ context.Context) error       { return nil }
+func (m *RAGModule) Stop(_ context.Context) error        { return nil }
 func (m *RAGModule) HealthCheck(_ context.Context) error { return nil }
