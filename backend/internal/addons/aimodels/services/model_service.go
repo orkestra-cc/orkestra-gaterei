@@ -8,10 +8,10 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/aimodels/models"
 	"github.com/orkestra/backend/internal/addons/aimodels/providers"
 	"github.com/orkestra/backend/internal/addons/aimodels/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // AIModelService manages AI model configurations and provider creation
@@ -44,7 +44,9 @@ type AIModelService interface {
 
 	// Seeding & migration
 	SeedDefaults(ctx context.Context) error
-	MigrateFromRAG(ctx context.Context, ragDB interface{ Collection(string, ...interface{}) interface{} }) error
+	MigrateFromRAG(ctx context.Context, ragDB interface {
+		Collection(string, ...interface{}) interface{}
+	}) error
 }
 
 // AIModelsConfig holds configuration for the AI models module
@@ -403,7 +405,9 @@ func (s *modelService) SeedDefaults(ctx context.Context) error {
 
 // MigrateFromRAG migrates model configs from the old rag_models collection to ai_models.
 // This is a no-op if ai_models already has data or rag_models doesn't exist/is empty.
-func (s *modelService) MigrateFromRAG(ctx context.Context, _ interface{ Collection(string, ...interface{}) interface{} }) error {
+func (s *modelService) MigrateFromRAG(ctx context.Context, _ interface {
+	Collection(string, ...interface{}) interface{}
+}) error {
 	// Migration is handled at startup in main.go by reading rag_models directly
 	// This method is intentionally a no-op — migration logic lives in the startup sequence
 	return nil

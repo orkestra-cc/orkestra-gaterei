@@ -11,9 +11,9 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/identity/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -66,9 +66,9 @@ func (h *ScimAdminHandler) Rotate(ctx context.Context, _ *struct{}) (*RotateScim
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
 	if h.auditSink != nil {
-		tenantID, _ := middleware.GetTenantID(ctx)
-		userUUID, _ := middleware.GetUserUUID(ctx)
-		email, _ := middleware.GetUserEmail(ctx)
+		tenantID, _ := ctxauth.GetTenantID(ctx)
+		userUUID, _ := ctxauth.GetUserUUID(ctx)
+		email, _ := ctxauth.GetUserEmail(ctx)
 		h.auditSink.Emit(ctx, iface.AuditEvent{
 			TenantID:     tenantID,
 			ActorUserID:  userUUID,

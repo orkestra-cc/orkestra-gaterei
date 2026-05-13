@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/utils"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/google/uuid"
+	"github.com/orkestra/backend/internal/shared/utils"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

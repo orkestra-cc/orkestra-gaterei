@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/payments/models"
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 type TransactionHandler struct {
@@ -187,7 +187,7 @@ func assertTenantScope(ctx context.Context, tenantUUID string) error {
 	if tenantUUID == "" {
 		return nil
 	}
-	requestTenant, hasTenant := middleware.GetTenantID(ctx)
+	requestTenant, hasTenant := ctxauth.GetTenantID(ctx)
 	if !hasTenant {
 		return nil
 	}

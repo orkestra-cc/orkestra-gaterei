@@ -9,6 +9,18 @@ _Parent: [../../../CLAUDE.md](../../../CLAUDE.md)_
 
 <!-- /Navigation -->
 
+## Module home
+
+This directory is a **separate Go module**
+(`github.com/orkestra-cc/orkestra-addon-documents`) since Phase 5a of
+the SDK split. Source lives in-tree at this path for monorepo
+development; the same tree is mirrored to
+[github.com/orkestra-cc/orkestra-addon-documents](https://github.com/orkestra-cc/orkestra-addon-documents)
+and tagged starting from `v0.1.0`. Backend's go.mod carries a
+`replace` directive pointing at this path so changes here take effect
+without a tag bump during cross-cutting work; CI and external
+consumers fetch the published version through the Go module proxy.
+
 ## Module Purpose
 
 The documents module provides **template-based PDF generation** for invoices, offers, and other company documents using HTML/CSS templates with Go's `html/template` engine and **Gotenberg** (Chromium-based) as the PDF rendering sidecar.

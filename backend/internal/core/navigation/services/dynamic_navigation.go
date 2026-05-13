@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/core/navigation/models"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // dynamicNavigationService builds navigation from module-declared NavItems
@@ -20,12 +21,12 @@ import (
 // lands.
 type dynamicNavigationService struct {
 	navItems       []module.NavItemSpec
-	enabledChecker middleware.ModuleEnabledChecker
+	enabledChecker modulegate.ModuleEnabledChecker
 }
 
 // NewDynamicNavigationService creates a navigation service that derives its
 // menu from module NavItemSpec declarations.
-func NewDynamicNavigationService(items []module.NavItemSpec, checker middleware.ModuleEnabledChecker) NavigationService {
+func NewDynamicNavigationService(items []module.NavItemSpec, checker modulegate.ModuleEnabledChecker) NavigationService {
 	return &dynamicNavigationService{
 		navItems:       items,
 		enabledChecker: checker,
@@ -102,7 +103,7 @@ func tierAllows(tier, tenantKind string) bool {
 }
 
 func (s *dynamicNavigationService) GetNavigationForUser(ctx context.Context, userRole string) (*models.NavigationResponse, error) {
-	tenantKind := middleware.TenantKindFromContext(ctx)
+	tenantKind := ctxauth.TenantKindFromContext(ctx)
 
 	// Build one flat classified list that feeds both the v1 flat-groups shape
 	// and the v2 realms → sections shape in a single pass.

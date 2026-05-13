@@ -16,10 +16,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -51,13 +51,13 @@ func newOrchestrationEnv(t *testing.T) *orchestrationEnv {
 		jwt:     jwt,
 	}
 	authSvc, err := NewAuthService(&AuthConfig{
-		UserService:         env.users,
-		TenantProvider:      gateTenantProvider{},
-		OAuthProviderRepo:   env.oauth,
-		RefreshTokenRepo:    env.refresh,
-		AuthSessionRepo:     newGateSessionRepo(),
-		JWTService:          jwt,
-		FirstAdminClaimer:   newGateClaimer(),
+		UserService:       env.users,
+		TenantProvider:    gateTenantProvider{},
+		OAuthProviderRepo: env.oauth,
+		RefreshTokenRepo:  env.refresh,
+		AuthSessionRepo:   newGateSessionRepo(),
+		JWTService:        jwt,
+		FirstAdminClaimer: newGateClaimer(),
 	})
 	if err != nil {
 		t.Fatalf("NewAuthService: %v", err)

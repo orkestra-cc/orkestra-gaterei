@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 )
 
 // EntitlementSyncer keeps the capability projection aligned with
@@ -16,9 +16,9 @@ import (
 // reconciler both invoke it on state transitions:
 //
 //   - activate  (Create, past_due → active on invoice paid, Reactivate)
-//       → grant every capability ID listed on the subscription's tier
+//     → grant every capability ID listed on the subscription's tier
 //   - deactivate (Cancel, failed-charges → suspended)
-//       → revoke those same capability IDs
+//     → revoke those same capability IDs
 //
 // The syncer is intentionally stateless: it reads tier.Capabilities fresh
 // on every call so an admin rewriting a service catalog is reflected on the

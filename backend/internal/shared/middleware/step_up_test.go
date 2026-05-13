@@ -156,7 +156,7 @@ func runStepUpWithEnrollment(t *testing.T, claims *authModels.JWTClaims, hasFact
 	}
 	rec := httptest.NewRecorder()
 	called := false
-	handler := m.RequireStepUp(5*time.Minute)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+	handler := m.RequireStepUp(5 * time.Minute)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		called = true
 	}))
 	handler.ServeHTTP(rec, req)

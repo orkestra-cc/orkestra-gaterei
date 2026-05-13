@@ -8,9 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra-cc/orkestra-sdk/capability"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,16 +19,16 @@ import (
 // Use Register() for ordered insertion, or RegisterAll() for automatic
 // dependency-based sorting via each module's Dependencies() declaration.
 type ModuleRegistry struct {
-	modules      []Module
-	initialized  []Module           // populated by InitAll — modules that passed Init
-	failed       map[string]error   // non-core modules that failed Init
-	started      map[string]bool    // modules that have had Start() called
-	moduleByName map[string]Module  // fast lookup by name
+	modules       []Module
+	initialized   []Module          // populated by InitAll — modules that passed Init
+	failed        map[string]error  // non-core modules that failed Init
+	started       map[string]bool   // modules that have had Start() called
+	moduleByName  map[string]Module // fast lookup by name
 	configService *ModuleConfigService
-	deps         *Dependencies      // stored during InitAll for RetryInit
-	containerMgr ContainerManager   // may be nil; Start/Stop skip infra-container handling when unset
-	logger       *slog.Logger
-	mu           sync.RWMutex       // protects started and failed maps for runtime changes
+	deps          *Dependencies    // stored during InitAll for RetryInit
+	containerMgr  ContainerManager // may be nil; Start/Stop skip infra-container handling when unset
+	logger        *slog.Logger
+	mu            sync.RWMutex // protects started and failed maps for runtime changes
 }
 
 // NewModuleRegistry creates a new registry.
@@ -99,7 +98,7 @@ func topoSort(modules []Module) ([]Module, error) {
 		if _, exists := inDegree[name]; !exists {
 			inDegree[name] = 0
 		}
-		for _, dep := range m.Dependencies() {
+		for _, dep := range DependenciesOf(m) {
 			// Only count dependencies that are in this batch.
 			// Dependencies on modules outside this batch (e.g., core modules
 			// already registered) are assumed satisfied.
@@ -141,7 +140,7 @@ func topoSort(modules []Module) ([]Module, error) {
 // InitAll initializes all modules in registration order.
 // Before initialization, it auto-creates MongoDB collections and seeds module configs.
 // Core modules that fail Init are fatal; non-core modules are skipped with a warning.
-func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
+func (r *ModuleRegistry) InitAll(deps *Dependencies) error {
 	// Store deps for RetryInit use later.
 	r.deps = deps
 
@@ -158,7 +157,7 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 	// Phase 2.2: Seed module configs from ConfigSchema on first boot.
 	if r.configService != nil {
 		if err := r.configService.SeedFromModules(
-			context.Background(), r.modules, cfg,
+			context.Background(), r.modules,
 		); err != nil {
 			r.logger.Error("Failed to seed module configs (non-fatal)",
 				slog.String("error", err.Error()),
@@ -173,7 +172,7 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 	// Stamp each item with its owning module name for enabled filtering at request time.
 	var allNavItems []NavItemSpec
 	for _, m := range r.modules {
-		for _, item := range m.NavItems() {
+		for _, item := range NavItemsOf(m) {
 			item.ModuleName = m.Name()
 			stampChildren(item.Children, m.Name())
 			allNavItems = append(allNavItems, item)
@@ -237,7 +236,7 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 func (r *ModuleRegistry) registerCapabilities(reg *capability.Registry) {
 	count := 0
 	for _, m := range r.initialized {
-		caps := m.Capabilities()
+		caps := CapabilitiesOf(m)
 		if len(caps) == 0 {
 			continue
 		}
@@ -267,7 +266,7 @@ func (r *ModuleRegistry) registerPermissions() {
 
 	var allPerms []iface.PermissionSpec
 	for _, m := range r.initialized {
-		allPerms = append(allPerms, m.Permissions()...)
+		allPerms = append(allPerms, PermissionsOf(m)...)
 	}
 	if err := authz.RegisterPermissions(context.Background(), allPerms); err != nil {
 		r.logger.Warn("Failed to register permissions catalog",
@@ -297,9 +296,10 @@ func (r *ModuleRegistry) registerPermissions() {
 
 // RegisterAllRoutes calls RegisterRoutes on ALL modules (not just enabled).
 // Non-core modules are gated by ModuleGate middleware which checks DB enabled status.
+// Modules that don't implement Routable contribute no routes.
 func (r *ModuleRegistry) RegisterAllRoutes(ri *RouteInfo) {
 	for _, m := range r.modules {
-		m.RegisterRoutes(ri)
+		RegisterRoutes(m, ri)
 	}
 }
 
@@ -311,7 +311,7 @@ func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool)
 		if !startSet[m.Name()] {
 			continue
 		}
-		if err := m.Preflight(ctx); err != nil {
+		if err := Preflight(ctx, m); err != nil {
 			if m.Category() == CategoryCore {
 				return fmt.Errorf("module %s preflight: %w", m.Name(), err)
 			}
@@ -337,7 +337,7 @@ func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool)
 			r.mu.Unlock()
 			continue
 		}
-		if err := m.Start(ctx); err != nil {
+		if err := StartModule(ctx, m); err != nil {
 			if m.Category() == CategoryCore {
 				return fmt.Errorf("module %s start: %w", m.Name(), err)
 			}
@@ -366,7 +366,7 @@ func (r *ModuleRegistry) StartAll(ctx context.Context, startSet map[string]bool)
 // legitimately need ~60s to become ready. The ReadyTimeout on the spec
 // still caps the wait internally.
 func (r *ModuleRegistry) startInfraContainers(ctx context.Context, m Module) error {
-	specs := m.InfraContainers()
+	specs := InfraContainersOf(m)
 	if len(specs) == 0 || r.containerMgr == nil {
 		return nil
 	}
@@ -391,7 +391,7 @@ func (r *ModuleRegistry) startInfraContainers(ctx context.Context, m Module) err
 // Errors are logged but do not interrupt the stop sequence so a partially
 // broken container state never blocks module disabling.
 func (r *ModuleRegistry) stopInfraContainers(ctx context.Context, m Module) {
-	specs := m.InfraContainers()
+	specs := InfraContainersOf(m)
 	if len(specs) == 0 || r.containerMgr == nil {
 		return
 	}
@@ -424,7 +424,7 @@ func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
 
 	// Preflight runs before any side effects so we never spin up
 	// containers for a module whose prerequisites aren't met.
-	if err := m.Preflight(ctx); err != nil {
+	if err := Preflight(ctx, m); err != nil {
 		return fmt.Errorf("module %s preflight: %w", name, err)
 	}
 
@@ -432,7 +432,7 @@ func (r *ModuleRegistry) StartModule(ctx context.Context, name string) error {
 		return fmt.Errorf("module %s infra: %w", name, err)
 	}
 
-	if err := m.Start(ctx); err != nil {
+	if err := StartModule(ctx, m); err != nil {
 		// Try to roll back infra so the next retry isn't hampered by a
 		// half-started dependency. Best-effort — errors just get logged.
 		r.stopInfraContainers(ctx, m)
@@ -463,7 +463,7 @@ func (r *ModuleRegistry) StopModule(ctx context.Context, name string) error {
 	r.mu.Unlock()
 
 	if wasStarted {
-		if err := m.Stop(ctx); err != nil {
+		if err := StopModule(ctx, m); err != nil {
 			return fmt.Errorf("module %s stop: %w", name, err)
 		}
 	}
@@ -499,7 +499,7 @@ func (r *ModuleRegistry) CheckCanDisable(name string) error {
 			continue
 		}
 		m := r.moduleByName[modName]
-		for _, dep := range m.Dependencies() {
+		for _, dep := range DependenciesOf(m) {
 			if dep == name {
 				return fmt.Errorf("cannot disable %q: module %q depends on it and is currently running", name, modName)
 			}
@@ -563,7 +563,7 @@ func (r *ModuleRegistry) StopAll(ctx context.Context) {
 	r.mu.RUnlock()
 
 	for _, m := range toStop {
-		if err := m.Stop(ctx); err != nil {
+		if err := StopModule(ctx, m); err != nil {
 			r.logger.Error(fmt.Sprintf("Module %s stop failed", m.Name()),
 				slog.String("error", err.Error()))
 		}
@@ -584,7 +584,7 @@ func (r *ModuleRegistry) HealthCheckAll(ctx context.Context) error {
 	r.mu.RUnlock()
 
 	for _, m := range toCheck {
-		if err := m.HealthCheck(ctx); err != nil {
+		if err := CheckHealth(ctx, m); err != nil {
 			return fmt.Errorf("module %s health: %w", m.Name(), err)
 		}
 	}
@@ -627,7 +627,7 @@ func (r *ModuleRegistry) FailedModules() map[string]error {
 // that it reads config lazily (HotReloadConfig() == true).
 func (r *ModuleRegistry) SupportsHotReload(name string) bool {
 	if m, ok := r.moduleByName[name]; ok {
-		return m.HotReloadConfig()
+		return HotReloadsConfig(m)
 	}
 	return false
 }
@@ -635,9 +635,9 @@ func (r *ModuleRegistry) SupportsHotReload(name string) bool {
 // CollectNavItems aggregates NavItemSpec from all initialized modules.
 // Used by the navigation module to build the dynamic menu.
 func (r *ModuleRegistry) CollectNavItems() []NavItemSpec {
-	var items []NavItemSpec
+	items := make([]NavItemSpec, 0, len(r.initialized))
 	for _, m := range r.initialized {
-		items = append(items, m.NavItems()...)
+		items = append(items, NavItemsOf(m)...)
 	}
 	return items
 }
@@ -651,7 +651,7 @@ func (r *ModuleRegistry) ensureCollections(db *mongo.Database) error {
 	defer cancel()
 
 	for _, m := range r.modules {
-		for _, coll := range m.Collections() {
+		for _, coll := range CollectionsOf(m) {
 			if err := ensureCollection(ctx, db, coll, m.Name(), r.logger); err != nil {
 				r.logger.Warn("Failed to ensure collection",
 					slog.String("module", m.Name()),

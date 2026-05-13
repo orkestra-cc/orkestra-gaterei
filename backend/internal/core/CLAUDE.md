@@ -63,7 +63,7 @@ Edges:
 
 ## Service registry keys (core subset)
 
-Constants live in `backend/internal/shared/module/services.go:13-32`. This is the table a reader searching for "who registers X" should hit first.
+Constants live in `backend/pkg/sdk/module/services.go:13-32`. This is the table a reader searching for "who registers X" should hit first.
 
 | `ServiceKey` constant | Registered by | Interface type | Notes |
 |---|---|---|---|

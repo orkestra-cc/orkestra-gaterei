@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 type SubscriptionHandler struct {
@@ -244,7 +244,7 @@ type SelfSubscribeRequest struct {
 // addons immediately; the first payment attempt still happens on the next
 // renewal tick.
 func (h *SubscriptionHandler) SelfSubscribe(ctx context.Context, req *SelfSubscribeRequest) (*SubscriptionResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -304,7 +304,7 @@ func (h *SubscriptionHandler) guardSubscriptionTenantScope(ctx context.Context, 
 	if sub == nil || sub.TenantUUID == "" {
 		return nil
 	}
-	tenantID, hasTenant := middleware.GetTenantID(ctx)
+	tenantID, hasTenant := ctxauth.GetTenantID(ctx)
 	if !hasTenant {
 		return nil
 	}
@@ -318,7 +318,7 @@ func (h *SubscriptionHandler) guardSubscriptionTenantScope(ctx context.Context, 
 // the caller's personal tenant (materialized lazily) plus every tenant they
 // own. Returns 401 when anonymous, 503 when the tenant provider is missing.
 func (h *SubscriptionHandler) callerTenantSet(ctx context.Context) (map[string]struct{}, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -486,7 +486,7 @@ func (h *SubscriptionHandler) MeListActivity(ctx context.Context, in *MeListActi
 // attribution. Falls back to "system" when the middleware has not populated
 // the context (background jobs, tests).
 func actorFrom(ctx context.Context) string {
-	if uuid, ok := middleware.GetUserUUID(ctx); ok && uuid != "" {
+	if uuid, ok := ctxauth.GetUserUUID(ctx); ok && uuid != "" {
 		return uuid
 	}
 	return "system"

@@ -16,16 +16,16 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	authzServices "github.com/orkestra/backend/internal/core/authz/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/remote"
 	"github.com/orkestra/backend/internal/shared/setup"
 	"github.com/orkestra/backend/internal/shared/systeminit"
@@ -115,13 +115,15 @@ func main() {
 	modDeps := &module.Dependencies{
 		DB:           db,
 		RedisAdapter: redisAdapter,
-		Config:       cfg,
+		Platform:     cfg,
 		Logger:       logger,
 		Services:     svcRegistry,
 	}
 
-	// Core modules — always loaded (auth, users, navigation)
-	for _, factory := range coreModules {
+	// Core modules — always loaded (auth, users, navigation). The auth
+	// factory captures cfg via the closure returned by coreModules so
+	// auth's Init does not need Dependencies.Config (Phase 1c).
+	for _, factory := range coreModules(cfg) {
 		modRegistry.Register(factory())
 	}
 
@@ -140,7 +142,7 @@ func main() {
 		log.Fatalf("Failed to resolve module dependencies: %v", err)
 	}
 
-	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
 	}
 
@@ -409,7 +411,7 @@ func main() {
 		}
 	}
 	// Core modules are always started.
-	for _, factory := range coreModules {
+	for _, factory := range coreModules(cfg) {
 		m := factory()
 		startSet[m.Name()] = true
 	}

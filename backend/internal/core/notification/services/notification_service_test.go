@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/core/notification/models"
 	"github.com/orkestra/backend/internal/core/notification/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // ---- Fakes --------------------------------------------------------------
 
 type fakeNotifRepo struct {
-	created     []*models.NotificationDoc
-	existing    *models.NotificationDoc // returned by FindByIdempotencyKey
-	findErr     error
-	createErr   error
-	findSinces  []time.Time
+	created    []*models.NotificationDoc
+	existing   *models.NotificationDoc // returned by FindByIdempotencyKey
+	findErr    error
+	createErr  error
+	findSinces []time.Time
 }
 
 func newFakeNotifRepo() *fakeNotifRepo { return &fakeNotifRepo{} }
@@ -92,9 +92,9 @@ func (f *fakeTemplateService) Render(_ *models.TemplateDoc, data map[string]any)
 }
 
 type fakePrefService struct {
-	can      bool
-	err      error
-	calledN  int
+	can     bool
+	err     error
+	calledN int
 }
 
 func (f *fakePrefService) CanDeliver(_ context.Context, _, _, _, _ string) (bool, error) {
@@ -112,12 +112,12 @@ func (f *fakePrefService) List(_ context.Context, _ string) ([]*models.Preferenc
 func (f *fakePrefService) Set(_ context.Context, _, _, _ string, _ bool) error { return nil }
 
 type fakeUnsubService struct {
-	token      string
-	tokenErr   error
-	issueN     int
-	lastUser   string
-	lastAddr   string
-	lastCateg  string
+	token     string
+	tokenErr  error
+	issueN    int
+	lastUser  string
+	lastAddr  string
+	lastCateg string
 }
 
 func (f *fakeUnsubService) IssueToken(_ context.Context, user, addr, category string) (string, error) {

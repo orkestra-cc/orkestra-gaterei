@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 )
 
 // SalesAgent defines a parallel prospect analysis agent
@@ -25,17 +25,17 @@ type AgentInput struct {
 
 // ScrapedCompanyData holds structured data extracted from web scraping
 type ScrapedCompanyData struct {
-	URL           string   `json:"url"`
-	CompanyName   string   `json:"companyName"`
-	Industry      string   `json:"industry"`
-	Description   string   `json:"description"`
-	TechStack     []string `json:"techStack"`
-	TeamMembers   []string `json:"teamMembers"`
-	AboutText     string   `json:"aboutText"`
-	ContactInfo   string   `json:"contactInfo"`
-	SocialLinks   []string `json:"socialLinks"`
-	PageTitles    []string `json:"pageTitles"`
-	RawText       string   `json:"rawText"`
+	URL         string   `json:"url"`
+	CompanyName string   `json:"companyName"`
+	Industry    string   `json:"industry"`
+	Description string   `json:"description"`
+	TechStack   []string `json:"techStack"`
+	TeamMembers []string `json:"teamMembers"`
+	AboutText   string   `json:"aboutText"`
+	ContactInfo string   `json:"contactInfo"`
+	SocialLinks []string `json:"socialLinks"`
+	PageTitles  []string `json:"pageTitles"`
+	RawText     string   `json:"rawText"`
 }
 
 // CompanyEnrichmentData holds data from the Italian business registry

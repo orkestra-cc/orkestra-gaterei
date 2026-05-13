@@ -3,8 +3,8 @@
 package main
 
 import (
-	"github.com/orkestra/backend/internal/addons/documents"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra-cc/orkestra-addon-documents"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 )
 
 func init() {

@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/core/authz/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 type Handler struct {
@@ -50,28 +50,28 @@ type listRolesInput struct {
 
 type createRoleInput struct {
 	TenantID string `path:"tenantId"`
-	Body  models.CreateRoleInput
+	Body     models.CreateRoleInput
 }
 
 type updateRoleInput struct {
 	TenantID string `path:"tenantId"`
-	Role  string `path:"roleId"`
-	Body  models.UpdateRoleInput
+	Role     string `path:"roleId"`
+	Body     models.UpdateRoleInput
 }
 
 type deleteRoleInput struct {
 	TenantID string `path:"tenantId"`
-	Role  string `path:"roleId"`
+	Role     string `path:"roleId"`
 }
 
 type createBindingInput struct {
 	TenantID string `path:"tenantId"`
-	Body  models.CreateBindingInput
+	Body     models.CreateBindingInput
 }
 
 type deleteBindingInput struct {
 	TenantID string `path:"tenantId"`
-	Binding string `path:"bindingId"`
+	Binding  string `path:"bindingId"`
 }
 
 type listBindingsInput struct {
@@ -234,7 +234,7 @@ func (h *Handler) listBindings(ctx context.Context, in *listBindingsInput) (*bin
 }
 
 func (h *Handler) createBinding(ctx context.Context, in *createBindingInput) (*bindingOutput, error) {
-	grantedBy, _ := middleware.GetUserUUID(ctx)
+	grantedBy, _ := ctxauth.GetUserUUID(ctx)
 	b, err := h.svc.CreateBinding(ctx, in.TenantID, grantedBy, in.Body)
 	if err != nil {
 		return nil, huma.Error400BadRequest("create binding failed: " + err.Error())
@@ -250,7 +250,7 @@ func (h *Handler) deleteBinding(ctx context.Context, in *deleteBindingInput) (*s
 }
 
 func (h *Handler) getEffective(ctx context.Context, in *effectiveInput) (*effectiveOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -258,7 +258,7 @@ func (h *Handler) getEffective(ctx context.Context, in *effectiveInput) (*effect
 	if err != nil {
 		return nil, huma.Error500InternalServerError("effective permissions failed", err)
 	}
-	systemRole, _ := middleware.GetSystemRole(ctx)
+	systemRole, _ := ctxauth.GetSystemRole(ctx)
 	return &effectiveOutput{Body: models.EffectivePermissionsResponse{
 		TenantID:    in.TenantID,
 		Permissions: perms,

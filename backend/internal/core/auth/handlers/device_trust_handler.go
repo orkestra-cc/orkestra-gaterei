@@ -14,9 +14,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 // DeviceTrustHandler exposes the three /v1/auth/me/devices/trust
@@ -53,7 +53,7 @@ type listTrustedDevicesResponse struct {
 
 // List returns every active trust grant the current user holds.
 func (h *DeviceTrustHandler) List(ctx context.Context, _ *struct{}) (*listTrustedDevicesResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -83,7 +83,7 @@ type revokeTrustedDeviceResponse struct{}
 // the frontend can call this from a confirmation modal without
 // checking the list first.
 func (h *DeviceTrustHandler) RevokeOne(ctx context.Context, req *revokeTrustedDeviceRequest) (*revokeTrustedDeviceResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -103,7 +103,7 @@ type revokeAllTrustedDevicesResponse struct{}
 // RevokeAll drops every active trust grant the current user holds.
 // Same idempotency contract as RevokeOne.
 func (h *DeviceTrustHandler) RevokeAll(ctx context.Context, _ *struct{}) (*revokeAllTrustedDevicesResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -144,24 +144,24 @@ func (h *DeviceTrustHandler) RegisterRoutes(api huma.API, mount RouteMount) {
 	}, h.List)
 
 	huma.Register(api, huma.Operation{
-		OperationID: mount.OpIDPrefix + "revoke-trusted-device",
-		Method:      http.MethodDelete,
-		Path:        "/v1/auth" + mount.PathPrefix + "/me/devices/trust/{deviceId}",
-		Summary:     "Revoke one trusted device",
-		Description: "Drops the trust grant for a single device. Idempotent — returns 204 even when the device was never trusted.",
-		Tags:        []string{"Auth - Device Trust"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
+		OperationID:   mount.OpIDPrefix + "revoke-trusted-device",
+		Method:        http.MethodDelete,
+		Path:          "/v1/auth" + mount.PathPrefix + "/me/devices/trust/{deviceId}",
+		Summary:       "Revoke one trusted device",
+		Description:   "Drops the trust grant for a single device. Idempotent — returns 204 even when the device was never trusted.",
+		Tags:          []string{"Auth - Device Trust"},
+		Security:      []map[string][]string{{"bearerAuth": {}}},
 		DefaultStatus: http.StatusNoContent,
 	}, h.RevokeOne)
 
 	huma.Register(api, huma.Operation{
-		OperationID: mount.OpIDPrefix + "revoke-all-trusted-devices",
-		Method:      http.MethodDelete,
-		Path:        "/v1/auth" + mount.PathPrefix + "/me/devices/trust",
-		Summary:     "Revoke all trusted devices",
-		Description: "Drops every active trust grant the caller holds. The next login from any device will require completing MFA.",
-		Tags:        []string{"Auth - Device Trust"},
-		Security:    []map[string][]string{{"bearerAuth": {}}},
+		OperationID:   mount.OpIDPrefix + "revoke-all-trusted-devices",
+		Method:        http.MethodDelete,
+		Path:          "/v1/auth" + mount.PathPrefix + "/me/devices/trust",
+		Summary:       "Revoke all trusted devices",
+		Description:   "Drops every active trust grant the caller holds. The next login from any device will require completing MFA.",
+		Tags:          []string{"Auth - Device Trust"},
+		Security:      []map[string][]string{{"bearerAuth": {}}},
 		DefaultStatus: http.StatusNoContent,
 	}, h.RevokeAll)
 }

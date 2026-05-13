@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 )
 
 // AIModelProvider is the consumer-defined interface for accessing LLM providers.

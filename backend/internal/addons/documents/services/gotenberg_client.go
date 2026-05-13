@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orkestra/backend/internal/addons/documents/config"
+	"github.com/orkestra-cc/orkestra-addon-documents/config"
 )
 
 // Errors for Gotenberg client
@@ -36,14 +36,14 @@ type GotenbergClient interface {
 
 // circuitBreaker implements a simple circuit breaker pattern
 type circuitBreaker struct {
-	mu             sync.RWMutex
-	failures       int
-	lastFailure    time.Time
-	state          string // closed, open, half-open
-	threshold      int
-	resetTimeout   time.Duration
-	halfOpenMax    int
-	halfOpenCalls  int
+	mu            sync.RWMutex
+	failures      int
+	lastFailure   time.Time
+	state         string // closed, open, half-open
+	threshold     int
+	resetTimeout  time.Duration
+	halfOpenMax   int
+	halfOpenCalls int
 }
 
 func newCircuitBreaker() *circuitBreaker {

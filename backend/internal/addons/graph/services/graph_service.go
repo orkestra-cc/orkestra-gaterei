@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/graph/models"
 	"github.com/orkestra/backend/internal/addons/graph/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // GraphService defines the interface for graph operations

@@ -5,9 +5,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/addons/agents/models"
 	"github.com/orkestra/backend/internal/addons/agents/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 // AgentHandler handles HTTP requests for agent queries and conversations
@@ -21,8 +21,8 @@ func NewAgentHandler(agentService services.AgentService) *AgentHandler {
 }
 
 func (h *AgentHandler) Query(ctx context.Context, req *models.AgentQueryRequest) (*models.AgentQueryResponse, error) {
-	userUUID, _ := middleware.GetUserUUID(ctx)
-	userRole, _ := middleware.GetSystemRole(ctx)
+	userUUID, _ := ctxauth.GetUserUUID(ctx)
+	userRole, _ := ctxauth.GetSystemRole(ctx)
 
 	resp, err := h.agentService.Query(ctx, req, userUUID, userRole)
 	if err != nil {
@@ -32,10 +32,10 @@ func (h *AgentHandler) Query(ctx context.Context, req *models.AgentQueryRequest)
 }
 
 func (h *AgentHandler) CreateConversation(ctx context.Context, req *models.CreateConversationRequest) (*models.CreateConversationResponse, error) {
-	userUUID, _ := middleware.GetUserUUID(ctx)
+	userUUID, _ := ctxauth.GetUserUUID(ctx)
 	persona := req.Body.Persona
 	if persona == "" {
-		userRole, _ := middleware.GetSystemRole(ctx)
+		userRole, _ := ctxauth.GetSystemRole(ctx)
 		persona = models.DefaultPersonaForRole(userRole)
 	}
 

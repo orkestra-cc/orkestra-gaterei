@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -164,10 +165,10 @@ func seedIdentity(tenantID, tenantKind, userID, userRole string) func(http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-			ctx = context.WithValue(ctx, ctxTenantKind, tenantKind)
-			ctx = context.WithValue(ctx, ctxUserUUID, userID)
-			ctx = context.WithValue(ctx, ctxSystemRole, userRole)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, tenantKind)
+			ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, userID)
+			ctx = context.WithValue(ctx, ctxauth.KeySystemRole, userRole)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

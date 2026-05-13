@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/orkestra/backend/internal/addons/documents/models"
-	"github.com/orkestra/backend/internal/addons/documents/repository"
-	"github.com/orkestra/backend/internal/addons/documents/services"
+	"github.com/orkestra-cc/orkestra-addon-documents/models"
+	"github.com/orkestra-cc/orkestra-addon-documents/repository"
+	"github.com/orkestra-cc/orkestra-addon-documents/services"
 )
 
 // stringToBoolPtr converts a query string ("true"/"false") to *bool.
@@ -72,7 +72,7 @@ type ListTemplatesResponse struct {
 
 // UpdateTemplateRequest is the request for updating a template
 type UpdateTemplateRequest struct {
-	ID   string                    `path:"id" doc:"Template UUID"`
+	ID   string                     `path:"id" doc:"Template UUID"`
 	Body models.UpdateTemplateInput `json:"template" doc:"Template update data"`
 }
 

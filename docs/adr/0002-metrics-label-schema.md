@@ -79,8 +79,8 @@ The following labels are **explicitly banned** from Phase-5-and-later metrics wi
 
 ## Implementation
 
-- Metric definitions live in `backend/internal/shared/metrics/metrics.go`.
-- Label-schema tests live in `backend/internal/shared/metrics/metrics_test.go` — they fail loudly if a label is renamed or a new label is added without updating the tests.
+- Metric definitions live in `backend/pkg/sdk/metrics/metrics.go`.
+- Label-schema tests live in `backend/pkg/sdk/metrics/metrics_test.go` — they fail loudly if a label is renamed or a new label is added without updating the tests.
 - The `/metrics` handler is registered in `backend/cmd/server/main.go` behind `METRICS_ENABLED=true` (default on).
 
 ## Alternatives considered

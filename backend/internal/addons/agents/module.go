@@ -4,23 +4,34 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/capability"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/addons/agents/handlers"
 	"github.com/orkestra/backend/internal/addons/agents/repository"
 	"github.com/orkestra/backend/internal/addons/agents/services"
-	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // Default image reference for the Hindsight container. Overridable via the
 // "hindsightImage" module config field.
 const defaultHindsightImage = "ghcr.io/vectorize-io/hindsight:latest"
+
+// Settings mirrors the agents ConfigSchema 1:1. HindsightImage is declared
+// for schema completeness; InfraContainers() reads it live on every toggle
+// (so admins can upgrade Hindsight without restarting the backend) rather
+// than threading it through Init.
+type Settings struct {
+	HindsightURL       string `module:"hindsightURL"`
+	HindsightNamespace string `module:"hindsightNamespace"`
+	HindsightImage     string `module:"hindsightImage"`
+}
 
 type AgentsModule struct {
 	module.BaseModule
@@ -36,11 +47,16 @@ type AgentsModule struct {
 
 func NewModule() *AgentsModule { return &AgentsModule{} }
 
-func (m *AgentsModule) Name() string                   { return "agents" }
+func (m *AgentsModule) Name() string                    { return "agents" }
 func (m *AgentsModule) DisplayName() string             { return "AI Agents" }
 func (m *AgentsModule) Description() string             { return "Hindsight-powered AI agents with RAG context" }
 func (m *AgentsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *AgentsModule) Enabled(cfg *config.Config) bool { return cfg.Agents.Enabled }
+
+// Enabled gates first-boot activation on AGENTS_ENABLED.
+func (m *AgentsModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("AGENTS_ENABLED"))
+	return v
+}
 
 // Hard dependency on aimodels: the Hindsight container inherits its LLM
 // provider/model/API key from aimodels' default LLM, so aimodels must be
@@ -102,41 +118,49 @@ func (m *AgentsModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *AgentsModule) Init(deps *module.Dependencies) error {
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+
 	projectRepo := repository.NewProjectRepository(deps.DB)
 	conversationRepo := repository.NewConversationRepository(deps.DB)
 
-	hindsightURL := deps.GetConfig("agents", "hindsightURL")
-	hindsightNS := deps.GetConfig("agents", "hindsightNamespace")
-	hsClient := services.NewHindsightClient(hindsightURL, deps.Logger)
+	hsClient := services.NewHindsightClient(settings.HindsightURL, deps.Logger)
 
 	// Retain deps so Preflight() and InfraContainers() can resolve
 	// aimodels on every toggle.
 	m.deps = deps
 
-	// Create RAG bridge if RAG query service is available
+	// Create RAG bridge if RAG query service is available. DefaultTopK is
+	// rag's config field (declared in rag's ConfigSchema since PR-1a-9);
+	// reading it via deps.ConfigService is a deliberate cross-addon
+	// coupling kept narrow — agents takes one knob from rag's schema
+	// rather than pulling in rag's package directly.
 	var ragBridge services.RAGBridge
 	if ragQuery, ok := module.GetTyped[iface.RAGQueryProvider](deps.Services, module.ServiceRAGQuery); ok {
-		ragBridge = services.NewRAGBridge(ragQuery, deps.Config.RAG.DefaultTopK, deps.Logger)
+		topK := deps.GetConfigInt("rag", "defaultTopK", 10)
+		ragBridge = services.NewRAGBridge(ragQuery, topK, deps.Logger)
 	}
 
-	projectService := services.NewProjectService(projectRepo, hsClient, hindsightNS, deps.Logger)
+	projectService := services.NewProjectService(projectRepo, hsClient, settings.HindsightNamespace, deps.Logger)
 	agentService := services.NewAgentService(projectRepo, conversationRepo, hsClient, ragBridge, deps.Logger)
 
 	m.projectHandler = handlers.NewProjectHandler(projectService)
 	m.agentHandler = handlers.NewAgentHandler(agentService)
 
-	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, hindsightNS, deps.Logger)
+	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, settings.HindsightNamespace, deps.Logger)
 	m.personalAgentHandler = handlers.NewPersonalAgentHandler(personalAgentService)
 
 	deps.Logger.Info("Agents module initialized",
-		slog.String("hindsightURL", hindsightURL),
+		slog.String("hindsightURL", settings.HindsightURL),
 	)
 	return nil
 }
 
 func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		gated.Use(ri.Operator.AuthMW.RequireCapability("agents.access"))
 
 		gated.Group(func(r chi.Router) {
@@ -165,8 +189,8 @@ func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	})
 }
 
-func (m *AgentsModule) Start(_ context.Context) error      { return nil }
-func (m *AgentsModule) Stop(_ context.Context) error       { return nil }
+func (m *AgentsModule) Start(_ context.Context) error       { return nil }
+func (m *AgentsModule) Stop(_ context.Context) error        { return nil }
 func (m *AgentsModule) HealthCheck(_ context.Context) error { return nil }
 
 // Preflight asserts that aimodels has a default LLM configured before the

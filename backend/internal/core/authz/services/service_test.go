@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/authz/cedar"
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/shared/middleware"
@@ -51,11 +52,11 @@ func (s *Service) withUserRole(role string) *Service {
 
 func TestActionSuffix(t *testing.T) {
 	cases := map[string]string{
-		"system.users.admin":      "admin",
-		"foo.bar.read":            "read",
-		"singleword":              "singleword",
-		"trailing.dot.":           "trailing.dot.", // trailing dot — no suffix to extract
-		"":                        "",
+		"system.users.admin": "admin",
+		"foo.bar.read":       "read",
+		"singleword":         "singleword",
+		"trailing.dot.":      "trailing.dot.", // trailing dot — no suffix to extract
+		"":                   "",
 	}
 	for in, want := range cases {
 		if got := actionSuffix(in); got != want {
@@ -128,7 +129,7 @@ func TestShadowEvaluate_SuperAdminInternalTenantSystemAdmin(t *testing.T) {
 	// with the role-table (which would also allow).
 	svc, _ := newTestService(t, nil)
 	svc.withUserRole("super_admin")
-	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx := ctxauth.WithTenantKind(context.Background(), "internal")
 	ctx = middleware.WithAMR(ctx, []string{"pwd", "otp"})
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-int", "system.users.admin", true)
 	if !ok {
@@ -146,7 +147,7 @@ func TestShadowEvaluate_SuperAdminExternalTenantBlockedByTierForbid(t *testing.T
 	// today the role-table allows (super_admin shortcut), Cedar denies.
 	svc, _ := newTestService(t, []string{"system.users.admin"})
 	svc.withUserRole("super_admin")
-	ctx := middleware.WithTenantKind(context.Background(), "external")
+	ctx := ctxauth.WithTenantKind(context.Background(), "external")
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-ext", "system.users.admin", true)
 	if !ok {
 		t.Fatalf("Cedar evaluation should succeed, errors: %+v", decision.Errors)
@@ -172,7 +173,7 @@ func TestShadowEvaluate_TenantStatusFlowsFromLookup(t *testing.T) {
 	svc.lookupTenantStatus = func(_ context.Context, _ string) (string, error) {
 		return "suspended", nil
 	}
-	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx := ctxauth.WithTenantKind(context.Background(), "internal")
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
 	if !ok {
 		t.Fatalf("evaluation should succeed, errors: %+v", decision.Errors)
@@ -223,7 +224,7 @@ func TestShadowEvaluate_RiskLookupStampsCedarPrincipal(t *testing.T) {
 		gotSID = sid
 		return 0.42, nil
 	})
-	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx := ctxauth.WithTenantKind(context.Background(), "internal")
 	ctx = middleware.WithSessionID(ctx, "sess-1")
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
 	if !ok {
@@ -246,7 +247,7 @@ func TestShadowEvaluate_RiskLookupErrorDoesNotAbort(t *testing.T) {
 	svc.SetSessionRiskLookup(func(_ context.Context, _ string) (float64, error) {
 		return 0, errors.New("boom")
 	})
-	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx := ctxauth.WithTenantKind(context.Background(), "internal")
 	ctx = middleware.WithSessionID(ctx, "sess-1")
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
 	if !ok {
@@ -264,7 +265,7 @@ func TestShadowEvaluate_TenantStatusFallsBackToActive(t *testing.T) {
 	svc, _ := newTestService(t, nil)
 	svc.withUserRole("administrator")
 	// Lookup deliberately left nil.
-	ctx := middleware.WithTenantKind(context.Background(), "internal")
+	ctx := ctxauth.WithTenantKind(context.Background(), "internal")
 	decision, ok := svc.shadowEvaluate(ctx, "user-1", "tenant-1", "tenant.update", true)
 	if !ok {
 		t.Fatalf("evaluation should succeed, errors: %+v", decision.Errors)
@@ -376,18 +377,18 @@ func TestValidateBindingCascade_EmptyRoleAlwaysPasses(t *testing.T) {
 // org_billing.
 func TestOrgRoleFilters(t *testing.T) {
 	allKeys := []string{
-		"system.modules.admin",       // system → excluded from every org role
-		"system.users.admin",         // system → excluded
-		"tenant.read",                // non-system, .read suffix
-		"tenant.update",              // non-system, .update suffix
-		"tenant.delete",              // non-system, .delete suffix
-		"user.self",                  // non-system, .self suffix
-		"agents.project.read",        // non-system, .read suffix
-		"billing.invoice.create",     // non-system, billing module
-		"billing.invoice.delete",     // non-system, billing module + .delete
+		"system.modules.admin",        // system → excluded from every org role
+		"system.users.admin",          // system → excluded
+		"tenant.read",                 // non-system, .read suffix
+		"tenant.update",               // non-system, .update suffix
+		"tenant.delete",               // non-system, .delete suffix
+		"user.self",                   // non-system, .self suffix
+		"agents.project.read",         // non-system, .read suffix
+		"billing.invoice.create",      // non-system, billing module
+		"billing.invoice.delete",      // non-system, billing module + .delete
 		"payments.transaction.refund", // non-system, payments module
-		"subscriptions.client.view",  // non-system, subscriptions module + .view
-		"rag.query",                  // non-system, no covered suffix or module
+		"subscriptions.client.view",   // non-system, subscriptions module + .view
+		"rag.query",                   // non-system, no covered suffix or module
 	}
 	systemSet := map[string]struct{}{
 		"system.modules.admin": {},

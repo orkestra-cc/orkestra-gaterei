@@ -16,6 +16,8 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/compliance/handlers"
 	"github.com/orkestra/backend/internal/addons/compliance/models"
 	"github.com/orkestra/backend/internal/addons/compliance/repository"
@@ -25,9 +27,6 @@ import (
 	subscriptionServices "github.com/orkestra/backend/internal/addons/subscriptions/services"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
 	tenantServices "github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // Module wires the audit sink, DSR pipeline, SOC2 evidence, and
@@ -45,15 +44,17 @@ type Module struct {
 // NewModule returns an unwired module; Init constructs the sink.
 func NewModule() *Module { return &Module{} }
 
-func (m *Module) Name() string                    { return "compliance" }
-func (m *Module) DisplayName() string             { return "Compliance (Audit + DSR)" }
-func (m *Module) Description() string             { return "Platform compliance plane: append-only audit log consumed by every module, plus (later phases) GDPR DSR pipelines and SOC2 evidence automation." }
+func (m *Module) Name() string        { return "compliance" }
+func (m *Module) DisplayName() string { return "Compliance (Audit + DSR)" }
+func (m *Module) Description() string {
+	return "Platform compliance plane: append-only audit log consumed by every module, plus (later phases) GDPR DSR pipelines and SOC2 evidence automation."
+}
 func (m *Module) Category() module.ModuleCategory { return module.CategoryToggleable }
 
 // Enabled defaults to true so compliance evidence is collected on every
 // boot unless an operator explicitly opts out — SOC2 auditors expect
 // uninterrupted audit trail coverage.
-func (m *Module) Enabled(_ *config.Config) bool { return true }
+func (m *Module) Enabled() bool { return true }
 
 // Dependencies: auth + tenant are core (guaranteed loaded), identity and
 // subscriptions are addons compliance pushes sinks into — listing them

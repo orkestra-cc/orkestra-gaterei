@@ -16,9 +16,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // ErrAlreadyCompleted is returned by CreateInitialAdmin when at least one
@@ -35,8 +35,8 @@ type AdminCreator interface {
 
 // Status is the payload returned by GET /v1/setup/status.
 type Status struct {
-	SetupCompleted  bool `json:"setupCompleted"`
-	SMTPConfigured  bool `json:"smtpConfigured"`
+	SetupCompleted bool `json:"setupCompleted"`
+	SMTPConfigured bool `json:"smtpConfigured"`
 }
 
 // Service owns the two setup endpoints' business logic.

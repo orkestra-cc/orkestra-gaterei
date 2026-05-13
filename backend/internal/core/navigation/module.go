@@ -2,10 +2,10 @@ package navigation
 
 import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/core/navigation/handlers"
 	"github.com/orkestra/backend/internal/core/navigation/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type NavigationModule struct {
@@ -15,7 +15,7 @@ type NavigationModule struct {
 
 func NewModule() *NavigationModule { return &NavigationModule{} }
 
-func (m *NavigationModule) Name() string       { return "navigation" }
+func (m *NavigationModule) Name() string        { return "navigation" }
 func (m *NavigationModule) DisplayName() string { return "Navigation" }
 func (m *NavigationModule) Description() string { return "Dynamic navigation menu aggregator" }
 
@@ -27,9 +27,9 @@ func (m *NavigationModule) Init(deps *module.Dependencies) error {
 	}
 
 	// Get config service for runtime enabled/disabled checks.
-	var enabledChecker middleware.ModuleEnabledChecker
+	var enabledChecker modulegate.ModuleEnabledChecker
 	if svc := deps.Services.Get(module.ServiceConfigService); svc != nil {
-		enabledChecker = svc.(middleware.ModuleEnabledChecker)
+		enabledChecker = svc.(modulegate.ModuleEnabledChecker)
 	}
 
 	svc := services.NewDynamicNavigationService(navItems, enabledChecker)

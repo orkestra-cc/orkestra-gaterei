@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
@@ -49,7 +50,7 @@ type selfAuthMethodsResponse struct {
 // header without a parallel schema. The HTTP gate is RequireGlobal
 // only (any signed-in user can read their own).
 func (h *SelfUserAuthHandler) GetAuthMethods(ctx context.Context, _ *struct{}) (*selfAuthMethodsResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -72,7 +73,7 @@ type selfSessionsResponse struct {
 // HTTP boundary — service tests can drive the same code path
 // without manufacturing a context.
 func (h *SelfUserAuthHandler) ListSessions(ctx context.Context, _ *struct{}) (*selfSessionsResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -112,7 +113,7 @@ type selfSimpleResponse struct {
 // — a user with no password and a single OAuth link is refused with
 // 409 last_credential.
 func (h *SelfUserAuthHandler) UnlinkOAuth(ctx context.Context, req *selfUnlinkOAuthRequest) (*selfSimpleResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -145,7 +146,7 @@ type selfRevokeSessionResponse struct{}
 // revoke-current with ErrCannotRevokeCurrent so the caller's HTTP
 // response can complete; logout is the right tool for self-revoke.
 func (h *SelfUserAuthHandler) RevokeSession(ctx context.Context, req *selfRevokeSessionRequest) (*selfRevokeSessionResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -172,7 +173,7 @@ type selfRevokeAllSessionsResponse struct {
 // HTTP response can complete and the user keeps working without a
 // reauth round-trip.
 func (h *SelfUserAuthHandler) RevokeAllSessions(ctx context.Context, _ *struct{}) (*selfRevokeAllSessionsResponse, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -274,4 +275,3 @@ func (h *SelfUserAuthHandler) RegisterStepUpRoutes(api huma.API, mount RouteMoun
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.RevokeAllSessions)
 }
-

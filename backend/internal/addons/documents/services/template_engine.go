@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkestra/backend/internal/addons/documents/models"
+	"github.com/orkestra-cc/orkestra-addon-documents/models"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -163,10 +163,10 @@ func createTemplateFuncMap() template.FuncMap {
 		},
 
 		// String manipulation
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"trim":  strings.TrimSpace,
-		"title": strings.Title,
+		"upper":   strings.ToUpper,
+		"lower":   strings.ToLower,
+		"trim":    strings.TrimSpace,
+		"title":   strings.Title,
 		"replace": strings.ReplaceAll,
 		"truncate": func(s string, maxLen int) string {
 			if len(s) <= maxLen {

@@ -19,7 +19,7 @@ A 2026-04-18 audit of the codebase against this stated goal found the architectu
 
 - `backend/internal/core/tenant/models/org.go` — `Org` aggregate with no tier discriminator.
 - `backend/internal/addons/subscriptions/models/client.go` — separate `Client` collection for external buyers, non-login, with a nullable `OrgUUID` hook that is essentially dead code.
-- `backend/internal/shared/module/config_service.go` — `module_configs` is a single global collection; module enablement is not per-tenant.
+- `backend/pkg/sdk/module/config_service.go` — `module_configs` is a single global collection; module enablement is not per-tenant.
 - `backend/internal/core/authz/models/authz.go` — `Role` has `OrgID` but only system roles are seeded; no tier-aware assignment validator.
 - `backend/internal/core/auth/services/jwt_service.go` — JWT claims carry `memberships` but no `acting_tenant_id` or `tenant_kind`, so middleware cannot dispatch on tier.
 

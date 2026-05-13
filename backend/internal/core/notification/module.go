@@ -7,12 +7,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/notification/handlers"
 	"github.com/orkestra/backend/internal/core/notification/models"
 	"github.com/orkestra/backend/internal/core/notification/repository"
 	"github.com/orkestra/backend/internal/core/notification/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type NotificationModule struct {
@@ -161,7 +161,7 @@ func (m *NotificationModule) Init(deps *module.Dependencies) error {
 
 	emailSender := services.NewEmailService(loader, deps.Logger)
 
-	frontendURL := deps.Config.Server.FrontendURL
+	frontendURL := deps.Platform.FrontendURL()
 	urlBuilder := func(path string) string {
 		if len(path) > 0 && path[0] != '/' {
 			path = "/" + path
@@ -183,9 +183,9 @@ func (m *NotificationModule) Init(deps *module.Dependencies) error {
 		emailSender,
 		deps.Logger,
 		services.Options{
-			AppName:      appName,
-			SupportEmail: supportEmail,
-			URLBuilder:   urlBuilder,
+			AppName:       appName,
+			SupportEmail:  supportEmail,
+			URLBuilder:    urlBuilder,
 			DefaultLocale: "en",
 		},
 	)

@@ -3,9 +3,9 @@ package handlers
 import (
 	"context"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/navigation/models"
 	"github.com/orkestra/backend/internal/core/navigation/services"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 // NavigationHandler handles navigation HTTP requests
@@ -33,7 +33,7 @@ func (h *NavigationHandler) GetNavigation(ctx context.Context, req *GetNavigatio
 	// Use the user's global system role as the filter key. In the future
 	// this should be replaced with an authz.GetEffectivePermissions call
 	// so the menu only shows items the user can actually access.
-	userRole, ok := middleware.GetSystemRole(ctx)
+	userRole, ok := ctxauth.GetSystemRole(ctx)
 	if !ok || userRole == "" {
 		userRole = "guest"
 	}

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // stubUsers satisfies iface.UserProvider by embedding a nil interface —

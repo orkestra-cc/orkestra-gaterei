@@ -6,7 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 )
 
 // runKindGate wires a minimal AuthMiddleware, seeds the request context with
@@ -18,7 +19,7 @@ func runKindGate(t *testing.T, expected string, ctxKind string) (bool, int) {
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/anything", nil)
 	if ctxKind != "" {
-		ctx := context.WithValue(req.Context(), ctxTenantKind, ctxKind)
+		ctx := context.WithValue(req.Context(), ctxauth.KeyTenantKind, ctxKind)
 		req = req.WithContext(ctx)
 	}
 	rec := httptest.NewRecorder()
@@ -35,11 +36,11 @@ func TestRequireTenantKind_EnforceMode(t *testing.T) {
 	t.Setenv("TENANT_KIND_ENFORCEMENT", "enforce")
 
 	cases := []struct {
-		name        string
-		expected    string
-		actual      string
-		wantCalled  bool
-		wantStatus  int
+		name       string
+		expected   string
+		actual     string
+		wantCalled bool
+		wantStatus int
 	}{
 		{name: "matching kind passes", expected: iface.TenantKindInternal, actual: iface.TenantKindInternal, wantCalled: true, wantStatus: http.StatusOK},
 		{name: "mismatched kind blocks", expected: iface.TenantKindInternal, actual: iface.TenantKindExternal, wantCalled: false, wantStatus: http.StatusForbidden},

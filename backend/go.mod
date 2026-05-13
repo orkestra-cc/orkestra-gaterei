@@ -2,6 +2,24 @@ module github.com/orkestra/backend
 
 go 1.25.10
 
+// SDK split (Phase 4): the public SDK lives at
+// github.com/orkestra-cc/orkestra-sdk (released v0.1.0 from the
+// in-tree source at pkg/sdk/). The replace directive points at the
+// in-tree path so local development uses the live tree; CI and
+// external consumers without the replace resolve v0.1.0 through the
+// Go module proxy. The replace will drop once cross-cutting changes
+// no longer need round-trip through the SDK repo.
+replace github.com/orkestra-cc/orkestra-sdk => ./pkg/sdk
+
+// Phase 5a: the documents addon is its own Go module. Source lives
+// in-tree at backend/internal/addons/documents/ and is mirrored to
+// the public repo orkestra-cc/orkestra-addon-documents on each tag.
+// The replace directive keeps monorepo development against live
+// in-tree source; external consumers and the proxy fetch the tagged
+// version. Subsequent addon extractions follow the same pattern —
+// one replace line per addon until cross-cutting churn settles.
+replace github.com/orkestra-cc/orkestra-addon-documents => ./internal/addons/documents
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -18,8 +36,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
+	github.com/orkestra-cc/orkestra-sdk v0.2.0
 	github.com/pquerna/otp v1.5.0
-	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/stripe/stripe-go/v76 v76.25.0
@@ -34,7 +53,6 @@ require (
 	golang.org/x/crypto v0.51.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/text v0.37.0
 	golang.org/x/tools v0.44.0
 )
 
@@ -74,7 +92,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/klauspost/compress v1.18.1 // indirect
-	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
@@ -87,6 +104,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
@@ -108,6 +126,7 @@ require (
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect

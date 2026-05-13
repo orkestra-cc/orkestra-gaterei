@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -13,15 +14,16 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	gowebauthn "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth/handlers"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	"github.com/orkestra/backend/internal/shared/config"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type AuthModule struct {
@@ -37,10 +39,10 @@ type AuthModule struct {
 	// callback URL — its tierDispatch map routes callbacks to the
 	// matching tier's authService. webauthn handler stays nil when
 	// passkeys are disabled at boot.
-	operatorAuthHandler          *handlers.AuthHandler
-	operatorPasswordHandler      *handlers.PasswordAuthHandler
-	operatorMFAHandler           *handlers.MFAHandler
-	operatorWebAuthnHandler      *handlers.WebAuthnHandler
+	operatorAuthHandler     *handlers.AuthHandler
+	operatorPasswordHandler *handlers.PasswordAuthHandler
+	operatorMFAHandler      *handlers.MFAHandler
+	operatorWebAuthnHandler *handlers.WebAuthnHandler
 	// operatorAdminUserAuthHandler hosts the admin endpoints that
 	// inspect and manage another operator user's auth methods
 	// (password, MFA, OAuth, email verification). Mounted under
@@ -66,15 +68,27 @@ type AuthModule struct {
 	clientPasswordHandler *handlers.PasswordAuthHandler
 	clientMFAHandler      *handlers.MFAHandler
 	clientWebAuthnHandler *handlers.WebAuthnHandler
+
+	// cfg is captured at construction time so Init does not need
+	// Dependencies.Config (Phase 1c). The Module interface contract has
+	// no field for app-wide config; auth is the only consumer of
+	// *config.Config and threads it in via the catalog factory.
+	cfg *config.Config
 }
 
-func NewModule() *AuthModule { return &AuthModule{} }
+// NewModule constructs an AuthModule bound to the live application config.
+// cfg must be non-nil — Init dereferences it to read JWT keys, cookie
+// settings, and the per-audience frontend URLs. The catalog factory in
+// cmd/server/catalog.go threads main.go's cfg through a closure.
+func NewModule(cfg *config.Config) *AuthModule { return &AuthModule{cfg: cfg} }
 
 func (m *AuthModule) Name() string        { return "auth" }
-func (m *AuthModule) DisplayName() string  { return "Authentication" }
-func (m *AuthModule) Description() string  { return "OAuth 2.1, JWT, sessions, RBAC" }
+func (m *AuthModule) DisplayName() string { return "Authentication" }
+func (m *AuthModule) Description() string { return "OAuth 2.1, JWT, sessions, RBAC" }
 
-func (m *AuthModule) Dependencies() []string { return []string{"user", "notification", "tenant", "authz"} }
+func (m *AuthModule) Dependencies() []string {
+	return []string{"user", "notification", "tenant", "authz"}
+}
 func (m *AuthModule) RequiredServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceUserService, module.ServiceTenantProvider}
 }
@@ -153,7 +167,7 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Key: "defaultRoleClient", Label: "Default role for new client signups", Group: "Registration",
 			Description: "System role assigned to a Tier-2 client account on signup. Lower-privilege roles are recommended.",
 			Type:        module.FieldEnum, Default: "operator",
-			Options:     []string{"operator", "manager", "guest"},
+			Options: []string{"operator", "manager", "guest"},
 		},
 		{
 			Key: "allowedEmailDomainsAdmin", Label: "Allowed email domains (operator)", Group: "Registration",
@@ -458,7 +472,10 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 }
 
 func (m *AuthModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
+	cfg := m.cfg
+	if cfg == nil {
+		return fmt.Errorf("auth: NewModule was called without *config.Config — check cmd/server/catalog.go")
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -1227,4 +1244,3 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		m.deviceTrustHandler.RegisterRoutes(api, handlers.ClientMount)
 	})
 }
-
