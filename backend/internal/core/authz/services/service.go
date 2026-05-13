@@ -14,11 +14,11 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/cedar"
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
-	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/pkg/sdk/ctxauth"
 	"github.com/orkestra/backend/pkg/sdk/iface"
 	"github.com/orkestra/backend/pkg/sdk/metrics"
+	"github.com/orkestra/backend/pkg/sdk/module"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -133,7 +133,7 @@ type repoBackend interface {
 // invalidated when bindings or roles change.
 type Service struct {
 	repo               repoBackend
-	redis              *database.RedisClientAdapter
+	redis              module.RedisClient
 	logger             *slog.Logger
 	userRoles          UserSystemRoleLookup
 	startMFAGrace      MFAGraceStarter
@@ -208,7 +208,7 @@ type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, err
 
 type Config struct {
 	Repo               *repository.Repository
-	Redis              *database.RedisClientAdapter
+	Redis              module.RedisClient
 	Logger             *slog.Logger
 	LookupUser         UserSystemRoleLookup
 	LookupCaps         TenantCapabilityLookup

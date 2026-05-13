@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	"github.com/orkestra/backend/internal/shared/config"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
@@ -460,7 +462,14 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 }
 
 func (m *AuthModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
+	// Auth is the last consumer of the legacy Dependencies.Config handle
+	// (the field is typed `any` so the SDK package has no shared/config
+	// dependency). Phase 1c retires this entirely; until then the auth
+	// module type-asserts at boot.
+	cfg, ok := deps.Config.(*config.Config)
+	if !ok || cfg == nil {
+		return fmt.Errorf("auth: deps.Config must be *config.Config, got %T", deps.Config)
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
