@@ -75,6 +75,14 @@ replace github.com/orkestra-cc/orkestra-addon-subscriptions => ./internal/addons
 // which extracts later).
 replace github.com/orkestra-cc/orkestra-addon-payments => ./internal/addons/payments
 
+// Phase 5h: the billing addon is its own Go module — the last of the
+// "easy tier" extractions and the largest at 15K LOC. Zero
+// cross-module backend internal deps because the OpenAPI.com OAuth
+// minter (openapiauth) was already carved out in Phase 5c. Source
+// lives in-tree, mirrored to orkestra-cc/orkestra-addon-billing and
+// tagged from v0.1.0.
+replace github.com/orkestra-cc/orkestra-addon-billing => ./internal/addons/billing
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -90,13 +98,13 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/orkestra-cc/orkestra-addon-aimodels v0.1.0
+	github.com/orkestra-cc/orkestra-addon-billing v0.1.0
 	github.com/orkestra-cc/orkestra-addon-company v0.1.1
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
 	github.com/orkestra-cc/orkestra-addon-payments v0.1.0
 	github.com/orkestra-cc/orkestra-addon-sales v0.1.0
 	github.com/orkestra-cc/orkestra-addon-subscriptions v0.1.0
-	github.com/orkestra-cc/orkestra-openapi-auth v0.1.0
 	github.com/orkestra-cc/orkestra-sdk v0.2.0
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.16.0
@@ -162,6 +170,7 @@ require (
 	github.com/nlnwa/whatwg-url v0.6.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/orkestra-cc/orkestra-openapi-auth v0.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect

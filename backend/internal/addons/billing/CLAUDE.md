@@ -9,6 +9,27 @@ _Parent: [../../../CLAUDE.md](../../../CLAUDE.md)_
 
 <!-- /Navigation -->
 
+## Module home
+
+This directory is a **separate Go module**
+(`github.com/orkestra-cc/orkestra-addon-billing`) since Phase 5h of
+the SDK split — the largest carved addon at ~15K LOC and the last of
+the "easy tier" extractions. Source lives in-tree at this path for
+monorepo development; the same tree is mirrored to
+[github.com/orkestra-cc/orkestra-addon-billing](https://github.com/orkestra-cc/orkestra-addon-billing)
+and tagged starting from `v0.1.0`. Backend's `go.mod` carries a
+`replace` directive pointing at this path so changes here take effect
+without a tag bump during cross-cutting work; CI and external
+consumers fetch the published version through the Go module proxy.
+
+The addon depends on
+[`orkestra-cc/orkestra-openapi-auth`](https://github.com/orkestra-cc/orkestra-openapi-auth)
+(carved out in Phase 5c when company extracted) for the OAuth-token
+minter that exchanges (account email, API key) Basic credentials for
+short-lived JWT bearers at `oauth.openapi.it/token`. No other
+cross-module backend internal dependencies — the carve-out is a clean
+boundary at the SDK + iface contracts.
+
 ## Module Purpose
 
 The billing module handles **Italian electronic invoicing** (Fatturazione Elettronica) through integration with the OpenAPI SDI (Sistema di Interscambio) service.

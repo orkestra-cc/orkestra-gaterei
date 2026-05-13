@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkestra/backend/internal/addons/billing/config"
-	"github.com/orkestra/backend/internal/addons/billing/models"
+	"github.com/orkestra-cc/orkestra-addon-billing/config"
+	"github.com/orkestra-cc/orkestra-addon-billing/models"
 )
 
 // XMLBuilder builds FatturaPA XML documents

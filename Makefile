@@ -12,7 +12,7 @@
 
 .PHONY: help up down status logs reset
 .PHONY: mongo-shell redis-cli
-.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test openapi-auth-test backend-deps backend-clean
+.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test openapi-auth-test backend-deps backend-clean
 .PHONY: frontend-admin-build frontend-admin-test frontend-admin-deps
 .PHONY: frontend-admin-clean frontend-admin-preview frontend-admin-type-check
 .PHONY: frontend-client-build frontend-client-typecheck frontend-client-clean
@@ -95,7 +95,7 @@ backend-build:
 	@cd backend && go build -o bin/server cmd/server/main.go
 	@echo "Backend built: backend/bin/server"
 
-backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test
+backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test
 	@echo "Running backend tests..."
 	@cd backend && go test ./...
 
@@ -166,6 +166,15 @@ addon-payments-test:
 	@echo "Running payments addon tests..."
 	@cd backend/internal/addons/payments && go test ./...
 
+# addon-billing-test mirrors addon-payments-test for the billing
+# addon, which Phase 5h carved into its own Go module
+# (github.com/orkestra-cc/orkestra-addon-billing). Largest of the
+# carve-outs at ~15K LOC; depends on orkestra-openapi-auth (extracted
+# in Phase 5c) for the OpenAPI.it OAuth minter.
+addon-billing-test:
+	@echo "Running billing addon tests..."
+	@cd backend/internal/addons/billing && go test ./...
+
 backend-deps:
 	@echo "Installing backend dependencies..."
 	@cd backend && go mod download && go mod tidy
@@ -178,6 +187,7 @@ backend-deps:
 	@cd backend/internal/addons/sales && go mod download && go mod tidy
 	@cd backend/internal/addons/subscriptions && go mod download && go mod tidy
 	@cd backend/internal/addons/payments && go mod download && go mod tidy
+	@cd backend/internal/addons/billing && go mod download && go mod tidy
 	@echo "Backend dependencies installed."
 
 backend-clean:
@@ -224,7 +234,7 @@ frontend-client-clean:
 
 .PHONY: install install-hooks fmt ci-help
 .PHONY: ci ci-all ci-backend ci-backend-matrix ci-frontend-admin ci-frontend-client ci-mobile
-.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
+.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
 .PHONY: admin-typecheck admin-lint admin-test admin-audit admin-build
 .PHONY: client-typecheck client-lint client-build
 .PHONY: mobile-analyze mobile-test
@@ -275,7 +285,7 @@ ci-all: ci-backend ci-frontend-admin ci-frontend-client ci-mobile
 
 # ---- Backend ----
 
-ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
+ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
 	@echo "Backend CI: OK"
 
 ci-backend-matrix: ci-backend
@@ -332,10 +342,15 @@ addon-subscriptions-lint:
 addon-payments-lint:
 	@cd backend/internal/addons/payments && golangci-lint run --config=../../../.golangci.yml ./...
 
+# addon-billing-lint mirrors addon-payments-lint for the billing
+# addon's own Go module (Phase 5h). Shares the lint config.
+addon-billing-lint:
+	@cd backend/internal/addons/billing && golangci-lint run --config=../../../.golangci.yml ./...
+
 # `-race` requires cgo. CI runners have CGO_ENABLED=1 by default, but the
 # Go toolchain mise installs locally defaults to 0 — force it on so local
 # and CI behave the same. Needs a working C compiler on PATH (gcc/clang).
-backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci
+backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci
 	@cd backend && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend && go tool cover -func=coverage.out | tail -1
 
@@ -395,6 +410,14 @@ addon-subscriptions-test-ci:
 addon-payments-test-ci:
 	@cd backend/internal/addons/payments && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend/internal/addons/payments && go tool cover -func=coverage.out | tail -1
+
+# addon-billing-test-ci mirrors addon-payments-test-ci for the
+# billing addon (Phase 5h). Largest carved addon by LOC; covers the
+# FatturaPA XML builder, party/invoice/notification model tests, and
+# the OpenAPI config parser.
+addon-billing-test-ci:
+	@cd backend/internal/addons/billing && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
+	@cd backend/internal/addons/billing && go tool cover -func=coverage.out | tail -1
 
 backend-tenantscope:
 	@cd backend && go test ./tools/tenantscope/...
