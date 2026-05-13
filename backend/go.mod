@@ -65,9 +65,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/orkestra-cc/orkestra-addon-aimodels v0.1.0
-	github.com/orkestra-cc/orkestra-addon-company v0.1.0
+	github.com/orkestra-cc/orkestra-addon-company v0.1.1
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
-	github.com/orkestra-cc/orkestra-addon-graph v0.1.0
+	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
 	github.com/orkestra-cc/orkestra-openapi-auth v0.1.0
 	github.com/orkestra-cc/orkestra-sdk v0.2.0
 	github.com/pquerna/otp v1.5.0
