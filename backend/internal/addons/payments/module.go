@@ -18,6 +18,17 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
+// Settings mirrors the payments ConfigSchema 1:1. Init() unmarshals into a
+// value of this type so all four config lookups go through a single typed
+// surface. Keep in sync with ConfigSchema(); UnmarshalModule maps via the
+// `module:` tag.
+type Settings struct {
+	DefaultProvider     string `module:"defaultProvider"`
+	StripeAPIKey        string `module:"stripeApiKey"`
+	StripeWebhookSecret string `module:"stripeWebhookSecret"`
+	StripeAPIVersion    string `module:"stripeApiVersion"`
+}
+
 type PaymentsModule struct {
 	module.BaseModule
 
@@ -33,9 +44,11 @@ type PaymentsModule struct {
 
 func NewModule() *PaymentsModule { return &PaymentsModule{} }
 
-func (m *PaymentsModule) Name() string                    { return "payments" }
-func (m *PaymentsModule) DisplayName() string             { return "Pagamenti" }
-func (m *PaymentsModule) Description() string             { return "Payment gateway integration (Stripe) — charges, refunds, webhooks" }
+func (m *PaymentsModule) Name() string        { return "payments" }
+func (m *PaymentsModule) DisplayName() string { return "Pagamenti" }
+func (m *PaymentsModule) Description() string {
+	return "Payment gateway integration (Stripe) — charges, refunds, webhooks"
+}
 func (m *PaymentsModule) Category() module.ModuleCategory { return module.CategoryExternal }
 
 // Enabled returns true whenever the module has been registered — it can be
@@ -126,17 +139,21 @@ func (m *PaymentsModule) Permissions() []iface.PermissionSpec {
 func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+
 	txRepo := repository.NewTransactionRepository(deps.DB)
 	pmRepository := repository.NewPaymentMethodRepository(deps.DB)
 	whRepo := repository.NewWebhookEventRepository(deps.DB)
 
 	providers := map[models.ProviderName]iface.PaymentProvider{}
-	apiKey := deps.GetSecret("payments", "stripeApiKey")
-	if apiKey != "" {
+	if settings.StripeAPIKey != "" {
 		stripeProv, err := stripeProvider.New(stripeProvider.Config{
-			APIKey:        apiKey,
-			WebhookSecret: deps.GetSecret("payments", "stripeWebhookSecret"),
-			APIVersion:    deps.GetConfig("payments", "stripeApiVersion"),
+			APIKey:        settings.StripeAPIKey,
+			WebhookSecret: settings.StripeWebhookSecret,
+			APIVersion:    settings.StripeAPIVersion,
 		}, deps.Logger)
 		if err != nil {
 			deps.Logger.Error("payments: stripe init failed", slog.String("error", err.Error()))
@@ -146,7 +163,7 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 		}
 	}
 
-	defaultProvider := models.ProviderName(deps.GetConfig("payments", "defaultProvider"))
+	defaultProvider := models.ProviderName(settings.DefaultProvider)
 	if defaultProvider == "" {
 		defaultProvider = models.ProviderStripe
 	}
@@ -271,8 +288,8 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	}
 }
 
-func (m *PaymentsModule) Start(_ context.Context) error  { return nil }
-func (m *PaymentsModule) Stop(_ context.Context) error   { return nil }
+func (m *PaymentsModule) Start(_ context.Context) error { return nil }
+func (m *PaymentsModule) Stop(_ context.Context) error  { return nil }
 func (m *PaymentsModule) HealthCheck(_ context.Context) error {
 	return nil
 }
