@@ -8,7 +8,10 @@ Go 1.25.1 | Huma v2 (OpenAPI-first) | MongoDB 8.0 | Redis 8.2 | Chi router | AIR
 
 ## Module System
 
-Every module implements the `Module` interface (`pkg/sdk/module/module.go`):
+Every module implements the `Module` interface from the Orkestra SDK
+(`pkg/sdk/module/module.go` — see [`pkg/sdk/CLAUDE.md`](pkg/sdk/CLAUDE.md)
+for the SDK boundary rules and [`../docs/onboarding/orkestra-sdk.md`](../docs/onboarding/orkestra-sdk.md)
+for the new-developer walkthrough):
 
 ```
 Name, DisplayName, Description, Category

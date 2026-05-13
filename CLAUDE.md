@@ -160,6 +160,7 @@ Load order (topologically sorted by `Dependencies()`): `user` → `notification`
 
 ### Other Modules
 
+- **[`/backend/pkg/sdk/`](backend/pkg/sdk/CLAUDE.md)** — The public SDK contract module (`github.com/orkestra-cc/orkestra-sdk`) every other module depends on. See also [docs/onboarding/orkestra-sdk.md](docs/onboarding/orkestra-sdk.md) for the new-developer walkthrough.
 - **[`/frontend-admin/`](frontend-admin/CLAUDE.md)** — React 19 operator console / Tier-1 admin dashboard (port 8080, host `console.localhost`)
 - **[`/frontend-client/`](frontend-client/CLAUDE.md)** — React 19 Tier-2 client demo SPA — consumes the ADR-0003 client API surface (port 8081, host `client.localhost`)
 - **[`/mobile/`](mobile/CLAUDE.md)** — Flutter cross-platform app
