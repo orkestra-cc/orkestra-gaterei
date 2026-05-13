@@ -36,7 +36,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
-	github.com/orkestra-cc/orkestra-addon-documents v0.0.0-00010101000000-000000000000
+	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-sdk v0.2.0
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.16.0
