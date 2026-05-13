@@ -567,12 +567,12 @@ type CustomerRef struct {
 }
 
 type PaymentMethodRef struct {
-	Provider     string
-	ID           string // e.g. pm_xxx
-	Brand        string // e.g. "visa"
-	Last4        string
-	ExpiryMonth  int
-	ExpiryYear   int
+	Provider    string
+	ID          string // e.g. pm_xxx
+	Brand       string // e.g. "visa"
+	Last4       string
+	ExpiryMonth int
+	ExpiryYear  int
 }
 
 type SubscriptionCharge struct {

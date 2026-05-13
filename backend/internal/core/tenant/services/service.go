@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"github.com/orkestra/backend/internal/core/tenant/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 	"go.mongodb.org/mongo-driver/bson"
 )
 

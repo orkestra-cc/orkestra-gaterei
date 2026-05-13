@@ -28,7 +28,7 @@ Every endpoint, collection, and RBAC decision must declare which tier it serves:
 - **Tier 1 — internal operator tenants.** The companies that *run* Orkestra. Internal users, operator-side admin (modules, audit, FatturaPA for our own org).
 - **Tier 2 — external client tenants.** Customers who *register* on the platform; each client is itself multi-tenant. They consume services via the `subscriptions` + `payments` modules.
 
-`subscriptions` and `payments` are not ordinary feature addons — they are the consumption gate for Tier-2. ADR-0003 split routing into two host surfaces (operator + client), each with its own audience-scoped JWT. See `internal/shared/module/module.go` for `Audience`, `APISurface`, and `RouteInfo`.
+`subscriptions` and `payments` are not ordinary feature addons — they are the consumption gate for Tier-2. ADR-0003 split routing into two host surfaces (operator + client), each with its own audience-scoped JWT. See `pkg/sdk/module/module.go` for `Audience`, `APISurface`, and `RouteInfo`.
 
 ## Module interface (the real one)
 
@@ -86,7 +86,7 @@ type Dependencies struct {
 **Modules never import each other's `services/` or `repository/` packages from `module.go`.** Cross-module deps go through:
 
 1. **`shared/iface/` interfaces.** Define the contract here (e.g. `UserProvider`, `AIModelProvider`, `PDFProvider`, `GraphProvider`, `RAGQueryProvider`, `JWTProvider`, `TenantProvider`, `AuthzProvider`, `NotificationSender`).
-2. **`ServiceRegistry` typed getters.** Producers `Register(key, impl)` in `Init`; consumers `MustGetTyped[T]` in their `Init` (or `GetTyped[T]` for soft deps). Service keys are typed constants in `internal/shared/module/services.go`.
+2. **`ServiceRegistry` typed getters.** Producers `Register(key, impl)` in `Init`; consumers `MustGetTyped[T]` in their `Init` (or `GetTyped[T]` for soft deps). Service keys are typed constants in `pkg/sdk/module/services.go`.
 3. **`Dependencies()` declaration.** The registry topo-sorts modules so producers init before consumers.
 
 If you need a type that crosses module boundaries, **put it in `shared/iface/`** — not in the consumer's package, and not in the producer's package. The reverse pattern (iface importing addon types) is a smell — it leaks addon code into every build regardless of profile.
@@ -102,7 +102,7 @@ If you need a type that crosses module boundaries, **put it in `shared/iface/`**
 
    import (
        "github.com/orkestra/backend/internal/addons/<name>"
-       "github.com/orkestra/backend/internal/shared/module"
+       "github.com/orkestra/backend/pkg/sdk/module"
    )
 
    func init() {

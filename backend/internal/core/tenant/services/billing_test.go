@@ -8,7 +8,7 @@ import (
 
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"github.com/orkestra/backend/internal/core/tenant/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // TestSetItalianBillable_EmptyTenantUUID locks in the input-validation

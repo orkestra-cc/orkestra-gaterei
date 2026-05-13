@@ -7,7 +7,7 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/rag/models"
 	"github.com/orkestra/backend/internal/addons/rag/services"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // QueryHandler handles RAG query HTTP requests

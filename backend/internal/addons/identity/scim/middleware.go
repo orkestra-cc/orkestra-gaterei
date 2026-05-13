@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/orkestra/backend/internal/addons/identity/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // ctxTenantIDKey mirrors the middleware.ctxTenantID string literal so

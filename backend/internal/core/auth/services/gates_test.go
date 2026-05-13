@@ -16,7 +16,7 @@ import (
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // totpGenerateNow is a small adapter around totp.GenerateCode so the
@@ -606,7 +606,9 @@ type fakeMFAChallenge struct {
 	ch map[string]*MFAChallenge
 }
 
-func newFakeMFAChallenge() *fakeMFAChallenge { return &fakeMFAChallenge{ch: map[string]*MFAChallenge{}} }
+func newFakeMFAChallenge() *fakeMFAChallenge {
+	return &fakeMFAChallenge{ch: map[string]*MFAChallenge{}}
+}
 
 func (f *fakeMFAChallenge) Begin(_ context.Context, userUUID string, purpose MFAChallengePurpose, pendingSecret string) (*MFAChallenge, error) {
 	id := userUUID + "-" + string(purpose)

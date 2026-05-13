@@ -15,9 +15,9 @@ import (
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/metrics"
 )
 
 // slogString is a terse wrapper for slog.String so the warn-mode log site
@@ -108,7 +108,7 @@ type AuthMiddleware struct {
 	// event to one emit per (actorUserUUID|targetTenantID) every
 	// impersonationDedupeTTL so a page that fires dozens of requests
 	// generates a single audit row. nil when auditSink is unset.
-	impersonationDedupe   sync.Map
+	impersonationDedupe    sync.Map
 	impersonationDedupeTTL time.Duration
 }
 
@@ -484,11 +484,11 @@ func (m *AuthMiddleware) recordImpersonationAudit(
 		IPAddress:    utils.GetClientIP(r),
 		UserAgent:    r.UserAgent(),
 		Metadata: map[string]any{
-			"targetTenantSlug":     target.Slug,
-			"targetTenantName":     target.Name,
-			"targetIsCompany":      target.IsCompany,
-			"targetSignupChannel":  target.SignupChannel,
-			"requestPath":          r.URL.Path,
+			"targetTenantSlug":    target.Slug,
+			"targetTenantName":    target.Name,
+			"targetIsCompany":     target.IsCompany,
+			"targetSignupChannel": target.SignupChannel,
+			"requestPath":         r.URL.Path,
 		},
 	})
 }
@@ -1184,16 +1184,16 @@ func (m *AuthMiddleware) sendStepUpRequired(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"status":       http.StatusUnauthorized,
-		"title":        "step-up authentication required",
-		"detail":       "this action requires a fresh second-factor verification",
-		"type":         "about:blank",
+		"status": http.StatusUnauthorized,
+		"title":  "step-up authentication required",
+		"detail": "this action requires a fresh second-factor verification",
+		"type":   "about:blank",
 		"errors": []map[string]any{{
 			"message":  "step-up required",
 			"location": "require_step_up",
 			"value":    "STEP_UP_REQUIRED",
 		}},
-		"code":         "step_up_required",
+		"code":          "step_up_required",
 		"maxAgeSeconds": int(maxAge.Seconds()),
 	})
 }
@@ -1311,7 +1311,6 @@ func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Reques
 
 	json.NewEncoder(w).Encode(response)
 }
-
 
 // sendCapabilityRequiredResponse returns a 402 Payment Required when a
 // capability-gated route is hit by a tenant that does not hold an active

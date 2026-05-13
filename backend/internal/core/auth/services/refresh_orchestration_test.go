@@ -19,8 +19,8 @@ import (
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // orchestrationEnv mirrors gatesEnv but wires AuthService instead of
@@ -51,13 +51,13 @@ func newOrchestrationEnv(t *testing.T) *orchestrationEnv {
 		jwt:     jwt,
 	}
 	authSvc, err := NewAuthService(&AuthConfig{
-		UserService:         env.users,
-		TenantProvider:      gateTenantProvider{},
-		OAuthProviderRepo:   env.oauth,
-		RefreshTokenRepo:    env.refresh,
-		AuthSessionRepo:     newGateSessionRepo(),
-		JWTService:          jwt,
-		FirstAdminClaimer:   newGateClaimer(),
+		UserService:       env.users,
+		TenantProvider:    gateTenantProvider{},
+		OAuthProviderRepo: env.oauth,
+		RefreshTokenRepo:  env.refresh,
+		AuthSessionRepo:   newGateSessionRepo(),
+		JWTService:        jwt,
+		FirstAdminClaimer: newGateClaimer(),
 	})
 	if err != nil {
 		t.Fatalf("NewAuthService: %v", err)

@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/billing/jobs"
 	"github.com/orkestra/backend/internal/addons/billing/repository"
 	"github.com/orkestra/backend/internal/addons/billing/services"
-	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/capability"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Settings mirrors the billing ConfigSchema 1:1. Captured once at Init for

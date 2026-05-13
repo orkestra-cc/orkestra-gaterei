@@ -11,7 +11,7 @@ import (
 	"github.com/orkestra/backend/internal/addons/documents/config"
 	"github.com/orkestra/backend/internal/addons/documents/models"
 	"github.com/orkestra/backend/internal/addons/documents/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // Errors for PDF service
@@ -44,11 +44,11 @@ type PDFService interface {
 }
 
 type pdfService struct {
-	templateRepo   repository.TemplateRepository
-	documentRepo   repository.DocumentRepository
+	templateRepo    repository.TemplateRepository
+	documentRepo    repository.DocumentRepository
 	gotenbergClient GotenbergClient
-	templateEngine TemplateEngine
-	logger         *slog.Logger
+	templateEngine  TemplateEngine
+	logger          *slog.Logger
 }
 
 // NewPDFService creates a new PDF service

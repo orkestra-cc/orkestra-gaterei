@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/orkestra/backend/internal/core/notification/models"
 	"github.com/orkestra/backend/internal/core/notification/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // URLBuilder renders the absolute URLs used inside templates.

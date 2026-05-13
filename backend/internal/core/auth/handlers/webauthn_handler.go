@@ -12,7 +12,7 @@ import (
 
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // WebAuthnHandler binds the WebAuthn ceremony endpoints. It mirrors the
@@ -21,15 +21,15 @@ import (
 // a loginChallengeId; the rest are protected and either run inside the
 // caller's session (enroll/list/remove) or mint a stepped-up token (verify).
 type WebAuthnHandler struct {
-	wa           services.WebAuthnService
+	wa            services.WebAuthnService
 	mfaChallenges services.MFAChallengeService
-	jwt          services.JWTService
-	users        iface.UserProvider
-	tokens       LoginTokenIssuer
-	deviceTrust  services.DeviceTrustService // optional — Section C item #3
-	cookieName   string
-	cookieDomain string
-	cookieSecure bool
+	jwt           services.JWTService
+	users         iface.UserProvider
+	tokens        LoginTokenIssuer
+	deviceTrust   services.DeviceTrustService // optional — Section C item #3
+	cookieName    string
+	cookieDomain  string
+	cookieSecure  bool
 }
 
 // NewWebAuthnHandler wires the dependencies. WebAuthnService may be nil
@@ -48,14 +48,14 @@ func NewWebAuthnHandler(
 		cookieName = "access_token"
 	}
 	return &WebAuthnHandler{
-		wa:           wa,
+		wa:            wa,
 		mfaChallenges: mfaChallenges,
-		jwt:          jwt,
-		users:        users,
-		tokens:       tokens,
-		cookieName:   cookieName,
-		cookieDomain: cookieDomain,
-		cookieSecure: cookieSecure,
+		jwt:           jwt,
+		users:         users,
+		tokens:        tokens,
+		cookieName:    cookieName,
+		cookieDomain:  cookieDomain,
+		cookieSecure:  cookieSecure,
 	}
 }
 
@@ -112,7 +112,7 @@ type webAuthnRegisterFinishRequest struct {
 
 type webAuthnRegisterFinishResponse struct {
 	Body struct {
-		Success    bool   `json:"success"`
+		Success    bool                     `json:"success"`
 		Credential webAuthnCredentialPublic `json:"credential"`
 	}
 }
@@ -343,14 +343,14 @@ type webAuthnLoginFinishRequest struct {
 type webAuthnLoginFinishResponse struct {
 	SetCookie string `header:"Set-Cookie"`
 	Body      struct {
-		Success      bool                               `json:"success"`
-		AccessToken  string                             `json:"accessToken"`
-		RefreshToken string                             `json:"refreshToken,omitempty"`
-		TokenType    string                             `json:"tokenType"`
-		ExpiresIn    int64                              `json:"expiresIn"`
-		SessionID    string                             `json:"sessionId"`
-		DeviceID     string                             `json:"deviceId,omitempty"`
-		User         interface{}                        `json:"user,omitempty"`
+		Success      bool        `json:"success"`
+		AccessToken  string      `json:"accessToken"`
+		RefreshToken string      `json:"refreshToken,omitempty"`
+		TokenType    string      `json:"tokenType"`
+		ExpiresIn    int64       `json:"expiresIn"`
+		SessionID    string      `json:"sessionId"`
+		DeviceID     string      `json:"deviceId,omitempty"`
+		User         interface{} `json:"user,omitempty"`
 	}
 }
 

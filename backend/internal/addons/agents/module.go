@@ -13,10 +13,10 @@ import (
 	"github.com/orkestra/backend/internal/addons/agents/handlers"
 	"github.com/orkestra/backend/internal/addons/agents/repository"
 	"github.com/orkestra/backend/internal/addons/agents/services"
-	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/capability"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Default image reference for the Hindsight container. Overridable via the

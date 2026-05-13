@@ -10,17 +10,17 @@ type ServiceKey string
 
 // Well-known service keys for cross-module communication.
 const (
-	ServiceNavItems        ServiceKey = "system.nav_items"   // []NavItemSpec from registry
-	ServiceConfigService   ServiceKey = "system.config_svc"  // *ModuleConfigService
+	ServiceNavItems      ServiceKey = "system.nav_items"  // []NavItemSpec from registry
+	ServiceConfigService ServiceKey = "system.config_svc" // *ModuleConfigService
 
-	ServiceUserService     ServiceKey = "user.service"
+	ServiceUserService ServiceKey = "user.service"
 	// ADR-0003 PR-B: tier-aware user providers. Registered alongside
 	// the legacy ServiceUserService; consumers stay on the legacy key
 	// at the PR-B boundary. PR-D is the cutover — auth flows pick the
 	// audience-matching provider via these keys.
 	ServiceOperatorUserProvider ServiceKey = "user.operator_provider"
 	ServiceClientUserProvider   ServiceKey = "user.client_provider"
-	ServiceAuthService     ServiceKey = "auth.service"
+	ServiceAuthService          ServiceKey = "auth.service"
 	// ADR-0003 PR-D: tier-aware auth/password-auth services. Bound to
 	// the per-tier sessions / refresh-tokens / oauth-providers / mfa-
 	// factors / email-tokens repositories from PR-B and to the matching
@@ -33,22 +33,22 @@ const (
 	ServiceClientAuthService           ServiceKey = "auth.client_service"
 	ServiceOperatorPasswordAuthService ServiceKey = "auth.operator_password_auth"
 	ServiceClientPasswordAuthService   ServiceKey = "auth.client_password_auth"
-	ServiceJWTService      ServiceKey = "auth.jwt"
+	ServiceJWTService                  ServiceKey = "auth.jwt"
 	// ServiceOperatorJWTService / ServiceClientJWTService publish each
 	// tier's JWTService under a named key so audience-aware consumers
 	// (dev token generator, future test harnesses) can mint a token
 	// stamped with the matching `aud` claim. The canonical
 	// ServiceJWTService stays bound to the operator-tier service for
 	// audience-unaware consumers.
-	ServiceOperatorJWTService ServiceKey = "auth.jwt_operator"
-	ServiceClientJWTService   ServiceKey = "auth.jwt_client"
+	ServiceOperatorJWTService   ServiceKey = "auth.jwt_operator"
+	ServiceClientJWTService     ServiceKey = "auth.jwt_client"
 	ServiceOAuthProviderFactory ServiceKey = "auth.oauth_factory"
 	ServiceOAuthStateService    ServiceKey = "auth.oauth_state"
 	ServiceOAuthProviderRepo    ServiceKey = "auth.oauth_provider_repo"
-	ServiceAIModelProvider ServiceKey = "aimodels.provider"
-	ServicePDFService      ServiceKey = "documents.pdf"
-	ServiceGraphRepo       ServiceKey = "graph.repository"
-	ServiceRAGQuery        ServiceKey = "rag.query"
+	ServiceAIModelProvider      ServiceKey = "aimodels.provider"
+	ServicePDFService           ServiceKey = "documents.pdf"
+	ServiceGraphRepo            ServiceKey = "graph.repository"
+	ServiceRAGQuery             ServiceKey = "rag.query"
 
 	ServiceNotificationSender  ServiceKey = "notification.sender"
 	ServicePasswordService     ServiceKey = "auth.password"
@@ -104,7 +104,7 @@ const (
 	// alongside the TenantProvider interface. Compliance consumes it to wire
 	// its audit sink via SetAuditSink — the public provider interface stays
 	// slim, the concrete service carries post-init setters.
-	ServiceTenantService  ServiceKey = "tenant.service"
+	ServiceTenantService ServiceKey = "tenant.service"
 	// ServiceBillingTenantProvider exposes the unified-clients billing-party
 	// resolver: walks up Tenant.ParentTenantUUID until it finds a tenant
 	// carrying FatturaPA fields and returns the snapshot the billing send
@@ -115,12 +115,12 @@ const (
 	// soon-to-be-deleted billing.Customer lookup.
 	// Value: iface.BillingTenantProvider.
 	ServiceBillingTenantProvider ServiceKey = "tenant.billing_provider"
-	ServiceAuthzProvider  ServiceKey = "authz.provider"
+	ServiceAuthzProvider         ServiceKey = "authz.provider"
 	// ServiceAuthzService is the concrete *authz/services.Service registered
 	// alongside the AuthzProvider interface. main.go resolves it post-
 	// InitAll to wire late dependencies (e.g. SetSessionRiskLookup) that
 	// are only available after peer modules have finished their Init.
-	ServiceAuthzService   ServiceKey = "authz.service"
+	ServiceAuthzService ServiceKey = "authz.service"
 
 	// ServiceCapabilityRegistry is the boot-time catalog of Capability
 	// declarations collected from every module's Capabilities() method.
@@ -165,9 +165,9 @@ const (
 	// emits from the admin handler, SCIM rotations from the scim admin
 	// handler. Compliance looks each up by key — missing keys are
 	// tolerated so the identity module can be disabled independently.
-	ServiceIdentityOIDCService       ServiceKey = "identity.oidc_service"
-	ServiceIdentityAdminHandler      ServiceKey = "identity.admin_handler"
-	ServiceIdentityScimAdminHandler  ServiceKey = "identity.scim_admin_handler"
+	ServiceIdentityOIDCService      ServiceKey = "identity.oidc_service"
+	ServiceIdentityAdminHandler     ServiceKey = "identity.admin_handler"
+	ServiceIdentityScimAdminHandler ServiceKey = "identity.scim_admin_handler"
 
 	// ServiceSubscriptionService is the concrete *subscriptions/services.
 	// SubscriptionService — compliance wires the audit sink into it so

@@ -27,11 +27,11 @@ type ModuleConfig struct {
 	Description     string             `bson:"description" json:"description"`
 	Category        ModuleCategory     `bson:"category" json:"category"`
 	Enabled         bool               `bson:"enabled" json:"enabled"`
-	ConfigValues    map[string]string  `bson:"configValues" json:"configValues"`       // legacy — migrated to Environments on first access
-	EncryptedValues map[string]string  `bson:"encryptedValues" json:"-"`               // legacy — migrated to Environments on first access
+	ConfigValues    map[string]string  `bson:"configValues" json:"configValues"` // legacy — migrated to Environments on first access
+	EncryptedValues map[string]string  `bson:"encryptedValues" json:"-"`         // legacy — migrated to Environments on first access
 	ConfigSchema    []ConfigField      `bson:"configSchema" json:"configSchema"`
 	DependsOn       []string           `bson:"dependsOn,omitempty" json:"dependsOn,omitempty"`
-	NeedsRestart    bool               `bson:"needsRestart" json:"needsRestart"`       // true when config changed post-init
+	NeedsRestart    bool               `bson:"needsRestart" json:"needsRestart"` // true when config changed post-init
 	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt       time.Time          `bson:"updatedAt" json:"updatedAt"`
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/orkestra/backend/internal/addons/compliance/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // inMemoryKMSRepo is a minimal in-memory stand-in for the Mongo repo

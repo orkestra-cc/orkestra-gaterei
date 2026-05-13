@@ -25,8 +25,8 @@ import (
 	subscriptionServices "github.com/orkestra/backend/internal/addons/subscriptions/services"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
 	tenantServices "github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Module wires the audit sink, DSR pipeline, SOC2 evidence, and

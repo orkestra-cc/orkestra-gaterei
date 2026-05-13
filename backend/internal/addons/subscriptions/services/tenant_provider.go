@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // TenantSubscriptionAdapter implements iface.TenantSubscriptionProvider by

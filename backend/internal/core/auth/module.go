@@ -19,9 +19,9 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/services"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 type AuthModule struct {
@@ -37,10 +37,10 @@ type AuthModule struct {
 	// callback URL — its tierDispatch map routes callbacks to the
 	// matching tier's authService. webauthn handler stays nil when
 	// passkeys are disabled at boot.
-	operatorAuthHandler          *handlers.AuthHandler
-	operatorPasswordHandler      *handlers.PasswordAuthHandler
-	operatorMFAHandler           *handlers.MFAHandler
-	operatorWebAuthnHandler      *handlers.WebAuthnHandler
+	operatorAuthHandler     *handlers.AuthHandler
+	operatorPasswordHandler *handlers.PasswordAuthHandler
+	operatorMFAHandler      *handlers.MFAHandler
+	operatorWebAuthnHandler *handlers.WebAuthnHandler
 	// operatorAdminUserAuthHandler hosts the admin endpoints that
 	// inspect and manage another operator user's auth methods
 	// (password, MFA, OAuth, email verification). Mounted under
@@ -71,10 +71,12 @@ type AuthModule struct {
 func NewModule() *AuthModule { return &AuthModule{} }
 
 func (m *AuthModule) Name() string        { return "auth" }
-func (m *AuthModule) DisplayName() string  { return "Authentication" }
-func (m *AuthModule) Description() string  { return "OAuth 2.1, JWT, sessions, RBAC" }
+func (m *AuthModule) DisplayName() string { return "Authentication" }
+func (m *AuthModule) Description() string { return "OAuth 2.1, JWT, sessions, RBAC" }
 
-func (m *AuthModule) Dependencies() []string { return []string{"user", "notification", "tenant", "authz"} }
+func (m *AuthModule) Dependencies() []string {
+	return []string{"user", "notification", "tenant", "authz"}
+}
 func (m *AuthModule) RequiredServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceUserService, module.ServiceTenantProvider}
 }
@@ -153,7 +155,7 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Key: "defaultRoleClient", Label: "Default role for new client signups", Group: "Registration",
 			Description: "System role assigned to a Tier-2 client account on signup. Lower-privilege roles are recommended.",
 			Type:        module.FieldEnum, Default: "operator",
-			Options:     []string{"operator", "manager", "guest"},
+			Options: []string{"operator", "manager", "guest"},
 		},
 		{
 			Key: "allowedEmailDomainsAdmin", Label: "Allowed email domains (operator)", Group: "Registration",
@@ -1227,4 +1229,3 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		m.deviceTrustHandler.RegisterRoutes(api, handlers.ClientMount)
 	})
 }
-

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/orkestra/backend/internal/addons/compliance/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -26,8 +26,9 @@ func NewKMSKeyRepo(db *mongo.Database) *KMSKeyRepository {
 
 // Insert appends a freshly-minted KMS key row.
 //
-//tenantscope:allow kms keys are keyed by tenantUuid stamped on the row itself;
 // this is an unscoped insert by design — the row IS the tenant-scope anchor.
+//
+//tenantscope:allow kms keys are keyed by tenantUuid stamped on the row itself;
 func (r *KMSKeyRepository) Insert(ctx context.Context, key *models.KMSKey) error {
 	_, err := r.coll.InsertOne(ctx, key)
 	return err
@@ -37,8 +38,9 @@ func (r *KMSKeyRepository) Insert(ctx context.Context, key *models.KMSKey) error
 // ErrKMSKeyNotFound if no row exists (tenant predates KMS rollout or
 // compliance was disabled at provisioning).
 //
-//tenantscope:allow kms lookup is performed by tenantUUID argument, which is
 // authoritatively supplied by the caller (tenant service or envelope cipher).
+//
+//tenantscope:allow kms lookup is performed by tenantUUID argument, which is
 func (r *KMSKeyRepository) GetByTenant(ctx context.Context, tenantUUID string) (*models.KMSKey, error) {
 	var row models.KMSKey
 	//tenantscope:allow lookup by tenantUUID argument (crypto-shred key metadata)
@@ -55,8 +57,9 @@ func (r *KMSKeyRepository) GetByTenant(ctx context.Context, tenantUUID string) (
 // GetByUUID fetches the key metadata by its own UUID (keyID). The
 // envelope cipher calls this on every Decrypt.
 //
-//tenantscope:allow kms key lookup by uuid is the audit-trail primary key —
 // shredded rows still resolvable for "was this ever a key?" queries.
+//
+//tenantscope:allow kms key lookup by uuid is the audit-trail primary key —
 func (r *KMSKeyRepository) GetByUUID(ctx context.Context, keyUUID string) (*models.KMSKey, error) {
 	var row models.KMSKey
 	//tenantscope:allow key lookup by opaque keyID argument (shred-safe audit trail)
@@ -75,8 +78,9 @@ func (r *KMSKeyRepository) GetByUUID(ctx context.Context, keyUUID string) (*mode
 // existed + when it was shredded; the key material is gone so every
 // ciphertext wrapped with it is unrecoverable.
 //
-//tenantscope:allow shred-by-keyID is the crypto-shred primitive; the keyID
 // itself is the tenant-scope anchor (one key per tenant).
+//
+//tenantscope:allow shred-by-keyID is the crypto-shred primitive; the keyID
 func (r *KMSKeyRepository) Shred(ctx context.Context, keyUUID string) error {
 	now := time.Now().UTC()
 	//tenantscope:allow crypto-shred targets a specific keyID; no tenant scope applicable

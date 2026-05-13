@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/orkestra/backend/internal/addons/identity/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // ScimAdminHandler owns the tenant-scoped endpoints for managing the

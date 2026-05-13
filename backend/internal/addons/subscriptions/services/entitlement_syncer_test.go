@@ -10,7 +10,7 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // stubAccessProvider records Grant/Revoke calls for assertion.
@@ -52,7 +52,9 @@ func (s *stubServiceRepo) GetByUUID(_ context.Context, uuid string) (*models.Ser
 	}
 	return nil, errors.New("not found")
 }
-func (s *stubServiceRepo) GetByCode(context.Context, string) (*models.Service, error) { return nil, nil }
+func (s *stubServiceRepo) GetByCode(context.Context, string) (*models.Service, error) {
+	return nil, nil
+}
 func (s *stubServiceRepo) List(context.Context, repository.ServiceFilters) ([]models.Service, error) {
 	return nil, nil
 }

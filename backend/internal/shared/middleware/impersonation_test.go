@@ -11,7 +11,7 @@ import (
 
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	sharedErrors "github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // --- Test doubles -----------------------------------------------------------
@@ -59,7 +59,9 @@ func (f *fakeTenantProvider) GetTenant(_ context.Context, tenantUUID string) (*i
 func (f *fakeTenantProvider) ListUserMemberships(_ context.Context, _ string) ([]iface.TenantMembership, error) {
 	return nil, nil
 }
-func (f *fakeTenantProvider) IsMember(_ context.Context, _, _ string) (bool, error) { return false, nil }
+func (f *fakeTenantProvider) IsMember(_ context.Context, _, _ string) (bool, error) {
+	return false, nil
+}
 func (f *fakeTenantProvider) HasCapability(_ context.Context, _, _ string) (bool, error) {
 	return false, nil
 }

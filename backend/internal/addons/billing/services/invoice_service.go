@@ -14,21 +14,21 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/billing/models"
 	"github.com/orkestra/backend/internal/addons/billing/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // Common errors
 var (
-	ErrInvoiceNotFound      = errors.New("invoice not found")
-	ErrInvoiceCannotEdit    = errors.New("invoice cannot be edited in current status")
-	ErrInvoiceCannotSend    = errors.New("invoice cannot be sent in current status")
-	ErrInvoiceCannotDelete  = errors.New("invoice cannot be deleted in current status")
-	ErrInvoiceHTMLNotReady  = errors.New("HTML view not available: invoice has not been sent to SDI")
-	ErrTenantNotBillable    = errors.New("tenant is not configured for FatturaPA billing")
-	ErrSupplierNotFound     = errors.New("supplier not found")
-	ErrInvalidInvoiceData   = errors.New("invalid invoice data")
-	ErrInvoiceDuplicate     = errors.New("invoice already exists")
-	ErrXMLParseError        = errors.New("failed to parse XML")
+	ErrInvoiceNotFound     = errors.New("invoice not found")
+	ErrInvoiceCannotEdit   = errors.New("invoice cannot be edited in current status")
+	ErrInvoiceCannotSend   = errors.New("invoice cannot be sent in current status")
+	ErrInvoiceCannotDelete = errors.New("invoice cannot be deleted in current status")
+	ErrInvoiceHTMLNotReady = errors.New("HTML view not available: invoice has not been sent to SDI")
+	ErrTenantNotBillable   = errors.New("tenant is not configured for FatturaPA billing")
+	ErrSupplierNotFound    = errors.New("supplier not found")
+	ErrInvalidInvoiceData  = errors.New("invalid invoice data")
+	ErrInvoiceDuplicate    = errors.New("invoice already exists")
+	ErrXMLParseError       = errors.New("failed to parse XML")
 )
 
 // InvoiceService defines the interface for invoice business logic
@@ -170,14 +170,14 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, input *models.Create
 		CedentePrestatore:      companyData,
 		TenantUUID:             input.TenantUUID,
 		CessionarioCommittente: customerData,
-		Status:             models.StatusDraft,
-		LegalStorageEnabled: input.LegalStorageEnabled,
-		SignatureEnabled:    input.SignatureEnabled,
-		Causale:      input.Causale,
-		InternalNotes: input.InternalNotes,
-		RelatedDocuments: input.RelatedDocuments,
-		CreatedBy:    createdBy,
-		ProgressivoInvio: GenerateProgressivoInvio(),
+		Status:                 models.StatusDraft,
+		LegalStorageEnabled:    input.LegalStorageEnabled,
+		SignatureEnabled:       input.SignatureEnabled,
+		Causale:                input.Causale,
+		InternalNotes:          input.InternalNotes,
+		RelatedDocuments:       input.RelatedDocuments,
+		CreatedBy:              createdBy,
+		ProgressivoInvio:       GenerateProgressivoInvio(),
 	}
 
 	if input.Currency != "" {
@@ -1596,10 +1596,10 @@ func (s *invoiceService) invoiceToTemplateData(invoice *models.Invoice) map[stri
 		// REA registration (Italian company register)
 		if invoice.CedentePrestatore.IscrizioneREA != nil {
 			seller["rea"] = map[string]interface{}{
-				"office":           invoice.CedentePrestatore.IscrizioneREA.Ufficio,
-				"number":           invoice.CedentePrestatore.IscrizioneREA.NumeroREA,
-				"capitale":         invoice.CedentePrestatore.IscrizioneREA.CapitaleSociale,
-				"socioUnico":       invoice.CedentePrestatore.IscrizioneREA.SocioUnico,
+				"office":            invoice.CedentePrestatore.IscrizioneREA.Ufficio,
+				"number":            invoice.CedentePrestatore.IscrizioneREA.NumeroREA,
+				"capitale":          invoice.CedentePrestatore.IscrizioneREA.CapitaleSociale,
+				"socioUnico":        invoice.CedentePrestatore.IscrizioneREA.SocioUnico,
 				"statoLiquidazione": invoice.CedentePrestatore.IscrizioneREA.StatoLiquidazione,
 			}
 		}
@@ -1653,12 +1653,12 @@ func (s *invoiceService) invoiceToTemplateData(invoice *models.Invoice) map[stri
 		vatSummary := make([]map[string]interface{}, len(invoice.VATSummary))
 		for i, vs := range invoice.VATSummary {
 			vatSummary[i] = map[string]interface{}{
-				"Rate":           vs.VATRate,
-				"Nature":         string(vs.VATNature),
-				"Taxable":        vs.TaxableAmount,
-				"VAT":            vs.VATAmount,
-				"Deductible":     vs.VATExigibility,
-				"RifNormativo":   vs.NormativeRef,
+				"Rate":         vs.VATRate,
+				"Nature":       string(vs.VATNature),
+				"Taxable":      vs.TaxableAmount,
+				"VAT":          vs.VATAmount,
+				"Deductible":   vs.VATExigibility,
+				"RifNormativo": vs.NormativeRef,
 			}
 		}
 		data["vatSummary"] = vatSummary

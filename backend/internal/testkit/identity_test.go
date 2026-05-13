@@ -6,8 +6,8 @@ import (
 
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/tenantrepo"
 	"github.com/orkestra/backend/internal/testkit"
+	"github.com/orkestra/backend/pkg/sdk/tenantrepo"
 )
 
 // TestContextKeysRoundTrip is the load-bearing test for this package: it

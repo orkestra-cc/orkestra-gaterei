@@ -7,8 +7,8 @@ import (
 	"github.com/orkestra/backend/internal/core/user/handlers"
 	"github.com/orkestra/backend/internal/core/user/repository"
 	"github.com/orkestra/backend/internal/core/user/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 type UserModule struct {
@@ -20,8 +20,8 @@ type UserModule struct {
 func NewModule() *UserModule { return &UserModule{} }
 
 func (m *UserModule) Name() string        { return "user" }
-func (m *UserModule) DisplayName() string  { return "User Management" }
-func (m *UserModule) Description() string  { return "User accounts, profiles, and RBAC" }
+func (m *UserModule) DisplayName() string { return "User Management" }
+func (m *UserModule) Description() string { return "User accounts, profiles, and RBAC" }
 
 func (m *UserModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceUserService}

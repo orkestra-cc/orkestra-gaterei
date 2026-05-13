@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/orkestra/backend/internal/core/auth/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

@@ -9,8 +9,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/orkestra/backend/internal/addons/compliance/services"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/testkit"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // stubProducer satisfies iface.PIIProducer just enough to walk the
@@ -20,7 +20,7 @@ type stubProducer struct {
 	purgeR iface.PurgeResult
 }
 
-func (s *stubProducer) Subject() string                                   { return s.subj }
+func (s *stubProducer) Subject() string                                         { return s.subj }
 func (s *stubProducer) ExportPersonalData(context.Context, string) (any, error) { return nil, nil }
 func (s *stubProducer) PurgePersonalData(_ context.Context, _ string) (iface.PurgeResult, error) {
 	return s.purgeR, nil

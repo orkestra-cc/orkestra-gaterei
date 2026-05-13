@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/orkestra/backend/internal/addons/compliance/models"
 	"github.com/orkestra/backend/internal/addons/compliance/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // LocalKMS is the in-process KMS provider used in dev and simple prod

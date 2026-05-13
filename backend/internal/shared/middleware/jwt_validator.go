@@ -14,7 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // JWTValidator is a lightweight middleware that validates RS256 JWTs using

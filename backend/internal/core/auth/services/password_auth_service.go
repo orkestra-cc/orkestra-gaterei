@@ -19,20 +19,20 @@ import (
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 var (
-	ErrInvalidCredentials     = stderrors.New("invalid credentials")
-	ErrEmailNotVerified       = stderrors.New("email not verified")
-	ErrAccountLocked          = stderrors.New("account temporarily locked")
-	ErrUserInactive           = stderrors.New("user account is not active")
-	ErrPasswordReused         = stderrors.New("new password must differ from the current one")
-	ErrNotificationDown       = stderrors.New("notifications disabled — cannot send email")
-	ErrMFAEnrollmentRequired  = stderrors.New("mfa enrollment required — grace period expired")
-	ErrRegistrationDisabled   = stderrors.New("registration disabled for this surface")
-	ErrEmailDomainNotAllowed  = stderrors.New("email domain not allowed")
-	ErrLoginDisabled          = stderrors.New("login disabled for this surface")
+	ErrInvalidCredentials    = stderrors.New("invalid credentials")
+	ErrEmailNotVerified      = stderrors.New("email not verified")
+	ErrAccountLocked         = stderrors.New("account temporarily locked")
+	ErrUserInactive          = stderrors.New("user account is not active")
+	ErrPasswordReused        = stderrors.New("new password must differ from the current one")
+	ErrNotificationDown      = stderrors.New("notifications disabled — cannot send email")
+	ErrMFAEnrollmentRequired = stderrors.New("mfa enrollment required — grace period expired")
+	ErrRegistrationDisabled  = stderrors.New("registration disabled for this surface")
+	ErrEmailDomainNotAllowed = stderrors.New("email domain not allowed")
+	ErrLoginDisabled         = stderrors.New("login disabled for this surface")
 	// ErrCountryBlocked is returned when geoBlockCountries is configured
 	// and the request IP resolves to a blocked country. Translated to
 	// 403 country_blocked at the handler boundary.
@@ -65,12 +65,12 @@ type PasswordAuthConfig struct {
 	EmailTokenRepo           repository.EmailTokenRepository
 	RefreshTokenRepo         repository.RefreshTokenRepository
 	AuthSessionRepo          repository.AuthSessionRepository
-	MFAFactorRepo            repository.MFAFactorRepository  // required: decides partial vs full response
-	MFAChallengeService      MFAChallengeService             // required: mints login-continuation challenges
-	FirstAdminClaimer        FirstAdminClaimer               // required: atomic first-admin claim
-	RiskAssessment           RiskAssessmentService           // nil → session gets zero-score; mandatory in prod
-	DeviceTrust              DeviceTrustService              // nil → never skips MFA; Section C item #3
-	SuspiciousLoginNotifier  SuspiciousLoginNotifier         // nil → no email on high-risk login; Section C item #5
+	MFAFactorRepo            repository.MFAFactorRepository // required: decides partial vs full response
+	MFAChallengeService      MFAChallengeService            // required: mints login-continuation challenges
+	FirstAdminClaimer        FirstAdminClaimer              // required: atomic first-admin claim
+	RiskAssessment           RiskAssessmentService          // nil → session gets zero-score; mandatory in prod
+	DeviceTrust              DeviceTrustService             // nil → never skips MFA; Section C item #3
+	SuspiciousLoginNotifier  SuspiciousLoginNotifier        // nil → no email on high-risk login; Section C item #5
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string

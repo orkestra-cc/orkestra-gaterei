@@ -10,9 +10,9 @@ import (
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"github.com/orkestra/backend/internal/core/tenant/repository"
 	"github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 type Handler struct {
@@ -39,13 +39,13 @@ type listMyTenantsOutput struct {
 }
 
 type memberDTO struct {
-	TenantID   string   `json:"tenantId"`
-	Name       string   `json:"name"`
-	Slug       string   `json:"slug"`
-	Plan       string   `json:"plan"`
-	Kind       string   `json:"kind"`
-	Roles      []string `json:"roles"`
-	IsOwner    bool     `json:"isOwner"`
+	TenantID string   `json:"tenantId"`
+	Name     string   `json:"name"`
+	Slug     string   `json:"slug"`
+	Plan     string   `json:"plan"`
+	Kind     string   `json:"kind"`
+	Roles    []string `json:"roles"`
+	IsOwner  bool     `json:"isOwner"`
 }
 
 type createTenantInput struct {
@@ -1074,4 +1074,3 @@ func (h *Handler) setMyItalianBillable(ctx context.Context, in *setMyItalianBill
 	}
 	return &billingIdentityOutput{Body: tenantToBillingIdentityDTO(updated)}, nil
 }
-

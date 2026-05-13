@@ -13,11 +13,11 @@ import (
 	"github.com/orkestra/backend/internal/addons/graph/handlers"
 	"github.com/orkestra/backend/internal/addons/graph/repository"
 	"github.com/orkestra/backend/internal/addons/graph/services"
-	"github.com/orkestra/backend/internal/shared/capability"
 	"github.com/orkestra/backend/internal/shared/database"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/capability"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Default image reference for the Memgraph container. Overridable via the

@@ -8,7 +8,7 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/graph/models"
 	"github.com/orkestra/backend/internal/addons/graph/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // GraphService defines the interface for graph operations

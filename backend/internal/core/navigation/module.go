@@ -5,7 +5,7 @@ import (
 	"github.com/orkestra/backend/internal/core/navigation/handlers"
 	"github.com/orkestra/backend/internal/core/navigation/services"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 type NavigationModule struct {
@@ -15,7 +15,7 @@ type NavigationModule struct {
 
 func NewModule() *NavigationModule { return &NavigationModule{} }
 
-func (m *NavigationModule) Name() string       { return "navigation" }
+func (m *NavigationModule) Name() string        { return "navigation" }
 func (m *NavigationModule) DisplayName() string { return "Navigation" }
 func (m *NavigationModule) Description() string { return "Dynamic navigation menu aggregator" }
 

@@ -106,7 +106,7 @@ rg -n 'Collection\s*=\s*"[^"]+"' backend/internal/
 ## When NOT to Apply
 
 - **Single-collection modules.** The rule explicitly exempts them. Do not invent a prefix just to be symmetric.
-- **Shared infrastructure collections.** `module_configs` (runtime module config store in `backend/internal/shared/module/config_repository.go`) is owned by the shared registry, not by any single module, and is outside the rule.
+- **Shared infrastructure collections.** `module_configs` (runtime module config store in `backend/pkg/sdk/module/config_repository.go`) is owned by the shared registry, not by any single module, and is outside the rule.
 - **The `users` collection.** The `user` module owns exactly one collection, so the rule does not apply. The `auth` module shares it via the `user` module's repository — do not rename it.
 - **Non-MongoDB stores.** Memgraph node labels, Redis keys, and NATS subjects have their own conventions. This skill covers MongoDB only.
 

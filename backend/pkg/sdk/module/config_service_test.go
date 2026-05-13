@@ -15,10 +15,10 @@ type stubModule struct {
 	category ModuleCategory
 }
 
-func (s stubModule) Name() string                  { return s.name }
-func (s stubModule) Category() ModuleCategory      { return s.category }
-func (stubModule) Init(_ *Dependencies) error      { return nil }
-func (stubModule) RegisterRoutes(_ *RouteInfo)     {}
+func (s stubModule) Name() string              { return s.name }
+func (s stubModule) Category() ModuleCategory  { return s.category }
+func (stubModule) Init(_ *Dependencies) error  { return nil }
+func (stubModule) RegisterRoutes(_ *RouteInfo) {}
 
 func newTestService() *ModuleConfigService {
 	return &ModuleConfigService{

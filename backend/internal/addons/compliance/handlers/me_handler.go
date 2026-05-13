@@ -10,8 +10,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra/backend/internal/addons/compliance/services"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // MeHandler exposes the caller-self DSR endpoints. No admin surface —

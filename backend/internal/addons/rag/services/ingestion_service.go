@@ -13,7 +13,7 @@ import (
 	aimodelsProviders "github.com/orkestra/backend/internal/addons/aimodels/providers"
 	"github.com/orkestra/backend/internal/addons/rag/models"
 	"github.com/orkestra/backend/internal/addons/rag/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // IngestionService manages document ingestion into the knowledge graph

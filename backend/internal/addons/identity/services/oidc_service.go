@@ -36,8 +36,8 @@ import (
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // ErrIdPDisabled signals an attempt to start a login against a config

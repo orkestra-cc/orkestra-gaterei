@@ -3,12 +3,12 @@
 // Section C item #5 of the 2026-04-24 auth roadmap. Consumes the
 // RiskAssessment produced by C1 and:
 //
-//   1. Always records a row in auth_security_events so the user's
-//      security history page has something to render.
-//   2. When the score lands in the "high" bucket or above (>= 0.5),
-//      sends the auth.suspicious_login templated email via the
-//      notification module. The email is transactional — preferences
-//      and unsubscribes don't suppress it.
+//  1. Always records a row in auth_security_events so the user's
+//     security history page has something to render.
+//  2. When the score lands in the "high" bucket or above (>= 0.5),
+//     sends the auth.suspicious_login templated email via the
+//     notification module. The email is transactional — preferences
+//     and unsubscribes don't suppress it.
 //
 // The notifier runs fire-and-forget from the login hot path: failures
 // log at Warn but never propagate, so a flaky notifier or SMTP
@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	notifModels "github.com/orkestra/backend/internal/core/notification/models"
 	"github.com/orkestra/backend/internal/core/auth/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	notifModels "github.com/orkestra/backend/internal/core/notification/models"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // SuspiciousLoginEmailThreshold is the risk-score boundary at which
@@ -76,19 +76,19 @@ type SessionSnapshot struct {
 
 // NotifierConfig bundles the dependencies.
 type NotifierConfig struct {
-	Events             SecurityEventService
-	Notifier           iface.NotificationSender
-	AppName            string
-	SupportEmail       string
-	FrontendURL        string
-	Logger             *slog.Logger
+	Events       SecurityEventService
+	Notifier     iface.NotificationSender
+	AppName      string
+	SupportEmail string
+	FrontendURL  string
+	Logger       *slog.Logger
 	// Policy is read on every OnLogin call so the admin recipient
 	// list / toggle behave live without restarts. Nil falls back to
 	// "admin email half disabled".
 	Policy *AuthPolicyService
 	// EmailThreshold overrides SuspiciousLoginEmailThreshold for
 	// tests. Zero or negative falls back to the default.
-	EmailThreshold     float64
+	EmailThreshold float64
 	// Clock is injectable for tests that want a deterministic
 	// "LoginAt" rendering in the email body. Nil → time.Now.
 	Clock func() time.Time
@@ -183,15 +183,15 @@ func (n *suspiciousLoginNotifier) recordSecurityEvent(ctx context.Context, in Su
 		}
 	}
 	ev := &models.SecurityEvent{
-		UserUUID:  in.User.UUID,
-		EventType: eventType,
-		Severity:  severity,
+		UserUUID:    in.User.UUID,
+		EventType:   eventType,
+		Severity:    severity,
 		Description: fmt.Sprintf("Login scored %s (%.2f)", in.Assessment.Level, in.Assessment.Score),
-		IPAddress: in.IPAddress,
-		UserAgent: in.UserAgent,
-		SessionID: in.Session.UUID,
-		Success:   true,
-		RiskScore: in.Assessment.Score,
+		IPAddress:   in.IPAddress,
+		UserAgent:   in.UserAgent,
+		SessionID:   in.Session.UUID,
+		Success:     true,
+		RiskScore:   in.Assessment.Score,
 		Metadata: map[string]interface{}{
 			"deviceName": in.DeviceName,
 			"platform":   in.Platform,

@@ -37,7 +37,7 @@ type ConfigField struct {
 	Type        ConfigFieldType `json:"type" bson:"type"`
 	Required    bool            `json:"required" bson:"required"`
 	Default     string          `json:"default,omitempty" bson:"default,omitempty"`
-	EnvVar      string          `json:"envVar,omitempty" bson:"envVar,omitempty"` // source env var for seed
+	EnvVar      string          `json:"envVar,omitempty" bson:"envVar,omitempty"`   // source env var for seed
 	Options     []string        `json:"options,omitempty" bson:"options,omitempty"` // valid values for FieldEnum (ignored for other types)
 }
 
@@ -61,9 +61,9 @@ type IndexSpec struct {
 	OrderedKeys []IndexKey     `json:"orderedKeys,omitempty"` // compound indexes with deterministic order
 	Unique      bool           `json:"unique,omitempty"`
 	Sparse      bool           `json:"sparse,omitempty"`
-	TTL         time.Duration  `json:"ttl,omitempty"`         // reap docs TTL after the indexed timestamp; 0 = no TTL
-	ExpireAt    bool           `json:"expireAt,omitempty"`    // reap docs *at* the indexed timestamp (expireAfterSeconds=0). Mutually exclusive with TTL; use for absolute-expiry fields like `expiresAt`.
-	Text        bool           `json:"text,omitempty"`        // text index (overrides Keys)
+	TTL         time.Duration  `json:"ttl,omitempty"`      // reap docs TTL after the indexed timestamp; 0 = no TTL
+	ExpireAt    bool           `json:"expireAt,omitempty"` // reap docs *at* the indexed timestamp (expireAfterSeconds=0). Mutually exclusive with TTL; use for absolute-expiry fields like `expiresAt`.
+	Text        bool           `json:"text,omitempty"`     // text index (overrides Keys)
 }
 
 // NavItemSpec declares a navigation menu entry that a module contributes.

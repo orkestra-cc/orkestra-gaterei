@@ -11,7 +11,7 @@ import (
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // LoginTokenIssuer is the subset of PasswordAuthService the MFA login verify
@@ -30,7 +30,7 @@ type MFAHandler struct {
 	jwt          services.JWTService
 	users        iface.UserProvider
 	tokens       LoginTokenIssuer
-	webauthn     services.WebAuthnService // optional — populated when WebAuthn is configured
+	webauthn     services.WebAuthnService    // optional — populated when WebAuthn is configured
 	deviceTrust  services.DeviceTrustService // optional — Section C item #3
 	policy       *services.AuthPolicyService // optional — admin-managed mfaEnabled + grace-window source
 	cookieName   string
@@ -149,9 +149,9 @@ func (h *MFAHandler) EnrollConfirm(ctx context.Context, req *MFAEnrollConfirmReq
 
 type MFAStatusResponse struct {
 	Body struct {
-		Status               string     `json:"status"`
-		Type                 string     `json:"type,omitempty"`
-		BackupCodesRemaining int        `json:"backupCodesRemaining"`
+		Status               string `json:"status"`
+		Type                 string `json:"type,omitempty"`
+		BackupCodesRemaining int    `json:"backupCodesRemaining"`
 		// RequiresMFA is true when the caller's role (system or org-scoped)
 		// obligates enrollment. False means the banner/countdown should be
 		// hidden regardless of enrollment status.
@@ -422,14 +422,14 @@ type MFALoginVerifyRequest struct {
 type MFALoginVerifyResponse struct {
 	SetCookie string `header:"Set-Cookie"`
 	Body      struct {
-		Success      bool                               `json:"success"`
-		AccessToken  string                             `json:"accessToken"`
-		RefreshToken string                             `json:"refreshToken,omitempty"`
-		TokenType    string                             `json:"tokenType"`
-		ExpiresIn    int64                              `json:"expiresIn"`
-		SessionID    string                             `json:"sessionId"`
-		DeviceID     string                             `json:"deviceId,omitempty"`
-		User         interface{}                        `json:"user,omitempty"`
+		Success      bool        `json:"success"`
+		AccessToken  string      `json:"accessToken"`
+		RefreshToken string      `json:"refreshToken,omitempty"`
+		TokenType    string      `json:"tokenType"`
+		ExpiresIn    int64       `json:"expiresIn"`
+		SessionID    string      `json:"sessionId"`
+		DeviceID     string      `json:"deviceId,omitempty"`
+		User         interface{} `json:"user,omitempty"`
 	}
 }
 

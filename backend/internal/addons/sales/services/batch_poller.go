@@ -8,7 +8,7 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/sales/models"
 	"github.com/orkestra/backend/internal/addons/sales/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // BatchPoller polls pending batch jobs and completes the prospect pipeline when results arrive

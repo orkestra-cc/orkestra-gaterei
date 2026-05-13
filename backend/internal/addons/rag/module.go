@@ -11,11 +11,11 @@ import (
 	"github.com/orkestra/backend/internal/addons/rag/handlers"
 	"github.com/orkestra/backend/internal/addons/rag/repository"
 	"github.com/orkestra/backend/internal/addons/rag/services"
-	"github.com/orkestra/backend/internal/shared/capability"
 	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/capability"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Settings mirrors the rag ConfigSchema 1:1. OllamaBaseURL/OpenAIAPIKey are

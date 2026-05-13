@@ -30,7 +30,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // stubTenant satisfies iface.TenantProvider with the empty-membership
@@ -82,10 +82,10 @@ func (f *fakeRevocation) IsRevoked(_ context.Context, sid string) (bool, error) 
 // requireAuthFixture bundles the constructed middleware + dependencies
 // so each test stays a couple of lines.
 type requireAuthFixture struct {
-	t           *testing.T
-	jwt         services.JWTService
-	revocation  *fakeRevocation
-	mw          *AuthMiddleware
+	t          *testing.T
+	jwt        services.JWTService
+	revocation *fakeRevocation
+	mw         *AuthMiddleware
 }
 
 func newRequireAuthFixture(t *testing.T) *requireAuthFixture {

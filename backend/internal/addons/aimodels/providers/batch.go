@@ -1,7 +1,7 @@
 package providers
 
 import (
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // BatchRequest, BatchSubmission, BatchResult, BatchStatus, and

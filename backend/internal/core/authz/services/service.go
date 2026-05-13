@@ -15,9 +15,9 @@ import (
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/shared/database"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/metrics"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -142,8 +142,8 @@ type Service struct {
 	// because the auth module (which owns the auth_sessions repo) does
 	// not finish its own Init until after authz. Nil falls back to
 	// zero risk on the Cedar principal — no divergence, no ABAC effect.
-	lookupSessionRisk  SessionRiskLookup
-	production         bool // when true, developer role is restricted to read-only
+	lookupSessionRisk SessionRiskLookup
+	production        bool // when true, developer role is restricted to read-only
 
 	// cedarEngine is the Cedar evaluator. nil when Cedar is disabled
 	// (boot-time construction failure, or explicitly turned off for tests).
@@ -1171,4 +1171,3 @@ func filter(in []string, pred func(string) bool) []string {
 	}
 	return out
 }
-

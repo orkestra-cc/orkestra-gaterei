@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/orkestra/backend/internal/core/authz/models"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 func testLogger(_ *testing.T) *slog.Logger {

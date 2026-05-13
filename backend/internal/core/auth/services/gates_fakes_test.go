@@ -21,7 +21,7 @@ import (
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -31,15 +31,15 @@ import (
 // else panics so a regression that adds a new dependency is visible
 // immediately.
 type gateUserFake struct {
-	mu                sync.Mutex
-	byEmail           map[string]*userModels.User
-	byUUID            map[string]*userModels.User
-	count             int64
-	updateUserCalls   []userModels.UpdateUserInput
-	lastLoginTouches  []string
-	createdUsers      []*userModels.User
-	createWithPwdErr  error
-	updateUserErr     error
+	mu               sync.Mutex
+	byEmail          map[string]*userModels.User
+	byUUID           map[string]*userModels.User
+	count            int64
+	updateUserCalls  []userModels.UpdateUserInput
+	lastLoginTouches []string
+	createdUsers     []*userModels.User
+	createWithPwdErr error
+	updateUserErr    error
 }
 
 func newGateUserFake() *gateUserFake {
@@ -374,9 +374,10 @@ func (r *gateRefreshRepo) UpdateLastActivity(context.Context, string) error { pa
 func (r *gateRefreshRepo) UpdateRiskScore(context.Context, string, float64, []string) error {
 	panic("not used")
 }
-func (r *gateRefreshRepo) RotateToken(context.Context, string, string) error { panic("not used") }
-func (r *gateRefreshRepo) RevokeToken(context.Context, string, string) error      { panic("not used") }
+func (r *gateRefreshRepo) RotateToken(context.Context, string, string) error       { panic("not used") }
+func (r *gateRefreshRepo) RevokeToken(context.Context, string, string) error       { panic("not used") }
 func (r *gateRefreshRepo) RevokeTokenByUUID(context.Context, string, string) error { panic("not used") }
+
 // RevokeTokensBySession is a no-op so the user-security session
 // tests can drive the auth-service's revokeSessionInternal helper
 // without needing per-session refresh-token state. The other fake
@@ -444,7 +445,7 @@ func (r *gateSessionRepo) GetByUserAndDevice(context.Context, string, string) (*
 func (r *gateSessionRepo) GetActiveSessionsByUser(context.Context, string) ([]*authModels.AuthSessionDoc, error) {
 	panic("not used")
 }
-func (r *gateSessionRepo) UpdateLastActivity(context.Context, string) error    { panic("not used") }
+func (r *gateSessionRepo) UpdateLastActivity(context.Context, string) error { panic("not used") }
 func (r *gateSessionRepo) UpdateRiskScore(context.Context, string, float64, string) error {
 	panic("not used")
 }
@@ -496,7 +497,6 @@ func (r *gateSessionRepo) GetMostRecentSessionByUser(context.Context, string) (*
 	panic("not used")
 }
 
-
 // gateGeoResolver is a fixed-IP-to-country fake. Tests pre-load the
 // (ip → country) map.
 type gateGeoResolver struct {
@@ -523,9 +523,9 @@ func (g *gateGeoResolver) Close() error { return nil }
 // first claim and silently accepts releases. Tests can swap it for a
 // stricter variant if they need to assert the rollback path.
 type gateClaimer struct {
-	claimed   map[string]bool
-	released  []string
-	claimErr  error
+	claimed  map[string]bool
+	released []string
+	claimErr error
 }
 
 func newGateClaimer() *gateClaimer { return &gateClaimer{claimed: map[string]bool{}} }
@@ -616,15 +616,15 @@ func testRSAKey() *rsa.PrivateKey {
 // stale lastLogin / inactive flag / etc.
 func activeUser(email, hash string) *userModels.User {
 	return &userModels.User{
-		ID:           primitive.NewObjectID(),
-		UUID:         uuid.NewString(),
-		Email:        email,
-		FullName:     "Test User",
-		Role:         "operator",
-		PasswordHash: hash,
-		IsActive:     true,
+		ID:            primitive.NewObjectID(),
+		UUID:          uuid.NewString(),
+		Email:         email,
+		FullName:      "Test User",
+		Role:          "operator",
+		PasswordHash:  hash,
+		IsActive:      true,
 		EmailVerified: true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 }

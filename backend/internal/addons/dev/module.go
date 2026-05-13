@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/orkestra/backend/internal/addons/dev/handlers"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 type DevModule struct {

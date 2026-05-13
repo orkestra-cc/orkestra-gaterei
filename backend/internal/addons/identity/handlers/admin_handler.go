@@ -16,9 +16,9 @@ import (
 
 	"github.com/orkestra/backend/internal/addons/identity/models"
 	"github.com/orkestra/backend/internal/addons/identity/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"github.com/orkestra/backend/pkg/sdk/iface"
 )
 
 // AdminHandler exposes tenant-scoped IdP config CRUD to authenticated

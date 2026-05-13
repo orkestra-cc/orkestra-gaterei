@@ -28,8 +28,8 @@ import (
 	"github.com/orkestra/backend/internal/addons/identity/scim"
 	"github.com/orkestra/backend/internal/addons/identity/services"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Module wires the identity module's handlers + service.

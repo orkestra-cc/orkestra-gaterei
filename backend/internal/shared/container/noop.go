@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // noopManager satisfies Manager without touching Docker. Returned by

@@ -4,7 +4,7 @@ package main
 
 import (
 	"github.com/orkestra/backend/internal/addons/identity"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 func init() {

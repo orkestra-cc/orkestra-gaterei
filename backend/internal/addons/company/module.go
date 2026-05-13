@@ -12,9 +12,9 @@ import (
 	"github.com/orkestra/backend/internal/addons/company/handlers"
 	"github.com/orkestra/backend/internal/addons/company/repository"
 	"github.com/orkestra/backend/internal/addons/company/services"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
+	"github.com/orkestra/backend/pkg/sdk/iface"
+	"github.com/orkestra/backend/pkg/sdk/module"
 )
 
 // Settings mirrors the company ConfigSchema 1:1 plus the legacy
