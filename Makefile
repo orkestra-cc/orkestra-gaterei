@@ -12,7 +12,7 @@
 
 .PHONY: help up down status logs reset
 .PHONY: mongo-shell redis-cli
-.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test openapi-auth-test backend-deps backend-clean
+.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test openapi-auth-test backend-deps backend-clean
 .PHONY: frontend-admin-build frontend-admin-test frontend-admin-deps
 .PHONY: frontend-admin-clean frontend-admin-preview frontend-admin-type-check
 .PHONY: frontend-client-build frontend-client-typecheck frontend-client-clean
@@ -95,7 +95,7 @@ backend-build:
 	@cd backend && go build -o bin/server cmd/server/main.go
 	@echo "Backend built: backend/bin/server"
 
-backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test
+backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test
 	@echo "Running backend tests..."
 	@cd backend && go test ./...
 
@@ -138,6 +138,13 @@ addon-company-test:
 	@echo "Running company addon tests..."
 	@cd backend/internal/addons/company && go test ./...
 
+# addon-graph-test mirrors addon-company-test for the graph addon,
+# which Phase 5d carved into its own Go module
+# (github.com/orkestra-cc/orkestra-addon-graph).
+addon-graph-test:
+	@echo "Running graph addon tests..."
+	@cd backend/internal/addons/graph && go test ./...
+
 backend-deps:
 	@echo "Installing backend dependencies..."
 	@cd backend && go mod download && go mod tidy
@@ -145,11 +152,8 @@ backend-deps:
 	@cd backend/internal/shared/openapiauth && go mod download && go mod tidy
 	@cd backend/internal/addons/documents && go mod download && go mod tidy
 	@cd backend/internal/addons/aimodels && go mod download && go mod tidy
-	@# addon-company `go mod tidy` requires orkestra-openapi-auth v0.1.0 on
-	@# the Go proxy; until that mirror is published the workspace go.work
-	@# resolves company's deps for build/test, but `tidy` would fail. Add
-	@# this line once openapi-auth v0.1.0 is tagged on its public repo.
-	@# @cd backend/internal/addons/company && go mod download && go mod tidy
+	@cd backend/internal/addons/company && go mod download && go mod tidy
+	@cd backend/internal/addons/graph && go mod download && go mod tidy
 	@echo "Backend dependencies installed."
 
 backend-clean:
@@ -196,7 +200,7 @@ frontend-client-clean:
 
 .PHONY: install install-hooks fmt ci-help
 .PHONY: ci ci-all ci-backend ci-backend-matrix ci-frontend-admin ci-frontend-client ci-mobile
-.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
+.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
 .PHONY: admin-typecheck admin-lint admin-test admin-audit admin-build
 .PHONY: client-typecheck client-lint client-build
 .PHONY: mobile-analyze mobile-test
@@ -247,7 +251,7 @@ ci-all: ci-backend ci-frontend-admin ci-frontend-client ci-mobile
 
 # ---- Backend ----
 
-ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
+ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
 	@echo "Backend CI: OK"
 
 ci-backend-matrix: ci-backend
@@ -283,10 +287,15 @@ openapi-auth-lint:
 addon-company-lint:
 	@cd backend/internal/addons/company && golangci-lint run --config=../../../.golangci.yml ./...
 
+# addon-graph-lint mirrors addon-company-lint for the graph addon's
+# own Go module (Phase 5d). Shares the backend lint config.
+addon-graph-lint:
+	@cd backend/internal/addons/graph && golangci-lint run --config=../../../.golangci.yml ./...
+
 # `-race` requires cgo. CI runners have CGO_ENABLED=1 by default, but the
 # Go toolchain mise installs locally defaults to 0 — force it on so local
 # and CI behave the same. Needs a working C compiler on PATH (gcc/clang).
-backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci
+backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci
 	@cd backend && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend && go tool cover -func=coverage.out | tail -1
 
@@ -318,6 +327,12 @@ openapi-auth-test-ci:
 addon-company-test-ci:
 	@cd backend/internal/addons/company && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend/internal/addons/company && go tool cover -func=coverage.out | tail -1
+
+# addon-graph-test-ci mirrors addon-company-test-ci for the graph
+# addon (Phase 5d). The addon ships with no tests yet — see above.
+addon-graph-test-ci:
+	@cd backend/internal/addons/graph && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
+	@cd backend/internal/addons/graph && go tool cover -func=coverage.out | tail -1
 
 backend-tenantscope:
 	@cd backend && go test ./tools/tenantscope/...

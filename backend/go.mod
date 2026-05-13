@@ -42,6 +42,13 @@ replace github.com/orkestra-cc/orkestra-openapi-auth => ./internal/shared/openap
 // minter previously at internal/shared/openapiauth/.
 replace github.com/orkestra-cc/orkestra-addon-company => ./internal/addons/company
 
+// Phase 5d: the graph addon is its own Go module. Source lives
+// in-tree, mirrored to orkestra-cc/orkestra-addon-graph and tagged
+// from v0.1.0. The graph-specific Bolt-driver helpers that used to
+// live at internal/shared/database/graph.go moved into this addon
+// as part of the extraction (only graph/module.go consumed them).
+replace github.com/orkestra-cc/orkestra-addon-graph => ./internal/addons/graph
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -57,10 +64,10 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/orkestra-cc/orkestra-addon-aimodels v0.1.0
 	github.com/orkestra-cc/orkestra-addon-company v0.1.0
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
+	github.com/orkestra-cc/orkestra-addon-graph v0.1.0
 	github.com/orkestra-cc/orkestra-openapi-auth v0.1.0
 	github.com/orkestra-cc/orkestra-sdk v0.2.0
 	github.com/pquerna/otp v1.5.0
@@ -124,6 +131,7 @@ require (
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/morikuni/aec v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4 // indirect
 	github.com/nlnwa/whatwg-url v0.6.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect

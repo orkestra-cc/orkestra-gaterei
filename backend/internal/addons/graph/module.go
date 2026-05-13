@@ -10,14 +10,13 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/orkestra-cc/orkestra-addon-graph/handlers"
+	"github.com/orkestra-cc/orkestra-addon-graph/repository"
+	"github.com/orkestra-cc/orkestra-addon-graph/services"
 	"github.com/orkestra-cc/orkestra-sdk/capability"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra-cc/orkestra-sdk/modulegate"
-	"github.com/orkestra/backend/internal/addons/graph/handlers"
-	"github.com/orkestra/backend/internal/addons/graph/repository"
-	"github.com/orkestra/backend/internal/addons/graph/services"
-	"github.com/orkestra/backend/internal/shared/database"
 )
 
 // Default image reference for the Memgraph container. Overridable via the
@@ -134,7 +133,7 @@ func (m *GraphModule) Init(deps *module.Dependencies) error {
 		settings.MaxConnPool = 50
 	}
 
-	graphDriver, err := database.NewGraphDriver(database.GraphDBConfig{
+	graphDriver, err := NewGraphDriver(GraphDBConfig{
 		URI:         settings.URI,
 		Username:    settings.Username,
 		Password:    settings.Password,
@@ -183,7 +182,7 @@ func (m *GraphModule) Start(ctx context.Context) error {
 	if m.driver == nil {
 		return nil // Init hasn't run (or failed) — nothing to verify.
 	}
-	return database.VerifyGraphConnection(ctx, m.driver, 30*time.Second)
+	return VerifyGraphConnection(ctx, m.driver, 30*time.Second)
 }
 
 // Stop is a no-op. The driver is kept alive for the process lifetime so

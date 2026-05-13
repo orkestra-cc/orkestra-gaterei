@@ -28,9 +28,9 @@ import (
 	"github.com/go-chi/cors"
 
 	"github.com/orkestra-cc/orkestra-addon-aimodels"
+	"github.com/orkestra-cc/orkestra-addon-graph"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/agents"
-	"github.com/orkestra/backend/internal/addons/graph"
 	"github.com/orkestra/backend/internal/addons/rag"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/container"
