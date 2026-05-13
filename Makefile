@@ -12,7 +12,7 @@
 
 .PHONY: help up down status logs reset
 .PHONY: mongo-shell redis-cli
-.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test openapi-auth-test backend-deps backend-clean
+.PHONY: backend-build backend-test sdk-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test addon-dev-test openapi-auth-test backend-deps backend-clean
 .PHONY: frontend-admin-build frontend-admin-test frontend-admin-deps
 .PHONY: frontend-admin-clean frontend-admin-preview frontend-admin-type-check
 .PHONY: frontend-client-build frontend-client-typecheck frontend-client-clean
@@ -95,7 +95,7 @@ backend-build:
 	@cd backend && go build -o bin/server cmd/server/main.go
 	@echo "Backend built: backend/bin/server"
 
-backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test
+backend-test: sdk-test openapi-auth-test addon-documents-test addon-aimodels-test addon-company-test addon-graph-test addon-sales-test addon-subscriptions-test addon-payments-test addon-billing-test addon-dev-test
 	@echo "Running backend tests..."
 	@cd backend && go test ./...
 
@@ -175,6 +175,13 @@ addon-billing-test:
 	@echo "Running billing addon tests..."
 	@cd backend/internal/addons/billing && go test ./...
 
+# addon-dev-test mirrors addon-billing-test for the dev addon
+# (Phase 5i — first of the "hard tier" extractions). Tiny addon (~600
+# LOC) but the test exercises the audience-routing dispatch table.
+addon-dev-test:
+	@echo "Running dev addon tests..."
+	@cd backend/internal/addons/dev && go test ./...
+
 backend-deps:
 	@echo "Installing backend dependencies..."
 	@cd backend && go mod download && go mod tidy
@@ -188,6 +195,7 @@ backend-deps:
 	@cd backend/internal/addons/subscriptions && go mod download && go mod tidy
 	@cd backend/internal/addons/payments && go mod download && go mod tidy
 	@cd backend/internal/addons/billing && go mod download && go mod tidy
+	@cd backend/internal/addons/dev && go mod download && go mod tidy
 	@echo "Backend dependencies installed."
 
 backend-clean:
@@ -234,7 +242,7 @@ frontend-client-clean:
 
 .PHONY: install install-hooks fmt ci-help
 .PHONY: ci ci-all ci-backend ci-backend-matrix ci-frontend-admin ci-frontend-client ci-mobile
-.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
+.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci addon-dev-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
 .PHONY: admin-typecheck admin-lint admin-test admin-audit admin-build
 .PHONY: client-typecheck client-lint client-build
 .PHONY: mobile-analyze mobile-test
@@ -285,7 +293,7 @@ ci-all: ci-backend ci-frontend-admin ci-frontend-client ci-mobile
 
 # ---- Backend ----
 
-ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
+ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
 	@echo "Backend CI: OK"
 
 ci-backend-matrix: ci-backend
@@ -347,10 +355,15 @@ addon-payments-lint:
 addon-billing-lint:
 	@cd backend/internal/addons/billing && golangci-lint run --config=../../../.golangci.yml ./...
 
+# addon-dev-lint mirrors addon-billing-lint for the dev addon's own
+# Go module (Phase 5i). Shares the lint config.
+addon-dev-lint:
+	@cd backend/internal/addons/dev && golangci-lint run --config=../../../.golangci.yml ./...
+
 # `-race` requires cgo. CI runners have CGO_ENABLED=1 by default, but the
 # Go toolchain mise installs locally defaults to 0 — force it on so local
 # and CI behave the same. Needs a working C compiler on PATH (gcc/clang).
-backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci
+backend-test-ci: sdk-test-ci openapi-auth-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci addon-dev-test-ci
 	@cd backend && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend && go tool cover -func=coverage.out | tail -1
 
@@ -418,6 +431,13 @@ addon-payments-test-ci:
 addon-billing-test-ci:
 	@cd backend/internal/addons/billing && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
 	@cd backend/internal/addons/billing && go tool cover -func=coverage.out | tail -1
+
+# addon-dev-test-ci mirrors addon-billing-test-ci for the dev addon
+# (Phase 5i). Covers the audience-routing dispatch table for the
+# generate-token endpoint.
+addon-dev-test-ci:
+	@cd backend/internal/addons/dev && CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
+	@cd backend/internal/addons/dev && go tool cover -func=coverage.out | tail -1
 
 backend-tenantscope:
 	@cd backend && go test ./tools/tenantscope/...

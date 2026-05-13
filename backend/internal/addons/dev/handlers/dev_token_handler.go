@@ -10,7 +10,6 @@ import (
 
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra-cc/orkestra-sdk/module"
-	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
 
 // DevTokenHandler handles development token generation endpoints.
@@ -139,7 +138,7 @@ func (h *DevTokenHandler) GenerateToken(ctx context.Context, req *GenerateTokenR
 
 	// Create synthetic user (no database write)
 	syntheticEmail := fmt.Sprintf("%s@orkestra.dev", req.Body.Role)
-	user := &userModels.User{
+	user := &iface.User{
 		UUID:          fmt.Sprintf("dev-%s-%d", req.Body.Role, time.Now().Unix()),
 		Email:         syntheticEmail,
 		FullName:      fmt.Sprintf("Dev %s", req.Body.Role),
@@ -282,7 +281,7 @@ func (h *DevTokenHandler) GenerateTokenHTTP(w http.ResponseWriter, r *http.Reque
 
 	// Create synthetic user (no database write)
 	syntheticEmail := fmt.Sprintf("%s@orkestra.dev", req.Role)
-	user := &userModels.User{
+	user := &iface.User{
 		UUID:          fmt.Sprintf("dev-%s-%d", req.Role, time.Now().Unix()),
 		Email:         syntheticEmail,
 		FullName:      fmt.Sprintf("Dev %s", req.Role),

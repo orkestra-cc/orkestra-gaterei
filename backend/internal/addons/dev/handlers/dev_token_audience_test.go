@@ -10,9 +10,23 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/config"
 )
+
+// stubPlatform is a minimal module.PlatformInfo for tests. The real
+// implementation is `*shared/config.Config`, which addons can't import
+// after the dev extraction (Phase 5i) — same way the subscriptions /
+// payments addons replaced their internal/testkit import with an
+// inline helper.
+type stubPlatform struct {
+	env string
+}
+
+func (s stubPlatform) IsProduction() bool     { return s.env == "production" }
+func (s stubPlatform) IsStaging() bool        { return s.env == "staging" }
+func (s stubPlatform) IsDevelopment() bool    { return s.env == "development" || s.env == "" }
+func (s stubPlatform) IsProductionLike() bool { return s.IsProduction() || s.IsStaging() }
+func (s stubPlatform) GetEnvironment() string { return s.env }
+func (s stubPlatform) FrontendURL() string    { return "" }
 
 // stubJWTProvider records the user it was called with and returns a
 // pre-baked unsigned JWT carrying the configured audience claim. The
@@ -25,7 +39,7 @@ type stubJWTProvider struct {
 	called   bool
 }
 
-func (s *stubJWTProvider) GenerateAccessToken(_ *userModels.User) (string, error) {
+func (s *stubJWTProvider) GenerateAccessToken(_ *iface.User) (string, error) {
 	s.called = true
 	tok := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
 		"sub": "dev",
@@ -62,8 +76,7 @@ func audienceFromToken(t *testing.T, raw string) string {
 // audience must be rejected with 400 before either provider is
 // invoked.
 func TestGenerateTokenHTTPDispatchesByAudience(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Server.Environment = "development"
+	plat := stubPlatform{env: "development"}
 
 	cases := []struct {
 		name        string
@@ -107,7 +120,7 @@ func TestGenerateTokenHTTPDispatchesByAudience(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opStub := &stubJWTProvider{audience: "operator"}
 			clStub := &stubJWTProvider{audience: "client"}
-			h := NewDevTokenHandler(iface.JWTProvider(opStub), iface.JWTProvider(clStub), cfg)
+			h := NewDevTokenHandler(iface.JWTProvider(opStub), iface.JWTProvider(clStub), plat)
 
 			req := httptest.NewRequest(http.MethodPost, "/dev/token", bytes.NewBufferString(tc.body))
 			req.Header.Set("Content-Type", "application/json")

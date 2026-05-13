@@ -33,4 +33,5 @@ use (
 	./backend/internal/addons/subscriptions
 	./backend/internal/addons/payments
 	./backend/internal/addons/billing
+	./backend/internal/addons/dev
 )

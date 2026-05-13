@@ -83,6 +83,16 @@ replace github.com/orkestra-cc/orkestra-addon-payments => ./internal/addons/paym
 // tagged from v0.1.0.
 replace github.com/orkestra-cc/orkestra-addon-billing => ./internal/addons/billing
 
+// Phase 5i: the dev addon is its own Go module — first of the "hard
+// tier" extractions. Source lives in-tree, mirrored to
+// orkestra-cc/orkestra-addon-dev and tagged from v0.1.0. The handler
+// dropped its `core/user/models.User` import in favor of the SDK's
+// canonical `iface.User` (the in-tree models package is already a
+// re-export shim around iface.User, so the swap was a one-symbol
+// edit). The audience test stubbed `module.PlatformInfo` directly
+// instead of importing `shared/config.Config`.
+replace github.com/orkestra-cc/orkestra-addon-dev => ./internal/addons/dev
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -100,6 +110,7 @@ require (
 	github.com/orkestra-cc/orkestra-addon-aimodels v0.1.0
 	github.com/orkestra-cc/orkestra-addon-billing v0.1.0
 	github.com/orkestra-cc/orkestra-addon-company v0.1.1
+	github.com/orkestra-cc/orkestra-addon-dev v0.1.0
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
 	github.com/orkestra-cc/orkestra-addon-payments v0.1.0
