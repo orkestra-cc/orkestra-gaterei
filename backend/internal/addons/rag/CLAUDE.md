@@ -1,5 +1,39 @@
 # RAG Module
 
+## Module home
+
+This directory is a **separate Go module**
+(`github.com/orkestra-cc/orkestra-addon-rag`) since Phase 5l of the
+SDK split — the **final** addon extraction in the series. Source
+lives in-tree at this path for monorepo development; the same tree
+is mirrored to
+[github.com/orkestra-cc/orkestra-addon-rag](https://github.com/orkestra-cc/orkestra-addon-rag)
+and tagged starting from `v0.1.0`. Backend's `go.mod` carries a
+`replace` directive pointing at this path so changes here take effect
+without a tag bump during cross-cutting work; CI and external
+consumers fetch the published version through the Go module proxy.
+
+The `RAGConfig` struct that used to live at
+`backend/internal/shared/config/config.go` moved into this addon as
+`config/config.go` (still `package config`). Same playbook as the
+Phase 5e sales extraction — the env-var populator in shared/config
+was already dead code because `module.go` builds a fresh `RAGConfig`
+from its own `Settings` struct on every Init via the SDK
+ConfigService.
+
+rag depends transitively on
+[`orkestra-cc/orkestra-addon-aimodels`](https://github.com/orkestra-cc/orkestra-addon-aimodels)
+(Phase 5b) for the `providers.EmbeddingProvider` /
+`providers.LLMProvider` contracts; on
+[`orkestra-cc/orkestra-addon-graph`](https://github.com/orkestra-cc/orkestra-addon-graph)
+(Phase 5d) at runtime via `module.ServiceGraphRepo` for vector +
+relationship storage; on
+[`orkestra-cc/orkestra-addon-documents`](https://github.com/orkestra-cc/orkestra-addon-documents)
+(Phase 5a) only for the Gotenberg URL string (read via
+`deps.GetConfig("documents", "gotenbergURL")` so no package import).
+
+---
+
 Retrieval-Augmented Generation system for ISO norm compliance. Manages AI model configs, document ingestion into the knowledge graph, and question answering with source citations.
 
 ## Architecture

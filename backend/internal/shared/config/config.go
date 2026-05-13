@@ -24,7 +24,6 @@ type Config struct {
 	Documents DocumentsConfig
 	Company   CompanyConfig
 	Graph     GraphConfig
-	RAG       RAGConfig
 	AIModels  AIModelsConfig
 	Agents    AgentsConfig
 	Features  FeaturesConfig
@@ -73,16 +72,6 @@ type GraphConfig struct {
 	MaxConnPool int           // Connection pool size
 	Encrypted   bool          // TLS/encryption
 	Timeout     time.Duration // Query timeout
-}
-
-// RAGConfig holds configuration for the RAG (Retrieval-Augmented Generation) module
-type RAGConfig struct {
-	Enabled       bool   // Module enabled flag (RAG_ENABLED)
-	OllamaBaseURL string // Ollama API base URL
-	OpenAIAPIKey  string // OpenAI API key
-	ChunkSize     int    // Default text chunk size in characters
-	ChunkOverlap  int    // Overlap between chunks in characters
-	DefaultTopK   int    // Default number of results for vector search
 }
 
 // CompanyConfig holds configuration for the company lookup module (OpenAPI Company API)
@@ -478,16 +467,6 @@ func Load() (*Config, error) {
 		MaxConnPool: getEnvAsInt("GRAPH_MAX_CONN_POOL", 25),
 		Encrypted:   getEnvAsBool("GRAPH_ENCRYPTED", false),
 		Timeout:     getEnvAsDuration("GRAPH_TIMEOUT", "30s"),
-	}
-
-	// RAG (Retrieval-Augmented Generation) configuration
-	config.RAG = RAGConfig{
-		Enabled:       getEnvAsBool("RAG_ENABLED", false),
-		OllamaBaseURL: getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
-		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
-		ChunkSize:     getEnvAsInt("RAG_CHUNK_SIZE", 512),
-		ChunkOverlap:  getEnvAsInt("RAG_CHUNK_OVERLAP", 50),
-		DefaultTopK:   getEnvAsInt("RAG_DEFAULT_TOP_K", 10),
 	}
 
 	// AI Models management configuration

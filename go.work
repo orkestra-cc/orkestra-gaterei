@@ -36,4 +36,5 @@ use (
 	./backend/internal/addons/dev
 	./backend/internal/addons/compliance
 	./backend/internal/addons/identity
+	./backend/internal/addons/rag
 )

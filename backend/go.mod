@@ -120,6 +120,19 @@ replace github.com/orkestra-cc/orkestra-addon-compliance => ./internal/addons/co
 // with byte-for-byte identical algorithms.
 replace github.com/orkestra-cc/orkestra-addon-identity => ./internal/addons/identity
 
+// Phase 5l: the rag addon is its own Go module — the final addon
+// extraction in the SDK split. Source lives in-tree, mirrored to
+// orkestra-cc/orkestra-addon-rag and tagged from v0.1.0. The
+// RAGConfig struct that used to live at internal/shared/config
+// moved into this addon under internal/addons/rag/config (same
+// playbook as Phase 5e sales — the env-var populator block in
+// shared/config was already dead code because module.go builds a
+// fresh RAGConfig from its own Settings on every Init). rag depends
+// transitively on orkestra-cc/orkestra-addon-aimodels (for the
+// EmbeddingProvider / LLMProvider contracts in its `providers`
+// package).
+replace github.com/orkestra-cc/orkestra-addon-rag => ./internal/addons/rag
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -142,14 +155,13 @@ require (
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
 	github.com/orkestra-cc/orkestra-addon-identity v0.1.1
 	github.com/orkestra-cc/orkestra-addon-payments v0.1.0
+	github.com/orkestra-cc/orkestra-addon-rag v0.1.0
 	github.com/orkestra-cc/orkestra-addon-sales v0.1.0
 	github.com/orkestra-cc/orkestra-addon-subscriptions v0.1.0
 	github.com/orkestra-cc/orkestra-sdk v0.4.0
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.16.0
-	github.com/sashabaranov/go-openai v1.41.2
 	github.com/vectorize-io/hindsight/hindsight-clients/go v0.0.0-20260323151157-26944e25bc03
-	github.com/yuin/goldmark v1.7.17
 	go.mongodb.org/mongo-driver v1.17.6
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0
@@ -217,6 +229,7 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
+	github.com/sashabaranov/go-openai v1.41.2 // indirect
 	github.com/stripe/stripe-go/v76 v76.25.0 // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
@@ -225,6 +238,7 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/yuin/goldmark v1.7.17 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect

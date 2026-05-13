@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	aimodelsProviders "github.com/orkestra-cc/orkestra-addon-aimodels/providers"
+	"github.com/orkestra-cc/orkestra-addon-rag/models"
+	"github.com/orkestra-cc/orkestra-addon-rag/repository"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/rag/models"
-	"github.com/orkestra/backend/internal/addons/rag/repository"
 )
 
 // IngestionService manages document ingestion into the knowledge graph
