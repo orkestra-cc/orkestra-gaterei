@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/documents/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -74,7 +74,7 @@ func (r *documentRepository) createIndexes(ctx context.Context) {
 			Keys: bson.D{{Key: "generatedAt", Value: -1}},
 		},
 		{
-			Keys: bson.D{{Key: "expiresAt", Value: 1}},
+			Keys:    bson.D{{Key: "expiresAt", Value: 1}},
 			Options: options.Index().SetSparse(true).SetExpireAfterSeconds(0),
 		},
 		// Compound index for source lookups

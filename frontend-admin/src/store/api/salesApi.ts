@@ -47,7 +47,12 @@ interface Job {
   companyUrl: string;
   locale: string;
   status: string;
-  phases: Array<{ name: string; status: string; startedAt?: string; completedAt?: string }>;
+  phases: Array<{
+    name: string;
+    status: string;
+    startedAt?: string;
+    completedAt?: string;
+  }>;
   agentResults?: any[];
   totalScore?: number;
   grade?: string;
@@ -68,153 +73,179 @@ interface JobListResponse {
 // --- API Slice ---
 
 export const salesApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Individual skills (async: POST returns taskId, then poll)
-    submitSkill: builder.mutation<{ taskId: string }, { skill: string } & SkillRequest>({
+    submitSkill: builder.mutation<
+      { taskId: string },
+      { skill: string } & SkillRequest
+    >({
       query: ({ skill, ...body }) => ({
         url: `v1/sales/${skill}`,
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     pollSkillTask: builder.query<SkillTaskPollResponse, string>({
-      query: (taskId) => `v1/sales/skills/${taskId}`,
+      query: taskId => `v1/sales/skills/${taskId}`
     }),
 
     // Full async prospect
     createProspectJob: builder.mutation<ProspectJobResponse, ProspectRequest>({
-      query: (body) => ({
+      query: body => ({
         url: 'v1/sales/prospect',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     // Quick sync prospect
     runQuickProspect: builder.mutation<QuickProspectResponse, ProspectRequest>({
-      query: (body) => ({
+      query: body => ({
         url: 'v1/sales/prospect/quick',
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     // Jobs
-    listSalesJobs: builder.query<JobListResponse, { page?: number; pageSize?: number; status?: string }>({
-      query: (params) => ({
+    listSalesJobs: builder.query<
+      JobListResponse,
+      { page?: number; pageSize?: number; status?: string }
+    >({
+      query: params => ({
         url: 'v1/sales/jobs',
-        params,
+        params
       }),
-      providesTags: ['Sales'],
+      providesTags: ['Sales']
     }),
 
     getSalesJob: builder.query<Job, string>({
-      query: (uuid) => `v1/sales/jobs/${uuid}`,
-      providesTags: ['Sales'],
+      query: uuid => `v1/sales/jobs/${uuid}`,
+      providesTags: ['Sales']
     }),
 
     cancelSalesJob: builder.mutation<void, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `v1/sales/jobs/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     rerunSalesJobAgents: builder.mutation<Job, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `v1/sales/jobs/${uuid}/rerun`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
-    retrySalesJob: builder.mutation<{ jobId: string; streamUrl: string }, string>({
-      query: (uuid) => ({
+    retrySalesJob: builder.mutation<
+      { jobId: string; streamUrl: string },
+      string
+    >({
+      query: uuid => ({
         url: `v1/sales/jobs/${uuid}/retry`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     // Reports
-    listSalesReports: builder.query<ReportListResponse, { page?: number; pageSize?: number }>({
-      query: (params) => ({
+    listSalesReports: builder.query<
+      ReportListResponse,
+      { page?: number; pageSize?: number }
+    >({
+      query: params => ({
         url: 'v1/sales/reports',
-        params,
+        params
       }),
-      providesTags: ['Sales'],
+      providesTags: ['Sales']
     }),
 
     getSalesReport: builder.query<Report, string>({
-      query: (uuid) => `v1/sales/reports/${uuid}`,
-      providesTags: ['Sales'],
+      query: uuid => `v1/sales/reports/${uuid}`,
+      providesTags: ['Sales']
     }),
 
     // Prompts
-    listSalesPrompts: builder.query<{ prompts: SalesPromptConfig[] }, { category?: string }>({
-      query: (params) => ({
+    listSalesPrompts: builder.query<
+      { prompts: SalesPromptConfig[] },
+      { category?: string }
+    >({
+      query: params => ({
         url: 'v1/sales/prompts',
-        params,
+        params
       }),
-      providesTags: ['Sales'],
+      providesTags: ['Sales']
     }),
 
     getSalesPrompt: builder.query<SalesPromptConfig, string>({
-      query: (uuid) => `v1/sales/prompts/${uuid}`,
-      providesTags: ['Sales'],
+      query: uuid => `v1/sales/prompts/${uuid}`,
+      providesTags: ['Sales']
     }),
 
-    updateSalesPrompt: builder.mutation<SalesPromptConfig, { uuid: string; content: string; displayName?: string; description?: string }>({
+    updateSalesPrompt: builder.mutation<
+      SalesPromptConfig,
+      {
+        uuid: string;
+        content: string;
+        displayName?: string;
+        description?: string;
+      }
+    >({
       query: ({ uuid, ...body }) => ({
         url: `v1/sales/prompts/${uuid}`,
         method: 'PATCH',
-        body,
+        body
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     resetSalesPrompt: builder.mutation<SalesPromptConfig, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `v1/sales/prompts/${uuid}/reset`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     generateSalesReport: builder.mutation<Report, string>({
-      query: (jobUuid) => ({
+      query: jobUuid => ({
         url: `v1/sales/reports/generate/${jobUuid}`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     deleteSalesReport: builder.mutation<void, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `v1/sales/reports/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['Sales'],
+      invalidatesTags: ['Sales']
     }),
 
     // Settings
     getSalesSettings: builder.query<SalesSettings, void>({
       query: () => 'v1/sales/settings',
-      providesTags: ['Sales'],
+      providesTags: ['Sales']
     }),
 
-    updateSalesSettings: builder.mutation<SalesSettings, Partial<SalesSettings>>({
-      query: (body) => ({
+    updateSalesSettings: builder.mutation<
+      SalesSettings,
+      Partial<SalesSettings>
+    >({
+      query: body => ({
         url: 'v1/sales/settings',
         method: 'PATCH',
-        body,
+        body
       }),
-      invalidatesTags: ['Sales'],
-    }),
-  }),
+      invalidatesTags: ['Sales']
+    })
+  })
 });
 
 export interface SalesPromptConfig {
@@ -280,5 +311,5 @@ export const {
   useResetSalesPromptMutation,
   useDeleteSalesReportMutation,
   useGetSalesSettingsQuery,
-  useUpdateSalesSettingsMutation,
+  useUpdateSalesSettingsMutation
 } = salesApi;

@@ -5,28 +5,31 @@ import { useAppContext } from 'providers/AppProvider';
 
 type ReactEchartProps = EChartsReactProps;
 
-const ReactEchart = forwardRef<ReactEChartsCore, ReactEchartProps>((props, ref) => {
-  const internalRef = useRef<ReactEChartsCore>(null);
-  const chartRef = ref || internalRef;
-  const {
-    config: { isFluid, isNavbarVerticalCollapsed }
-  } = useAppContext();
+const ReactEchart = forwardRef<ReactEChartsCore, ReactEchartProps>(
+  (props, ref) => {
+    const internalRef = useRef<ReactEChartsCore>(null);
+    const chartRef = ref || internalRef;
+    const {
+      config: { isFluid, isNavbarVerticalCollapsed }
+    } = useAppContext();
 
-  useEffect(() => {
-    const chartInstance = typeof chartRef === 'function' ? null : chartRef?.current;
-    if (chartInstance) {
-      chartInstance.getEchartsInstance()?.resize();
+    useEffect(() => {
+      const chartInstance =
+        typeof chartRef === 'function' ? null : chartRef?.current;
+      if (chartInstance) {
+        chartInstance.getEchartsInstance()?.resize();
+      }
+    }, [isFluid, isNavbarVerticalCollapsed, chartRef]);
+
+    // echarts prop is required for ReactEChartsCore to work properly
+    if (!props.echarts) {
+      console.error('ReactEchart: echarts prop is required');
+      return null;
     }
-  }, [isFluid, isNavbarVerticalCollapsed, chartRef]);
 
-  // echarts prop is required for ReactEChartsCore to work properly
-  if (!props.echarts) {
-    console.error('ReactEchart: echarts prop is required');
-    return null;
+    return <ReactEChartsCore ref={chartRef} {...props} />;
   }
-
-  return <ReactEChartsCore ref={chartRef} {...props} />;
-});
+);
 
 ReactEchart.displayName = 'ReactEchart';
 

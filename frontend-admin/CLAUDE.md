@@ -1,28 +1,28 @@
 # Frontend Admin — Operator Console (Tier-1)
 
-*Path: `/frontend-admin`*  
-*Parent: [../CLAUDE.md](../CLAUDE.md)*
+_Path: `/frontend-admin`_  
+_Parent: [../CLAUDE.md](../CLAUDE.md)_
 
 [← Root](../CLAUDE.md) | [☰ Module Map](../CLAUDE.md#module-map) | [🚀 Quick Start](../CLAUDE.md#quick-start) | [Tier-2 client SPA](../frontend-client/CLAUDE.md)
 
-React 19 + Vite 7 + TypeScript 5.9 operator console for Orkestra — the **Tier-1 admin dashboard** used by internal staff. Cookie-based auth with the Go backend (operator audience), dynamic navigation driven by `/v1/navigation`, per-module RTK Query slices, Falcon design system + Bootstrap 5. Sibling to [`../frontend-client`](../frontend-client/CLAUDE.md), the Tier-2 customer-facing SPA — different audience, different cookie domain, different stack.
+React 19 + Vite 7 + TypeScript 5.9 operator console for Orkestra — the **Tier-1 admin dashboard** used by internal staff. Cookie-based auth with the Go backend (operator audience), dynamic navigation driven by `/v1/navigation`, per-module RTK Query slices, Orkestra design system + Bootstrap 5. Sibling to [`../frontend-client`](../frontend-client/CLAUDE.md), the Tier-2 customer-facing SPA — different audience, different cookie domain, different stack.
 
 ## Tech stack
 
-| Layer | Choice |
-|---|---|
-| Framework | React 19.1, React Router 7.7 |
-| Build | Vite 7 (dev server + production bundle) |
-| Language | TypeScript 5.9 strict mode |
-| State | Redux Toolkit 2.9 + RTK Query (server state lives in RTK Query, not React Query) |
-| UI kit | React Bootstrap 2.10 + Bootstrap 5.3 + Falcon SCSS theme |
-| Forms | React Hook Form + Yup |
-| Charts | ECharts (lazy-loaded chunks). Chart.js + D3 reference samples were removed — use `echarts-for-react` for any new chart work. |
-| Calendar | FullCalendar |
-| Maps | Google Maps + Leaflet |
-| Tables | TanStack Table v8 |
-| Drag & Drop | dnd-kit |
-| Auth | Cookie sessions + Bearer access tokens (RS256 JWT issued by backend) |
+| Layer       | Choice                                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Framework   | React 19.1, React Router 7.7                                                                                                 |
+| Build       | Vite 7 (dev server + production bundle)                                                                                      |
+| Language    | TypeScript 5.9 strict mode                                                                                                   |
+| State       | Redux Toolkit 2.9 + RTK Query (server state lives in RTK Query, not React Query)                                             |
+| UI kit      | React Bootstrap 2.10 + Bootstrap 5.3 + Orkestra SCSS theme                                                                   |
+| Forms       | React Hook Form + Yup                                                                                                        |
+| Charts      | ECharts (lazy-loaded chunks). Chart.js + D3 reference samples were removed — use `echarts-for-react` for any new chart work. |
+| Calendar    | FullCalendar                                                                                                                 |
+| Maps        | Google Maps + Leaflet                                                                                                        |
+| Tables      | TanStack Table v8                                                                                                            |
+| Drag & Drop | dnd-kit                                                                                                                      |
+| Auth        | Cookie sessions + Bearer access tokens (RS256 JWT issued by backend)                                                         |
 
 ## Directory layout
 
@@ -35,7 +35,7 @@ frontend-admin/
 │   ├── routes/
 │   │   ├── createRouter.ts        # Router factory — assembles core + module + reference routes
 │   │   ├── coreRoutes.tsx         # Auth, admin, user/operator routes (always loaded)
-│   │   ├── referenceRoutes.tsx    # Falcon template routes (dev-only, gated by import.meta.env.DEV)
+│   │   ├── referenceRoutes.tsx    # Orkestra template routes (dev-only, gated by import.meta.env.DEV)
 │   │   └── paths.ts               # Path constants
 │   ├── layouts/                   # 9 layouts: MainLayout, VerticalNavLayout, TopNavLayout, ComboNavLayout, AuthLayouts...
 │   ├── providers/                 # AppProvider, AuthProvider, KanbanProvider, ChatProvider, EmailProvider
@@ -75,7 +75,7 @@ frontend-admin/
 │   │   ├── wizard/                # Form wizard helpers
 │   │   ├── errors/                # 404, 500 pages
 │   │   └── notification/          # Toast and banner notifications
-│   ├── reference/                 # 📚 Falcon template library (READ-ONLY) — 7 example apps + 60+ samples
+│   ├── reference/                 # 📚 Orkestra template library (READ-ONLY) — 7 example apps + 60+ samples
 │   │   ├── app-examples/          # calendar, chat, email, events, kanban, social, support-desk
 │   │   ├── components/            # UI showcase (forms, tables, navigation, media, etc.)
 │   │   ├── charts/                # ECharts examples only (chartjs/d3js removed — unresolved imports)
@@ -102,7 +102,7 @@ frontend-admin/
 The project uses **bare path aliases** (no `@/` prefix). They are declared in both `tsconfig.json` and `vite.config.js`:
 
 ```ts
-import Avatar from 'components/common/Avatar';     // not '@/components/common/Avatar'
+import Avatar from 'components/common/Avatar'; // not '@/components/common/Avatar'
 import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
 import BillingDashboard from 'pages/billing/dashboard';
 ```
@@ -136,6 +136,8 @@ This means:
 - **Adding a sidebar entry** → edit the backend module's `NavItems()` — set `Realm`, `Section`, `Tier`, not the legacy `Group`. The frontend picks it up on the next `/v1/navigation` fetch.
 - **Disabling a module on the backend** → its sidebar entry disappears automatically, and `ModuleGate` redirects to 404 if the URL is accessed directly.
 - **The frontend route is declared in the module manifest** → `src/modules/<name>.tsx` defines routes, registered via `src/modules/index.ts`.
+
+**Dev-only exception — Developer realm.** When `import.meta.env.DEV` is true (or `VITE_ENABLE_REFERENCE` is set), `NavbarVertical` appends a hardcoded `Developer` realm from `src/reference/navigation/referenceRoutes.ts` (`developerRealm` export) pointing at the dev-only `/reference/*` routes registered by `src/routes/referenceRoutes.tsx`. The gate matches the one on the routes themselves, so nav and routes stay in lockstep. This is the **only** place sidebar entries are hardcoded in the frontend — do not extend the pattern to production features.
 
 ## How data fetching works
 
@@ -185,9 +187,9 @@ This is the **canonical workflow** for an LLM agent or contributor asked to add 
 
 When asked to build a UI, look for an existing solution in this order:
 
-1. **`src/reference/app-examples/`** — full Falcon implementations of common apps (calendar, chat, email, kanban, social, support-desk, events). Copy and adapt — don't reinvent.
-2. **`src/reference/components/`** — 60+ Falcon component samples (forms, tables, navigation, media, charts).
-3. **`src/components/common/`** — UI primitives that the app's pages already use (Avatar, Card, Flex, IconButton, PageHeader, AdvanceTable, FalconDropzone, ...).
+1. **`src/reference/app-examples/`** — full Orkestra implementations of common apps (calendar, chat, email, kanban, social, support-desk, events). Copy and adapt — don't reinvent.
+2. **`src/reference/components/`** — 60+ Orkestra component samples (forms, tables, navigation, media, charts).
+3. **`src/components/common/`** — UI primitives that the app's pages already use (Avatar, Card, Flex, IconButton, PageHeader, AdvanceTable, OrkestraDropzone, ...).
 4. **`src/components/dashboards/`** — reusable dashboard widgets (WeeklySales, ActiveUsers, ...).
 5. **`react-bootstrap`** — raw primitives for layout (Row, Col, Card, Button, Form).
 
@@ -195,14 +197,14 @@ Only build a new component if none of the above fits. New components used by exa
 
 ## State management
 
-| Concern | Where it lives |
-|---|---|
-| Server state (cached responses) | RTK Query (`src/store/api/`) |
-| Auth user + tokens | Redux slice (`src/store/slices/authSlice.ts`) |
-| Kanban board state | Redux slice (`src/store/slices/kanbanSlice.ts`) |
-| Theme, navbar config, RTL | `AppProvider` context |
-| Form local state | React Hook Form |
-| Component local state | `useState` |
+| Concern                         | Where it lives                                  |
+| ------------------------------- | ----------------------------------------------- |
+| Server state (cached responses) | RTK Query (`src/store/api/`)                    |
+| Auth user + tokens              | Redux slice (`src/store/slices/authSlice.ts`)   |
+| Kanban board state              | Redux slice (`src/store/slices/kanbanSlice.ts`) |
+| Theme, navbar config, RTL       | `AppProvider` context                           |
+| Form local state                | React Hook Form                                 |
+| Component local state           | `useState`                                      |
 
 Persisted state is opt-in via `redux-persist` — only user preferences are persisted, never tokens.
 
@@ -215,6 +217,7 @@ npm run build             # tsc + vite build (production)
 npm run build:staging     # Staging build
 npm run preview           # Serve built bundle locally
 npm run typecheck         # tsc --noEmit (CI-safe)
+npm run lint              # eslint src/ --max-warnings 0
 npm run test              # Vitest single-pass run
 npm run test:watch        # Vitest watch mode
 ```
@@ -225,14 +228,14 @@ The `tsc` step in `build` enforces strict mode — TypeScript errors fail the bu
 
 Vitest + React Testing Library + happy-dom + MSW. The infra lives in `src/test/`:
 
-| File | Purpose |
-|---|---|
-| `src/test/setup.ts` | Vitest global setup — jest-dom matchers, MSW lifecycle (`onUnhandledRequest: 'error'` so missing stubs fail loud), `resetCapturedRequests()` between tests |
-| `src/test/server.ts` | Single shared `setupServer(...defaultHandlers)` reused by every test file |
-| `src/test/handlers.ts` | Default MSW handlers + per-endpoint request capture (`capturedRequests.billingStatsParams` etc.) for tests that need to assert outbound params |
-| `src/test/render.tsx` | `renderWithProviders(ui, { preloadedState, store, routerEntries })` — wraps in a fresh non-persisted Redux store + `MemoryRouter`. Returns `{ store, ...renderResult }` |
+| File                   | Purpose                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/test/setup.ts`    | Vitest global setup — jest-dom matchers, MSW lifecycle (`onUnhandledRequest: 'error'` so missing stubs fail loud), `resetCapturedRequests()` between tests              |
+| `src/test/server.ts`   | Single shared `setupServer(...defaultHandlers)` reused by every test file                                                                                               |
+| `src/test/handlers.ts` | Default MSW handlers + per-endpoint request capture (`capturedRequests.billingStatsParams` etc.) for tests that need to assert outbound params                          |
+| `src/test/render.tsx`  | `renderWithProviders(ui, { preloadedState, store, routerEntries })` — wraps in a fresh non-persisted Redux store + `MemoryRouter`. Returns `{ store, ...renderResult }` |
 
-**Default pattern**: real component, real Redux store, real RTK Query, MSW for HTTP. Mock hooks (`vi.mock`) only when testing branching logic of a hook's *consumer* (e.g. `ProtectedRoute` mocking `useAuth`), not when testing data flow.
+**Default pattern**: real component, real Redux store, real RTK Query, MSW for HTTP. Mock hooks (`vi.mock`) only when testing branching logic of a hook's _consumer_ (e.g. `ProtectedRoute` mocking `useAuth`), not when testing data flow.
 
 ```tsx
 import { renderWithProviders } from 'test/render';
@@ -262,7 +265,7 @@ expect(store.getState().auth.accessToken).toBe('...');
 ## Don't
 
 - Don't invent a parallel data-fetching layer (axios, custom fetch helpers). Every endpoint goes through an RTK Query slice that extends `baseApi`.
-- Don't hardcode sidebar entries. Navigation comes from the backend.
+- Don't hardcode sidebar entries **for production features** — navigation comes from the backend. The dev-only Developer realm (see "How navigation works") is the single documented exception.
 - Don't move things out of `src/reference/` — it's a read-only template library. Copy from it.
 - Don't import from `src/modules/_template/` at runtime. It's a scaffold, not runtime code.
 - Don't add new top-level directories under `src/`. The current layout is stable.

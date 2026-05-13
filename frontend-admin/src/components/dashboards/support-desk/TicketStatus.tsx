@@ -73,10 +73,10 @@ const getOptions = (data: TicketStatusData) => ({
                 data.chartColor === '#2c7be5'
                   ? 'rgba(44, 123, 229, .25)'
                   : data.chartColor === '#00d27a'
-                  ? 'rgba(0, 210, 122, .25)'
-                  : data.chartColor === '#27bcfd'
-                  ? 'rgba(39, 188, 253, .25)'
-                  : 'rgba(245, 128, 62, .25)'
+                    ? 'rgba(0, 210, 122, .25)'
+                    : data.chartColor === '#27bcfd'
+                      ? 'rgba(39, 188, 253, .25)'
+                      : 'rgba(245, 128, 62, .25)'
             },
             {
               offset: 1,
@@ -84,10 +84,10 @@ const getOptions = (data: TicketStatusData) => ({
                 data.chartColor === '#2c7be5'
                   ? 'rgba(44, 123, 229, 0)'
                   : data.chartColor === '#00d27a'
-                  ? 'rgba(0, 210, 122, 0)'
-                  : data.chartColor === '#27bcfd'
-                  ? 'rgba(39, 188, 253, 0)'
-                  : 'rgba(245, 128, 62, 0)'
+                    ? 'rgba(0, 210, 122, 0)'
+                    : data.chartColor === '#27bcfd'
+                      ? 'rgba(39, 188, 253, 0)'
+                      : 'rgba(245, 128, 62, 0)'
             }
           ]
         }

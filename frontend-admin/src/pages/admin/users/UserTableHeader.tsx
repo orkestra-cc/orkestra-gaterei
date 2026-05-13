@@ -4,12 +4,18 @@ import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 import IconButton from 'components/common/IconButton';
 import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableSearchBox';
 import { useState } from 'react';
-import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
+import {
+  arrayToCSV,
+  downloadCSV,
+  formatDateForCSV,
+  generateTimestampedFilename
+} from 'utils/csvExport';
 import { User } from 'store/api/userApi';
 import CreateUserModal from './CreateUserModal';
 
 const UserTableHeader = () => {
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
+  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
+    useAdvanceTableContext();
   const [selectedRole, setSelectedRole] = useState<string>('All');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -51,10 +57,10 @@ const UserTableHeader = () => {
       const user = row.original as User;
       return {
         'Full Name': user.fullName,
-        'Email': user.email,
-        'Username': user.username,
-        'Role': roleLabels[user.role] || user.role,
-        'Status': user.isActive ? 'Active' : 'Inactive',
+        Email: user.email,
+        Username: user.username,
+        Role: roleLabels[user.role] || user.role,
+        Status: user.isActive ? 'Active' : 'Inactive',
         'Last Login': formatDateForCSV(user.lastLogin),
         'Created At': formatDateForCSV(user.createdAt)
       };
@@ -96,17 +102,22 @@ const UserTableHeader = () => {
       <div className="d-flex align-items-center justify-content-between justify-content-lg-end px-x1">
         <Dropdown className="font-sans-serif">
           <Dropdown.Toggle
-            variant="falcon-default"
+            variant="orkestra-default"
             size="sm"
             className="text-600"
           >
-            <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
+            <FontAwesomeIcon
+              icon="filter"
+              transform="shrink-4"
+              className="me-2"
+            />
             <span className="d-none d-sm-inline-block">
-              {roleFilters.find((r) => r.value === selectedRole)?.label ?? selectedRole}
+              {roleFilters.find(r => r.value === selectedRole)?.label ??
+                selectedRole}
             </span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
-            {roleFilters.map((role) => (
+            {roleFilters.map(role => (
               <Dropdown.Item
                 key={role.value}
                 onClick={() => handleRoleFilter(role.value)}
@@ -138,7 +149,7 @@ const UserTableHeader = () => {
             </Form.Select>
             <Button
               type="button"
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               className="ms-2"
             >
@@ -148,7 +159,7 @@ const UserTableHeader = () => {
         ) : (
           <div id="users-actions">
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="plus"
               transform="shrink-3"
@@ -160,7 +171,7 @@ const UserTableHeader = () => {
               </span>
             </IconButton>
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
@@ -173,7 +184,7 @@ const UserTableHeader = () => {
               </span>
             </IconButton>
             <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
-              <Dropdown.Toggle variant="falcon-default" size="sm">
+              <Dropdown.Toggle variant="orkestra-default" size="sm">
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
               </Dropdown.Toggle>
 
@@ -185,7 +196,9 @@ const UserTableHeader = () => {
                   <Dropdown.Item>Export</Dropdown.Item>
                   <Dropdown.Item>Import</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Delete All</Dropdown.Item>
+                  <Dropdown.Item className="text-danger">
+                    Delete All
+                  </Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>

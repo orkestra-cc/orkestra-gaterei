@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import Background from 'components/common/Background';
 import Avatar from 'components/common/Avatar';
@@ -10,7 +9,11 @@ interface ProfileBannerHeaderProps {
   className?: string;
 }
 
-const ProfileBannerHeader: React.FC<ProfileBannerHeaderProps> = ({ avatar, coverSrc, className }) => {
+const ProfileBannerHeader: React.FC<ProfileBannerHeaderProps> = ({
+  avatar,
+  coverSrc,
+  className
+}) => {
   return (
     <Card.Header
       className={classNames(className, 'position-relative min-vh-25 mb-7')}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
@@ -51,10 +52,10 @@ type RegisterRequest struct {
 
 type RegisterResponse struct {
 	Body struct {
-		Success             bool   `json:"success"`
-		UserUUID            string `json:"userUuid"`
-		Message             string `json:"message"`
-		RequiresVerification bool  `json:"requiresVerification"`
+		Success              bool   `json:"success"`
+		UserUUID             string `json:"userUuid"`
+		Message              string `json:"message"`
+		RequiresVerification bool   `json:"requiresVerification"`
 	}
 }
 
@@ -282,6 +283,76 @@ func (h *PasswordAuthHandler) ChangePassword(ctx context.Context, req *ChangePas
 	return resp, nil
 }
 
+// --- Password confirm (reauth for users without MFA) ---
+
+type PasswordConfirmRequest struct {
+	Body struct {
+		Password string `json:"password" doc:"Current password"`
+	}
+}
+
+type PasswordConfirmResponse struct {
+	Body struct {
+		Success     bool   `json:"success"`
+		AccessToken string `json:"accessToken"`
+		TokenType   string `json:"tokenType"`
+		ExpiresIn   int64  `json:"expiresIn"`
+	}
+}
+
+// PasswordConfirm mints a stepped-up access token after re-verifying
+// the caller's password. Used as the fallback step-up path for users
+// who have no MFA factor enrolled — they hit
+// password_confirm_required from the gate, submit their password
+// here, and the resulting token (amr += "reauth", last_otp_at = now)
+// satisfies RequireStepUp on the replay.
+//
+// Routes that mount this handler must apply RequireGlobal() but NOT
+// RequireStepUp() — the endpoint is the bypass, gating it on the same
+// freshness check would create a chicken-and-egg loop.
+func (h *PasswordAuthHandler) PasswordConfirm(ctx context.Context, req *PasswordConfirmRequest) (*PasswordConfirmResponse, error) {
+	userUUID, _ := ctx.Value("userUUID").(string)
+	if userUUID == "" {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	if req.Body.Password == "" {
+		return nil, huma.Error400BadRequest("password is required")
+	}
+	priorAMR := priorAMRFromCtx(ctx)
+	ip := clientIPFromCtx(ctx)
+	res, err := h.svc.ConfirmPassword(ctx, userUUID, req.Body.Password, priorAMR, ip)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrInvalidCredentials):
+			return nil, huma.Error401Unauthorized("Invalid password")
+		case errors.Is(err, services.ErrPasswordConfirmUnavailable):
+			return nil, &codedError{
+				Status: http.StatusConflict,
+				Title:  "password reconfirm unavailable",
+				Detail: "this account cannot reconfirm with a password — use MFA or reauthenticate via OAuth",
+				Code:   "password_confirm_unavailable",
+			}
+		}
+		return nil, mapPasswordError(err)
+	}
+	resp := &PasswordConfirmResponse{}
+	resp.Body.Success = true
+	resp.Body.AccessToken = res.AccessToken
+	resp.Body.TokenType = res.TokenType
+	resp.Body.ExpiresIn = res.ExpiresIn
+	return resp, nil
+}
+
+// priorAMRFromCtx pulls the caller's existing AMR off the JWT claims so
+// ConfirmPassword can build amr ∪ {"reauth"}. Empty slice when the token
+// has no amr (legacy dev tokens) — the service then defaults to ["pwd"].
+func priorAMRFromCtx(ctx context.Context) []string {
+	if claims, ok := ctx.Value("claims").(*authModels.JWTClaims); ok && claims != nil {
+		return claims.AMR
+	}
+	return nil
+}
+
 // --- helpers ---
 
 func clientIPFromCtx(ctx context.Context) string {
@@ -450,8 +521,10 @@ func (h *PasswordAuthHandler) RegisterPublicRoutes(api huma.API, mount RouteMoun
 	}, h.AcceptInvite)
 }
 
-// RegisterProtectedRoutes registers the change-password endpoint. See
-// RegisterPublicRoutes for the mount semantics.
+// RegisterProtectedRoutes registers the change-password endpoint and the
+// password-confirm reauth endpoint. Both routes assume RequireGlobal() —
+// password-confirm explicitly does NOT take RequireStepUp() because it's
+// the bypass path for users who can't satisfy step-up via MFA.
 func (h *PasswordAuthHandler) RegisterProtectedRoutes(api huma.API, mount RouteMount) {
 	huma.Register(api, huma.Operation{
 		OperationID: mount.OpIDPrefix + "password-change",
@@ -461,5 +534,14 @@ func (h *PasswordAuthHandler) RegisterProtectedRoutes(api huma.API, mount RouteM
 		Tags:        []string{"Authentication"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.ChangePassword)
-}
 
+	huma.Register(api, huma.Operation{
+		OperationID: mount.OpIDPrefix + "password-confirm",
+		Method:      http.MethodPost,
+		Path:        "/v1/auth" + mount.PathPrefix + "/me/password-confirm",
+		Summary:     "Reconfirm password to satisfy step-up when no MFA factor is enrolled",
+		Description: "Returns a fresh access token with amr += \"reauth\" so the next destructive request passes RequireStepUp. Refuses with 409 password_confirm_unavailable when the user has any MFA factor or no password.",
+		Tags:        []string{"Authentication", "Self-Service"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.PasswordConfirm)
+}

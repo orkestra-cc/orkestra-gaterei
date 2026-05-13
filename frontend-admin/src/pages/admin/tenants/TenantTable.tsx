@@ -9,7 +9,7 @@ import TenantTableHeader from './TenantTableHeader';
 const planColors: Record<string, BadgeColor> = {
   free: 'secondary',
   pro: 'primary',
-  enterprise: 'success',
+  enterprise: 'success'
 };
 
 interface Props {
@@ -52,7 +52,7 @@ const TenantTable: React.FC<Props> = ({
   onCreateClick,
   onDeleteClick,
   title,
-  createLabel,
+  createLabel
 }) => {
   const [planFilter, setPlanFilter] = useState('');
 
@@ -60,7 +60,7 @@ const TenantTable: React.FC<Props> = ({
   // tenant list to text/member matches, and the plan dropdown is a small
   // additional chip filter on top of that.
   const filtered = useMemo(() => {
-    return orgs.filter((o) => {
+    return orgs.filter(o => {
       if (planFilter && o.plan !== planFilter) return false;
       return true;
     });
@@ -72,7 +72,7 @@ const TenantTable: React.FC<Props> = ({
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
-      year: 'numeric',
+      year: 'numeric'
     });
   };
 
@@ -124,9 +124,10 @@ const TenantTable: React.FC<Props> = ({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((org) => {
+              {filtered.map(org => {
                 const purged = org.status === 'purged';
-                const deleted = !purged && (!!org.deletedAt || org.status === 'archived');
+                const deleted =
+                  !purged && (!!org.deletedAt || org.status === 'archived');
                 const statusBadge = purged
                   ? { bg: 'dark' as BadgeColor, label: 'purged' }
                   : deleted
@@ -138,33 +139,38 @@ const TenantTable: React.FC<Props> = ({
                     className="align-middle"
                     style={{
                       cursor: 'pointer',
-                      opacity: purged ? 0.4 : deleted ? 0.55 : 1,
+                      opacity: purged ? 0.4 : deleted ? 0.55 : 1
                     }}
                     onClick={() => onRowClick(org)}
                   >
                     <td className="ps-3 fw-semibold">
                       <div>{org.name}</div>
-                      {searchActive && org.matchedMembers && org.matchedMembers.length > 0 && (
-                        <div className="mt-1 d-flex flex-wrap gap-1">
-                          {org.matchedMembers.map((m) => (
-                            <span
-                              key={m.userUUID}
-                              title={[m.fullName, m.username, m.email]
-                                .filter(Boolean)
-                                .join(' · ')}
-                            >
-                              <SubtleBadge
-                                bg="info"
-                                pill
-                                className="fs-11 fw-normal"
+                      {searchActive &&
+                        org.matchedMembers &&
+                        org.matchedMembers.length > 0 && (
+                          <div className="mt-1 d-flex flex-wrap gap-1">
+                            {org.matchedMembers.map(m => (
+                              <span
+                                key={m.userUUID}
+                                title={[m.fullName, m.username, m.email]
+                                  .filter(Boolean)
+                                  .join(' · ')}
                               >
-                                <FontAwesomeIcon icon="user" className="me-1" />
-                                {m.email || m.fullName || m.username}
-                              </SubtleBadge>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                                <SubtleBadge
+                                  bg="info"
+                                  pill
+                                  className="fs-11 fw-normal"
+                                >
+                                  <FontAwesomeIcon
+                                    icon="user"
+                                    className="me-1"
+                                  />
+                                  {m.email || m.fullName || m.username}
+                                </SubtleBadge>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                     </td>
                     <td className="text-muted">
                       <code className="fs-11">{org.slug}</code>
@@ -186,7 +192,7 @@ const TenantTable: React.FC<Props> = ({
                     </td>
                     <td
                       className="text-end pe-4"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={e => e.stopPropagation()}
                     >
                       <Button
                         variant="link"
@@ -231,7 +237,7 @@ const TenantTable: React.FC<Props> = ({
           id="tenant-include-deleted"
           label="Include soft-deleted"
           checked={includeDeleted}
-          onChange={(e) => onIncludeDeletedChange(e.target.checked)}
+          onChange={e => onIncludeDeletedChange(e.target.checked)}
         />
       </Card.Footer>
     </Card>

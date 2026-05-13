@@ -1,4 +1,3 @@
-
 import SimpleBar from 'simplebar-react';
 import { Table } from 'react-bootstrap';
 import { Link } from 'react-router';
@@ -13,8 +12,14 @@ interface DealForecastItem {
   closedWon: number;
 }
 
-const getTotal = (data: DealForecastItem[], key: keyof Omit<DealForecastItem, 'id' | 'owner'>) =>
-  data.reduce((acc: number, val: DealForecastItem) => acc + Number(val[key]), 0);
+const getTotal = (
+  data: DealForecastItem[],
+  key: keyof Omit<DealForecastItem, 'id' | 'owner'>
+) =>
+  data.reduce(
+    (acc: number, val: DealForecastItem) => acc + Number(val[key]),
+    0
+  );
 
 interface DealForeCastTableRowProps {
   item: DealForecastItem;

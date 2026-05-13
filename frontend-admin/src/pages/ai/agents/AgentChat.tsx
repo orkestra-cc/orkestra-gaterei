@@ -11,7 +11,7 @@ import {
   Badge,
   Accordion,
   ListGroup,
-  Dropdown,
+  Dropdown
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -24,7 +24,7 @@ import {
   faUser,
   faChevronLeft,
   faFileAlt,
-  faClock,
+  faClock
 } from '@fortawesome/free-solid-svg-icons';
 import classNames from 'classnames';
 import dayjs from 'dayjs';
@@ -36,12 +36,12 @@ import {
   useListConversationsQuery,
   useGetConversationQuery,
   useCreateConversationMutation,
-  useDeleteConversationMutation,
+  useDeleteConversationMutation
 } from '../../../store/api/agentsApi';
 import type {
   AgentMessage,
   AgentSource,
-  PersonaType,
+  PersonaType
 } from '../../../types/agents';
 import { PERSONA_LABELS, PERSONA_DESCRIPTIONS } from '../../../types/agents';
 
@@ -63,7 +63,7 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
     <div
       className={classNames('d-flex mb-3', {
         'justify-content-end': isUser,
-        'justify-content-start': !isUser,
+        'justify-content-start': !isUser
       })}
     >
       <div style={{ maxWidth: '75%' }}>
@@ -82,18 +82,14 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
             )}
           </small>
           {isUser && (
-            <FontAwesomeIcon
-              icon={faUser}
-              className="text-primary"
-              size="sm"
-            />
+            <FontAwesomeIcon icon={faUser} className="text-primary" size="sm" />
           )}
         </div>
 
         <div
           className={classNames('p-3 rounded-3', {
             'bg-primary text-white': isUser,
-            'bg-200': !isUser,
+            'bg-200': !isUser
           })}
         >
           {isLoading ? (
@@ -101,14 +97,12 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
               <Spinner size="sm" animation="border" />
               <span className="text-muted">Thinking...</span>
             </div>
+          ) : isUser ? (
+            <p className="mb-0 white-space-pre-line">{message.content}</p>
           ) : (
-            isUser ? (
-              <p className="mb-0 white-space-pre-line">{message.content}</p>
-            ) : (
-              <div className="mb-0 agent-markdown">
-                <Markdown>{message.content}</Markdown>
-              </div>
-            )
+            <div className="mb-0 agent-markdown">
+              <Markdown>{message.content}</Markdown>
+            </div>
           )}
         </div>
 
@@ -123,7 +117,8 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
               <small className="text-muted">
                 {message.metadata.totalTokens} tokens
                 <span className="ms-1 text-muted-50">
-                  ({message.metadata.inputTokens} in / {message.metadata.outputTokens} out)
+                  ({message.metadata.inputTokens} in /{' '}
+                  {message.metadata.outputTokens} out)
                 </span>
               </small>
             ) : null}
@@ -159,13 +154,22 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
                         <small className="text-muted">{source.fullPath}</small>
                       </div>
                       <Badge
-                        bg={source.score >= 0.8 ? 'success' : source.score >= 0.5 ? 'warning' : 'secondary'}
+                        bg={
+                          source.score >= 0.8
+                            ? 'success'
+                            : source.score >= 0.5
+                              ? 'warning'
+                              : 'secondary'
+                        }
                         className="ms-2"
                       >
                         {(source.score * 100).toFixed(0)}%
                       </Badge>
                     </div>
-                    <small className="text-muted d-block mt-1 font-monospace" style={{ fontSize: '0.75rem' }}>
+                    <small
+                      className="text-muted d-block mt-1 font-monospace"
+                      style={{ fontSize: '0.75rem' }}
+                    >
                       {source.chunkText.length > 200
                         ? `${source.chunkText.slice(0, 200)}...`
                         : source.chunkText}
@@ -182,7 +186,12 @@ function MessageBubble({ message, isLoading }: MessageBubbleProps) {
 }
 
 interface ConversationSidebarProps {
-  conversations: { uuid: string; title?: string; persona: string; updatedAt: string }[];
+  conversations: {
+    uuid: string;
+    title?: string;
+    persona: string;
+    updatedAt: string;
+  }[];
   activeId: string | null;
   onSelect: (uuid: string) => void;
   onDelete: (uuid: string) => void;
@@ -194,17 +203,21 @@ function ConversationSidebar({
   activeId,
   onSelect,
   onDelete,
-  isDeleting,
+  isDeleting
 }: ConversationSidebarProps) {
   return (
-    <ListGroup variant="flush" className="overflow-auto" style={{ maxHeight: '100%' }}>
+    <ListGroup
+      variant="flush"
+      className="overflow-auto"
+      style={{ maxHeight: '100%' }}
+    >
       {conversations.length === 0 && (
         <div className="text-center text-muted py-4">
           <FontAwesomeIcon icon={faComments} className="mb-2" size="2x" />
           <p className="small mb-0">No conversations yet</p>
         </div>
       )}
-      {conversations.map((conv) => (
+      {conversations.map(conv => (
         <ListGroup.Item
           key={conv.uuid}
           action
@@ -216,7 +229,12 @@ function ConversationSidebar({
             <div className="fw-semibold small text-truncate">
               {conv.title || 'Untitled conversation'}
             </div>
-            <small className={classNames({ 'text-white-50': conv.uuid === activeId, 'text-muted': conv.uuid !== activeId })}>
+            <small
+              className={classNames({
+                'text-white-50': conv.uuid === activeId,
+                'text-muted': conv.uuid !== activeId
+              })}
+            >
               {PERSONA_LABELS[conv.persona as PersonaType] ?? conv.persona}
               {' \u00b7 '}
               {dayjs(conv.updatedAt).fromNow()}
@@ -227,9 +245,9 @@ function ConversationSidebar({
             size="sm"
             className={classNames('p-0 flex-shrink-0', {
               'text-white-50': conv.uuid === activeId,
-              'text-danger': conv.uuid !== activeId,
+              'text-danger': conv.uuid !== activeId
             })}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               onDelete(conv.uuid);
             }}
@@ -251,7 +269,9 @@ const AgentChat: React.FC = () => {
   const { uuid: projectUuid } = useParams<{ uuid: string }>();
 
   // State
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
   const [persona, setPersona] = useState<PersonaType>('developer');
   const [inputValue, setInputValue] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -263,27 +283,34 @@ const AgentChat: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // RTK Query hooks
-  const { data: project, isLoading: projectLoading } = useGetProjectQuery(projectUuid!, {
-    skip: !projectUuid,
-  });
+  const { data: project, isLoading: projectLoading } = useGetProjectQuery(
+    projectUuid!,
+    {
+      skip: !projectUuid
+    }
+  );
 
   const { data: conversationsData } = useListConversationsQuery(
     { projectUuid: projectUuid!, limit: 50 },
-    { skip: !projectUuid },
+    { skip: !projectUuid }
   );
 
-  const { data: activeConversation } = useGetConversationQuery(activeConversationId!, {
-    skip: !activeConversationId,
-  });
+  const { data: activeConversation } = useGetConversationQuery(
+    activeConversationId!,
+    {
+      skip: !activeConversationId
+    }
+  );
 
   const [agentQuery] = useAgentQueryMutation();
   const [createConversation] = useCreateConversationMutation();
-  const [deleteConversation, { isLoading: isDeleting }] = useDeleteConversationMutation();
+  const [deleteConversation, { isLoading: isDeleting }] =
+    useDeleteConversationMutation();
 
   // Derive the displayed messages from active conversation or local state
   const displayedMessages: AgentMessage[] = isWaitingForResponse
     ? localMessages
-    : activeConversation?.messages ?? localMessages;
+    : (activeConversation?.messages ?? localMessages);
 
   // Auto-scroll to bottom when messages change
   // Necessary because new messages arrive outside the render cycle (via mutation responses).
@@ -333,7 +360,7 @@ const AgentChat: React.FC = () => {
         // Error handled by baseApi toast
       }
     },
-    [deleteConversation, activeConversationId],
+    [deleteConversation, activeConversationId]
   );
 
   const handleSend = useCallback(async () => {
@@ -345,13 +372,13 @@ const AgentChat: React.FC = () => {
     const userMessage: AgentMessage = {
       role: 'user',
       content: question,
-      createdAt: now,
+      createdAt: now
     };
 
     const placeholderAssistant: AgentMessage = {
       role: 'assistant',
       content: '',
-      createdAt: now,
+      createdAt: now
     };
 
     // Build optimistic message list
@@ -368,8 +395,8 @@ const AgentChat: React.FC = () => {
         body: {
           question,
           persona,
-          conversationId: activeConversationId ?? undefined,
-        },
+          conversationId: activeConversationId ?? undefined
+        }
       }).unwrap();
 
       // Update the placeholder with the real response
@@ -378,7 +405,7 @@ const AgentChat: React.FC = () => {
         content: response.answer,
         sources: response.sources,
         metadata: response.metadata,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       };
 
       setLocalMessages([...previousMessages, userMessage, assistantMessage]);
@@ -402,7 +429,7 @@ const AgentChat: React.FC = () => {
     localMessages,
     agentQuery,
     persona,
-    activeConversationId,
+    activeConversationId
   ]);
 
   const handleKeyDown = useCallback(
@@ -412,13 +439,16 @@ const AgentChat: React.FC = () => {
         handleSend();
       }
     },
-    [handleSend],
+    [handleSend]
   );
 
   // Loading state
   if (projectLoading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: 'calc(100vh - 200px)' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ height: 'calc(100vh - 200px)' }}
+      >
         <Spinner animation="border" />
       </div>
     );
@@ -443,12 +473,12 @@ const AgentChat: React.FC = () => {
         </div>
         <div className="d-flex align-items-center gap-2">
           <Dropdown>
-            <Dropdown.Toggle variant="falcon-default" size="sm">
+            <Dropdown.Toggle variant="orkestra-default" size="sm">
               <FontAwesomeIcon icon={faUser} className="me-1" />
               {PERSONA_LABELS[persona]}
             </Dropdown.Toggle>
             <Dropdown.Menu>
-              {(Object.keys(PERSONA_LABELS) as PersonaType[]).map((key) => (
+              {(Object.keys(PERSONA_LABELS) as PersonaType[]).map(key => (
                 <Dropdown.Item
                   key={key}
                   active={key === persona}
@@ -456,7 +486,9 @@ const AgentChat: React.FC = () => {
                 >
                   <span className="fw-semibold">{PERSONA_LABELS[key]}</span>
                   <br />
-                  <small className="text-muted">{PERSONA_DESCRIPTIONS[key]}</small>
+                  <small className="text-muted">
+                    {PERSONA_DESCRIPTIONS[key]}
+                  </small>
                 </Dropdown.Item>
               ))}
             </Dropdown.Menu>
@@ -500,7 +532,11 @@ const AgentChat: React.FC = () => {
           <div className="flex-1 overflow-auto p-3">
             {displayedMessages.length === 0 && (
               <div className="text-center text-muted py-5">
-                <FontAwesomeIcon icon={faRobot} size="3x" className="mb-3 text-300" />
+                <FontAwesomeIcon
+                  icon={faRobot}
+                  size="3x"
+                  className="mb-3 text-300"
+                />
                 <p className="mb-1">No messages yet</p>
                 <small>Ask a question to get started</small>
               </div>
@@ -530,7 +566,7 @@ const AgentChat: React.FC = () => {
                   ref={textareaRef}
                   rows={1}
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={e => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Type a message... (Shift+Enter for newline)"
                   disabled={isWaitingForResponse}

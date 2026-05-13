@@ -11,7 +11,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import 'react-toastify/dist/ReactToastify.css';
 import 'simplebar-react/dist/simplebar.min.css';
 
-
 const App = () => {
   useModuleApiInjection();
 

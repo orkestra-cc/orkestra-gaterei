@@ -19,7 +19,7 @@ const InternalTenantsPage: React.FC = () => (
       createLabel: 'New internal tenant',
       createTitle: 'Create internal tenant',
       createSubmitLabel: 'Create tenant',
-      emptyFootnote: 'All internal tenants are active',
+      emptyFootnote: 'All internal tenants are active'
     }}
   />
 );

@@ -4,11 +4,11 @@ import { BarChart } from 'echarts/charts';
 import {
   GridComponent,
   LegendComponent,
-  TooltipComponent,
+  TooltipComponent
 } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import ReactEchart from 'components/common/ReactEchart';
 import { useGetBillingStatsQuery } from 'store/api/billingApi';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -20,19 +20,32 @@ echarts.use([
   GridComponent,
   BarChart,
   CanvasRenderer,
-  LegendComponent,
+  LegendComponent
 ]);
 
 // Month names in Italian
-const MONTH_NAMES = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+const MONTH_NAMES = [
+  'Gen',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mag',
+  'Giu',
+  'Lug',
+  'Ago',
+  'Set',
+  'Ott',
+  'Nov',
+  'Dic'
+];
 
 // Get the month for a given ISO week number (approximate)
 // ISO week 1 starts around Jan 4, each month is roughly 4-5 weeks
 const getMonthForWeek = (week: number): number => {
   // Approximate: week 1-4 = Jan, 5-8 = Feb, etc.
   // More accurate mapping based on typical ISO week distribution
-  if (week <= 4) return 0;  // Jan
-  if (week <= 8) return 1;  // Feb
+  if (week <= 4) return 0; // Jan
+  if (week <= 8) return 1; // Feb
   if (week <= 13) return 2; // Mar
   if (week <= 17) return 3; // Apr
   if (week <= 22) return 4; // May
@@ -46,7 +59,10 @@ const getMonthForWeek = (week: number): number => {
 };
 
 // Build 53-week arrays from weekly data, filling missing weeks with zeros
-const buildWeeklyArrays = (weeklyData: WeeklyInvoiceData[] | undefined, year: number) => {
+const buildWeeklyArrays = (
+  weeklyData: WeeklyInvoiceData[] | undefined,
+  year: number
+) => {
   const issuedAmounts = new Array(53).fill(0);
   const receivedAmounts = new Array(53).fill(0);
 
@@ -85,7 +101,11 @@ const InvoiceTrendChart = () => {
   const fromDate = `${currentYear}-01-01`;
   const toDate = `${currentYear}-12-31`;
 
-  const { data: stats, isLoading, error } = useGetBillingStatsQuery({ fromDate, toDate });
+  const {
+    data: stats,
+    isLoading,
+    error
+  } = useGetBillingStatsQuery({ fromDate, toDate });
 
   const { issuedAmounts, receivedAmounts } = useMemo(
     () => buildWeeklyArrays(stats?.weeklyData, currentYear),
@@ -101,7 +121,7 @@ const InvoiceTrendChart = () => {
       tooltip: {
         trigger: 'axis',
         axisPointer: {
-          type: 'shadow',
+          type: 'shadow'
         },
         formatter: (params: any) => {
           const weekIndex = params[0].dataIndex;
@@ -121,38 +141,38 @@ const InvoiceTrendChart = () => {
             result += '<div class="text-muted">Nessuna fattura</div>';
           }
           return result;
-        },
+        }
       },
       legend: {
         data: ['Fatture Emesse', 'Fatture Ricevute'],
         bottom: 0,
         textStyle: {
-          color: '#8991a7',
-        },
+          color: '#8991a7'
+        }
       },
       grid: {
         left: '3%',
         right: '4%',
         bottom: '15%',
         top: '3%',
-        containLabel: true,
+        containLabel: true
       },
       xAxis: {
         type: 'category',
         data: weekLabels,
         axisLine: {
           lineStyle: {
-            color: '#e6e6e6',
-          },
+            color: '#e6e6e6'
+          }
         },
         axisLabel: {
           color: '#8991a7',
           interval: 0,
-          rotate: 0,
+          rotate: 0
         },
         axisTick: {
-          show: false,
-        },
+          show: false
+        }
       },
       yAxis: {
         type: 'value',
@@ -163,13 +183,13 @@ const InvoiceTrendChart = () => {
               return `${(value / 1000).toFixed(0)}K`;
             }
             return value.toString();
-          },
+          }
         },
         splitLine: {
           lineStyle: {
-            color: '#f0f0f0',
-          },
-        },
+            color: '#f0f0f0'
+          }
+        }
       },
       series: [
         {
@@ -178,35 +198,42 @@ const InvoiceTrendChart = () => {
           barGap: '0%',
           barCategoryGap: '40%',
           emphasis: {
-            focus: 'series',
+            focus: 'series'
           },
           itemStyle: {
             color: '#10b981',
-            borderRadius: [2, 2, 0, 0],
+            borderRadius: [2, 2, 0, 0]
           },
-          data: issuedAmounts,
+          data: issuedAmounts
         },
         {
           name: 'Fatture Ricevute',
           type: 'bar',
           emphasis: {
-            focus: 'series',
+            focus: 'series'
           },
           itemStyle: {
             color: '#3b82f6',
-            borderRadius: [2, 2, 0, 0],
+            borderRadius: [2, 2, 0, 0]
           },
-          data: receivedAmounts,
-        },
-      ],
+          data: receivedAmounts
+        }
+      ]
     };
   };
 
   if (isLoading) {
     return (
       <Card className="h-100">
-        <FalconCardHeader title="Andamento Fatturazione" titleTag="h6" light />
-        <Card.Body className="d-flex align-items-center justify-content-center" style={{ minHeight: 300 }}>
+        <OrkestraCardHeader
+          title="Andamento Fatturazione"
+          titleTag="h6"
+          light
+        />
+        <Card.Body
+          className="d-flex align-items-center justify-content-center"
+          style={{ minHeight: 300 }}
+        >
           <Spinner animation="border" />
         </Card.Body>
       </Card>
@@ -216,10 +243,20 @@ const InvoiceTrendChart = () => {
   if (error || !stats) {
     return (
       <Card className="h-100">
-        <FalconCardHeader title="Andamento Fatturazione" titleTag="h6" light />
-        <Card.Body className="d-flex align-items-center justify-content-center" style={{ minHeight: 300 }}>
+        <OrkestraCardHeader
+          title="Andamento Fatturazione"
+          titleTag="h6"
+          light
+        />
+        <Card.Body
+          className="d-flex align-items-center justify-content-center"
+          style={{ minHeight: 300 }}
+        >
           <div className="text-warning text-center">
-            <FontAwesomeIcon icon={faExclamationTriangle} className="fs-3 mb-2 d-block mx-auto" />
+            <FontAwesomeIcon
+              icon={faExclamationTriangle}
+              className="fs-3 mb-2 d-block mx-auto"
+            />
             <span>Impossibile caricare il grafico</span>
           </div>
         </Card.Body>
@@ -229,7 +266,7 @@ const InvoiceTrendChart = () => {
 
   return (
     <Card className="h-100">
-      <FalconCardHeader
+      <OrkestraCardHeader
         title="Andamento Fatturazione"
         titleTag="h6"
         light
@@ -237,11 +274,15 @@ const InvoiceTrendChart = () => {
           <div className="d-flex gap-3 fs-10">
             <div>
               <span className="text-body-tertiary">Emesse: </span>
-              <span className="fw-medium text-success">{formatCurrency(stats.issuedAmount)}</span>
+              <span className="fw-medium text-success">
+                {formatCurrency(stats.issuedAmount)}
+              </span>
             </div>
             <div>
               <span className="text-body-tertiary">Ricevute: </span>
-              <span className="fw-medium text-primary">{formatCurrency(stats.receivedAmount)}</span>
+              <span className="fw-medium text-primary">
+                {formatCurrency(stats.receivedAmount)}
+              </span>
             </div>
           </div>
         }

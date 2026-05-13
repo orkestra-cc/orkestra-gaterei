@@ -30,8 +30,8 @@ const FinishStep = ({ smtpSkipped, orgName, onFinish }: FinishStepProps) => {
         {orgName ? (
           <>
             {' '}
-            and the organization <strong>{orgName}</strong> is active. You
-            can rename it or create more organizations later.
+            and the organization <strong>{orgName}</strong> is active. You can
+            rename it or create more organizations later.
           </>
         ) : (
           <> and the setup wizard will not appear again.</>
@@ -39,12 +39,15 @@ const FinishStep = ({ smtpSkipped, orgName, onFinish }: FinishStepProps) => {
       </p>
 
       {smtpSkipped && (
-        <Alert variant="warning" className="fs-10 text-start mx-auto" style={{ maxWidth: 560 }}>
+        <Alert
+          variant="warning"
+          className="fs-10 text-start mx-auto"
+          style={{ maxWidth: 560 }}
+        >
           <strong>SMTP is not configured.</strong> Password-reset and
           verification mail will log to the backend stdout instead of being
-          delivered. Configure it any time from{' '}
-          <code>/admin/modules</code> — the notification module has the same
-          fields you just skipped.
+          delivered. Configure it any time from <code>/admin/modules</code> —
+          the notification module has the same fields you just skipped.
         </Alert>
       )}
 

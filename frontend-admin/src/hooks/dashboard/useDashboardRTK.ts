@@ -145,7 +145,9 @@ export const useDefaultDashboard = (timeRange: TimeRange = '30d') => {
 };
 
 export const useAnalyticsDashboard = (timeRange: TimeRange = '30d') => {
-  const dashboardStatsQuery = useGetDashboardStatsQuery({ dashboardType: 'analytics' });
+  const dashboardStatsQuery = useGetDashboardStatsQuery({
+    dashboardType: 'analytics'
+  });
   const marketShareQuery = useGetMarketShareQuery();
   const activeUsersQuery = useGetActiveUsersQuery({ timeRange });
 
@@ -174,11 +176,7 @@ export const useAnalyticsDashboard = (timeRange: TimeRange = '30d') => {
   ]);
 
   return {
-    queries: [
-      dashboardStatsQuery,
-      marketShareQuery,
-      activeUsersQuery
-    ],
+    queries: [dashboardStatsQuery, marketShareQuery, activeUsersQuery],
     data: {
       overview: dashboardStatsQuery.data,
       marketShare: marketShareQuery.data,
@@ -191,21 +189,19 @@ export const useAnalyticsDashboard = (timeRange: TimeRange = '30d') => {
 };
 
 export const useCrmDashboard = () => {
-  const dashboardStatsQuery = useGetDashboardStatsQuery({ dashboardType: 'crm' });
+  const dashboardStatsQuery = useGetDashboardStatsQuery({
+    dashboardType: 'crm'
+  });
   const salesQuery = useGetTotalSalesQuery({ timeRange: '30d' });
   const projectsQuery = useGetRunningProjectsQuery();
 
-  const isLoading = [
-    dashboardStatsQuery,
-    salesQuery,
-    projectsQuery
-  ].some(query => query.isLoading);
+  const isLoading = [dashboardStatsQuery, salesQuery, projectsQuery].some(
+    query => query.isLoading
+  );
 
-  const hasError = [
-    dashboardStatsQuery,
-    salesQuery,
-    projectsQuery
-  ].some(query => query.error);
+  const hasError = [dashboardStatsQuery, salesQuery, projectsQuery].some(
+    query => query.error
+  );
 
   const refetch = useCallback(() => {
     return Promise.all([
@@ -213,18 +209,10 @@ export const useCrmDashboard = () => {
       salesQuery.refetch(),
       projectsQuery.refetch()
     ]);
-  }, [
-    dashboardStatsQuery.refetch,
-    salesQuery.refetch,
-    projectsQuery.refetch
-  ]);
+  }, [dashboardStatsQuery.refetch, salesQuery.refetch, projectsQuery.refetch]);
 
   return {
-    queries: [
-      dashboardStatsQuery,
-      salesQuery,
-      projectsQuery
-    ],
+    queries: [dashboardStatsQuery, salesQuery, projectsQuery],
     data: {
       stats: dashboardStatsQuery.data,
       sales: salesQuery.data,
@@ -239,19 +227,17 @@ export const useCrmDashboard = () => {
 export const useProjectManagementDashboard = () => {
   const projectsQuery = useGetRunningProjectsQuery();
   const activeUsersQuery = useGetActiveUsersQuery({ timeRange: '7d' });
-  const dashboardStatsQuery = useGetDashboardStatsQuery({ dashboardType: 'project-management' });
+  const dashboardStatsQuery = useGetDashboardStatsQuery({
+    dashboardType: 'project-management'
+  });
 
-  const isLoading = [
-    projectsQuery,
-    activeUsersQuery,
-    dashboardStatsQuery
-  ].some(query => query.isLoading);
+  const isLoading = [projectsQuery, activeUsersQuery, dashboardStatsQuery].some(
+    query => query.isLoading
+  );
 
-  const hasError = [
-    projectsQuery,
-    activeUsersQuery,
-    dashboardStatsQuery
-  ].some(query => query.error);
+  const hasError = [projectsQuery, activeUsersQuery, dashboardStatsQuery].some(
+    query => query.error
+  );
 
   const refetch = useCallback(() => {
     return Promise.all([
@@ -266,11 +252,7 @@ export const useProjectManagementDashboard = () => {
   ]);
 
   return {
-    queries: [
-      projectsQuery,
-      activeUsersQuery,
-      dashboardStatsQuery
-    ],
+    queries: [projectsQuery, activeUsersQuery, dashboardStatsQuery],
     data: {
       projects: projectsQuery.data,
       activeUsers: activeUsersQuery.data,

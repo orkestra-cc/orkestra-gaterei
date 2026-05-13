@@ -1,16 +1,15 @@
 /**
- * Reference routes — Falcon template examples and component showcases.
+ * Reference routes — Orkestra template examples and component showcases.
  * Only registered in development builds (gated by import.meta.env.DEV).
  */
 import { Suspense, lazy } from 'react';
 import type { RouteObject } from 'react-router';
 import { rootPaths } from './paths';
 import paths from './paths';
-import FalconLoader from 'components/common/FalconLoader';
+import OrkestraLoader from 'components/common/OrkestraLoader';
 import ProtectedRoute from 'components/authentication/ProtectedRoute';
 
 // Layouts
-import MainLayout from 'layouts/MainLayout';
 import VerticalNavLayout from 'layouts/VerticalNavLayout';
 import TopNavLayout from 'layouts/TopNavLayout';
 import ComboNavLayout from 'layouts/ComboNavLayout';
@@ -22,14 +21,18 @@ const Alerts = lazy(() => import('reference/components/ui/Alerts'));
 const Badges = lazy(() => import('reference/components/ui/Badges'));
 const Breadcrumbs = lazy(() => import('reference/components/ui/Breadcrumb'));
 const Buttons = lazy(() => import('reference/components/ui/Buttons'));
-const CalendarExample = lazy(() => import('reference/components/misc/CalendarExample'));
+const CalendarExample = lazy(
+  () => import('reference/components/misc/CalendarExample')
+);
 const Cards = lazy(() => import('reference/components/ui/Cards'));
 const Dropdowns = lazy(() => import('reference/components/ui/Dropdowns'));
 const ListGroups = lazy(() => import('reference/components/ui/ListGroups'));
 const Modals = lazy(() => import('reference/components/ui/Modals'));
 const Offcanvas = lazy(() => import('reference/components/ui/Offcanvas'));
 const Pagination = lazy(() => import('reference/components/ui/Pagination'));
-const BasicProgressBar = lazy(() => import('reference/components/ui/ProgressBar'));
+const BasicProgressBar = lazy(
+  () => import('reference/components/ui/ProgressBar')
+);
 const Spinners = lazy(() => import('reference/components/ui/Spinners'));
 const Toasts = lazy(() => import('reference/components/ui/Toasts'));
 const Avatar = lazy(() => import('reference/components/ui/Avatar'));
@@ -39,16 +42,26 @@ const Popovers = lazy(() => import('reference/components/ui/Popovers'));
 const Figures = lazy(() => import('reference/components/media/Figures'));
 const Hoverbox = lazy(() => import('reference/components/ui/Hoverbox'));
 const Tables = lazy(() => import('reference/components/tables/Tables'));
-const FormControl = lazy(() => import('reference/components/forms/FormControl'));
+const FormControl = lazy(
+  () => import('reference/components/forms/FormControl')
+);
 const InputGroup = lazy(() => import('reference/components/forms/InputGroup'));
 const Select = lazy(() => import('reference/components/forms/Select'));
 const Checks = lazy(() => import('reference/components/forms/Checks'));
 const Range = lazy(() => import('reference/components/forms/Range'));
 const FormLayout = lazy(() => import('reference/components/forms/FormLayout'));
-const FloatingLabels = lazy(() => import('reference/components/forms/FloatingLabels'));
-const FormValidation = lazy(() => import('reference/components/forms/FormValidation'));
-const BootstrapCarousel = lazy(() => import('reference/components/media/BootstrapCarousel'));
-const SlickCarousel = lazy(() => import('reference/components/media/SlickCarousel'));
+const FloatingLabels = lazy(
+  () => import('reference/components/forms/FloatingLabels')
+);
+const FormValidation = lazy(
+  () => import('reference/components/forms/FormValidation')
+);
+const BootstrapCarousel = lazy(
+  () => import('reference/components/media/BootstrapCarousel')
+);
+const SlickCarousel = lazy(
+  () => import('reference/components/media/SlickCarousel')
+);
 const Navs = lazy(() => import('reference/components/navigation/Navs'));
 const Navbars = lazy(() => import('reference/components/navigation/Navbars'));
 const Tabs = lazy(() => import('reference/components/navigation/Tabs'));
@@ -57,12 +70,22 @@ const CountUp = lazy(() => import('reference/components/ui/CountUp'));
 const Embed = lazy(() => import('reference/components/media/Embed'));
 const Backgrounds = lazy(() => import('reference/components/ui/Backgrounds'));
 const Search = lazy(() => import('reference/components/ui/Search'));
-const VerticalNavbar = lazy(() => import('reference/components/navigation/VerticalNavbar'));
-const NavBarTop = lazy(() => import('reference/components/navigation/NavBarTop'));
-const NavbarDoubleTop = lazy(() => import('reference/components/navigation/NavbarDoubleTop'));
-const ComboNavbar = lazy(() => import('reference/components/navigation/ComboNavbar'));
+const VerticalNavbar = lazy(
+  () => import('reference/components/navigation/VerticalNavbar')
+);
+const NavBarTop = lazy(
+  () => import('reference/components/navigation/NavBarTop')
+);
+const NavbarDoubleTop = lazy(
+  () => import('reference/components/navigation/NavbarDoubleTop')
+);
+const ComboNavbar = lazy(
+  () => import('reference/components/navigation/ComboNavbar')
+);
 const TypedText = lazy(() => import('reference/components/ui/TypedText'));
-const FileUploader = lazy(() => import('reference/components/forms/FileUploader'));
+const FileUploader = lazy(
+  () => import('reference/components/forms/FileUploader')
+);
 const Borders = lazy(() => import('reference/utilities/Borders'));
 const Colors = lazy(() => import('reference/utilities/Colors'));
 const Background = lazy(() => import('reference/utilities/Background'));
@@ -79,18 +102,30 @@ const Typography = lazy(() => import('reference/utilities/Typography'));
 const VerticalAlign = lazy(() => import('reference/utilities/VerticalAlign'));
 const Flex = lazy(() => import('reference/utilities/Flex'));
 const Grid = lazy(() => import('reference/utilities/Grid'));
-const WizardForms = lazy(() => import('reference/components/forms/WizardForms'));
-const GettingStarted = lazy(() => import('reference/documentation/GettingStarted'));
-const Configuration = lazy(() => import('reference/documentation/Configuration'));
+const WizardForms = lazy(
+  () => import('reference/components/forms/WizardForms')
+);
+const GettingStarted = lazy(
+  () => import('reference/documentation/GettingStarted')
+);
+const Configuration = lazy(
+  () => import('reference/documentation/Configuration')
+);
 const DarkMode = lazy(() => import('reference/documentation/DarkMode'));
 const Plugins = lazy(() => import('reference/documentation/Plugins'));
 const Styling = lazy(() => import('reference/documentation/Styling'));
 const DesignFile = lazy(() => import('reference/documentation/DesignFile'));
 const Starter = lazy(() => import('reference/pages/Starter'));
-const AnimatedIcons = lazy(() => import('reference/components/icons/AnimatedIcons'));
+const AnimatedIcons = lazy(
+  () => import('reference/components/icons/AnimatedIcons')
+);
 const DatePicker = lazy(() => import('reference/components/forms/DatePicker'));
-const FontAwesome = lazy(() => import('reference/components/icons/FontAwesome'));
-const Changelog = lazy(() => import('reference/documentation/change-log/ChangeLog'));
+const FontAwesome = lazy(
+  () => import('reference/components/icons/FontAwesome')
+);
+const Changelog = lazy(
+  () => import('reference/documentation/change-log/ChangeLog')
+);
 const Analytics = lazy(() => import('reference/dashboards/AnalyticsDashboard'));
 const Crm = lazy(() => import('reference/dashboards/CrmDashboard'));
 const Saas = lazy(() => import('reference/dashboards/SaasDashboard'));
@@ -100,18 +135,34 @@ const Calendar = lazy(() => import('reference/app-examples/calendar/Calendar'));
 const Kanban = lazy(() => import('reference/app-examples/kanban/Kanban'));
 const LineCharts = lazy(() => import('reference/charts/echarts/line-charts'));
 const BarCharts = lazy(() => import('reference/charts/echarts/bar-charts'));
-const CandlestickCharts = lazy(() => import('reference/charts/echarts/candlestick-charts'));
+const CandlestickCharts = lazy(
+  () => import('reference/charts/echarts/candlestick-charts')
+);
 const GeoMaps = lazy(() => import('reference/charts/echarts/geo-map'));
-const ScatterCharts = lazy(() => import('reference/charts/echarts/scatter-charts'));
+const ScatterCharts = lazy(
+  () => import('reference/charts/echarts/scatter-charts')
+);
 const PieCharts = lazy(() => import('reference/charts/echarts/pie-charts'));
-const RadarCharts = lazy(() => import('reference/charts/echarts/radar-charts/Index'));
-const HeatmapCharts = lazy(() => import('reference/charts/echarts/heatmap-chart'));
-const GoogleMapExample = lazy(() => import('reference/components/maps/GoogleMapExample'));
+const RadarCharts = lazy(
+  () => import('reference/charts/echarts/radar-charts/Index')
+);
+const HeatmapCharts = lazy(
+  () => import('reference/charts/echarts/heatmap-chart')
+);
+const GoogleMapExample = lazy(
+  () => import('reference/components/maps/GoogleMapExample')
+);
 const Widgets = lazy(() => import('reference/components/widgets/Widgets'));
-const ProjectManagement = lazy(() => import('reference/dashboards/ProjectManagementDashboard'));
-const Migration = lazy(() => import('reference/documentation/migration/Migration'));
+const ProjectManagement = lazy(
+  () => import('reference/dashboards/ProjectManagementDashboard')
+);
+const Migration = lazy(
+  () => import('reference/documentation/migration/Migration')
+);
 const Dashboard = lazy(() => import('reference/dashboards/DefaultDashboard'));
-const SupportDesk = lazy(() => import('reference/dashboards/SupportDeskDashboard'));
+const SupportDesk = lazy(
+  () => import('reference/dashboards/SupportDeskDashboard')
+);
 
 // Direct imports (not lazy — small components)
 import Landing from 'reference/pages/landing/Landing';
@@ -120,8 +171,6 @@ import FaqBasic from 'reference/pages/faq/faq-basic/FaqBasic';
 import FaqAccordion from 'reference/pages/faq/faq-accordion/FaqAccordion';
 import PrivacyPolicy from 'reference/pages/miscellaneous/privacy-policy/PrivacyPolicy';
 import InvitePeople from 'reference/pages/miscellaneous/invite-people/InvitePeople';
-import AuthTestPage from 'reference/test/AuthTestPage';
-import RoleNavigationTester from 'reference/test/RoleNavigationTester';
 import PricingDefault from 'reference/pages/pricing/pricing-default/PricingDefault';
 import PricingAlt from 'reference/pages/pricing/pricing-alt/PricingAlt';
 import CreateEvent from 'reference/app-examples/events/create-an-event/CreateEvent';
@@ -171,55 +220,92 @@ export function getReferenceRoutes(): RouteObject[] {
   }
 
   return [
-    // Legacy Falcon routes (top-level paths used by the original template)
+    // Legacy Orkestra routes (top-level paths used by the original template)
     {
       path: rootPaths.dashboardRoot,
       children: [
         {
           path: paths.analytics,
-          element: <Suspense key="dashboard-analytics" fallback={<FalconLoader />}><Analytics /></Suspense>,
+          element: (
+            <Suspense key="dashboard-analytics" fallback={<OrkestraLoader />}>
+              <Analytics />
+            </Suspense>
+          )
         },
         {
           path: paths.crm,
-          element: <Suspense key="dashboard-crm" fallback={<FalconLoader />}><Crm /></Suspense>,
+          element: (
+            <Suspense key="dashboard-crm" fallback={<OrkestraLoader />}>
+              <Crm />
+            </Suspense>
+          )
         },
         {
           path: paths.saas,
-          element: <Suspense key="dashboard-sass" fallback={<FalconLoader />}><Saas /></Suspense>,
+          element: (
+            <Suspense key="dashboard-sass" fallback={<OrkestraLoader />}>
+              <Saas />
+            </Suspense>
+          )
         },
         {
           path: paths.projectManagement,
-          element: <Suspense key="dashboard-projectManagement" fallback={<FalconLoader />}><ProjectManagement /></Suspense>,
+          element: (
+            <Suspense
+              key="dashboard-projectManagement"
+              fallback={<OrkestraLoader />}
+            >
+              <ProjectManagement />
+            </Suspense>
+          )
         },
         {
           path: paths.supportDesk,
-          element: <Suspense key="dashboard-supportDesk" fallback={<FalconLoader />}><SupportDesk /></Suspense>,
-        },
-      ],
+          element: (
+            <Suspense key="dashboard-supportDesk" fallback={<OrkestraLoader />}>
+              <SupportDesk />
+            </Suspense>
+          )
+        }
+      ]
     },
     {
       path: rootPaths.appsRoot,
       children: [
-        { path: paths.calendar, element: <Suspense key="calendar" fallback={<FalconLoader />}><Calendar /></Suspense> },
+        {
+          path: paths.calendar,
+          element: (
+            <Suspense key="calendar" fallback={<OrkestraLoader />}>
+              <Calendar />
+            </Suspense>
+          )
+        },
         { path: paths.chat, element: <Chat /> },
-        { path: paths.kanban, element: <Suspense key="kanban" fallback={<FalconLoader />}><Kanban /></Suspense> },
-      ],
+        {
+          path: paths.kanban,
+          element: (
+            <Suspense key="kanban" fallback={<OrkestraLoader />}>
+              <Kanban />
+            </Suspense>
+          )
+        }
+      ]
     },
     {
       path: rootPaths.emailRoot,
       children: [
         { path: paths.emailInbox, element: <Inbox /> },
         { path: paths.emailDetail, element: <EmailDetail /> },
-        { path: paths.emailCompose, element: <Compose /> },
-      ],
+        { path: paths.emailCompose, element: <Compose /> }
+      ]
     },
     {
       path: rootPaths.eventsRoot,
       children: [
         { path: paths.createEvent, element: <CreateEvent /> },
         { path: paths.eventDetail, element: <EventDetail /> },
-        { path: paths.eventList, element: <EventList /> },
-      ],
+        { path: paths.eventList, element: <EventList /> }
+      ]
     },
     {
       path: rootPaths.socialRoot,
@@ -227,8 +313,8 @@ export function getReferenceRoutes(): RouteObject[] {
         { path: paths.feed, element: <Feed /> },
         { path: paths.activityLog, element: <ActivityLog /> },
         { path: paths.notifications, element: <Notifications /> },
-        { path: paths.followers, element: <Followers /> },
-      ],
+        { path: paths.followers, element: <Followers /> }
+      ]
     },
     {
       path: rootPaths.supportDeskRoot,
@@ -239,36 +325,35 @@ export function getReferenceRoutes(): RouteObject[] {
         { path: paths.contactDetails, element: <ContactDetails /> },
         { path: paths.ticketsPreview, element: <TicketsPreview /> },
         { path: paths.quickLinks, element: <QuickLinks /> },
-        { path: paths.reports, element: <Reports /> },
-      ],
+        { path: paths.reports, element: <Reports /> }
+      ]
     },
     {
       path: rootPaths.pagesRoot,
-      children: [{ path: paths.starter, element: <Starter /> }],
+      children: [{ path: paths.starter, element: <Starter /> }]
     },
     {
       path: rootPaths.pricingRoot,
       children: [
         { path: paths.pricingDefault, element: <PricingDefault /> },
-        { path: paths.pricingAlt, element: <PricingAlt /> },
-      ],
+        { path: paths.pricingAlt, element: <PricingAlt /> }
+      ]
     },
     {
       path: rootPaths.faqRoot,
       children: [
         { path: paths.faqBasic, element: <FaqBasic /> },
         { path: paths.faqAlt, element: <FaqAlt /> },
-        { path: paths.faqAccordion, element: <FaqAccordion /> },
-      ],
+        { path: paths.faqAccordion, element: <FaqAccordion /> }
+      ]
     },
     {
       path: rootPaths.miscRoot,
       children: [
         { path: paths.associations, element: <Associations /> },
         { path: paths.invitePeople, element: <InvitePeople /> },
-        { path: paths.privacyPolicy, element: <PrivacyPolicy /> },
-        { path: paths.authTest, element: <AuthTestPage /> },
-      ],
+        { path: paths.privacyPolicy, element: <PrivacyPolicy /> }
+      ]
     },
     // Forms
     {
@@ -282,8 +367,8 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: paths.select, element: <Select /> },
             { path: paths.checks, element: <Checks /> },
             { path: paths.range, element: <Range /> },
-            { path: paths.formLayout, element: <FormLayout /> },
-          ],
+            { path: paths.formLayout, element: <FormLayout /> }
+          ]
         },
         {
           path: rootPaths.advanceFormsRoot,
@@ -295,17 +380,21 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: paths.fileUploader, element: <FileUploader /> },
             { path: paths.inputMask, element: <InputMaskExample /> },
             { path: paths.rangeSlider, element: <RangeSlider /> },
-            { path: paths.rating, element: <Rating /> },
-          ],
+            { path: paths.rating, element: <Rating /> }
+          ]
         },
         { path: paths.floatingLabels, element: <FloatingLabels /> },
         { path: paths.wizard, element: <WizardForms /> },
-        { path: paths.validation, element: <FormValidation /> },
-      ],
+        { path: paths.validation, element: <FormValidation /> }
+      ]
     },
     {
       path: rootPaths.tableRoot,
-      element: <Suspense key="tables" fallback={<FalconLoader />}><Tables /></Suspense>,
+      element: (
+        <Suspense key="tables" fallback={<OrkestraLoader />}>
+          <Tables />
+        </Suspense>
+      )
     },
     // Charts (echarts only — chartjs and d3js were removed; production code uses echarts)
     {
@@ -315,53 +404,177 @@ export function getReferenceRoutes(): RouteObject[] {
           path: rootPaths.echartsRoot,
           children: [
             { path: paths.echartsHowToUse, element: <HowToUse /> },
-            { path: paths.lineCharts, element: <Suspense key="echarts-lineChart" fallback={<FalconLoader />}><LineCharts /></Suspense> },
-            { path: paths.barCharts, element: <Suspense key="echarts-barChart" fallback={<FalconLoader />}><BarCharts /></Suspense> },
-            { path: paths.candlestickCharts, element: <Suspense key="echarts-candleStick" fallback={<FalconLoader />}><CandlestickCharts /></Suspense> },
-            { path: paths.geoMap, element: <Suspense key="echarts-geoMap" fallback={<FalconLoader />}><GeoMaps /></Suspense> },
-            { path: paths.scatterCharts, element: <Suspense key="echarts-scatterChart" fallback={<FalconLoader />}><ScatterCharts /></Suspense> },
-            { path: paths.pieCharts, element: <Suspense key="echarts-pieChart" fallback={<FalconLoader />}><PieCharts /></Suspense> },
-            { path: paths.radarCharts, element: <Suspense key="echarts-radarChart" fallback={<FalconLoader />}><RadarCharts /></Suspense> },
-            { path: paths.heatmapCharts, element: <Suspense key="echarts-heatmapChart" fallback={<FalconLoader />}><HeatmapCharts /></Suspense> },
-          ],
-        },
-      ],
+            {
+              path: paths.lineCharts,
+              element: (
+                <Suspense key="echarts-lineChart" fallback={<OrkestraLoader />}>
+                  <LineCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.barCharts,
+              element: (
+                <Suspense key="echarts-barChart" fallback={<OrkestraLoader />}>
+                  <BarCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.candlestickCharts,
+              element: (
+                <Suspense
+                  key="echarts-candleStick"
+                  fallback={<OrkestraLoader />}
+                >
+                  <CandlestickCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.geoMap,
+              element: (
+                <Suspense key="echarts-geoMap" fallback={<OrkestraLoader />}>
+                  <GeoMaps />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.scatterCharts,
+              element: (
+                <Suspense
+                  key="echarts-scatterChart"
+                  fallback={<OrkestraLoader />}
+                >
+                  <ScatterCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.pieCharts,
+              element: (
+                <Suspense key="echarts-pieChart" fallback={<OrkestraLoader />}>
+                  <PieCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.radarCharts,
+              element: (
+                <Suspense
+                  key="echarts-radarChart"
+                  fallback={<OrkestraLoader />}
+                >
+                  <RadarCharts />
+                </Suspense>
+              )
+            },
+            {
+              path: paths.heatmapCharts,
+              element: (
+                <Suspense
+                  key="echarts-heatmapChart"
+                  fallback={<OrkestraLoader />}
+                >
+                  <HeatmapCharts />
+                </Suspense>
+              )
+            }
+          ]
+        }
+      ]
     },
     // Icons
     {
       path: rootPaths.iconsRoot,
       children: [
         { path: paths.fontAwesome, element: <FontAwesome /> },
-        { path: paths.reactIcons, element: <ReactIcons /> },
-      ],
+        { path: paths.reactIcons, element: <ReactIcons /> }
+      ]
     },
     // Maps
     {
       path: rootPaths.mapsRoot,
       children: [
-        { path: paths.googleMap, element: <Suspense key="googleMap" fallback={<FalconLoader />}><GoogleMapExample /></Suspense> },
-        { path: paths.leafletMap, element: <Suspense key="leafletMap" fallback={<FalconLoader />}><LeafletMapExample /></Suspense> },
-      ],
+        {
+          path: paths.googleMap,
+          element: (
+            <Suspense key="googleMap" fallback={<OrkestraLoader />}>
+              <GoogleMapExample />
+            </Suspense>
+          )
+        },
+        {
+          path: paths.leafletMap,
+          element: (
+            <Suspense key="leafletMap" fallback={<OrkestraLoader />}>
+              <LeafletMapExample />
+            </Suspense>
+          )
+        }
+      ]
     },
     // Components showcase
     {
       path: rootPaths.componentsRoot,
       children: [
-        { path: paths.alerts, element: <Suspense key="alerts" fallback={<FalconLoader />}><Alerts /></Suspense> },
-        { path: paths.accordion, element: <Suspense key="accordion" fallback={<FalconLoader />}><Accordion /></Suspense> },
+        {
+          path: paths.alerts,
+          element: (
+            <Suspense key="alerts" fallback={<OrkestraLoader />}>
+              <Alerts />
+            </Suspense>
+          )
+        },
+        {
+          path: paths.accordion,
+          element: (
+            <Suspense key="accordion" fallback={<OrkestraLoader />}>
+              <Accordion />
+            </Suspense>
+          )
+        },
         { path: paths.animatedIcons, element: <AnimatedIcons /> },
         { path: paths.background, element: <Backgrounds /> },
-        { path: paths.badges, element: <Suspense key="badges" fallback={<FalconLoader />}><Badges /></Suspense> },
-        { path: paths.breadcrumbs, element: <Suspense key="breadcrumbs" fallback={<FalconLoader />}><Breadcrumbs /></Suspense> },
-        { path: paths.buttons, element: <Suspense key="buttons" fallback={<FalconLoader />}><Buttons /></Suspense> },
-        { path: paths.calendarExample, element: <Suspense key="calendarExample" fallback={<FalconLoader />}><CalendarExample /></Suspense> },
+        {
+          path: paths.badges,
+          element: (
+            <Suspense key="badges" fallback={<OrkestraLoader />}>
+              <Badges />
+            </Suspense>
+          )
+        },
+        {
+          path: paths.breadcrumbs,
+          element: (
+            <Suspense key="breadcrumbs" fallback={<OrkestraLoader />}>
+              <Breadcrumbs />
+            </Suspense>
+          )
+        },
+        {
+          path: paths.buttons,
+          element: (
+            <Suspense key="buttons" fallback={<OrkestraLoader />}>
+              <Buttons />
+            </Suspense>
+          )
+        },
+        {
+          path: paths.calendarExample,
+          element: (
+            <Suspense key="calendarExample" fallback={<OrkestraLoader />}>
+              <CalendarExample />
+            </Suspense>
+          )
+        },
         { path: paths.cards, element: <Cards /> },
         {
           path: rootPaths.carouselRoot,
           children: [
             { path: paths.bootstrapCarousel, element: <BootstrapCarousel /> },
-            { path: paths.slickCarousel, element: <SlickCarousel /> },
-          ],
+            { path: paths.slickCarousel, element: <SlickCarousel /> }
+          ]
         },
         { path: paths.collapse, element: <Collapse /> },
         { path: paths.cookieNotice, element: <CookieNoticeExample /> },
@@ -380,8 +593,8 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: paths.topNavbar, element: <NavBarTop /> },
             { path: paths.doubleTopNavbar, element: <NavbarDoubleTop /> },
             { path: paths.comboNavbar, element: <ComboNavbar /> },
-            { path: paths.tabs, element: <Tabs /> },
-          ],
+            { path: paths.tabs, element: <Tabs /> }
+          ]
         },
         {
           path: rootPaths.picturesRoot,
@@ -390,8 +603,8 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: paths.images, element: <Image /> },
             { path: paths.figures, element: <Figures /> },
             { path: paths.hoverbox, element: <Hoverbox /> },
-            { path: paths.lightbox, element: <Lightbox /> },
-          ],
+            { path: paths.lightbox, element: <Lightbox /> }
+          ]
         },
         { path: paths.progressBar, element: <BasicProgressBar /> },
         { path: paths.pagination, element: <Pagination /> },
@@ -409,10 +622,10 @@ export function getReferenceRoutes(): RouteObject[] {
           path: rootPaths.videosRoot,
           children: [
             { path: paths.embedVideo, element: <Embed /> },
-            { path: paths.reactPlayer, element: <ReactPlayerExample /> },
-          ],
-        },
-      ],
+            { path: paths.reactPlayer, element: <ReactPlayerExample /> }
+          ]
+        }
+      ]
     },
     // Utilities
     {
@@ -434,8 +647,8 @@ export function getReferenceRoutes(): RouteObject[] {
         { path: paths.textTruncation, element: <TextTruncation /> },
         { path: paths.typography, element: <Typography /> },
         { path: paths.verticalAlign, element: <VerticalAlign /> },
-        { path: paths.visibility, element: <Visibility /> },
-      ],
+        { path: paths.visibility, element: <Visibility /> }
+      ]
     },
     // Documentation
     {
@@ -447,10 +660,17 @@ export function getReferenceRoutes(): RouteObject[] {
         { path: paths.darkMode, element: <DarkMode /> },
         { path: paths.plugin, element: <Plugins /> },
         { path: paths.faq, element: <Faq /> },
-        { path: paths.designFile, element: <DesignFile /> },
-      ],
+        { path: paths.designFile, element: <DesignFile /> }
+      ]
     },
-    { path: paths.widgets, element: <Suspense key="widgets" fallback={<FalconLoader />}><Widgets /></Suspense> },
+    {
+      path: paths.widgets,
+      element: (
+        <Suspense key="widgets" fallback={<OrkestraLoader />}>
+          <Widgets />
+        </Suspense>
+      )
+    },
     { path: paths.changelog, element: <Changelog /> },
     { path: paths.migration, element: <Migration /> },
     // /reference/* organized tree
@@ -460,35 +680,103 @@ export function getReferenceRoutes(): RouteObject[] {
         {
           path: 'dashboards',
           children: [
-            { path: 'default', element: <Suspense key="ref-dashboard-default" fallback={<FalconLoader />}><Dashboard /></Suspense> },
-            { path: 'analytics', element: <Suspense key="ref-dashboard-analytics" fallback={<FalconLoader />}><Analytics /></Suspense> },
-            { path: 'crm', element: <Suspense key="ref-dashboard-crm" fallback={<FalconLoader />}><Crm /></Suspense> },
-            { path: 'saas', element: <Suspense key="ref-dashboard-saas" fallback={<FalconLoader />}><Saas /></Suspense> },
-            { path: 'project-management', element: <Suspense key="ref-dashboard-pm" fallback={<FalconLoader />}><ProjectManagement /></Suspense> },
-            { path: 'support-desk', element: <Suspense key="ref-dashboard-supportdesk" fallback={<FalconLoader />}><SupportDesk /></Suspense> },
-          ],
+            {
+              path: 'default',
+              element: (
+                <Suspense
+                  key="ref-dashboard-default"
+                  fallback={<OrkestraLoader />}
+                >
+                  <Dashboard />
+                </Suspense>
+              )
+            },
+            {
+              path: 'analytics',
+              element: (
+                <Suspense
+                  key="ref-dashboard-analytics"
+                  fallback={<OrkestraLoader />}
+                >
+                  <Analytics />
+                </Suspense>
+              )
+            },
+            {
+              path: 'crm',
+              element: (
+                <Suspense key="ref-dashboard-crm" fallback={<OrkestraLoader />}>
+                  <Crm />
+                </Suspense>
+              )
+            },
+            {
+              path: 'saas',
+              element: (
+                <Suspense
+                  key="ref-dashboard-saas"
+                  fallback={<OrkestraLoader />}
+                >
+                  <Saas />
+                </Suspense>
+              )
+            },
+            {
+              path: 'project-management',
+              element: (
+                <Suspense key="ref-dashboard-pm" fallback={<OrkestraLoader />}>
+                  <ProjectManagement />
+                </Suspense>
+              )
+            },
+            {
+              path: 'support-desk',
+              element: (
+                <Suspense
+                  key="ref-dashboard-supportdesk"
+                  fallback={<OrkestraLoader />}
+                >
+                  <SupportDesk />
+                </Suspense>
+              )
+            }
+          ]
         },
         {
           path: 'app-examples',
           children: [
-            { path: 'calendar', element: <Suspense key="ref-app-calendar" fallback={<FalconLoader />}><Calendar /></Suspense> },
+            {
+              path: 'calendar',
+              element: (
+                <Suspense key="ref-app-calendar" fallback={<OrkestraLoader />}>
+                  <Calendar />
+                </Suspense>
+              )
+            },
             { path: 'chat', element: <Chat /> },
-            { path: 'kanban', element: <Suspense key="ref-app-kanban" fallback={<FalconLoader />}><Kanban /></Suspense> },
+            {
+              path: 'kanban',
+              element: (
+                <Suspense key="ref-app-kanban" fallback={<OrkestraLoader />}>
+                  <Kanban />
+                </Suspense>
+              )
+            },
             {
               path: 'email',
               children: [
                 { path: 'inbox', element: <Inbox /> },
                 { path: 'compose', element: <Compose /> },
-                { path: 'detail', element: <EmailDetail /> },
-              ],
+                { path: 'detail', element: <EmailDetail /> }
+              ]
             },
             {
               path: 'events',
               children: [
                 { path: 'create', element: <CreateEvent /> },
                 { path: 'list', element: <EventList /> },
-                { path: 'detail', element: <EventDetail /> },
-              ],
+                { path: 'detail', element: <EventDetail /> }
+              ]
             },
             {
               path: 'social',
@@ -496,8 +784,8 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'feed', element: <Feed /> },
                 { path: 'activity-log', element: <ActivityLog /> },
                 { path: 'notifications', element: <Notifications /> },
-                { path: 'followers', element: <Followers /> },
-              ],
+                { path: 'followers', element: <Followers /> }
+              ]
             },
             {
               path: 'support-desk',
@@ -508,29 +796,77 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'contact-details', element: <ContactDetails /> },
                 { path: 'tickets-preview', element: <TicketsPreview /> },
                 { path: 'quick-links', element: <QuickLinks /> },
-                { path: 'reports', element: <Reports /> },
-              ],
-            },
-          ],
+                { path: 'reports', element: <Reports /> }
+              ]
+            }
+          ]
         },
         {
           path: 'components',
           children: [
-            { path: 'alerts', element: <Suspense key="ref-comp-alerts" fallback={<FalconLoader />}><Alerts /></Suspense> },
-            { path: 'accordion', element: <Suspense key="ref-comp-accordion" fallback={<FalconLoader />}><Accordion /></Suspense> },
+            {
+              path: 'alerts',
+              element: (
+                <Suspense key="ref-comp-alerts" fallback={<OrkestraLoader />}>
+                  <Alerts />
+                </Suspense>
+              )
+            },
+            {
+              path: 'accordion',
+              element: (
+                <Suspense
+                  key="ref-comp-accordion"
+                  fallback={<OrkestraLoader />}
+                >
+                  <Accordion />
+                </Suspense>
+              )
+            },
             { path: 'animated-icons', element: <AnimatedIcons /> },
             { path: 'backgrounds', element: <Backgrounds /> },
-            { path: 'badges', element: <Suspense key="ref-comp-badges" fallback={<FalconLoader />}><Badges /></Suspense> },
-            { path: 'breadcrumbs', element: <Suspense key="ref-comp-breadcrumbs" fallback={<FalconLoader />}><Breadcrumbs /></Suspense> },
-            { path: 'buttons', element: <Suspense key="ref-comp-buttons" fallback={<FalconLoader />}><Buttons /></Suspense> },
-            { path: 'calendar', element: <Suspense key="ref-comp-calendar" fallback={<FalconLoader />}><CalendarExample /></Suspense> },
+            {
+              path: 'badges',
+              element: (
+                <Suspense key="ref-comp-badges" fallback={<OrkestraLoader />}>
+                  <Badges />
+                </Suspense>
+              )
+            },
+            {
+              path: 'breadcrumbs',
+              element: (
+                <Suspense
+                  key="ref-comp-breadcrumbs"
+                  fallback={<OrkestraLoader />}
+                >
+                  <Breadcrumbs />
+                </Suspense>
+              )
+            },
+            {
+              path: 'buttons',
+              element: (
+                <Suspense key="ref-comp-buttons" fallback={<OrkestraLoader />}>
+                  <Buttons />
+                </Suspense>
+              )
+            },
+            {
+              path: 'calendar',
+              element: (
+                <Suspense key="ref-comp-calendar" fallback={<OrkestraLoader />}>
+                  <CalendarExample />
+                </Suspense>
+              )
+            },
             { path: 'cards', element: <Cards /> },
             {
               path: 'carousel',
               children: [
                 { path: 'bootstrap', element: <BootstrapCarousel /> },
-                { path: 'slick', element: <SlickCarousel /> },
-              ],
+                { path: 'slick', element: <SlickCarousel /> }
+              ]
             },
             { path: 'collapse', element: <Collapse /> },
             { path: 'cookie-notice', element: <CookieNoticeExample /> },
@@ -549,8 +885,8 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'top-navbar', element: <NavBarTop /> },
                 { path: 'double-top-navbar', element: <NavbarDoubleTop /> },
                 { path: 'combo-navbar', element: <ComboNavbar /> },
-                { path: 'tabs', element: <Tabs /> },
-              ],
+                { path: 'tabs', element: <Tabs /> }
+              ]
             },
             {
               path: 'pictures',
@@ -559,8 +895,8 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'images', element: <Image /> },
                 { path: 'figures', element: <Figures /> },
                 { path: 'hoverbox', element: <Hoverbox /> },
-                { path: 'lightbox', element: <Lightbox /> },
-              ],
+                { path: 'lightbox', element: <Lightbox /> }
+              ]
             },
             { path: 'progress-bar', element: <BasicProgressBar /> },
             { path: 'pagination', element: <Pagination /> },
@@ -578,10 +914,10 @@ export function getReferenceRoutes(): RouteObject[] {
               path: 'videos',
               children: [
                 { path: 'embed', element: <Embed /> },
-                { path: 'react-player', element: <ReactPlayerExample /> },
-              ],
-            },
-          ],
+                { path: 'react-player', element: <ReactPlayerExample /> }
+              ]
+            }
+          ]
         },
         {
           path: 'forms',
@@ -594,8 +930,8 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'select', element: <Select /> },
                 { path: 'checks', element: <Checks /> },
                 { path: 'range', element: <Range /> },
-                { path: 'layout', element: <FormLayout /> },
-              ],
+                { path: 'layout', element: <FormLayout /> }
+              ]
             },
             {
               path: 'advance',
@@ -607,30 +943,51 @@ export function getReferenceRoutes(): RouteObject[] {
                 { path: 'file-uploader', element: <FileUploader /> },
                 { path: 'input-mask', element: <InputMaskExample /> },
                 { path: 'range-slider', element: <RangeSlider /> },
-                { path: 'rating', element: <Rating /> },
-              ],
+                { path: 'rating', element: <Rating /> }
+              ]
             },
             { path: 'floating-labels', element: <FloatingLabels /> },
             { path: 'wizard', element: <WizardForms /> },
-            { path: 'validation', element: <FormValidation /> },
-          ],
+            { path: 'validation', element: <FormValidation /> }
+          ]
         },
-        { path: 'tables', element: <Suspense key="ref-tables" fallback={<FalconLoader />}><Tables /></Suspense> },
+        {
+          path: 'tables',
+          element: (
+            <Suspense key="ref-tables" fallback={<OrkestraLoader />}>
+              <Tables />
+            </Suspense>
+          )
+        },
         {
           path: 'icons',
           children: [
             { path: 'font-awesome', element: <FontAwesome /> },
-            { path: 'react-icons', element: <ReactIcons /> },
-          ],
+            { path: 'react-icons', element: <ReactIcons /> }
+          ]
         },
         {
           path: 'maps',
           children: [
-            { path: 'google', element: <Suspense key="ref-maps-google" fallback={<FalconLoader />}><GoogleMapExample /></Suspense> },
-            { path: 'leaflet', element: <LeafletMapExample /> },
-          ],
+            {
+              path: 'google',
+              element: (
+                <Suspense key="ref-maps-google" fallback={<OrkestraLoader />}>
+                  <GoogleMapExample />
+                </Suspense>
+              )
+            },
+            { path: 'leaflet', element: <LeafletMapExample /> }
+          ]
         },
-        { path: 'widgets', element: <Suspense key="ref-widgets" fallback={<FalconLoader />}><Widgets /></Suspense> },
+        {
+          path: 'widgets',
+          element: (
+            <Suspense key="ref-widgets" fallback={<OrkestraLoader />}>
+              <Widgets />
+            </Suspense>
+          )
+        },
         {
           path: 'charts',
           children: [
@@ -638,17 +995,97 @@ export function getReferenceRoutes(): RouteObject[] {
               path: 'echarts',
               children: [
                 { path: 'how-to-use', element: <HowToUse /> },
-                { path: 'line-charts', element: <Suspense key="ref-echarts-line" fallback={<FalconLoader />}><LineCharts /></Suspense> },
-                { path: 'bar-charts', element: <Suspense key="ref-echarts-bar" fallback={<FalconLoader />}><BarCharts /></Suspense> },
-                { path: 'candlestick-charts', element: <Suspense key="ref-echarts-candlestick" fallback={<FalconLoader />}><CandlestickCharts /></Suspense> },
-                { path: 'geo-map', element: <Suspense key="ref-echarts-geo" fallback={<FalconLoader />}><GeoMaps /></Suspense> },
-                { path: 'scatter-charts', element: <Suspense key="ref-echarts-scatter" fallback={<FalconLoader />}><ScatterCharts /></Suspense> },
-                { path: 'pie-charts', element: <Suspense key="ref-echarts-pie" fallback={<FalconLoader />}><PieCharts /></Suspense> },
-                { path: 'radar-charts', element: <Suspense key="ref-echarts-radar" fallback={<FalconLoader />}><RadarCharts /></Suspense> },
-                { path: 'heatmap-charts', element: <Suspense key="ref-echarts-heatmap" fallback={<FalconLoader />}><HeatmapCharts /></Suspense> },
-              ],
-            },
-          ],
+                {
+                  path: 'line-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-line"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <LineCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'bar-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-bar"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <BarCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'candlestick-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-candlestick"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <CandlestickCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'geo-map',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-geo"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <GeoMaps />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'scatter-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-scatter"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <ScatterCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'pie-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-pie"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <PieCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'radar-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-radar"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <RadarCharts />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'heatmap-charts',
+                  element: (
+                    <Suspense
+                      key="ref-echarts-heatmap"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <HeatmapCharts />
+                    </Suspense>
+                  )
+                }
+              ]
+            }
+          ]
         },
         {
           path: 'utilities',
@@ -669,8 +1106,8 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: 'vertical-align', element: <VerticalAlign /> },
             { path: 'flex', element: <Flex /> },
             { path: 'grid', element: <Grid /> },
-            { path: 'scroll-bar', element: <Scrollbar /> },
-          ],
+            { path: 'scroll-bar', element: <Scrollbar /> }
+          ]
         },
         {
           path: 'pages',
@@ -681,35 +1118,75 @@ export function getReferenceRoutes(): RouteObject[] {
               path: 'pricing',
               children: [
                 { path: 'default', element: <PricingDefault /> },
-                { path: 'alt', element: <PricingAlt /> },
-              ],
+                { path: 'alt', element: <PricingAlt /> }
+              ]
             },
             {
               path: 'faq',
               children: [
                 { path: 'basic', element: <FaqBasic /> },
                 { path: 'alt', element: <FaqAlt /> },
-                { path: 'accordion', element: <FaqAccordion /> },
-              ],
+                { path: 'accordion', element: <FaqAccordion /> }
+              ]
             },
             {
               path: 'miscellaneous',
               children: [
                 { path: 'associations', element: <Associations /> },
                 { path: 'invite-people', element: <InvitePeople /> },
-                { path: 'privacy-policy', element: <PrivacyPolicy /> },
-              ],
+                { path: 'privacy-policy', element: <PrivacyPolicy /> }
+              ]
             },
             {
               path: 'layouts',
               children: [
-                { path: 'vertical-nav', element: <Suspense key="ref-layout-vertical" fallback={<FalconLoader />}><Dashboard /></Suspense> },
-                { path: 'top-nav', element: <Suspense key="ref-layout-top" fallback={<FalconLoader />}><Dashboard /></Suspense> },
-                { path: 'double-top', element: <Suspense key="ref-layout-doubletop" fallback={<FalconLoader />}><Dashboard /></Suspense> },
-                { path: 'combo-nav', element: <Suspense key="ref-layout-combo" fallback={<FalconLoader />}><Dashboard /></Suspense> },
-              ],
-            },
-          ],
+                {
+                  path: 'vertical-nav',
+                  element: (
+                    <Suspense
+                      key="ref-layout-vertical"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <Dashboard />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'top-nav',
+                  element: (
+                    <Suspense
+                      key="ref-layout-top"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <Dashboard />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'double-top',
+                  element: (
+                    <Suspense
+                      key="ref-layout-doubletop"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <Dashboard />
+                    </Suspense>
+                  )
+                },
+                {
+                  path: 'combo-nav',
+                  element: (
+                    <Suspense
+                      key="ref-layout-combo"
+                      fallback={<OrkestraLoader />}
+                    >
+                      <Dashboard />
+                    </Suspense>
+                  )
+                }
+              ]
+            }
+          ]
         },
         {
           path: 'documentation',
@@ -722,18 +1199,11 @@ export function getReferenceRoutes(): RouteObject[] {
             { path: 'faq', element: <Faq /> },
             { path: 'design-file', element: <DesignFile /> },
             { path: 'changelog', element: <Changelog /> },
-            { path: 'migration', element: <Migration /> },
-          ],
-        },
-        {
-          path: 'test',
-          children: [
-            { path: 'auth-test', element: <AuthTestPage /> },
-            { path: 'role-navigation', element: <RoleNavigationTester /> },
-          ],
-        },
-      ],
-    },
+            { path: 'migration', element: <Migration /> }
+          ]
+        }
+      ]
+    }
   ];
 }
 
@@ -748,35 +1218,40 @@ export function getLayoutVariantRoutes(): RouteObject[] {
 
   return [
     {
-      path: '/test',
+      path: '/',
       element: (
         <ProtectedRoute>
-          <MainLayout />
+          <VerticalNavLayout />
         </ProtectedRoute>
       ),
-      children: [
-        { path: 'role-navigation', element: <RoleNavigationTester /> },
-      ],
+      children: [{ path: paths.verticalNavLayout, element: <Dashboard /> }]
     },
     {
       path: '/',
-      element: <ProtectedRoute><VerticalNavLayout /></ProtectedRoute>,
-      children: [{ path: paths.verticalNavLayout, element: <Dashboard /> }],
+      element: (
+        <ProtectedRoute>
+          <TopNavLayout />
+        </ProtectedRoute>
+      ),
+      children: [{ path: paths.topNavLayout, element: <Dashboard /> }]
     },
     {
       path: '/',
-      element: <ProtectedRoute><TopNavLayout /></ProtectedRoute>,
-      children: [{ path: paths.topNavLayout, element: <Dashboard /> }],
+      element: (
+        <ProtectedRoute>
+          <ComboNavLayout />
+        </ProtectedRoute>
+      ),
+      children: [{ path: paths.comboNavLayout, element: <Dashboard /> }]
     },
     {
       path: '/',
-      element: <ProtectedRoute><ComboNavLayout /></ProtectedRoute>,
-      children: [{ path: paths.comboNavLayout, element: <Dashboard /> }],
-    },
-    {
-      path: '/',
-      element: <ProtectedRoute><DoubleTopNavLayout /></ProtectedRoute>,
-      children: [{ path: paths.doubleTopNavLayout, element: <Dashboard /> }],
-    },
+      element: (
+        <ProtectedRoute>
+          <DoubleTopNavLayout />
+        </ProtectedRoute>
+      ),
+      children: [{ path: paths.doubleTopNavLayout, element: <Dashboard /> }]
+    }
   ];
 }

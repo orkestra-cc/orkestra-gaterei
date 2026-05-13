@@ -3,21 +3,44 @@ package billing
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/capability"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	billingConfig "github.com/orkestra/backend/internal/addons/billing/config"
 	"github.com/orkestra/backend/internal/addons/billing/handlers"
 	"github.com/orkestra/backend/internal/addons/billing/jobs"
 	"github.com/orkestra/backend/internal/addons/billing/repository"
 	"github.com/orkestra/backend/internal/addons/billing/services"
-	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// Settings mirrors the billing ConfigSchema 1:1. Captured once at Init for
+// the static reads (Start, RegisterRoutes) and re-resolved per invocation
+// inside the configLoader closure for the dynamic-reload path used by the
+// OpenAPI client + XML builder.
+type Settings struct {
+	AccountEmail    string        `module:"accountEmail"`
+	APIKey          string        `module:"apiKey"`
+	OAuthBaseURL    string        `module:"oauthBaseURL"`
+	BearerToken     string        `module:"bearerToken"`
+	BaseURL         string        `module:"baseURL"`
+	FiscalID        string        `module:"fiscalID"`
+	RecipientCode   string        `module:"recipientCode"`
+	ApplySignature  bool          `module:"applySignature"`
+	ApplyStorage    bool          `module:"applyStorage"`
+	Timeout         time.Duration `module:"timeout"`
+	RetryAttempts   int           `module:"retryAttempts"`
+	SandboxMode     bool          `module:"sandboxMode"`
+	PollingEnabled  bool          `module:"pollingEnabled"`
+	PollingInterval time.Duration `module:"pollingInterval"`
+	WebhookURL      string        `module:"webhookURL"`
+	WebhookSecret   string        `module:"webhookSecret"`
+}
 
 type BillingModule struct {
 	module.BaseModule
@@ -31,21 +54,25 @@ type BillingModule struct {
 
 	pollingJob    *jobs.PollingJob
 	openAPIClient services.OpenAPIClient
-	cfg           *config.Config
+	settings      Settings
 	logger        *slog.Logger
 }
 
 func NewModule() *BillingModule { return &BillingModule{} }
 
-func (m *BillingModule) Name() string                   { return "billing" }
+func (m *BillingModule) Name() string                    { return "billing" }
 func (m *BillingModule) DisplayName() string             { return "Fatturazione Elettronica" }
 func (m *BillingModule) Description() string             { return "Italian electronic invoicing via FatturaPA/SDI" }
 func (m *BillingModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *BillingModule) Enabled(cfg *config.Config) bool {
-	if cfg.Billing.OpenAPIBearerToken != "" {
+
+// Enabled gates first-boot activation on OpenAPI credentials being
+// present. Reads the env vars directly (same source the schema seeder
+// uses for these keys) so this method has no shared/config dependency.
+func (m *BillingModule) Enabled() bool {
+	if os.Getenv("OPENAPI_BILLING_BEARER_TOKEN") != "" {
 		return true
 	}
-	return cfg.Billing.OpenAPIAccountEmail != "" && cfg.Billing.OpenAPIAPIKey != ""
+	return os.Getenv("OPENAPI_BILLING_ACCOUNT_EMAIL") != "" && os.Getenv("OPENAPI_BILLING_API_KEY") != ""
 }
 func (m *BillingModule) Dependencies() []string { return []string{"documents"} }
 func (m *BillingModule) OptionalServices() []module.ServiceKey {
@@ -120,23 +147,40 @@ func (m *BillingModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *BillingModule) Init(deps *module.Dependencies) error {
-	m.cfg = deps.Config
 	m.logger = deps.Logger
 
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &m.settings); err != nil {
+		return err
+	}
+	if m.settings.PollingInterval <= 0 {
+		m.settings.PollingInterval = 12 * time.Hour
+	}
+
+	// configLoader returns the live OpenAPI config on every invocation so
+	// admin UI edits (key rotation, sandbox toggle, signature/storage flags)
+	// apply without a restart. Each call costs one DB+cache read — same as
+	// the previous N-call closure, just consolidated. Unmarshal failure
+	// degrades to empty config and logs a warning, matching the legacy
+	// GetSecret behaviour where a decrypt failure returned "" silently.
 	configLoader := func() *billingConfig.OpenAPIConfig {
+		var s Settings
+		if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &s); err != nil {
+			deps.Logger.Warn("billing: config reload failed", slog.String("error", err.Error()))
+			return &billingConfig.OpenAPIConfig{}
+		}
 		return &billingConfig.OpenAPIConfig{
-			BaseURL:        deps.GetConfig("billing", "baseURL"),
-			AccountEmail:   deps.GetConfig("billing", "accountEmail"),
-			APIKey:         deps.GetSecret("billing", "apiKey"),
-			OAuthBaseURL:   deps.GetConfig("billing", "oauthBaseURL"),
-			BearerToken:    deps.GetSecret("billing", "bearerToken"),
-			FiscalID:       deps.GetConfig("billing", "fiscalID"),
-			RecipientCode:  deps.GetConfig("billing", "recipientCode"),
-			ApplySignature: deps.GetConfigBool("billing", "applySignature", true),
-			ApplyStorage:   deps.GetConfigBool("billing", "applyStorage", true),
-			Timeout:        deps.GetConfigDuration("billing", "timeout", 30*time.Second),
-			RetryAttempts:  deps.GetConfigInt("billing", "retryAttempts", 3),
-			SandboxMode:    deps.GetConfigBool("billing", "sandboxMode", true),
+			BaseURL:        s.BaseURL,
+			AccountEmail:   s.AccountEmail,
+			APIKey:         s.APIKey,
+			OAuthBaseURL:   s.OAuthBaseURL,
+			BearerToken:    s.BearerToken,
+			FiscalID:       s.FiscalID,
+			RecipientCode:  s.RecipientCode,
+			ApplySignature: s.ApplySignature,
+			ApplyStorage:   s.ApplyStorage,
+			Timeout:        s.Timeout,
+			RetryAttempts:  s.RetryAttempts,
+			SandboxMode:    s.SandboxMode,
 		}
 	}
 
@@ -174,23 +218,22 @@ func (m *BillingModule) Init(deps *module.Dependencies) error {
 		invoiceRepo,
 		notificationRepo,
 		deps.Logger,
-		deps.GetConfigDuration("billing", "pollingInterval", 12*time.Hour),
+		m.settings.PollingInterval,
 	)
 
 	m.syncHandler = handlers.NewSyncHandler(m.pollingJob)
 
-	webhookURL := deps.GetConfig("billing", "webhookURL")
-	if webhookURL != "" {
+	if m.settings.WebhookURL != "" {
 		m.webhookHandler = handlers.NewWebhookHandler(
 			m.pollingJob,
-			deps.GetSecret("billing", "webhookSecret"),
+			m.settings.WebhookSecret,
 			deps.Logger,
 		)
 	}
 
 	deps.Logger.Info("Billing module initialized",
-		slog.String("baseURL", deps.GetConfig("billing", "baseURL")),
-		slog.Bool("sandbox", deps.GetConfigBool("billing", "sandboxMode", true)),
+		slog.String("baseURL", m.settings.BaseURL),
+		slog.Bool("sandbox", m.settings.SandboxMode),
 	)
 	return nil
 }
@@ -225,7 +268,7 @@ func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
 	// (warn|enforce) so operators can probe traffic before the gate starts
 	// returning 403.
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireInternalTenant())
 		r.Use(ri.Operator.AuthMW.RequireCapability("billing.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("billing.invoice.read"))
@@ -245,53 +288,51 @@ func (m *BillingModule) RegisterRoutes(ri *module.RouteInfo) {
 	if m.webhookHandler != nil {
 		RegisterWebhookRoutes(ri.Operator.PublicAPI, m.webhookHandler)
 		m.logger.Info("Billing webhook routes registered",
-			slog.String("webhookURL", m.cfg.Billing.WebhookURL),
+			slog.String("webhookURL", m.settings.WebhookURL),
 		)
 	}
 }
 
 func (m *BillingModule) Start(_ context.Context) error {
-	cfg := m.cfg
-
 	// Start SDI notification polling job
-	if m.pollingJob != nil && cfg.Billing.PollingEnabled {
+	if m.pollingJob != nil && m.settings.PollingEnabled {
 		pollingCtx, pollingCancel := context.WithCancel(context.Background())
 		_ = pollingCancel // Will be cancelled via Stop()
 
 		go func() {
 			m.logger.Info("Starting SDI notification polling job",
-				slog.Duration("interval", cfg.Billing.PollingInterval),
+				slog.Duration("interval", m.settings.PollingInterval),
 			)
 			m.pollingJob.Start(pollingCtx)
 		}()
-	} else if !cfg.Billing.PollingEnabled {
+	} else if !m.settings.PollingEnabled {
 		m.logger.Info("SDI polling job disabled - use manual sync endpoints instead (POST /v1/billing/sync)")
 	}
 
 	// Auto-configure API callbacks on OpenAPI.it for webhook reception
-	if cfg.Billing.WebhookURL != "" && m.openAPIClient != nil {
+	if m.settings.WebhookURL != "" && m.openAPIClient != nil {
 		go func() {
 			configCtx, configCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer configCancel()
 
-			authHeader := "Bearer " + cfg.Billing.WebhookSecret
+			authHeader := "Bearer " + m.settings.WebhookSecret
 			err := m.openAPIClient.ConfigureAPICallbacks(configCtx, services.APICallbackConfig{
-				FiscalID: cfg.Billing.OpenAPIFiscalID,
+				FiscalID: m.settings.FiscalID,
 				Callbacks: []services.CallbackConfig{
-					{Event: "supplier-invoice", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
-					{Event: "customer-notification", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
-					{Event: "legal-storage-receipt", URL: cfg.Billing.WebhookURL, AuthHeader: authHeader},
+					{Event: "supplier-invoice", URL: m.settings.WebhookURL, AuthHeader: authHeader},
+					{Event: "customer-notification", URL: m.settings.WebhookURL, AuthHeader: authHeader},
+					{Event: "legal-storage-receipt", URL: m.settings.WebhookURL, AuthHeader: authHeader},
 				},
 			})
 			if err != nil {
 				m.logger.Error("Failed to configure API callbacks on OpenAPI.it",
 					slog.String("error", err.Error()),
-					slog.String("webhookURL", cfg.Billing.WebhookURL),
+					slog.String("webhookURL", m.settings.WebhookURL),
 				)
 			} else {
 				m.logger.Info("API callbacks configured on OpenAPI.it",
-					slog.String("webhookURL", cfg.Billing.WebhookURL),
-					slog.String("fiscalID", cfg.Billing.OpenAPIFiscalID),
+					slog.String("webhookURL", m.settings.WebhookURL),
+					slog.String("fiscalID", m.settings.FiscalID),
 				)
 			}
 		}()

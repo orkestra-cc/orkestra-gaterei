@@ -21,7 +21,8 @@ const b64urlEncode = (buf: ArrayBuffer | Uint8Array): string => {
 };
 
 const b64urlDecode = (s: string): Uint8Array => {
-  const padded = s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4);
+  const padded =
+    s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4);
   const bin = atob(padded);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) {
@@ -35,15 +36,19 @@ const b64urlDecode = (s: string): Uint8Array => {
 // binary fields is fixed by the W3C spec; we walk them rather than
 // generically scanning so a backend shape change won't silently corrupt
 // unknown fields.
-export const decodeCreationOptions = (raw: Record<string, unknown>): PublicKeyCredentialCreationOptions => {
+export const decodeCreationOptions = (
+  raw: Record<string, unknown>
+): PublicKeyCredentialCreationOptions => {
   const o = raw as Record<string, unknown>;
   const challenge = b64urlDecode(o.challenge as string);
   const user = o.user as Record<string, unknown>;
   const userId = b64urlDecode(user.id as string);
-  const excludeCredentials = (o.excludeCredentials as Array<Record<string, unknown>> | undefined)?.map((c) => ({
+  const excludeCredentials = (
+    o.excludeCredentials as Array<Record<string, unknown>> | undefined
+  )?.map(c => ({
     id: b64urlDecode(c.id as string),
     type: c.type as PublicKeyCredentialType,
-    transports: c.transports as AuthenticatorTransport[] | undefined,
+    transports: c.transports as AuthenticatorTransport[] | undefined
   }));
   // Cast through `unknown` because the source shape is the W3C JSON
   // envelope (rp + pubKeyCredParams already populated by the server) and
@@ -53,28 +58,34 @@ export const decodeCreationOptions = (raw: Record<string, unknown>): PublicKeyCr
     ...(o as object),
     challenge,
     user: { ...(user as object), id: userId },
-    excludeCredentials,
+    excludeCredentials
   } as unknown as PublicKeyCredentialCreationOptions;
 };
 
-export const decodeRequestOptions = (raw: Record<string, unknown>): PublicKeyCredentialRequestOptions => {
+export const decodeRequestOptions = (
+  raw: Record<string, unknown>
+): PublicKeyCredentialRequestOptions => {
   const o = raw as Record<string, unknown>;
   const challenge = b64urlDecode(o.challenge as string);
-  const allowCredentials = (o.allowCredentials as Array<Record<string, unknown>> | undefined)?.map((c) => ({
+  const allowCredentials = (
+    o.allowCredentials as Array<Record<string, unknown>> | undefined
+  )?.map(c => ({
     id: b64urlDecode(c.id as string),
     type: c.type as PublicKeyCredentialType,
-    transports: c.transports as AuthenticatorTransport[] | undefined,
+    transports: c.transports as AuthenticatorTransport[] | undefined
   }));
   return {
     ...(o as object),
     challenge,
-    allowCredentials,
+    allowCredentials
   } as unknown as PublicKeyCredentialRequestOptions;
 };
 
 // Encode an attestation (registration) credential to the JSON shape
 // go-webauthn's protocol.ParseCredentialCreationResponseBytes consumes.
-export const encodeAttestation = (cred: PublicKeyCredential): Record<string, unknown> => {
+export const encodeAttestation = (
+  cred: PublicKeyCredential
+): Record<string, unknown> => {
   const r = cred.response as AuthenticatorAttestationResponse;
   return {
     id: cred.id,
@@ -84,15 +95,18 @@ export const encodeAttestation = (cred: PublicKeyCredential): Record<string, unk
     response: {
       attestationObject: b64urlEncode(r.attestationObject),
       clientDataJSON: b64urlEncode(r.clientDataJSON),
-      transports: typeof r.getTransports === 'function' ? r.getTransports() : undefined,
+      transports:
+        typeof r.getTransports === 'function' ? r.getTransports() : undefined
     },
-    clientExtensionResults: cred.getClientExtensionResults?.() ?? {},
+    clientExtensionResults: cred.getClientExtensionResults?.() ?? {}
   };
 };
 
 // Encode an assertion (login/step-up) credential to the JSON shape
 // go-webauthn's protocol.ParseCredentialRequestResponseBytes consumes.
-export const encodeAssertion = (cred: PublicKeyCredential): Record<string, unknown> => {
+export const encodeAssertion = (
+  cred: PublicKeyCredential
+): Record<string, unknown> => {
   const r = cred.response as AuthenticatorAssertionResponse;
   return {
     id: cred.id,
@@ -103,9 +117,9 @@ export const encodeAssertion = (cred: PublicKeyCredential): Record<string, unkno
       authenticatorData: b64urlEncode(r.authenticatorData),
       clientDataJSON: b64urlEncode(r.clientDataJSON),
       signature: b64urlEncode(r.signature),
-      userHandle: r.userHandle ? b64urlEncode(r.userHandle) : undefined,
+      userHandle: r.userHandle ? b64urlEncode(r.userHandle) : undefined
     },
-    clientExtensionResults: cred.getClientExtensionResults?.() ?? {},
+    clientExtensionResults: cred.getClientExtensionResults?.() ?? {}
   };
 };
 

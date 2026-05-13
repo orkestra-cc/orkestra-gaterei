@@ -2,7 +2,7 @@ import { Suspense, lazy } from 'react';
 import type { ModuleManifest } from './types';
 import ProtectedRoute from 'components/authentication/ProtectedRoute';
 import ModuleGate from 'components/common/ModuleGate';
-import FalconLoader from 'components/common/FalconLoader';
+import OrkestraLoader from 'components/common/OrkestraLoader';
 
 // Identity is a toggleable addon — if an operator disables the module the
 // route 503s via ModuleGate. Role gate is administrator+; the backend
@@ -17,15 +17,17 @@ export const identityManifest: ModuleManifest = {
       element: (
         <ModuleGate module="identity">
           <ProtectedRoute
-            requiredPermissions={[['super_admin', 'administrator', 'developer']]}
+            requiredPermissions={[
+              ['super_admin', 'administrator', 'developer']
+            ]}
           >
-            <Suspense key="identity-admin" fallback={<FalconLoader />}>
+            <Suspense key="identity-admin" fallback={<OrkestraLoader />}>
               <IdentityAdminPage />
             </Suspense>
           </ProtectedRoute>
         </ModuleGate>
-      ),
-    },
+      )
+    }
   ],
-  injectApi: () => import('store/api/identityApi'),
+  injectApi: () => import('store/api/identityApi')
 };

@@ -5,10 +5,10 @@ import {
   faCheck,
   faTimes,
   faClock,
-  faArrowLeft,
+  faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import Flex from 'components/common/Flex';
 import { useGetNotificationSummaryQuery } from 'store/api/billingApi';
 import CountUp from 'react-countup';
@@ -21,31 +21,31 @@ const NotificationGreetings = () => {
       title: 'Totale',
       value: summary?.total || 0,
       color: 'primary',
-      icon: faBell,
+      icon: faBell
     },
     {
       title: 'Da Processare',
       value: summary?.unprocessed || 0,
       color: 'warning',
-      icon: faClock,
+      icon: faClock
     },
     {
       title: 'Positive (RC)',
       value: summary?.RC || 0,
       color: 'success',
-      icon: faCheck,
+      icon: faCheck
     },
     {
       title: 'Negative (NS)',
       value: summary?.NS || 0,
       color: 'danger',
-      icon: faTimes,
-    },
+      icon: faTimes
+    }
   ];
 
   return (
     <Card>
-      <FalconCardHeader
+      <OrkestraCardHeader
         title={
           <Flex alignItems="center">
             <Link to="/billing/dashboard" className="text-body-tertiary me-2">
@@ -58,7 +58,8 @@ const NotificationGreetings = () => {
         className="py-2"
         light
         endEl={
-          summary && summary.unprocessed > 0 && (
+          summary &&
+          summary.unprocessed > 0 && (
             <span className="badge bg-warning rounded-pill">
               {summary.unprocessed} da gestire
             </span>
@@ -67,7 +68,7 @@ const NotificationGreetings = () => {
       />
       <Card.Body className="py-3">
         <Row className="g-3">
-          {statItems.map((item) => (
+          {statItems.map(item => (
             <Col key={item.title} sm={6} lg={3}>
               <Flex
                 alignItems="center"
@@ -80,7 +81,9 @@ const NotificationGreetings = () => {
                   <FontAwesomeIcon icon={item.icon} />
                 </div>
                 <div>
-                  <h6 className="mb-0 fs-10 text-body-tertiary">{item.title}</h6>
+                  <h6 className="mb-0 fs-10 text-body-tertiary">
+                    {item.title}
+                  </h6>
                   <h4 className={`mb-0 text-${item.color}`}>
                     <CountUp end={item.value} duration={1} />
                   </h4>

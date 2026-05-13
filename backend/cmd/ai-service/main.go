@@ -27,6 +27,7 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/agents"
 	"github.com/orkestra/backend/internal/addons/aimodels"
 	"github.com/orkestra/backend/internal/addons/graph"
@@ -35,7 +36,6 @@ import (
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -94,6 +94,7 @@ func main() {
 		DB:           db,
 		RedisAdapter: redisAdapter,
 		Config:       cfg,
+		Platform:     cfg,
 		Logger:       logger,
 		Services:     svcRegistry,
 	}
@@ -104,7 +105,7 @@ func main() {
 	modRegistry.Register(rag.NewModule())      // consumes Graph + AIModels → produces RAGQuery
 	modRegistry.Register(agents.NewModule())   // consumes RAGQuery
 
-	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize AI modules: %v", err)
 	}
 

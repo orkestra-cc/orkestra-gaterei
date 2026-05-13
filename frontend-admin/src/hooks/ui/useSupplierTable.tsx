@@ -7,11 +7,11 @@ import { Dropdown, Modal, Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   useGetSuppliersQuery,
-  useDeleteSupplierMutation,
+  useDeleteSupplierMutation
 } from 'store/api/billingApi';
 import type { Supplier } from 'types/billing';
 import { getPartyDisplayName, REGIME_FISCALE_LABELS } from 'types/billing';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 
 // Deactivation Modal Component
 interface SupplierDeactivationModalProps {
@@ -35,7 +35,7 @@ const SupplierDeactivationModal: React.FC<SupplierDeactivationModalProps> = ({
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>Disattiva Fornitore</Modal.Title>
-        <FalconCloseButton onClick={onHide} />
+        <OrkestraCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
@@ -60,8 +60,11 @@ const SupplierDeactivationModal: React.FC<SupplierDeactivationModalProps> = ({
 
 const useSupplierTable = (options?: any) => {
   const [showModal, setShowModal] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [deleteSupplier, { isLoading: isDeleting }] = useDeleteSupplierMutation();
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(
+    null
+  );
+  const [deleteSupplier, { isLoading: isDeleting }] =
+    useDeleteSupplierMutation();
 
   // Fetch suppliers from backend API
   const {
@@ -140,10 +143,15 @@ const useSupplierTable = (options?: any) => {
       cell: ({ row: { original } }: { row: { original: Supplier } }) => {
         return (
           <div>
-            <div className="text-900 font-monospace">{original.fiscalIdCode}</div>
-            {original.codiceFiscale && original.codiceFiscale !== original.fiscalIdCode && (
-              <small className="text-muted font-monospace">{original.codiceFiscale}</small>
-            )}
+            <div className="text-900 font-monospace">
+              {original.fiscalIdCode}
+            </div>
+            {original.codiceFiscale &&
+              original.codiceFiscale !== original.fiscalIdCode && (
+                <small className="text-muted font-monospace">
+                  {original.codiceFiscale}
+                </small>
+              )}
           </div>
         );
       }

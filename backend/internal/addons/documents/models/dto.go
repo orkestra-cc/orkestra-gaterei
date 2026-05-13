@@ -1,6 +1,6 @@
 package models
 
-import "github.com/orkestra/backend/internal/shared/iface"
+import "github.com/orkestra-cc/orkestra-sdk/iface"
 
 // PaginationParams holds pagination parameters for list operations
 type PaginationParams struct {
@@ -66,8 +66,8 @@ type GeneratePDFInput struct {
 // GeneratePDFFromSourceInput holds input for generating PDF from a specific source
 type GeneratePDFFromSourceInput struct {
 	SourceType   iface.SourceType `json:"sourceType" validate:"required" doc:"Source document type"`
-	SourceUUID   string     `json:"sourceUuid" validate:"required" doc:"Source document UUID"`
-	TemplateUUID string     `json:"templateUuid,omitempty" doc:"Optional template UUID (uses default if not specified)"`
+	SourceUUID   string           `json:"sourceUuid" validate:"required" doc:"Source document UUID"`
+	TemplateUUID string           `json:"templateUuid,omitempty" doc:"Optional template UUID (uses default if not specified)"`
 }
 
 // PreviewHTMLInput holds input for HTML preview

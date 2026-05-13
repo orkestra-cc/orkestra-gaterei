@@ -1,7 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
 import { Card, Col, Row, Tab, Tabs, Alert } from 'react-bootstrap';
 import { useAppSelector } from 'store/hooks';
-import { selectCurrentOrgId, selectCurrentMembership } from 'store/slices/tenantSlice';
+import {
+  selectCurrentOrgId,
+  selectCurrentMembership
+} from 'store/slices/tenantSlice';
 import RolesTable from './RolesTable';
 import BindingsTable from './BindingsTable';
 
@@ -23,8 +26,8 @@ const RoleManagementPage: React.FC = () => {
           <Alert variant="warning">
             <Alert.Heading>No organization selected</Alert.Heading>
             <p className="mb-0">
-              Role management is scoped to a single organization. Select or create
-              one from the top-right org switcher to continue.
+              Role management is scoped to a single organization. Select or
+              create one from the top-right org switcher to continue.
             </p>
           </Alert>
         </Col>
@@ -53,9 +56,15 @@ const RoleManagementPage: React.FC = () => {
             <Tabs
               id="role-management-tabs"
               activeKey={tab}
-              onSelect={(k) => {
+              onSelect={k => {
                 if (!k) return;
-                setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+                setSearchParams(
+                  prev => {
+                    prev.set('tab', k);
+                    return prev;
+                  },
+                  { replace: true }
+                );
               }}
               className="mb-3"
             >

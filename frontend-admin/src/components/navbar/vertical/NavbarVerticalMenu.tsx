@@ -2,7 +2,9 @@ import { useState } from 'react';
 import classNames from 'classnames';
 import { Collapse, Nav } from 'react-bootstrap';
 import { NavLink, useLocation } from 'react-router';
-import NavbarVerticalMenuItem, { NavbarVerticalMenuItemRoute } from './NavbarVerticalMenuItem';
+import NavbarVerticalMenuItem, {
+  NavbarVerticalMenuItemRoute
+} from './NavbarVerticalMenuItem';
 import { useAppContext } from 'providers/AppProvider';
 
 interface RouteItem {
@@ -36,8 +38,9 @@ const CollapseItems = ({ route }: CollapseItemsProps) => {
         return true;
       }
       return (
-        Object.prototype.hasOwnProperty.call(children, 'children') &&
-        children.children?.some(checkLink) || false
+        (Object.prototype.hasOwnProperty.call(children, 'children') &&
+          children.children?.some(checkLink)) ||
+        false
       );
     };
     return childrens.some(checkLink);
@@ -96,7 +99,9 @@ const NavbarVerticalMenu = ({ routes }: NavbarVerticalMenuProps) => {
               isActive && route.to !== '#!' ? 'active nav-link' : 'nav-link'
             }
           >
-            <NavbarVerticalMenuItem route={route as NavbarVerticalMenuItemRoute} />
+            <NavbarVerticalMenuItem
+              route={route as NavbarVerticalMenuItemRoute}
+            />
           </NavLink>
         </Nav.Item>
       );

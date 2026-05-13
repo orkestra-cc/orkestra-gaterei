@@ -1,4 +1,3 @@
-
 import Flex from 'components/common/Flex';
 import { Col } from 'react-bootstrap';
 import SubtleBadge, { BadgeColor } from 'components/common/SubtleBadge';

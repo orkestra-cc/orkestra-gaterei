@@ -256,7 +256,7 @@ export interface MembershipRecord {
 }
 
 export const tenantApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // --- Org lifecycle ---
     listMyOrgs: builder.query<{ memberships: Membership[] }, void>({
       query: () => ({ url: '/v1/tenants', method: 'GET' }),
@@ -264,7 +264,7 @@ export const tenantApi = baseApi.injectEndpoints({
     }),
 
     createOrg: builder.mutation<Org, CreateOrgInput>({
-      query: (body) => ({ url: '/v1/tenants', method: 'POST', body }),
+      query: body => ({ url: '/v1/tenants', method: 'POST', body }),
       invalidatesTags: ['Membership', 'Org'],
       // The caller's current JWT was issued before this tenant existed, so
       // its `mbr` claim does not list the new membership — every subsequent
@@ -282,45 +282,68 @@ export const tenantApi = baseApi.injectEndpoints({
         }
         try {
           const session = await dispatch(
-            authApi.endpoints.getSession.initiate(undefined, { forceRefetch: true })
+            authApi.endpoints.getSession.initiate(undefined, {
+              forceRefetch: true
+            })
           ).unwrap();
           if (session?.accessToken) {
             dispatch(
               setAccessToken({
                 accessToken: session.accessToken,
-                expiresIn: session.expiresIn,
+                expiresIn: session.expiresIn
               })
             );
           }
         } catch {
           // Non-fatal: the user can still recover with a full page reload.
         }
-      },
+      }
     }),
 
     getOrg: builder.query<Org, string>({
-      query: (tenantId) => ({ url: `/v1/tenants/${tenantId}`, method: 'GET' }),
+      query: tenantId => ({ url: `/v1/tenants/${tenantId}`, method: 'GET' }),
       providesTags: (_, __, id) => [{ type: 'Org', id }]
     }),
 
-    updatePlan: builder.mutation<Org, { tenantId: string; body: UpdatePlanInput }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/tenants/${tenantId}/plan`, method: 'PATCH', body }),
+    updatePlan: builder.mutation<
+      Org,
+      { tenantId: string; body: UpdatePlanInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/tenants/${tenantId}/plan`,
+        method: 'PATCH',
+        body
+      }),
       invalidatesTags: (_, __, { tenantId }) => [{ type: 'Org', id: tenantId }]
     }),
 
     // --- Members + invites ---
     listMembers: builder.query<{ members: Binding[] }, string>({
-      query: (tenantId) => ({ url: `/v1/tenants/${tenantId}/members`, method: 'GET' }),
+      query: tenantId => ({
+        url: `/v1/tenants/${tenantId}/members`,
+        method: 'GET'
+      }),
       providesTags: (_, __, tenantId) => [{ type: 'Membership', id: tenantId }]
     }),
 
-    createInvite: builder.mutation<Invite, { tenantId: string; body: CreateInviteInput }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/tenants/${tenantId}/invites`, method: 'POST', body }),
+    createInvite: builder.mutation<
+      Invite,
+      { tenantId: string; body: CreateInviteInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/tenants/${tenantId}/invites`,
+        method: 'POST',
+        body
+      }),
       invalidatesTags: ['Membership']
     }),
 
     acceptInvite: builder.mutation<Org, { token: string }>({
-      query: (body) => ({ url: '/v1/tenants/accept-invite', method: 'POST', body }),
+      query: body => ({
+        url: '/v1/tenants/accept-invite',
+        method: 'POST',
+        body
+      }),
       invalidatesTags: ['Membership']
     }),
 
@@ -331,115 +354,177 @@ export const tenantApi = baseApi.injectEndpoints({
     }),
 
     listRoles: builder.query<{ roles: Role[] }, string>({
-      query: (tenantId) => ({ url: `/v1/tenants/${tenantId}/authz/roles`, method: 'GET' }),
+      query: tenantId => ({
+        url: `/v1/tenants/${tenantId}/authz/roles`,
+        method: 'GET'
+      }),
       providesTags: ['Role']
     }),
 
-    createRole: builder.mutation<Role, { tenantId: string; body: Omit<Role, 'id' | 'tenantId' | 'isSystem' | 'isActive'> }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/tenants/${tenantId}/authz/roles`, method: 'POST', body }),
+    createRole: builder.mutation<
+      Role,
+      {
+        tenantId: string;
+        body: Omit<Role, 'id' | 'tenantId' | 'isSystem' | 'isActive'>;
+      }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/tenants/${tenantId}/authz/roles`,
+        method: 'POST',
+        body
+      }),
       invalidatesTags: ['Role']
     }),
 
-    updateRole: builder.mutation<Role, { tenantId: string; roleId: string; body: UpdateRoleInput }>({
+    updateRole: builder.mutation<
+      Role,
+      { tenantId: string; roleId: string; body: UpdateRoleInput }
+    >({
       query: ({ tenantId, roleId, body }) => ({
         url: `/v1/tenants/${tenantId}/authz/roles/${roleId}`,
         method: 'PATCH',
-        body,
+        body
       }),
       // Flipping isActive or editing permissions changes what every bound
       // user receives, so drop the effective-permissions cache as well.
-      invalidatesTags: ['Role', 'EffectivePermissions'],
+      invalidatesTags: ['Role', 'EffectivePermissions']
     }),
 
     deleteRole: builder.mutation<void, { tenantId: string; roleId: string }>({
-      query: ({ tenantId, roleId }) => ({ url: `/v1/tenants/${tenantId}/authz/roles/${roleId}`, method: 'DELETE' }),
+      query: ({ tenantId, roleId }) => ({
+        url: `/v1/tenants/${tenantId}/authz/roles/${roleId}`,
+        method: 'DELETE'
+      }),
       // Cascades bindings on the backend — drop Binding + EffectivePermissions too.
-      invalidatesTags: ['Role', 'Binding', 'EffectivePermissions'],
+      invalidatesTags: ['Role', 'Binding', 'EffectivePermissions']
     }),
 
     listBindings: builder.query<{ bindings: Binding[] }, string>({
-      query: (tenantId) => ({ url: `/v1/tenants/${tenantId}/authz/bindings`, method: 'GET' }),
+      query: tenantId => ({
+        url: `/v1/tenants/${tenantId}/authz/bindings`,
+        method: 'GET'
+      }),
       providesTags: ['Binding']
     }),
 
-    createBinding: builder.mutation<Binding, { tenantId: string; body: { userUUID: string; roleId: string; expiresAt?: string } }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/tenants/${tenantId}/authz/bindings`, method: 'POST', body }),
+    createBinding: builder.mutation<
+      Binding,
+      {
+        tenantId: string;
+        body: { userUUID: string; roleId: string; expiresAt?: string };
+      }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/tenants/${tenantId}/authz/bindings`,
+        method: 'POST',
+        body
+      }),
       invalidatesTags: ['Binding', 'EffectivePermissions']
     }),
 
-    deleteBinding: builder.mutation<void, { tenantId: string; bindingId: string }>({
-      query: ({ tenantId, bindingId }) => ({ url: `/v1/tenants/${tenantId}/authz/bindings/${bindingId}`, method: 'DELETE' }),
+    deleteBinding: builder.mutation<
+      void,
+      { tenantId: string; bindingId: string }
+    >({
+      query: ({ tenantId, bindingId }) => ({
+        url: `/v1/tenants/${tenantId}/authz/bindings/${bindingId}`,
+        method: 'DELETE'
+      }),
       invalidatesTags: ['Binding', 'EffectivePermissions']
     }),
 
     getEffectivePermissions: builder.query<EffectivePermissions, string>({
-      query: (tenantId) => ({ url: `/v1/tenants/${tenantId}/authz/me`, method: 'GET' }),
-      providesTags: (_, __, tenantId) => [{ type: 'EffectivePermissions', id: tenantId }]
+      query: tenantId => ({
+        url: `/v1/tenants/${tenantId}/authz/me`,
+        method: 'GET'
+      }),
+      providesTags: (_, __, tenantId) => [
+        { type: 'EffectivePermissions', id: tenantId }
+      ]
     }),
 
     // --- Platform admin tenant management (system.tenants.admin) ---
-    listAllOrgsAdmin: builder.query<{ tenants: AdminOrgListItem[] }, AdminOrgListQuery | void>({
-      query: (arg) => {
+    listAllOrgsAdmin: builder.query<
+      { tenants: AdminOrgListItem[] },
+      AdminOrgListQuery | void
+    >({
+      query: arg => {
         const params: Record<string, string | boolean> = {};
         if (arg?.includeDeleted) params.includeDeleted = true;
         if (arg?.kind) params.kind = arg.kind;
         if (arg?.rootsOnly) params.rootsOnly = true;
-        if (arg?.parentTenantUUID) params.parentTenantUUID = arg.parentTenantUUID;
+        if (arg?.parentTenantUUID)
+          params.parentTenantUUID = arg.parentTenantUUID;
         if (arg?.q) params.q = arg.q;
         if (arg?.includeDeletedUsers) params.includeDeletedUsers = true;
         return {
           url: '/v1/admin/tenants',
           method: 'GET',
-          params: Object.keys(params).length > 0 ? params : undefined,
+          params: Object.keys(params).length > 0 ? params : undefined
         };
       },
-      providesTags: (result) =>
+      providesTags: result =>
         result
           ? [
               { type: 'AdminOrg', id: 'LIST' },
-              ...result.tenants.map((o) => ({ type: 'AdminOrg' as const, id: o.id })),
+              ...result.tenants.map(o => ({
+                type: 'AdminOrg' as const,
+                id: o.id
+              }))
             ]
-          : [{ type: 'AdminOrg', id: 'LIST' }],
+          : [{ type: 'AdminOrg', id: 'LIST' }]
     }),
 
     // --- Phase 2 aggregators (divisions, subscriptions, payments per tenant) ---
     listTenantDivisionsAdmin: builder.query<{ divisions: Org[] }, string>({
-      query: (tenantId) => ({
+      query: tenantId => ({
         url: `/v1/admin/tenants/${tenantId}/divisions`,
-        method: 'GET',
+        method: 'GET'
       }),
-      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:divisions` }],
+      providesTags: (_, __, tenantId) => [
+        { type: 'AdminOrg', id: `${tenantId}:divisions` }
+      ]
     }),
 
-    createTenantDivisionAdmin: builder.mutation<Org, { tenantId: string; body: CreateDivisionInput }>({
+    createTenantDivisionAdmin: builder.mutation<
+      Org,
+      { tenantId: string; body: CreateDivisionInput }
+    >({
       query: ({ tenantId, body }) => ({
         url: `/v1/admin/tenants/${tenantId}/divisions`,
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: (_, __, { tenantId }) => [
         { type: 'AdminOrg', id: `${tenantId}:divisions` },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
     listTenantSubscriptionsAdmin: builder.query<
       { subscriptions: TenantSubscription[] },
       string
     >({
-      query: (tenantId) => ({
+      query: tenantId => ({
         url: `/v1/admin/tenants/${tenantId}/subscriptions`,
-        method: 'GET',
+        method: 'GET'
       }),
-      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:subs` }],
+      providesTags: (_, __, tenantId) => [
+        { type: 'AdminOrg', id: `${tenantId}:subs` }
+      ]
     }),
 
-    listTenantPaymentsAdmin: builder.query<{ payments: TenantPayment[] }, string>({
-      query: (tenantId) => ({
+    listTenantPaymentsAdmin: builder.query<
+      { payments: TenantPayment[] },
+      string
+    >({
+      query: tenantId => ({
         url: `/v1/admin/tenants/${tenantId}/payments`,
-        method: 'GET',
+        method: 'GET'
       }),
-      providesTags: (_, __, tenantId) => [{ type: 'AdminOrg', id: `${tenantId}:payments` }],
+      providesTags: (_, __, tenantId) => [
+        { type: 'AdminOrg', id: `${tenantId}:payments` }
+      ]
     }),
 
     // Unified Client Aggregate (Phase 1) — admin-side billing-identity writes.
@@ -453,12 +538,12 @@ export const tenantApi = baseApi.injectEndpoints({
       query: ({ tenantId, body }) => ({
         url: `/v1/admin/clients/${tenantId}/billing-identity`,
         method: 'PATCH',
-        body,
+        body
       }),
       invalidatesTags: (_, __, { tenantId }) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
     setTenantItalianBillableAdmin: builder.mutation<
@@ -468,33 +553,46 @@ export const tenantApi = baseApi.injectEndpoints({
       query: ({ tenantId, enabled }) => ({
         url: `/v1/admin/clients/${tenantId}/italian-billable`,
         method: 'POST',
-        body: { enabled },
+        body: { enabled }
       }),
       invalidatesTags: (_, __, { tenantId }) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
     getOrgAdmin: builder.query<Org, string>({
-      query: (tenantId) => ({ url: `/v1/admin/tenants/${tenantId}`, method: 'GET' }),
-      providesTags: (_, __, id) => [{ type: 'AdminOrg', id }],
+      query: tenantId => ({
+        url: `/v1/admin/tenants/${tenantId}`,
+        method: 'GET'
+      }),
+      providesTags: (_, __, id) => [{ type: 'AdminOrg', id }]
     }),
 
-    updateOrgAdmin: builder.mutation<Org, { tenantId: string; body: UpdateOrgAdminInput }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/admin/tenants/${tenantId}`, method: 'PATCH', body }),
+    updateOrgAdmin: builder.mutation<
+      Org,
+      { tenantId: string; body: UpdateOrgAdminInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/tenants/${tenantId}`,
+        method: 'PATCH',
+        body
+      }),
       invalidatesTags: (_, __, { tenantId }) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
     deleteOrgAdmin: builder.mutation<void, string>({
-      query: (tenantId) => ({ url: `/v1/admin/tenants/${tenantId}`, method: 'DELETE' }),
+      query: tenantId => ({
+        url: `/v1/admin/tenants/${tenantId}`,
+        method: 'DELETE'
+      }),
       invalidatesTags: (_, __, tenantId) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
     // Platform-admin purge — irreversible. Crypto-shreds the tenant's KMS
@@ -502,66 +600,91 @@ export const tenantApi = baseApi.injectEndpoints({
     // the ciphertext rows linger. Gated at the route level by
     // system.tenants.admin.
     purgeOrgAdmin: builder.mutation<void, string>({
-      query: (tenantId) => ({
+      query: tenantId => ({
         url: `/v1/admin/tenants/${tenantId}/purge`,
-        method: 'POST',
+        method: 'POST'
       }),
       invalidatesTags: (_, __, tenantId) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
-    updateOrgPlanAdmin: builder.mutation<Org, { tenantId: string; body: UpdatePlanInput }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/admin/tenants/${tenantId}/plan`, method: 'PATCH', body }),
+    updateOrgPlanAdmin: builder.mutation<
+      Org,
+      { tenantId: string; body: UpdatePlanInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/tenants/${tenantId}/plan`,
+        method: 'PATCH',
+        body
+      }),
       invalidatesTags: (_, __, { tenantId }) => [
         { type: 'AdminOrg', id: tenantId },
-        { type: 'AdminOrg', id: 'LIST' },
-      ],
+        { type: 'AdminOrg', id: 'LIST' }
+      ]
     }),
 
-    listOrgMembersAdmin: builder.query<{ members: MembershipRecord[] }, string>({
-      query: (tenantId) => ({ url: `/v1/admin/tenants/${tenantId}/members`, method: 'GET' }),
-      providesTags: (_, __, tenantId) => [{ type: 'Membership', id: tenantId }],
-    }),
+    listOrgMembersAdmin: builder.query<{ members: MembershipRecord[] }, string>(
+      {
+        query: tenantId => ({
+          url: `/v1/admin/tenants/${tenantId}/members`,
+          method: 'GET'
+        }),
+        providesTags: (_, __, tenantId) => [
+          { type: 'Membership', id: tenantId }
+        ]
+      }
+    ),
 
     attachOrgMemberAdmin: builder.mutation<
       { member: MembershipRecord },
       {
         tenantId: string;
-        body: { userUuid?: string; userEmail?: string; role: string; isOwner?: boolean };
+        body: {
+          userUuid?: string;
+          userEmail?: string;
+          role: string;
+          isOwner?: boolean;
+        };
       }
     >({
       query: ({ tenantId, body }) => ({
         url: `/v1/admin/tenants/${tenantId}/members`,
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: (result, _error, { tenantId, body }) => {
-        const tags: Array<{ type: 'Membership' | 'AdminOrg' | 'User'; id?: string }> = [
+        const tags: Array<{
+          type: 'Membership' | 'AdminOrg' | 'User';
+          id?: string;
+        }> = [
           { type: 'Membership', id: tenantId },
           { type: 'AdminOrg', id: tenantId },
           { type: 'AdminOrg', id: 'LIST' },
-          { type: 'User', id: 'CLIENT_LIST' },
+          { type: 'User', id: 'CLIENT_LIST' }
         ];
         const uid = body.userUuid ?? result?.member?.userUUID;
         if (uid) tags.push({ type: 'User', id: uid });
         return tags;
-      },
+      }
     }),
 
-    removeOrgMemberAdmin: builder.mutation<void, { tenantId: string; userUUID: string }>({
+    removeOrgMemberAdmin: builder.mutation<
+      void,
+      { tenantId: string; userUUID: string }
+    >({
       query: ({ tenantId, userUUID }) => ({
         url: `/v1/admin/tenants/${tenantId}/members/${userUUID}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: (_, __, { tenantId, userUUID }) => [
         { type: 'Membership', id: tenantId },
         { type: 'AdminOrg', id: tenantId },
         { type: 'AdminOrg', id: 'LIST' },
         { type: 'User', id: userUUID },
-        { type: 'User', id: 'CLIENT_LIST' },
-      ],
+        { type: 'User', id: 'CLIENT_LIST' }
+      ]
     }),
 
     listOrgInvitesAdmin: builder.query<
@@ -571,25 +694,41 @@ export const tenantApi = baseApi.injectEndpoints({
       query: ({ tenantId, includeAccepted }) => ({
         url: `/v1/admin/tenants/${tenantId}/invites`,
         method: 'GET',
-        params: includeAccepted ? { includeAccepted: true } : undefined,
+        params: includeAccepted ? { includeAccepted: true } : undefined
       }),
-      providesTags: (_, __, { tenantId }) => [{ type: 'OrgInvite', id: tenantId }],
+      providesTags: (_, __, { tenantId }) => [
+        { type: 'OrgInvite', id: tenantId }
+      ]
     }),
 
-    createOrgInviteAdmin: builder.mutation<Invite, { tenantId: string; body: CreateInviteInput }>({
-      query: ({ tenantId, body }) => ({ url: `/v1/admin/tenants/${tenantId}/invites`, method: 'POST', body }),
-      invalidatesTags: (_, __, { tenantId }) => [{ type: 'OrgInvite', id: tenantId }],
+    createOrgInviteAdmin: builder.mutation<
+      Invite,
+      { tenantId: string; body: CreateInviteInput }
+    >({
+      query: ({ tenantId, body }) => ({
+        url: `/v1/admin/tenants/${tenantId}/invites`,
+        method: 'POST',
+        body
+      }),
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'OrgInvite', id: tenantId }
+      ]
     }),
 
-    revokeOrgInviteAdmin: builder.mutation<void, { tenantId: string; inviteId: string }>({
+    revokeOrgInviteAdmin: builder.mutation<
+      void,
+      { tenantId: string; inviteId: string }
+    >({
       query: ({ tenantId, inviteId }) => ({
         url: `/v1/admin/tenants/${tenantId}/invites/${inviteId}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: (_, __, { tenantId }) => [{ type: 'OrgInvite', id: tenantId }],
-    }),
+      invalidatesTags: (_, __, { tenantId }) => [
+        { type: 'OrgInvite', id: tenantId }
+      ]
+    })
   }),
-  overrideExisting: false,
+  overrideExisting: false
 });
 
 export const {
@@ -626,5 +765,5 @@ export const {
   useListTenantSubscriptionsAdminQuery,
   useListTenantPaymentsAdminQuery,
   useSetTenantBillingIdentityAdminMutation,
-  useSetTenantItalianBillableAdminMutation,
+  useSetTenantItalianBillableAdminMutation
 } = tenantApi;

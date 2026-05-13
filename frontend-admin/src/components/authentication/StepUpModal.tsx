@@ -4,12 +4,12 @@ import {
   useGetMfaStatusQuery,
   useVerifyMfaMutation,
   useWebAuthnVerifyBeginMutation,
-  useWebAuthnVerifyFinishMutation,
+  useWebAuthnVerifyFinishMutation
 } from 'store/api/mfaApi';
 import {
   browserSupportsWebAuthn,
   decodeRequestOptions,
-  encodeAssertion,
+  encodeAssertion
 } from 'store/api/webauthnCodec';
 import { subscribeStepUp, completeStepUp } from 'store/stepUp';
 
@@ -45,7 +45,7 @@ const StepUpModal = () => {
     browserSupportsWebAuthn();
 
   useEffect(() => {
-    return subscribeStepUp((next) => {
+    return subscribeStepUp(next => {
       setOpen(next);
       if (!next) {
         setCode('');
@@ -75,7 +75,9 @@ const StepUpModal = () => {
       } else if (anyErr?.status === 429) {
         setError('Too many attempts. Please wait a moment and try again.');
       } else {
-        setError(anyErr?.data?.detail ?? 'Could not verify the code. Please try again.');
+        setError(
+          anyErr?.data?.detail ?? 'Could not verify the code. Please try again.'
+        );
       }
     }
   };
@@ -86,24 +88,34 @@ const StepUpModal = () => {
     try {
       const beginRes = await waBegin().unwrap();
       const opts = decodeRequestOptions(beginRes.publicKey);
-      const cred = (await navigator.credentials.get({ publicKey: opts })) as PublicKeyCredential | null;
+      const cred = (await navigator.credentials.get({
+        publicKey: opts
+      })) as PublicKeyCredential | null;
       if (!cred) {
         setPasskeyBusy(false);
         return;
       }
       await waFinish({
         challengeId: beginRes.challengeId,
-        assertionResponse: encodeAssertion(cred),
+        assertionResponse: encodeAssertion(cred)
       }).unwrap();
       completeStepUp(true);
     } catch (err: unknown) {
-      const anyErr = err as { name?: string; status?: number; data?: { detail?: string } };
+      const anyErr = err as {
+        name?: string;
+        status?: number;
+        data?: { detail?: string };
+      };
       if (anyErr?.name === 'NotAllowedError') {
         setError('The passkey prompt was cancelled or timed out.');
       } else if (anyErr?.status === 401) {
-        setError('Passkey verification failed. Try the authenticator app instead.');
+        setError(
+          'Passkey verification failed. Try the authenticator app instead.'
+        );
       } else {
-        setError(anyErr?.data?.detail ?? 'Could not complete passkey verification.');
+        setError(
+          anyErr?.data?.detail ?? 'Could not complete passkey verification.'
+        );
       }
       setPasskeyBusy(false);
     }
@@ -126,7 +138,12 @@ const StepUpModal = () => {
           </p>
 
           {error && (
-            <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+            <Alert
+              variant="danger"
+              className="mb-3"
+              onClose={() => setError(null)}
+              dismissible
+            >
               {error}
             </Alert>
           )}
@@ -141,19 +158,23 @@ const StepUpModal = () => {
               >
                 {passkeyBusy ? 'Waiting for passkey…' : 'Use a passkey'}
               </Button>
-              <div className="text-center text-muted fs-10 mt-2">or enter a code</div>
+              <div className="text-center text-muted fs-10 mt-2">
+                or enter a code
+              </div>
             </div>
           )}
 
           <Form.Group className="mb-2">
-            <Form.Label>{useBackup ? 'Backup code' : 'Authenticator code'}</Form.Label>
+            <Form.Label>
+              {useBackup ? 'Backup code' : 'Authenticator code'}
+            </Form.Label>
             <Form.Control
               type="text"
               inputMode={useBackup ? 'text' : 'numeric'}
               autoComplete="one-time-code"
               autoFocus
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={e => setCode(e.target.value)}
               placeholder={useBackup ? 'XXXX-XXXX' : '123 456'}
               required
             />
@@ -161,16 +182,29 @@ const StepUpModal = () => {
           <button
             type="button"
             className="btn btn-link p-0 fs-10"
-            onClick={() => { setUseBackup((v) => !v); setCode(''); }}
+            onClick={() => {
+              setUseBackup(v => !v);
+              setCode('');
+            }}
           >
-            {useBackup ? 'Use authenticator app instead' : 'Use a backup code instead'}
+            {useBackup
+              ? 'Use authenticator app instead'
+              : 'Use a backup code instead'}
           </button>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={handleCancel} disabled={isLoading || passkeyBusy}>
+          <Button
+            variant="outline-secondary"
+            onClick={handleCancel}
+            disabled={isLoading || passkeyBusy}
+          >
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={isLoading || passkeyBusy}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading || passkeyBusy}
+          >
             {isLoading ? 'Verifying…' : 'Verify and continue'}
           </Button>
         </Modal.Footer>

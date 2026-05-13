@@ -2,10 +2,11 @@
 
 <img src=".github/assets/orkestra-logo.webp" alt="Orkestra" width="480" />
 
-**Modular, multi-tenant orchestrator platform. Pluggable business capabilities (electronic invoicing, AI sales intelligence, RAG, payments, identity) on a two-tier tenancy model.**
+**The plumbing every SaaS rebuilds — users, auth, RBAC, multi-tenancy, billing — already done. Plus 13 pluggable addons (electronic invoicing, AI sales, RAG, payments, identity, compliance) on a two-tier tenancy model.**
 
 [![Backend CI](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/backend.yml)
 [![Frontend Admin CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-admin.yml)
+[![Frontend Client CI](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-client.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/frontend-client.yml)
 [![Mobile CI](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/mobile.yml)
 [![Security CI](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml/badge.svg?branch=dev)](https://github.com/orkestra-cc/orkestra/actions/workflows/security.yml)
 
@@ -24,7 +25,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white&style=flat-square)](https://docker.com)
 [![Huma v2](https://img.shields.io/badge/Huma-v2-FE7A16?style=flat-square)](https://huma.rocks)
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white&style=flat-square)](https://www.openapis.org)
-[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-lightgrey?style=flat-square)](#license)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
 
 [Quick Start](#quick-start-minimal-profile) · [SKU Profiles](#sku-profiles-pulled-from-ghcr) · [Architecture](CLAUDE.md) · [Backend](backend/CLAUDE.md) · [Frontend Admin](frontend-admin/CLAUDE.md) · [Frontend Client](frontend-client/CLAUDE.md) · [Docker](docker/CLAUDE.md)
 
@@ -34,12 +35,13 @@
 
 ## What is Orkestra
 
-Orkestra is not a single-purpose business app. It is a host that exposes business capabilities (invoicing, billing, AI sales, RAG, documents, payments, identity, compliance) as pluggable modules, and manages *who* can consume those capabilities across a **two-tier tenancy model**:
+Every SaaS reinvents the same wheel: users, roles, password resets, OAuth with five providers, MFA, sessions, audit logs, multi-tenant isolation, billing. Three months of plumbing before the first real feature.
 
-- **Tier 1, internal tenants** (operator side). The companies that run Orkestra; their staff, RBAC, FatturaPA/SDI invoicing, module configuration.
-- **Tier 2, external client tenants** (customer side). Clients register on the platform, subscribe to services via Stripe-backed billing, and consume the capabilities Tier-1 enables.
+Orkestra is that plumbing, already done. Six core modules — `user`, `auth`, `authz`, `tenant`, `notification`, `navigation` — always load and give you email/password (argon2id) + OAuth 2.1 (Google, Apple, GitHub, Discord) + TOTP/WebAuthn MFA, RBAC with Cedar policies, orgs + memberships, and audited-everything on day one.
 
-Module enable/disable is per-internal-tenant; service consumption is gated per-external-client subscription. The two are deliberately separate concerns. See [CLAUDE.md](CLAUDE.md) for the full model.
+Layered on top: 13 optional addon modules (invoicing, payments, subscriptions, RAG, AI agents, compliance, identity, ...) toggled per tenant at `/admin/modules`, hot-reloaded without a restart. Build your SaaS as the next addon, not as another from-scratch repo.
+
+It runs on a **two-tier tenancy model**: Tier-1 operators manage staff and module configuration; Tier-2 external clients register, subscribe via Stripe-backed billing, and consume the addons scoped to their own org. Module enable/disable is per-Tier-1; service consumption is gated per-Tier-2 subscription. See [CLAUDE.md](CLAUDE.md) for the full model.
 
 ## Architecture at a glance
 
@@ -246,6 +248,24 @@ Every pull request runs through:
 
 The coverage badges in the header are SVGs committed to `.github/badges/`. Each CI workflow's test job refreshes its own SVG on push to `dev` or `main` (badge fetch from shields.io + `stefanzweifel/git-auto-commit-action`); commit messages are tagged `[skip ci]` to avoid re-trigger loops. The `frontend-client` badge stays static until that project has tests.
 
+## Contributing
+
+We welcome contributions. The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md); the short version:
+
+```bash
+curl https://mise.run | sh && exec $SHELL                  # install mise (one binary)
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc           # activate shims (zsh: ~/.zshrc + `zsh`)
+exec $SHELL                                                # reload so the eval takes effect
+mise install                                               # provision Go/Node/Flutter at pinned versions
+make install                                               # bootstrap all dependencies
+pre-commit install --install-hooks                         # auto-format on commit, CI on push
+make ci                                                    # run the same checks GitHub Actions runs
+```
+
+`make ci` auto-detects which surfaces (`backend`, `frontend-admin`, `frontend-client`, `mobile`) you touched and runs only those. CI workflows invoke the same `make` targets, so local-green ≡ CI-green by construction. Run `make ci-help` for the full target list.
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) (enforced by the `commit-msg` hook) and the [two-tier tenancy model](CLAUDE.md#tenancy-model) is load-bearing — every endpoint and every collection must declare its tier.
+
 ## License
 
-Proprietary, all rights reserved. © Orkestra.
+Licensed under the [Apache License, Version 2.0](LICENSE). See [`NOTICE`](NOTICE) for attribution. Contributions are accepted under the same license — see [CONTRIBUTING.md](CONTRIBUTING.md). Security disclosures: [SECURITY.md](SECURITY.md). Community conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

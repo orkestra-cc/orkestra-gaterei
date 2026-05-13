@@ -7,12 +7,15 @@ import {
   faBuilding,
   faCircleCheck,
   faUsers,
-  faLayerGroup,
+  faLayerGroup
 } from '@fortawesome/free-solid-svg-icons';
 import CountUp from 'react-countup';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
-import { useListAllOrgsAdminQuery, type AdminOrgListItem } from 'store/api/tenantApi';
+import {
+  useListAllOrgsAdminQuery,
+  type AdminOrgListItem
+} from 'store/api/tenantApi';
 import TenantTable from './TenantTable';
 import TenantDetailModal from './TenantDetailModal';
 import CreateTenantModal from './CreateTenantModal';
@@ -37,7 +40,7 @@ const StatCard: React.FC<StatCardProps> = ({
   icon,
   accent,
   footnote,
-  badge,
+  badge
 }) => (
   <Card className="h-100 shadow-none border">
     <Card.Body>
@@ -72,7 +75,7 @@ const StatCard: React.FC<StatCardProps> = ({
 const planAccent: Record<string, BadgeColor> = {
   free: 'secondary',
   pro: 'primary',
-  enterprise: 'success',
+  enterprise: 'success'
 };
 
 /**
@@ -112,7 +115,7 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
   kind,
   rootsOnly,
   labels,
-  detailPathPrefix,
+  detailPathPrefix
 }) => {
   const navigate = useNavigate();
   const [includeDeleted, setIncludeDeleted] = useState(false);
@@ -135,32 +138,36 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
     rootsOnly: rootsOnly || undefined,
     q: debouncedSearch || undefined,
     includeDeletedUsers:
-      debouncedSearch && includeDeletedUsers ? true : undefined,
+      debouncedSearch && includeDeletedUsers ? true : undefined
   };
   // Pass undefined when every filter is false so the RTK Query cache key
   // matches the pre-split "no arg" variant and existing consumers keep
   // their subscriptions.
   const hasFilter = Boolean(
     queryArg.includeDeleted ||
-      queryArg.kind ||
-      queryArg.rootsOnly ||
-      queryArg.q ||
-      queryArg.includeDeletedUsers,
+    queryArg.kind ||
+    queryArg.rootsOnly ||
+    queryArg.q ||
+    queryArg.includeDeletedUsers
   );
   const { data, isLoading, error } = useListAllOrgsAdminQuery(
-    hasFilter ? queryArg : undefined,
+    hasFilter ? queryArg : undefined
   );
 
   const [selectedOrg, setSelectedOrg] = useState<AdminOrgListItem | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<AdminOrgListItem | null>(null);
-  const [pendingPurge, setPendingPurge] = useState<AdminOrgListItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AdminOrgListItem | null>(
+    null
+  );
+  const [pendingPurge, setPendingPurge] = useState<AdminOrgListItem | null>(
+    null
+  );
 
   const stats = useMemo(() => {
     const orgs = data?.tenants ?? [];
-    const active = orgs.filter((o) => !o.deletedAt);
-    const deleted = orgs.filter((o) => !!o.deletedAt);
+    const active = orgs.filter(o => !o.deletedAt);
+    const deleted = orgs.filter(o => !!o.deletedAt);
     const planBreakdown: Record<string, number> = {};
     let totalMembers = 0;
     for (const o of active) {
@@ -173,7 +180,7 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
       active: active.length,
       deleted: deleted.length,
       totalMembers,
-      planBreakdown,
+      planBreakdown
     };
   }, [data]);
 
@@ -248,7 +255,9 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
                   <h3 className="fw-normal text-body mb-0">
                     {Object.keys(stats.planBreakdown).length || '—'}
                     <span className="fs-9 text-body-tertiary fw-normal ms-2">
-                      {Object.keys(stats.planBreakdown).length === 1 ? 'plan' : 'plans'}
+                      {Object.keys(stats.planBreakdown).length === 1
+                        ? 'plan'
+                        : 'plans'}
                     </span>
                   </h3>
                 </div>
@@ -256,7 +265,10 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
                   className="d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle"
                   style={{ width: 48, height: 48 }}
                 >
-                  <FontAwesomeIcon icon={faLayerGroup} className="fs-5 text-warning" />
+                  <FontAwesomeIcon
+                    icon={faLayerGroup}
+                    className="fs-5 text-warning"
+                  />
                 </div>
               </div>
               <div className="d-flex flex-wrap gap-1 mt-3">
@@ -314,11 +326,11 @@ const TenantManagementPage: React.FC<TenantAdminPageProps> = ({
         org={selectedOrg}
         show={showDetail}
         onHide={() => setShowDetail(false)}
-        onDelete={(o) => {
+        onDelete={o => {
           setShowDetail(false);
           setPendingDelete(o);
         }}
-        onPurge={(o) => {
+        onPurge={o => {
           setShowDetail(false);
           setPendingPurge(o);
         }}

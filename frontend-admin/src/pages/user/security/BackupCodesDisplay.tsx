@@ -23,7 +23,7 @@ const BackupCodesDisplay = ({
   codes,
   ackRequired = false,
   onDone,
-  heading = 'Backup codes',
+  heading = 'Backup codes'
 }: Props) => {
   const [ack, setAck] = useState(false);
   return (
@@ -35,7 +35,7 @@ const BackupCodesDisplay = ({
       {heading && <h6 className="mb-2">{heading}</h6>}
       <div className="bg-body-tertiary p-3 rounded font-monospace mb-3">
         <div className="row g-2">
-          {codes.map((c) => (
+          {codes.map(c => (
             <div key={c} className="col-6 text-center">
               {c}
             </div>
@@ -75,7 +75,7 @@ const BackupCodesDisplay = ({
             id="backup-codes-ack"
             label="I have saved these backup codes somewhere safe."
             checked={ack}
-            onChange={(e) => setAck(e.target.checked)}
+            onChange={e => setAck(e.target.checked)}
           />
           <div className="d-flex justify-content-end mt-3">
             <Button variant="primary" disabled={!ack} onClick={onDone}>

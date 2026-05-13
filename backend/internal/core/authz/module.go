@@ -13,14 +13,14 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/authz/handlers"
 	authzModels "github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
 	"github.com/orkestra/backend/internal/core/authz/services"
 	tenantServices "github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // validDevRoles is the set of system roles that synthetic dev-token users
@@ -156,8 +156,8 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		}
 		// Dev-token fallback: synthetic users have no DB record.
 		// Three guards: non-production + dev- UUID prefix + valid role in JWT.
-		if !deps.Config.IsProduction() && strings.HasPrefix(userUUID, "dev-") {
-			if role, ok := middleware.GetSystemRole(ctx); ok {
+		if !deps.Platform.IsProduction() && strings.HasPrefix(userUUID, "dev-") {
+			if role, ok := ctxauth.GetSystemRole(ctx); ok {
 				if _, valid := validDevRoles[role]; valid {
 					return role, nil
 				}
@@ -187,10 +187,10 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		// semantics (D9): dev/staging developers debug freely; prod
 		// developers cannot mutate data or read secrets even if their
 		// token is valid. Mirrors the role-seed output in SeedSystemRoles.
-		Production: deps.Config.IsProduction(),
+		Production: deps.Platform.IsProduction(),
 		// Environment is fed to the Cedar shadow-mode engine so
 		// platform.cedar can branch on prod vs non-prod developer rules.
-		Environment: deps.Config.GetEnvironment(),
+		Environment: deps.Platform.GetEnvironment(),
 		// EnforceActions opts a per-permission allowlist out of shadow
 		// mode and into Cedar-authoritative mode (Section B item #1 of
 		// the auth roadmap, 2026-04-24). Comma-separated env var so

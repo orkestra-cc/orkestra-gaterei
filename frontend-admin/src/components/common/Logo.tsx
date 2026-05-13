@@ -1,4 +1,3 @@
-
 import classNames from 'classnames';
 import { Link, LinkProps } from 'react-router';
 import logo from 'assets/img/logos/orkestra-logo.webp';

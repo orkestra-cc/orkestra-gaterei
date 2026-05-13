@@ -21,7 +21,8 @@ const UserCalendar = () => {
               />
               <h4 className="text-700">Calendar Coming Soon</h4>
               <p className="text-500 mb-0">
-                Your personal calendar with schedules, events, and reminders will be available here.
+                Your personal calendar with schedules, events, and reminders
+                will be available here.
               </p>
             </Card.Body>
           </Card>

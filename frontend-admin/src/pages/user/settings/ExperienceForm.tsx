@@ -20,7 +20,10 @@ interface ExperienceFormProps {
   setCollapsed: (collapsed: boolean) => void;
 }
 
-const ExperienceForm: React.FC<ExperienceFormProps> = ({ collapsed, setCollapsed }) => {
+const ExperienceForm: React.FC<ExperienceFormProps> = ({
+  collapsed,
+  setCollapsed
+}) => {
   const [formData, setFormData] = useState<ExperienceFormData>({
     company: '',
     position: '',
@@ -31,7 +34,9 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({ collapsed, setCollapsed
     to: ''
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value

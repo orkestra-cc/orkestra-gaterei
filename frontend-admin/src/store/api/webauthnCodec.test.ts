@@ -4,7 +4,7 @@ import {
   decodeCreationOptions,
   decodeRequestOptions,
   encodeAttestation,
-  encodeAssertion,
+  encodeAssertion
 } from './webauthnCodec';
 
 const { b64urlEncode, b64urlDecode } = __test;
@@ -33,18 +33,30 @@ describe('decodeCreationOptions', () => {
     const userIdBytes = new Uint8Array([10, 20, 30]);
     const raw = {
       challenge: b64urlEncode(challengeBytes),
-      user: { id: b64urlEncode(userIdBytes), name: 'a@b.com', displayName: 'A B' },
+      user: {
+        id: b64urlEncode(userIdBytes),
+        name: 'a@b.com',
+        displayName: 'A B'
+      },
       rp: { name: 'test', id: 'localhost' },
       pubKeyCredParams: [],
       excludeCredentials: [
-        { id: b64urlEncode(new Uint8Array([0xAA])), type: 'public-key', transports: ['internal'] },
-      ],
+        {
+          id: b64urlEncode(new Uint8Array([0xaa])),
+          type: 'public-key',
+          transports: ['internal']
+        }
+      ]
     };
 
     const opts = decodeCreationOptions(raw);
     expect(opts.challenge).toBeInstanceOf(Uint8Array);
-    expect(Array.from(opts.challenge as Uint8Array)).toEqual(Array.from(challengeBytes));
-    expect(Array.from(opts.user.id as Uint8Array)).toEqual(Array.from(userIdBytes));
+    expect(Array.from(opts.challenge as Uint8Array)).toEqual(
+      Array.from(challengeBytes)
+    );
+    expect(Array.from(opts.user.id as Uint8Array)).toEqual(
+      Array.from(userIdBytes)
+    );
     expect(opts.excludeCredentials).toHaveLength(1);
     expect(opts.excludeCredentials?.[0].type).toBe('public-key');
   });
@@ -53,14 +65,18 @@ describe('decodeCreationOptions', () => {
 describe('decodeRequestOptions', () => {
   it('decodes challenge + allowCredentials.id buffers', () => {
     const challengeBytes = new Uint8Array([5, 6, 7]);
-    const credId = new Uint8Array([0xBE, 0xEF]);
+    const credId = new Uint8Array([0xbe, 0xef]);
     const raw = {
       challenge: b64urlEncode(challengeBytes),
-      allowCredentials: [{ id: b64urlEncode(credId), type: 'public-key' }],
+      allowCredentials: [{ id: b64urlEncode(credId), type: 'public-key' }]
     };
     const opts = decodeRequestOptions(raw);
-    expect(Array.from(opts.challenge as Uint8Array)).toEqual(Array.from(challengeBytes));
-    expect(Array.from(opts.allowCredentials?.[0].id as Uint8Array)).toEqual(Array.from(credId));
+    expect(Array.from(opts.challenge as Uint8Array)).toEqual(
+      Array.from(challengeBytes)
+    );
+    expect(Array.from(opts.allowCredentials?.[0].id as Uint8Array)).toEqual(
+      Array.from(credId)
+    );
   });
 });
 
@@ -73,16 +89,18 @@ describe('encodeAttestation / encodeAssertion', () => {
       response: {
         attestationObject: new Uint8Array([3, 4]).buffer,
         clientDataJSON: new Uint8Array([5, 6]).buffer,
-        getTransports: () => ['usb'],
+        getTransports: () => ['usb']
       },
-      getClientExtensionResults: () => ({}),
+      getClientExtensionResults: () => ({})
     } as unknown as PublicKeyCredential;
 
     const out = encodeAttestation(cred) as Record<string, unknown>;
     expect(out.id).toBe('cred-id');
     expect(out.rawId).toBe(b64urlEncode(new Uint8Array([1, 2])));
     const response = out.response as Record<string, unknown>;
-    expect(response.attestationObject).toBe(b64urlEncode(new Uint8Array([3, 4])));
+    expect(response.attestationObject).toBe(
+      b64urlEncode(new Uint8Array([3, 4]))
+    );
     expect(response.transports).toEqual(['usb']);
   });
 
@@ -95,9 +113,9 @@ describe('encodeAttestation / encodeAssertion', () => {
         authenticatorData: new Uint8Array([10]).buffer,
         clientDataJSON: new Uint8Array([20]).buffer,
         signature: new Uint8Array([30]).buffer,
-        userHandle: new Uint8Array([40]).buffer,
+        userHandle: new Uint8Array([40]).buffer
       },
-      getClientExtensionResults: () => ({}),
+      getClientExtensionResults: () => ({})
     } as unknown as PublicKeyCredential;
 
     const out = encodeAssertion(cred) as Record<string, unknown>;

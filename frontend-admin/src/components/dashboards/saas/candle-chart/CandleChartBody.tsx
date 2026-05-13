@@ -1,4 +1,3 @@
-
 import dayjs from 'dayjs';
 import { CandlestickChart } from 'echarts/charts';
 import {
@@ -47,7 +46,12 @@ const splitData = (rawData: RawDataItem[]): ChartData => {
   return { categoryData, values };
 };
 
-const getOptions = (getThemeColor: ThemeColorGetter, data: ChartData, zoomStart: number, zoomEnd: number) => ({
+const getOptions = (
+  getThemeColor: ThemeColorGetter,
+  data: ChartData,
+  zoomStart: number,
+  zoomEnd: number
+) => ({
   tooltip: {
     trigger: 'axis',
     padding: [7, 10],
@@ -135,22 +139,21 @@ const getOptions = (getThemeColor: ThemeColorGetter, data: ChartData, zoomStart:
   }
 });
 
-const CandleChartBody = forwardRef<ReactEChartsCore, CandleChartBodyProps>((
-  { data, zoomStart, zoomEnd, style },
-  ref
-) => {
-  const { getThemeColor } = useAppContext();
-  const chartData = splitData(data);
+const CandleChartBody = forwardRef<ReactEChartsCore, CandleChartBodyProps>(
+  ({ data, zoomStart, zoomEnd, style }, ref) => {
+    const { getThemeColor } = useAppContext();
+    const chartData = splitData(data);
 
-  return (
-    <ReactEchart
-      ref={ref}
-      echarts={echarts}
-      option={getOptions(getThemeColor, chartData, zoomStart, zoomEnd)}
-      style={style}
-    />
-  );
-});
+    return (
+      <ReactEchart
+        ref={ref}
+        echarts={echarts}
+        option={getOptions(getThemeColor, chartData, zoomStart, zoomEnd)}
+        style={style}
+      />
+    );
+  }
+);
 
 CandleChartBody.displayName = 'CandleChartBody';
 

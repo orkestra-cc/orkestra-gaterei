@@ -48,23 +48,30 @@ export const useAuth = () => {
   const isSessionValid = useAppSelector(selectIsSessionValid);
   const userDisplayName = useAppSelector(selectUserDisplayName);
 
-  const loginUser = useCallback((
-    userData: BackendUser
-  ) => {
-    dispatch(login({ userData }));
-  }, [dispatch]);
+  const loginUser = useCallback(
+    (userData: BackendUser) => {
+      dispatch(login({ userData }));
+    },
+    [dispatch]
+  );
 
   const logoutUser = useCallback(() => {
     dispatch(logout());
   }, [dispatch]);
 
-  const setAuthLoading = useCallback((loading: boolean) => {
-    dispatch(setLoading(loading));
-  }, [dispatch]);
+  const setAuthLoading = useCallback(
+    (loading: boolean) => {
+      dispatch(setLoading(loading));
+    },
+    [dispatch]
+  );
 
-  const setAuthError = useCallback((error: string | null) => {
-    dispatch(setError(error));
-  }, [dispatch]);
+  const setAuthError = useCallback(
+    (error: string | null) => {
+      dispatch(setError(error));
+    },
+    [dispatch]
+  );
 
   const clearAuthError = useCallback(() => {
     dispatch(clearError());
@@ -74,17 +81,26 @@ export const useAuth = () => {
     dispatch(updateSession());
   }, [dispatch]);
 
-  const updateUserData = useCallback((updates: Partial<BackendUser>) => {
-    dispatch(updateUser(updates));
-  }, [dispatch]);
+  const updateUserData = useCallback(
+    (updates: Partial<BackendUser>) => {
+      dispatch(updateUser(updates));
+    },
+    [dispatch]
+  );
 
-  const updateUserPermissions = useCallback((newPermissions: string[]) => {
-    dispatch(updatePermissions(newPermissions));
-  }, [dispatch]);
+  const updateUserPermissions = useCallback(
+    (newPermissions: string[]) => {
+      dispatch(updatePermissions(newPermissions));
+    },
+    [dispatch]
+  );
 
-  const updateUserPreferences = useCallback((newPreferences: Partial<UserPreferences>) => {
-    dispatch(updatePreferences(newPreferences));
-  }, [dispatch]);
+  const updateUserPreferences = useCallback(
+    (newPreferences: Partial<UserPreferences>) => {
+      dispatch(updatePreferences(newPreferences));
+    },
+    [dispatch]
+  );
 
   const resetAuth = useCallback(() => {
     dispatch(resetAuthState());
@@ -98,17 +114,26 @@ export const useAuth = () => {
     return dispatch(refreshSession());
   }, [dispatch]);
 
-  const setUserFromApi = useCallback((authData: BackendUser | null) => {
-    dispatch(setUserFromApiResponse(authData));
-  }, [dispatch]);
+  const setUserFromApi = useCallback(
+    (authData: BackendUser | null) => {
+      dispatch(setUserFromApiResponse(authData));
+    },
+    [dispatch]
+  );
 
-  const hasPermission = useCallback((permission: string) => {
-    return permissions.includes(permission);
-  }, [permissions]);
+  const hasPermission = useCallback(
+    (permission: string) => {
+      return permissions.includes(permission);
+    },
+    [permissions]
+  );
 
-  const hasAnyPermission = useCallback((requiredPermissions: string[]) => {
-    return requiredPermissions.some(p => permissions.includes(p));
-  }, [permissions]);
+  const hasAnyPermission = useCallback(
+    (requiredPermissions: string[]) => {
+      return requiredPermissions.some(p => permissions.includes(p));
+    },
+    [permissions]
+  );
 
   return {
     // State

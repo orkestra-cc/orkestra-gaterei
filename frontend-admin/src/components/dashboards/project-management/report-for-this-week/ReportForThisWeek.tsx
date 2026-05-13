@@ -2,7 +2,7 @@ import { useRef, MouseEvent } from 'react';
 import { Card, Col, Row, Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import ReportForThisWeekChart from './ReportForThisWeekChart';
-import FalconCardFooterLink from 'components/common/FalconCardFooterLink';
+import OrkestraCardFooterLink from 'components/common/OrkestraCardFooterLink';
 import Flex from 'components/common/Flex';
 import ReactEChartsCore from 'echarts-for-react/lib/core';
 
@@ -24,7 +24,9 @@ const ReportForThisWeek = ({ data }: ReportForThisWeekProps) => {
         name: name
       });
     }
-    (event.target as HTMLElement).closest('button')?.classList.toggle('opacity-50');
+    (event.target as HTMLElement)
+      .closest('button')
+      ?.classList.toggle('opacity-50');
   };
   return (
     <Card>
@@ -61,7 +63,7 @@ const ReportForThisWeek = ({ data }: ReportForThisWeekProps) => {
       <Card.Body className="py-0">
         <ReportForThisWeekChart data={data} ref={chartRef} />
       </Card.Body>
-      <FalconCardFooterLink title="See all projects" size="sm" />
+      <OrkestraCardFooterLink title="See all projects" size="sm" />
     </Card>
   );
 };

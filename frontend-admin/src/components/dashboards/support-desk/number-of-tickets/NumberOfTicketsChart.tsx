@@ -1,4 +1,3 @@
-
 import { BarChart } from 'echarts/charts';
 import {
   GridComponent,
@@ -38,7 +37,11 @@ interface NumberOfTicketsChartProps {
   data: number[][];
 }
 
-const getOption = (getThemeColor: ThemeColorGetter, data: number[][], isDark: boolean) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: number[][],
+  isDark: boolean
+) => ({
   color: [
     getThemeColor('primary'),
     isDark ? '#1E4C88' : '#94BCF1',
@@ -161,20 +164,21 @@ const getOption = (getThemeColor: ThemeColorGetter, data: number[][], isDark: bo
   }
 });
 
-const NumberOfTicketsChart = forwardRef<ReactEChartsCore, NumberOfTicketsChartProps>(
-  ({ data }, ref) => {
-    const { config, getThemeColor } = useAppContext();
-    const { isDark } = config;
-    return (
-      <ReactEchart
-        echarts={echarts}
-        option={getOption(getThemeColor, data, isDark)}
-        ref={ref}
-        style={{ height: '18.5rem', minWidth: '40rem' }}
-      />
-    );
-  }
-);
+const NumberOfTicketsChart = forwardRef<
+  ReactEChartsCore,
+  NumberOfTicketsChartProps
+>(({ data }, ref) => {
+  const { config, getThemeColor } = useAppContext();
+  const { isDark } = config;
+  return (
+    <ReactEchart
+      echarts={echarts}
+      option={getOption(getThemeColor, data, isDark)}
+      ref={ref}
+      style={{ height: '18.5rem', minWidth: '40rem' }}
+    />
+  );
+});
 
 NumberOfTicketsChart.displayName = 'NumberOfTicketsChart';
 

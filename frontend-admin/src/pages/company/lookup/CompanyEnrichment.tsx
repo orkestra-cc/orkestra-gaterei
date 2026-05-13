@@ -11,7 +11,7 @@ import {
   faChevronUp,
   faGlobe,
   faCheck,
-  faTimes,
+  faTimes
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faFacebook,
@@ -19,7 +19,7 @@ import {
   faTwitter,
   faInstagram,
   faLinkedin,
-  faPinterest,
+  faPinterest
 } from '@fortawesome/free-brands-svg-icons';
 import { useLazyEnrichCompanyLookupQuery } from 'store/api/companyApi';
 import SubtleBadge from 'components/common/SubtleBadge';
@@ -30,16 +30,20 @@ import type {
   Shareholder,
   CorporateGroupsData,
   SubsidiaryCompany,
-  AffiliateCompany,
+  AffiliateCompany
 } from 'types/company';
 import { formatItalianDate, formatCurrency } from 'types/billing';
 
 export const ENRICHMENT_BUTTONS = [
   { type: 'advanced' as EnrichmentType, label: 'Avanzata', icon: faFileAlt },
   { type: 'marketing' as EnrichmentType, label: 'Marketing', icon: faBullhorn },
-  { type: 'stakeholders' as EnrichmentType, label: 'Stakeholders', icon: faUsers },
+  {
+    type: 'stakeholders' as EnrichmentType,
+    label: 'Stakeholders',
+    icon: faUsers
+  },
   { type: 'aml' as EnrichmentType, label: 'AML', icon: faShieldAlt },
-  { type: 'full' as EnrichmentType, label: 'Completa', icon: faStar },
+  { type: 'full' as EnrichmentType, label: 'Completa', icon: faStar }
 ] as const;
 
 // ========================================
@@ -50,7 +54,7 @@ export const EnrichmentSection = ({
   title,
   isOpen,
   onToggle,
-  children,
+  children
 }: {
   title: string;
   isOpen: boolean;
@@ -64,7 +68,10 @@ export const EnrichmentSection = ({
       role="button"
     >
       <span className="fw-semibold fs-9">{title}</span>
-      <FontAwesomeIcon icon={isOpen ? faChevronUp : faChevronDown} className="text-muted fs-10" />
+      <FontAwesomeIcon
+        icon={isOpen ? faChevronUp : faChevronDown}
+        className="text-muted fs-10"
+      />
     </div>
     <Collapse in={isOpen}>
       <div className="px-3 pb-3">{children}</div>
@@ -72,13 +79,25 @@ export const EnrichmentSection = ({
   </div>
 );
 
-export const FieldRow = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
+export const FieldRow = ({
+  label,
+  value
+}: {
+  label: string;
+  value?: string | number | boolean | null;
+}) => {
   if (value === undefined || value === null) return null;
   return (
     <Col sm={6} md={4}>
       <div className="mb-2">
         <small className="text-muted d-block">{label}</small>
-        <span>{typeof value === 'boolean' ? (value ? 'Si' : 'No') : String(value) || '-'}</span>
+        <span>
+          {typeof value === 'boolean'
+            ? value
+              ? 'Si'
+              : 'No'
+            : String(value) || '-'}
+        </span>
       </div>
     </Col>
   );
@@ -119,19 +138,29 @@ const ManagersTable = ({ managers }: { managers: Manager[] }) => {
         <tbody>
           {managers.map((m, i) => (
             <tr key={i}>
-              <td>{m.companyName || [m.name, m.surname].filter(Boolean).join(' ') || '-'}</td>
+              <td>
+                {m.companyName ||
+                  [m.name, m.surname].filter(Boolean).join(' ') ||
+                  '-'}
+              </td>
               <td className="font-monospace">{m.taxCode || '-'}</td>
               <td>
                 {m.roles?.map((r, ri) => (
-                  <div key={ri}>{r.role?.description || r.role?.code || '-'}</div>
+                  <div key={ri}>
+                    {r.role?.description || r.role?.code || '-'}
+                  </div>
                 )) || '-'}
               </td>
               <td>
                 {m.roles?.map((r, ri) => (
-                  <div key={ri}>{r.roleStartDate ? formatItalianDate(r.roleStartDate) : '-'}</div>
+                  <div key={ri}>
+                    {r.roleStartDate ? formatItalianDate(r.roleStartDate) : '-'}
+                  </div>
                 )) || '-'}
               </td>
-              <td><BoolBadge value={m.isLegalRepresentative} /></td>
+              <td>
+                <BoolBadge value={m.isLegalRepresentative} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -140,7 +169,11 @@ const ManagersTable = ({ managers }: { managers: Manager[] }) => {
   );
 };
 
-const ShareholdersTable = ({ shareholders }: { shareholders: Shareholder[] }) => {
+const ShareholdersTable = ({
+  shareholders
+}: {
+  shareholders: Shareholder[];
+}) => {
   if (!shareholders.length) return null;
   return (
     <div className="table-responsive">
@@ -157,12 +190,18 @@ const ShareholdersTable = ({ shareholders }: { shareholders: Shareholder[] }) =>
           {shareholders.map((s, i) =>
             (s.shareholdersInformation || []).map((info, j) => (
               <tr key={`${i}-${j}`}>
-                <td>{info.companyName || [info.name, info.surname].filter(Boolean).join(' ') || '-'}</td>
+                <td>
+                  {info.companyName ||
+                    [info.name, info.surname].filter(Boolean).join(' ') ||
+                    '-'}
+                </td>
                 <td className="font-monospace">{info.taxCode || '-'}</td>
                 <td>{s.percentShare != null ? `${s.percentShare}%` : '-'}</td>
-                <td>{info.sinceDate ? formatItalianDate(info.sinceDate) : '-'}</td>
+                <td>
+                  {info.sinceDate ? formatItalianDate(info.sinceDate) : '-'}
+                </td>
               </tr>
-            )),
+            ))
           )}
         </tbody>
       </Table>
@@ -178,14 +217,17 @@ const CorporateGroupsCard = ({ data }: { data: CorporateGroupsData }) => (
     <FieldRow label="Paese Holding" value={data.holdingCountry?.description} />
     {data.nationalParentCompany && (
       <>
-        <FieldRow label="Capogruppo" value={data.nationalParentCompany.companyName} />
+        <FieldRow
+          label="Capogruppo"
+          value={data.nationalParentCompany.companyName}
+        />
         <FieldRow
           label="Sede Capogruppo"
           value={[
             data.nationalParentCompany.streetName,
             data.nationalParentCompany.zipCode,
             data.nationalParentCompany.town,
-            data.nationalParentCompany.province?.description,
+            data.nationalParentCompany.province?.description
           ]
             .filter(Boolean)
             .join(', ')}
@@ -196,7 +238,11 @@ const CorporateGroupsCard = ({ data }: { data: CorporateGroupsData }) => (
   </Row>
 );
 
-const SubsidiariesTable = ({ subsidiaries }: { subsidiaries: SubsidiaryCompany[] }) => {
+const SubsidiariesTable = ({
+  subsidiaries
+}: {
+  subsidiaries: SubsidiaryCompany[];
+}) => {
   if (!subsidiaries.length) return null;
   return (
     <div className="table-responsive">
@@ -226,7 +272,11 @@ const SubsidiariesTable = ({ subsidiaries }: { subsidiaries: SubsidiaryCompany[]
   );
 };
 
-const AffiliatesTable = ({ affiliates }: { affiliates: AffiliateCompany[] }) => {
+const AffiliatesTable = ({
+  affiliates
+}: {
+  affiliates: AffiliateCompany[];
+}) => {
   if (!affiliates.length) return null;
   return (
     <div className="table-responsive">
@@ -262,10 +312,14 @@ const SOCIAL_ICONS = [
   { key: 'linkedin' as const, icon: faLinkedin, label: 'LinkedIn' },
   { key: 'twitter' as const, icon: faTwitter, label: 'Twitter' },
   { key: 'youtube' as const, icon: faYoutube, label: 'YouTube' },
-  { key: 'pinterest' as const, icon: faPinterest, label: 'Pinterest' },
+  { key: 'pinterest' as const, icon: faPinterest, label: 'Pinterest' }
 ] as const;
 
-export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['advanced']> }) => (
+export const AdvancedSection = ({
+  data
+}: {
+  data: NonNullable<CompanyLookup['advanced']>;
+}) => (
   <div>
     <Row className="g-2">
       <FieldRow label="PEC" value={data.pec} />
@@ -283,8 +337,14 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
           value={`${data.detailedLegalForm.code} - ${data.detailedLegalForm.description}`}
         />
       )}
-      <FieldRow label="Data Inizio" value={data.startDate ? formatItalianDate(data.startDate) : undefined} />
-      <FieldRow label="Data Fine" value={data.endDate ? formatItalianDate(data.endDate) : undefined} />
+      <FieldRow
+        label="Data Inizio"
+        value={data.startDate ? formatItalianDate(data.startDate) : undefined}
+      />
+      <FieldRow
+        label="Data Fine"
+        value={data.endDate ? formatItalianDate(data.endDate) : undefined}
+      />
       <FieldRow label="CF Cessato" value={data.taxCodeCeased} />
     </Row>
 
@@ -293,8 +353,14 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
       <>
         <SectionLabel>Gruppo IVA</SectionLabel>
         <Row className="g-2">
-          <FieldRow label="Partecipazione" value={data.vatGroup.vatGroupParticipation} />
-          <FieldRow label="Capogruppo IVA" value={data.vatGroup.isVatGroupLeader} />
+          <FieldRow
+            label="Partecipazione"
+            value={data.vatGroup.vatGroupParticipation}
+          />
+          <FieldRow
+            label="Capogruppo IVA"
+            value={data.vatGroup.isVatGroupLeader}
+          />
           <FieldRow label="Registro OK" value={data.vatGroup.registryOk} />
         </Row>
       </>
@@ -303,16 +369,70 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
     {/* Last Balance Sheet */}
     {data.balanceSheets?.last && (
       <>
-        <SectionLabel>Ultimo Bilancio ({data.balanceSheets.last.year})</SectionLabel>
+        <SectionLabel>
+          Ultimo Bilancio ({data.balanceSheets.last.year})
+        </SectionLabel>
         <Row className="g-2">
-          <FieldRow label="Data Bilancio" value={data.balanceSheets.last.balanceSheetDate ? formatItalianDate(data.balanceSheets.last.balanceSheetDate) : undefined} />
-          <FieldRow label="Fatturato" value={data.balanceSheets.last.turnover != null ? formatCurrency(data.balanceSheets.last.turnover) : undefined} />
-          <FieldRow label="Patrimonio Netto" value={data.balanceSheets.last.netWorth != null ? formatCurrency(data.balanceSheets.last.netWorth) : undefined} />
-          <FieldRow label="Capitale Sociale" value={data.balanceSheets.last.shareCapital != null ? formatCurrency(data.balanceSheets.last.shareCapital) : undefined} />
-          <FieldRow label="Dipendenti" value={data.balanceSheets.last.employees} />
-          <FieldRow label="Totale Attivo" value={data.balanceSheets.last.totalAssets != null ? formatCurrency(data.balanceSheets.last.totalAssets) : undefined} />
-          <FieldRow label="Costo Personale" value={data.balanceSheets.last.totalStaffCost != null ? formatCurrency(data.balanceSheets.last.totalStaffCost) : undefined} />
-          <FieldRow label="Retribuzione Media" value={data.balanceSheets.last.avgGrossSalary != null ? formatCurrency(data.balanceSheets.last.avgGrossSalary) : undefined} />
+          <FieldRow
+            label="Data Bilancio"
+            value={
+              data.balanceSheets.last.balanceSheetDate
+                ? formatItalianDate(data.balanceSheets.last.balanceSheetDate)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Fatturato"
+            value={
+              data.balanceSheets.last.turnover != null
+                ? formatCurrency(data.balanceSheets.last.turnover)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Patrimonio Netto"
+            value={
+              data.balanceSheets.last.netWorth != null
+                ? formatCurrency(data.balanceSheets.last.netWorth)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Capitale Sociale"
+            value={
+              data.balanceSheets.last.shareCapital != null
+                ? formatCurrency(data.balanceSheets.last.shareCapital)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Dipendenti"
+            value={data.balanceSheets.last.employees}
+          />
+          <FieldRow
+            label="Totale Attivo"
+            value={
+              data.balanceSheets.last.totalAssets != null
+                ? formatCurrency(data.balanceSheets.last.totalAssets)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Costo Personale"
+            value={
+              data.balanceSheets.last.totalStaffCost != null
+                ? formatCurrency(data.balanceSheets.last.totalStaffCost)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Retribuzione Media"
+            value={
+              data.balanceSheets.last.avgGrossSalary != null
+                ? formatCurrency(data.balanceSheets.last.avgGrossSalary)
+                : undefined
+            }
+          />
         </Row>
       </>
     )}
@@ -336,9 +456,17 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
               {data.balanceSheets.all.map((bs, i) => (
                 <tr key={i}>
                   <td>{bs.year ?? '-'}</td>
-                  <td>{bs.turnover != null ? formatCurrency(bs.turnover) : '-'}</td>
-                  <td>{bs.netWorth != null ? formatCurrency(bs.netWorth) : '-'}</td>
-                  <td>{bs.shareCapital != null ? formatCurrency(bs.shareCapital) : '-'}</td>
+                  <td>
+                    {bs.turnover != null ? formatCurrency(bs.turnover) : '-'}
+                  </td>
+                  <td>
+                    {bs.netWorth != null ? formatCurrency(bs.netWorth) : '-'}
+                  </td>
+                  <td>
+                    {bs.shareCapital != null
+                      ? formatCurrency(bs.shareCapital)
+                      : '-'}
+                  </td>
                   <td>{bs.employees ?? '-'}</td>
                 </tr>
               ))}
@@ -364,7 +492,11 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
             <tbody>
               {data.shareHolders.map((s, i) => (
                 <tr key={i}>
-                  <td>{s.companyName || [s.name, s.surname].filter(Boolean).join(' ') || '-'}</td>
+                  <td>
+                    {s.companyName ||
+                      [s.name, s.surname].filter(Boolean).join(' ') ||
+                      '-'}
+                  </td>
                   <td className="font-monospace">{s.taxCode || '-'}</td>
                   <td>{s.percentShare != null ? `${s.percentShare}%` : '-'}</td>
                 </tr>
@@ -377,7 +509,11 @@ export const AdvancedSection = ({ data }: { data: NonNullable<CompanyLookup['adv
   </div>
 );
 
-export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['marketing']> }) => (
+export const MarketingSection = ({
+  data
+}: {
+  data: NonNullable<CompanyLookup['marketing']>;
+}) => (
   <div>
     {/* PEC & Contacts */}
     <Row className="g-2">
@@ -399,7 +535,11 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">Sito Web</small>
-                <a href={data.webAndSocial.website} target="_blank" rel="noreferrer">
+                <a
+                  href={data.webAndSocial.website}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <FontAwesomeIcon icon={faGlobe} className="me-1" />
                   {data.webAndSocial.website}
                 </a>
@@ -410,7 +550,11 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">E-Commerce</small>
-                <a href={data.webAndSocial.eCommerce} target="_blank" rel="noreferrer">
+                <a
+                  href={data.webAndSocial.eCommerce}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {data.webAndSocial.eCommerce}
                 </a>
               </div>
@@ -422,7 +566,14 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
             const url = data.webAndSocial?.[key];
             if (!url) return null;
             return (
-              <a key={key} href={url} target="_blank" rel="noreferrer" title={label} className="btn btn-sm btn-outline-secondary">
+              <a
+                key={key}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                title={label}
+                className="btn btn-sm btn-outline-secondary"
+              >
                 <FontAwesomeIcon icon={icon} className="me-1" />
                 {label}
               </a>
@@ -438,7 +589,10 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
         <SectionLabel>Dipendenti</SectionLabel>
         <Row className="g-2">
           <FieldRow label="Numero Dipendenti" value={data.employees.employee} />
-          <FieldRow label="Fascia" value={data.employees.employeeRange?.description} />
+          <FieldRow
+            label="Fascia"
+            value={data.employees.employeeRange?.description}
+          />
           <FieldRow label="Trend" value={data.employees.employeeTrend} />
         </Row>
       </>
@@ -449,14 +603,48 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
       <>
         <SectionLabel>Eco-Fin</SectionLabel>
         <Row className="g-2">
-          <FieldRow label="Data Bilancio" value={data.ecofin.balanceSheetDate ? formatItalianDate(data.ecofin.balanceSheetDate) : undefined} />
-          <FieldRow label="Fatturato" value={data.ecofin.turnover != null ? formatCurrency(data.ecofin.turnover) : undefined} />
-          <FieldRow label="Fascia Fatturato" value={data.ecofin.turnoverRange?.description} />
+          <FieldRow
+            label="Data Bilancio"
+            value={
+              data.ecofin.balanceSheetDate
+                ? formatItalianDate(data.ecofin.balanceSheetDate)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Fatturato"
+            value={
+              data.ecofin.turnover != null
+                ? formatCurrency(data.ecofin.turnover)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Fascia Fatturato"
+            value={data.ecofin.turnoverRange?.description}
+          />
           <FieldRow label="Anno Fatturato" value={data.ecofin.turnoverYear} />
           <FieldRow label="Trend Fatturato" value={data.ecofin.turnoverTrend} />
-          <FieldRow label="Capitale Sociale" value={data.ecofin.shareCapital != null ? formatCurrency(data.ecofin.shareCapital) : undefined} />
-          <FieldRow label="Patrimonio Netto" value={data.ecofin.netWorth != null ? formatCurrency(data.ecofin.netWorth) : undefined} />
-          <FieldRow label="Dimensione Impresa" value={data.ecofin.enterpriseSize?.description} />
+          <FieldRow
+            label="Capitale Sociale"
+            value={
+              data.ecofin.shareCapital != null
+                ? formatCurrency(data.ecofin.shareCapital)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Patrimonio Netto"
+            value={
+              data.ecofin.netWorth != null
+                ? formatCurrency(data.ecofin.netWorth)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Dimensione Impresa"
+            value={data.ecofin.enterpriseSize?.description}
+          />
         </Row>
       </>
     )}
@@ -466,14 +654,21 @@ export const MarketingSection = ({ data }: { data: NonNullable<CompanyLookup['ma
       <>
         <SectionLabel>Sedi</SectionLabel>
         <Row className="g-2">
-          <FieldRow label="Numero Sedi" value={data.branches.numberOfBranches} />
+          <FieldRow
+            label="Numero Sedi"
+            value={data.branches.numberOfBranches}
+          />
         </Row>
       </>
     )}
   </div>
 );
 
-export const StakeholdersSection = ({ data }: { data: NonNullable<CompanyLookup['stakeholders']> }) => (
+export const StakeholdersSection = ({
+  data
+}: {
+  data: NonNullable<CompanyLookup['stakeholders']>;
+}) => (
   <div>
     {data.managers && data.managers.length > 0 && (
       <>
@@ -512,12 +707,26 @@ export const StakeholdersSection = ({ data }: { data: NonNullable<CompanyLookup[
   </div>
 );
 
-export const AMLSection = ({ data }: { data: NonNullable<CompanyLookup['aml']> }) => (
+export const AMLSection = ({
+  data
+}: {
+  data: NonNullable<CompanyLookup['aml']>;
+}) => (
   <div>
     {/* RAE / SAE */}
     <Row className="g-2 mb-2">
-      {data.rae && <FieldRow label="RAE" value={`${data.rae.code} - ${data.rae.description}`} />}
-      {data.sae && <FieldRow label="SAE" value={`${data.sae.code} - ${data.sae.description}`} />}
+      {data.rae && (
+        <FieldRow
+          label="RAE"
+          value={`${data.rae.code} - ${data.rae.description}`}
+        />
+      )}
+      {data.sae && (
+        <FieldRow
+          label="SAE"
+          value={`${data.sae.code} - ${data.sae.description}`}
+        />
+      )}
     </Row>
 
     {/* Managers & Shareholders — reuse shared tables */}
@@ -549,11 +758,31 @@ export const AMLSection = ({ data }: { data: NonNullable<CompanyLookup['aml']> }
         <SectionLabel>Commercio Estero</SectionLabel>
         <Row className="g-2">
           <FieldRow label="Importatore" value={data.foreignTrade.isImporter} />
-          <FieldRow label="% Import" value={data.foreignTrade.importPercentShare != null ? `${data.foreignTrade.importPercentShare}%` : undefined} />
-          <FieldRow label="Paesi Import" value={data.foreignTrade.importCountries} />
+          <FieldRow
+            label="% Import"
+            value={
+              data.foreignTrade.importPercentShare != null
+                ? `${data.foreignTrade.importPercentShare}%`
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Paesi Import"
+            value={data.foreignTrade.importCountries}
+          />
           <FieldRow label="Esportatore" value={data.foreignTrade.isExporter} />
-          <FieldRow label="% Export" value={data.foreignTrade.exportPercentShare != null ? `${data.foreignTrade.exportPercentShare}%` : undefined} />
-          <FieldRow label="Paesi Export" value={data.foreignTrade.exportCountries} />
+          <FieldRow
+            label="% Export"
+            value={
+              data.foreignTrade.exportPercentShare != null
+                ? `${data.foreignTrade.exportPercentShare}%`
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Paesi Export"
+            value={data.foreignTrade.exportCountries}
+          />
         </Row>
       </>
     )}
@@ -592,12 +821,54 @@ export const AMLSection = ({ data }: { data: NonNullable<CompanyLookup['aml']> }
       <>
         <SectionLabel>Risultati Operativi</SectionLabel>
         <Row className="g-2">
-          <FieldRow label="EBITDA" value={data.operatingResults.ebitda != null ? formatCurrency(data.operatingResults.ebitda) : undefined} />
-          <FieldRow label="EBITDA (anno prec.)" value={data.operatingResults.ebitdaL2Y != null ? formatCurrency(data.operatingResults.ebitdaL2Y) : undefined} />
-          <FieldRow label="EBIT" value={data.operatingResults.ebit != null ? formatCurrency(data.operatingResults.ebit) : undefined} />
-          <FieldRow label="EBIT (anno prec.)" value={data.operatingResults.ebitL2Y != null ? formatCurrency(data.operatingResults.ebitL2Y) : undefined} />
-          <FieldRow label="Cash Flow" value={data.operatingResults.cashFlow != null ? formatCurrency(data.operatingResults.cashFlow) : undefined} />
-          <FieldRow label="Cash Flow (anno prec.)" value={data.operatingResults.cashFlowL2Y != null ? formatCurrency(data.operatingResults.cashFlowL2Y) : undefined} />
+          <FieldRow
+            label="EBITDA"
+            value={
+              data.operatingResults.ebitda != null
+                ? formatCurrency(data.operatingResults.ebitda)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="EBITDA (anno prec.)"
+            value={
+              data.operatingResults.ebitdaL2Y != null
+                ? formatCurrency(data.operatingResults.ebitdaL2Y)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="EBIT"
+            value={
+              data.operatingResults.ebit != null
+                ? formatCurrency(data.operatingResults.ebit)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="EBIT (anno prec.)"
+            value={
+              data.operatingResults.ebitL2Y != null
+                ? formatCurrency(data.operatingResults.ebitL2Y)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Cash Flow"
+            value={
+              data.operatingResults.cashFlow != null
+                ? formatCurrency(data.operatingResults.cashFlow)
+                : undefined
+            }
+          />
+          <FieldRow
+            label="Cash Flow (anno prec.)"
+            value={
+              data.operatingResults.cashFlowL2Y != null
+                ? formatCurrency(data.operatingResults.cashFlowL2Y)
+                : undefined
+            }
+          />
         </Row>
       </>
     )}
@@ -608,7 +879,14 @@ export const AMLSection = ({ data }: { data: NonNullable<CompanyLookup['aml']> }
         <SectionLabel>Debiti</SectionLabel>
         <Row className="g-2">
           <FieldRow label="Codice" value={data.debts.code} />
-          <FieldRow label="Valore" value={data.debts.value != null ? formatCurrency(data.debts.value) : undefined} />
+          <FieldRow
+            label="Valore"
+            value={
+              data.debts.value != null
+                ? formatCurrency(data.debts.value)
+                : undefined
+            }
+          />
         </Row>
       </>
     )}
@@ -621,27 +899,38 @@ export const AMLSection = ({ data }: { data: NonNullable<CompanyLookup['aml']> }
  */
 export const EnrichmentPanel = ({
   company,
-  onEnriched,
+  onEnriched
 }: {
   company: CompanyLookup;
   onEnriched: (updated: CompanyLookup) => void;
 }) => {
-  const [activeEnrichment, setActiveEnrichment] = useState<EnrichmentType | null>(null);
+  const [activeEnrichment, setActiveEnrichment] =
+    useState<EnrichmentType | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [triggerEnrich] = useLazyEnrichCompanyLookupQuery();
 
-  const isEnriched = (type: string) => company.fetchedTypes?.[type] !== undefined;
+  const isEnriched = (type: string) =>
+    company.fetchedTypes?.[type] !== undefined;
 
   const handleEnrich = async (type: EnrichmentType) => {
     if (activeEnrichment) return;
     setActiveEnrichment(type);
     try {
-      const enriched = await triggerEnrich({ taxCode: company.taxCode, type }).unwrap();
+      const enriched = await triggerEnrich({
+        taxCode: company.taxCode,
+        type
+      }).unwrap();
       onEnriched(enriched);
       if (type === 'full') {
-        setOpenSections((prev) => ({ ...prev, advanced: true, marketing: true, stakeholders: true, aml: true }));
+        setOpenSections(prev => ({
+          ...prev,
+          advanced: true,
+          marketing: true,
+          stakeholders: true,
+          aml: true
+        }));
       } else {
-        setOpenSections((prev) => ({ ...prev, [type]: true }));
+        setOpenSections(prev => ({ ...prev, [type]: true }));
       }
     } catch {
       // Error handled by RTK Query
@@ -651,16 +940,19 @@ export const EnrichmentPanel = ({
   };
 
   const toggleSection = (key: string) => {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
     <>
       <div className="d-flex flex-wrap gap-2 mb-3">
         {ENRICHMENT_BUTTONS.map(({ type, label, icon }) => {
-          const loaded = type === 'full'
-            ? ['advanced', 'marketing', 'stakeholders', 'aml'].every(isEnriched)
-            : isEnriched(type);
+          const loaded =
+            type === 'full'
+              ? ['advanced', 'marketing', 'stakeholders', 'aml'].every(
+                  isEnriched
+                )
+              : isEnriched(type);
           const isLoading = activeEnrichment === type;
 
           return (
@@ -693,25 +985,41 @@ export const EnrichmentPanel = ({
       )}
 
       {company.advanced && (
-        <EnrichmentSection title="Dati Avanzati" isOpen={!!openSections.advanced} onToggle={() => toggleSection('advanced')}>
+        <EnrichmentSection
+          title="Dati Avanzati"
+          isOpen={!!openSections.advanced}
+          onToggle={() => toggleSection('advanced')}
+        >
           <AdvancedSection data={company.advanced} />
         </EnrichmentSection>
       )}
 
       {company.marketing && (
-        <EnrichmentSection title="Marketing" isOpen={!!openSections.marketing} onToggle={() => toggleSection('marketing')}>
+        <EnrichmentSection
+          title="Marketing"
+          isOpen={!!openSections.marketing}
+          onToggle={() => toggleSection('marketing')}
+        >
           <MarketingSection data={company.marketing} />
         </EnrichmentSection>
       )}
 
       {company.stakeholders && (
-        <EnrichmentSection title="Stakeholders" isOpen={!!openSections.stakeholders} onToggle={() => toggleSection('stakeholders')}>
+        <EnrichmentSection
+          title="Stakeholders"
+          isOpen={!!openSections.stakeholders}
+          onToggle={() => toggleSection('stakeholders')}
+        >
           <StakeholdersSection data={company.stakeholders} />
         </EnrichmentSection>
       )}
 
       {company.aml && (
-        <EnrichmentSection title="AML (Antiriciclaggio)" isOpen={!!openSections.aml} onToggle={() => toggleSection('aml')}>
+        <EnrichmentSection
+          title="AML (Antiriciclaggio)"
+          isOpen={!!openSections.aml}
+          onToggle={() => toggleSection('aml')}
+        >
           <AMLSection data={company.aml} />
         </EnrichmentSection>
       )}

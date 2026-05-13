@@ -21,22 +21,27 @@ export const initiateEveLogin = async (
   backendUrl: string = import.meta.env.VITE_BACKEND_URL,
   loginType: LoginType = 'login'
 ): Promise<void> => {
-  const endpoint = loginType === 'register' ? '/auth/eve/register' : '/auth/eve/login';
+  const endpoint =
+    loginType === 'register' ? '/auth/eve/register' : '/auth/eve/login';
   const response = await fetch(`${backendUrl}${endpoint}`, {
     method: 'GET',
     credentials: 'include', // Include cookies for session management
     headers: {
-      'Accept': 'application/json'
+      Accept: 'application/json'
     }
   });
 
   if (!response.ok) {
     const errorData: EveAuthResponse = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.message || 'Failed to get authorization URL from backend');
+    throw new Error(
+      errorData.error ||
+        errorData.message ||
+        'Failed to get authorization URL from backend'
+    );
   }
 
   const data: EveAuthResponse = await response.json();
-  
+
   if (!data.auth_url) {
     throw new Error('No authorization URL received from backend');
   }

@@ -47,20 +47,34 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
     }
 
     try {
-      const result = await createAdmin({ email: email.trim(), password, fullName: fullName.trim() }).unwrap();
+      const result = await createAdmin({
+        email: email.trim(),
+        password,
+        fullName: fullName.trim()
+      }).unwrap();
 
       dispatch(loginAction({ userData: result.user }));
-      dispatch(setAccessToken({ accessToken: result.accessToken, expiresIn: result.expiresIn }));
+      dispatch(
+        setAccessToken({
+          accessToken: result.accessToken,
+          expiresIn: result.expiresIn
+        })
+      );
 
       onNext(fullName.trim());
     } catch (err: unknown) {
       const anyErr = err as { status?: number; data?: { detail?: string } };
       if (anyErr?.status === 409) {
-        setError('An administrator already exists. Reload this page to continue to the login screen.');
+        setError(
+          'An administrator already exists. Reload this page to continue to the login screen.'
+        );
       } else if (anyErr?.status === 400 && anyErr?.data?.detail) {
         setError(anyErr.data.detail);
       } else {
-        setError(anyErr?.data?.detail || 'Could not create the administrator account. Please try again.');
+        setError(
+          anyErr?.data?.detail ||
+            'Could not create the administrator account. Please try again.'
+        );
       }
     }
   };
@@ -76,7 +90,12 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
       </div>
 
       {error && (
-        <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          onClose={() => setError(null)}
+          dismissible
+        >
           {error}
         </Alert>
       )}
@@ -86,7 +105,7 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
         <Form.Control
           type="text"
           value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
+          onChange={e => setFullName(e.target.value)}
           autoComplete="name"
           required
         />
@@ -98,7 +117,7 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
           type="email"
           placeholder="admin@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           autoComplete="email"
           required
         />
@@ -110,13 +129,13 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
           type="password"
           placeholder="At least 10 characters"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
           autoComplete="new-password"
           required
         />
         <Form.Text className="text-muted">
-          Argon2id-hashed on the backend. Must be at least 10 characters and
-          not contain your email address.
+          Argon2id-hashed on the backend. Must be at least 10 characters and not
+          contain your email address.
         </Form.Text>
       </Form.Group>
 
@@ -125,7 +144,7 @@ const AdminStep = ({ onNext }: AdminStepProps) => {
         <Form.Control
           type="password"
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          onChange={e => setConfirmPassword(e.target.value)}
           autoComplete="new-password"
           required
         />

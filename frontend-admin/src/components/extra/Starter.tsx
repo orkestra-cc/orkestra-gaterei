@@ -1,4 +1,3 @@
-
 import { Card, Row, Col } from 'react-bootstrap';
 import { Link } from 'react-router';
 import editing from 'assets/img/illustrations/4.png';
@@ -15,7 +14,10 @@ const Starter = () => {
           <Col lg={6} className="ps-lg-4 my-5 text-center text-lg-left">
             <h3>Edit me!</h3>
             <p className="lead">Create Something Beautiful.</p>
-            <Link className="btn btn-falcon-primary" to={paths.gettingStarted}>
+            <Link
+              className="btn btn-orkestra-primary"
+              to={paths.gettingStarted}
+            >
               Getting started
             </Link>
           </Col>

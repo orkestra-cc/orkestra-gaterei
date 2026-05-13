@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/authz/cedar"
 	"github.com/orkestra/backend/internal/core/authz/models"
 	"github.com/orkestra/backend/internal/core/authz/repository"
-	"github.com/orkestra/backend/internal/shared/database"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -132,7 +133,7 @@ type repoBackend interface {
 // invalidated when bindings or roles change.
 type Service struct {
 	repo               repoBackend
-	redis              *database.RedisClientAdapter
+	redis              module.RedisClient
 	logger             *slog.Logger
 	userRoles          UserSystemRoleLookup
 	startMFAGrace      MFAGraceStarter
@@ -142,8 +143,8 @@ type Service struct {
 	// because the auth module (which owns the auth_sessions repo) does
 	// not finish its own Init until after authz. Nil falls back to
 	// zero risk on the Cedar principal — no divergence, no ABAC effect.
-	lookupSessionRisk  SessionRiskLookup
-	production         bool // when true, developer role is restricted to read-only
+	lookupSessionRisk SessionRiskLookup
+	production        bool // when true, developer role is restricted to read-only
 
 	// cedarEngine is the Cedar evaluator. nil when Cedar is disabled
 	// (boot-time construction failure, or explicitly turned off for tests).
@@ -207,7 +208,7 @@ type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, err
 
 type Config struct {
 	Repo               *repository.Repository
-	Redis              *database.RedisClientAdapter
+	Redis              module.RedisClient
 	Logger             *slog.Logger
 	LookupUser         UserSystemRoleLookup
 	LookupCaps         TenantCapabilityLookup
@@ -376,8 +377,8 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 			systemRole = r
 		}
 	}
-	tenantRoles, _ := middleware.GetTenantRoles(ctx)
-	tenantKind := middleware.TenantKindFromContext(ctx)
+	tenantRoles, _ := ctxauth.GetTenantRoles(ctx)
+	tenantKind := ctxauth.TenantKindFromContext(ctx)
 	if tenantKind == "" {
 		// Fall back to "internal" for global/pre-ADR-0001 calls so
 		// tier-aware forbid rules don't fire against an unknown kind.
@@ -405,7 +406,7 @@ func (s *Service) shadowEvaluate(ctx context.Context, userUUID, tenantID, permis
 	// helpers return zero values and the engine stamps mfa_enrolled=false.
 	amr, _ := middleware.GetAMR(ctx)
 	mfaEnrolled := middleware.IsMFAEnrolled(ctx)
-	clientIP, _ := middleware.GetClientIP(ctx)
+	clientIP, _ := ctxauth.GetClientIP(ctx)
 	// Risk signals: pull the session's most recent score via the lookup
 	// callback (wired post-InitAll) and derive the level locally. Score
 	// is in [0.0, 1.0]; the engine multiplies by 100 when stamping the
@@ -1171,4 +1172,3 @@ func filter(in []string, pred func(string) bool) []string {
 	}
 	return out
 }
-

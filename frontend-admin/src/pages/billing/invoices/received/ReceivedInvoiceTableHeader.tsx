@@ -4,13 +4,23 @@ import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 import IconButton from 'components/common/IconButton';
 import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableSearchBox';
 import { useState } from 'react';
-import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
+import {
+  arrayToCSV,
+  downloadCSV,
+  formatDateForCSV,
+  generateTimestampedFilename
+} from 'utils/csvExport';
 import type { InvoiceSummary, InvoiceStatus } from 'types/billing';
-import { INVOICE_STATUS_LABELS, DOCUMENT_TYPE_LABELS, formatCurrency } from 'types/billing';
+import {
+  INVOICE_STATUS_LABELS,
+  DOCUMENT_TYPE_LABELS,
+  formatCurrency
+} from 'types/billing';
 import ImportXMLModal from './ImportXMLModal';
 
 const ReceivedInvoiceTableHeader = () => {
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
+  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
+    useAdvanceTableContext();
   const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
   const [showImportModal, setShowImportModal] = useState(false);
 
@@ -19,10 +29,13 @@ const ReceivedInvoiceTableHeader = () => {
     { label: 'In Attesa', value: 'pending' },
     { label: 'Accettata', value: 'accepted' },
     { label: 'Rifiutata', value: 'rejected' },
-    { label: 'Pagata', value: 'paid' },
+    { label: 'Pagata', value: 'paid' }
   ];
 
-  const handleStatusFilter = (filter: { label: string; value: InvoiceStatus | 'all' }) => {
+  const handleStatusFilter = (filter: {
+    label: string;
+    value: InvoiceStatus | 'all';
+  }) => {
     setSelectedStatus(filter.label);
     if (filter.value === 'all') {
       setColumnFilters([]);
@@ -37,14 +50,15 @@ const ReceivedInvoiceTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const invoice = row.original as InvoiceSummary;
       return {
-        'Numero': invoice.number,
-        'Tipo Documento': DOCUMENT_TYPE_LABELS[invoice.documentType] || invoice.documentType,
-        'Data': formatDateForCSV(invoice.date),
-        'Fornitore': invoice.partyName,
-        'Importo': formatCurrency(invoice.totalAmount).replace('€', '').trim(),
-        'Stato': INVOICE_STATUS_LABELS[invoice.status],
+        Numero: invoice.number,
+        'Tipo Documento':
+          DOCUMENT_TYPE_LABELS[invoice.documentType] || invoice.documentType,
+        Data: formatDateForCSV(invoice.date),
+        Fornitore: invoice.partyName,
+        Importo: formatCurrency(invoice.totalAmount).replace('€', '').trim(),
+        Stato: INVOICE_STATUS_LABELS[invoice.status],
         'SDI ID': invoice.sdiIdentifier || '',
-        'Ricevuto il': formatDateForCSV(invoice.createdAt),
+        'Ricevuto il': formatDateForCSV(invoice.createdAt)
       };
     });
 
@@ -56,7 +70,7 @@ const ReceivedInvoiceTableHeader = () => {
       'Importo',
       'Stato',
       'SDI ID',
-      'Ricevuto il',
+      'Ricevuto il'
     ];
 
     const csv = arrayToCSV(csvData, headers);
@@ -81,15 +95,19 @@ const ReceivedInvoiceTableHeader = () => {
       <div className="d-flex align-items-center justify-content-between justify-content-lg-end px-x1">
         <Dropdown className="font-sans-serif">
           <Dropdown.Toggle
-            variant="falcon-default"
+            variant="orkestra-default"
             size="sm"
             className="text-600"
           >
-            <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
+            <FontAwesomeIcon
+              icon="filter"
+              transform="shrink-4"
+              className="me-2"
+            />
             <span className="d-none d-sm-inline-block">{selectedStatus}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
-            {statusFilters.map((filter) => (
+            {statusFilters.map(filter => (
               <Dropdown.Item
                 key={filter.value}
                 onClick={() => handleStatusFilter(filter)}
@@ -120,7 +138,7 @@ const ReceivedInvoiceTableHeader = () => {
             </Form.Select>
             <Button
               type="button"
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               className="ms-2"
             >
@@ -130,7 +148,7 @@ const ReceivedInvoiceTableHeader = () => {
         ) : (
           <div id="invoice-actions">
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
@@ -141,8 +159,11 @@ const ReceivedInvoiceTableHeader = () => {
                 Esporta
               </span>
             </IconButton>
-            <Dropdown align="end" className="btn-reveal-trigger d-inline-block ms-2">
-              <Dropdown.Toggle variant="falcon-default" size="sm">
+            <Dropdown
+              align="end"
+              className="btn-reveal-trigger d-inline-block ms-2"
+            >
+              <Dropdown.Toggle variant="orkestra-default" size="sm">
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
               </Dropdown.Toggle>
 
@@ -152,7 +173,10 @@ const ReceivedInvoiceTableHeader = () => {
                   <Dropdown.Item>Esporta XML</Dropdown.Item>
                   <Dropdown.Divider />
                   <Dropdown.Item onClick={() => setShowImportModal(true)}>
-                    <FontAwesomeIcon icon="file-import" className="me-2 text-primary" />
+                    <FontAwesomeIcon
+                      icon="file-import"
+                      className="me-2 text-primary"
+                    />
                     Importa XML
                   </Dropdown.Item>
                 </div>

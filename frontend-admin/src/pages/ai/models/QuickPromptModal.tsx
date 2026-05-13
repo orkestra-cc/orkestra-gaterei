@@ -8,7 +8,10 @@ interface QuickPromptModalProps {
   onHide: () => void;
 }
 
-const QuickPromptModal: React.FC<QuickPromptModalProps> = ({ model, onHide }) => {
+const QuickPromptModal: React.FC<QuickPromptModalProps> = ({
+  model,
+  onHide
+}) => {
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [timeMs, setTimeMs] = useState<number | null>(null);
@@ -28,7 +31,10 @@ const QuickPromptModal: React.FC<QuickPromptModalProps> = ({ model, onHide }) =>
     setResponse('');
     setTimeMs(null);
     try {
-      const result = await sendPrompt({ uuid: model.uuid, prompt: prompt.trim() }).unwrap();
+      const result = await sendPrompt({
+        uuid: model.uuid,
+        prompt: prompt.trim()
+      }).unwrap();
       setResponse(result.response);
       setTimeMs(result.timeMs);
     } catch {
@@ -72,18 +78,31 @@ const QuickPromptModal: React.FC<QuickPromptModalProps> = ({ model, onHide }) =>
             onClick={handleSend}
             disabled={isLoading || !prompt.trim()}
           >
-            {isLoading ? <><Spinner size="sm" className="me-1" /> Sending...</> : 'Send'}
+            {isLoading ? (
+              <>
+                <Spinner size="sm" className="me-1" /> Sending...
+              </>
+            ) : (
+              'Send'
+            )}
           </Button>
           {timeMs !== null && (
             <span className="text-muted small">{timeMs} ms</span>
           )}
         </div>
 
-        {error && <Alert variant="danger" className="small">{error}</Alert>}
+        {error && (
+          <Alert variant="danger" className="small">
+            {error}
+          </Alert>
+        )}
 
         {response && (
           <div className="border rounded p-2 bg-body-tertiary">
-            <pre className="mb-0 small" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <pre
+              className="mb-0 small"
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
               {response}
             </pre>
           </div>

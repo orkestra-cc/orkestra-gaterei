@@ -1,19 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Form,
-  Row,
-  Spinner,
-} from 'react-bootstrap';
+import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import {
   useDeleteIdPConfigMutation,
   useGetIdPConfigQuery,
-  usePutIdPConfigMutation,
+  usePutIdPConfigMutation
 } from 'store/api/identityApi';
 import type { IdPConfigPayload } from 'types/identity';
 
@@ -28,13 +20,14 @@ const emptyDraft: IdPConfigPayload = {
   subClaim: '',
   emailClaim: '',
   nameClaim: '',
-  enabled: true,
+  enabled: true
 };
 
 const IdPConfigForm: React.FC = () => {
   const { data, isLoading, error } = useGetIdPConfigQuery();
   const [putConfig, { isLoading: isSaving }] = usePutIdPConfigMutation();
-  const [deleteConfig, { isLoading: isDeleting }] = useDeleteIdPConfigMutation();
+  const [deleteConfig, { isLoading: isDeleting }] =
+    useDeleteIdPConfigMutation();
 
   // 404 is the happy "no config yet" path. Distinguish it from real
   // errors (403, 5xx, network) so we render the empty form rather than
@@ -65,7 +58,7 @@ const IdPConfigForm: React.FC = () => {
         subClaim: data.subClaim ?? '',
         emailClaim: data.emailClaim ?? '',
         nameClaim: data.nameClaim ?? '',
-        enabled: data.enabled ?? true,
+        enabled: data.enabled ?? true
       });
       setSecretTouched(false);
     } else if (notFound) {
@@ -75,7 +68,7 @@ const IdPConfigForm: React.FC = () => {
   }, [data, notFound]);
 
   const update = (patch: Partial<IdPConfigPayload>) =>
-    setDraft((prev) => ({ ...prev, ...patch }));
+    setDraft(prev => ({ ...prev, ...patch }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +77,7 @@ const IdPConfigForm: React.FC = () => {
       // the backend keeps the existing ciphertext when the field is empty.
       const payload: IdPConfigPayload = {
         ...draft,
-        clientSecret: secretTouched ? draft.clientSecret : '',
+        clientSecret: secretTouched ? draft.clientSecret : ''
       };
       await putConfig(payload).unwrap();
       toast.success('IdP configuration saved');
@@ -140,19 +133,21 @@ const IdPConfigForm: React.FC = () => {
         {!isLoading && realError && (
           <Alert variant="danger" className="fs-10 mb-0">
             Failed to load IdP configuration. You need the{' '}
-            <code>tenant.update</code> permission on the current tenant to
-            view or edit this page.
+            <code>tenant.update</code> permission on the current tenant to view
+            or edit this page.
           </Alert>
         )}
         {!isLoading && !realError && (
           <Form onSubmit={handleSubmit}>
             <Row className="g-3">
               <Col md={6}>
-                <Form.Label className="fs-10 fw-semibold">Display name</Form.Label>
+                <Form.Label className="fs-10 fw-semibold">
+                  Display name
+                </Form.Label>
                 <Form.Control
                   size="sm"
                   value={draft.displayName}
-                  onChange={(e) => update({ displayName: e.target.value })}
+                  onChange={e => update({ displayName: e.target.value })}
                   placeholder="Sign in with Acme Corp"
                 />
               </Col>
@@ -160,9 +155,13 @@ const IdPConfigForm: React.FC = () => {
                 <Form.Check
                   type="switch"
                   id="identity-idp-enabled"
-                  label={draft.enabled ? 'Enabled — users can sign in via this IdP' : 'Disabled — public /start endpoint returns 404'}
+                  label={
+                    draft.enabled
+                      ? 'Enabled — users can sign in via this IdP'
+                      : 'Disabled — public /start endpoint returns 404'
+                  }
                   checked={draft.enabled}
-                  onChange={(e) => update({ enabled: e.target.checked })}
+                  onChange={e => update({ enabled: e.target.checked })}
                 />
               </Col>
 
@@ -174,12 +173,14 @@ const IdPConfigForm: React.FC = () => {
                   size="sm"
                   required
                   value={draft.issuerURL}
-                  onChange={(e) => update({ issuerURL: e.target.value })}
+                  onChange={e => update({ issuerURL: e.target.value })}
                   placeholder="https://auth.example.com"
                 />
                 <Form.Text muted>
                   OIDC discovery base URL — no trailing slash. Orkestra appends
-                  <code className="mx-1">/.well-known/openid-configuration</code>
+                  <code className="mx-1">
+                    /.well-known/openid-configuration
+                  </code>
                   at login time.
                 </Form.Text>
               </Col>
@@ -192,19 +193,20 @@ const IdPConfigForm: React.FC = () => {
                   size="sm"
                   required
                   value={draft.clientId}
-                  onChange={(e) => update({ clientId: e.target.value })}
+                  onChange={e => update({ clientId: e.target.value })}
                 />
               </Col>
               <Col md={6}>
                 <Form.Label className="fs-10 fw-semibold">
-                  Client secret {!hasSecret && <span className="text-danger">*</span>}
+                  Client secret{' '}
+                  {!hasSecret && <span className="text-danger">*</span>}
                 </Form.Label>
                 <Form.Control
                   size="sm"
                   type="password"
                   autoComplete="new-password"
                   value={draft.clientSecret ?? ''}
-                  onChange={(e) => {
+                  onChange={e => {
                     update({ clientSecret: e.target.value });
                     setSecretTouched(true);
                   }}
@@ -230,7 +232,7 @@ const IdPConfigForm: React.FC = () => {
                   size="sm"
                   required
                   value={draft.redirectURL}
-                  onChange={(e) => update({ redirectURL: e.target.value })}
+                  onChange={e => update({ redirectURL: e.target.value })}
                   placeholder="https://app.orkestra.example/v1/identity/oidc/callback"
                 />
                 <Form.Text muted>
@@ -243,45 +245,52 @@ const IdPConfigForm: React.FC = () => {
                 <Form.Control
                   size="sm"
                   value={(draft.scopes ?? []).join(' ')}
-                  onChange={(e) =>
+                  onChange={e =>
                     update({
                       scopes: e.target.value
                         .split(/\s+/)
-                        .map((s) => s.trim())
-                        .filter(Boolean),
+                        .map(s => s.trim())
+                        .filter(Boolean)
                     })
                   }
                   placeholder="openid email profile"
                 />
                 <Form.Text muted>
-                  Space-separated. Defaults to <code>openid email profile</code>.
+                  Space-separated. Defaults to <code>openid email profile</code>
+                  .
                 </Form.Text>
               </Col>
 
               <Col md={4}>
-                <Form.Label className="fs-10 fw-semibold">Subject claim</Form.Label>
+                <Form.Label className="fs-10 fw-semibold">
+                  Subject claim
+                </Form.Label>
                 <Form.Control
                   size="sm"
                   value={draft.subClaim ?? ''}
-                  onChange={(e) => update({ subClaim: e.target.value })}
+                  onChange={e => update({ subClaim: e.target.value })}
                   placeholder="sub"
                 />
               </Col>
               <Col md={4}>
-                <Form.Label className="fs-10 fw-semibold">Email claim</Form.Label>
+                <Form.Label className="fs-10 fw-semibold">
+                  Email claim
+                </Form.Label>
                 <Form.Control
                   size="sm"
                   value={draft.emailClaim ?? ''}
-                  onChange={(e) => update({ emailClaim: e.target.value })}
+                  onChange={e => update({ emailClaim: e.target.value })}
                   placeholder="email"
                 />
               </Col>
               <Col md={4}>
-                <Form.Label className="fs-10 fw-semibold">Name claim</Form.Label>
+                <Form.Label className="fs-10 fw-semibold">
+                  Name claim
+                </Form.Label>
                 <Form.Control
                   size="sm"
                   value={draft.nameClaim ?? ''}
-                  onChange={(e) => update({ nameClaim: e.target.value })}
+                  onChange={e => update({ nameClaim: e.target.value })}
                   placeholder="name"
                 />
               </Col>

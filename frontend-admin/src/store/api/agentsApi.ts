@@ -6,112 +6,137 @@ import type {
   AgentQueryRequest,
   AgentSettings,
   CreateProjectRequest,
-  UpdateProjectRequest,
+  UpdateProjectRequest
 } from '../../types/agents';
 
 export const agentsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // --- Project CRUD ---
 
-    listProjects: builder.query<{ projects: AgentProject[] }, { status?: string } | void>({
-      query: (params) => {
+    listProjects: builder.query<
+      { projects: AgentProject[] },
+      { status?: string } | void
+    >({
+      query: params => {
         const searchParams = new URLSearchParams();
         if (params?.status) searchParams.append('status', params.status);
         const qs = searchParams.toString();
         return `/v1/agents/projects${qs ? `?${qs}` : ''}`;
       },
-      providesTags: ['AgentProject'],
+      providesTags: ['AgentProject']
     }),
 
     getProject: builder.query<AgentProject, string>({
-      query: (uuid) => `/v1/agents/projects/${uuid}`,
-      providesTags: (_result, _err, uuid) => [{ type: 'AgentProject', id: uuid }],
+      query: uuid => `/v1/agents/projects/${uuid}`,
+      providesTags: (_result, _err, uuid) => [
+        { type: 'AgentProject', id: uuid }
+      ]
     }),
 
     createProject: builder.mutation<AgentProject, CreateProjectRequest>({
-      query: (body) => ({
+      query: body => ({
         url: '/v1/agents/projects',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['AgentProject'],
+      invalidatesTags: ['AgentProject']
     }),
 
-    updateProject: builder.mutation<AgentProject, { uuid: string; body: UpdateProjectRequest }>({
+    updateProject: builder.mutation<
+      AgentProject,
+      { uuid: string; body: UpdateProjectRequest }
+    >({
       query: ({ uuid, body }) => ({
         url: `/v1/agents/projects/${uuid}`,
         method: 'PATCH',
-        body,
+        body
       }),
       invalidatesTags: (_result, _err, { uuid }) => [
         'AgentProject',
-        { type: 'AgentProject', id: uuid },
-      ],
+        { type: 'AgentProject', id: uuid }
+      ]
     }),
 
     deleteProject: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/agents/projects/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['AgentProject'],
+      invalidatesTags: ['AgentProject']
     }),
 
     // --- Document Scoping ---
 
-    addProjectDocuments: builder.mutation<AgentProject, { uuid: string; documentUuids: string[] }>({
+    addProjectDocuments: builder.mutation<
+      AgentProject,
+      { uuid: string; documentUuids: string[] }
+    >({
       query: ({ uuid, documentUuids }) => ({
         url: `/v1/agents/projects/${uuid}/documents`,
         method: 'POST',
-        body: { documentUuids },
+        body: { documentUuids }
       }),
       invalidatesTags: (_result, _err, { uuid }) => [
         'AgentProject',
-        { type: 'AgentProject', id: uuid },
-      ],
+        { type: 'AgentProject', id: uuid }
+      ]
     }),
 
-    removeProjectDocuments: builder.mutation<AgentProject, { uuid: string; documentUuids: string[] }>({
+    removeProjectDocuments: builder.mutation<
+      AgentProject,
+      { uuid: string; documentUuids: string[] }
+    >({
       query: ({ uuid, documentUuids }) => ({
         url: `/v1/agents/projects/${uuid}/documents`,
         method: 'DELETE',
-        body: { documentUuids },
+        body: { documentUuids }
       }),
       invalidatesTags: (_result, _err, { uuid }) => [
         'AgentProject',
-        { type: 'AgentProject', id: uuid },
-      ],
+        { type: 'AgentProject', id: uuid }
+      ]
     }),
 
-    updateProjectFilters: builder.mutation<AgentProject, { uuid: string; isoStandards?: string[]; categories?: string[] }>({
+    updateProjectFilters: builder.mutation<
+      AgentProject,
+      { uuid: string; isoStandards?: string[]; categories?: string[] }
+    >({
       query: ({ uuid, ...body }) => ({
         url: `/v1/agents/projects/${uuid}/filters`,
         method: 'PATCH',
-        body,
+        body
       }),
-      invalidatesTags: (_result, _err, { uuid }) => [{ type: 'AgentProject', id: uuid }],
+      invalidatesTags: (_result, _err, { uuid }) => [
+        { type: 'AgentProject', id: uuid }
+      ]
     }),
 
     // --- Agent Query ---
 
-    agentQuery: builder.mutation<AgentQueryResponse, { projectUuid: string; body: AgentQueryRequest }>({
+    agentQuery: builder.mutation<
+      AgentQueryResponse,
+      { projectUuid: string; body: AgentQueryRequest }
+    >({
       query: ({ projectUuid, body }) => ({
         url: `/v1/agents/projects/${projectUuid}/query`,
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['AgentConversation'],
+      invalidatesTags: ['AgentConversation']
     }),
 
     // --- Conversations ---
 
-    createConversation: builder.mutation<AgentConversation, { projectUuid: string; persona?: string }>({
+    createConversation: builder.mutation<
+      AgentConversation,
+      { projectUuid: string; persona?: string }
+    >({
       query: ({ projectUuid, persona }) => ({
         url: `/v1/agents/projects/${projectUuid}/conversations`,
         method: 'POST',
-        body: { persona },
+        body: { persona }
       }),
-      invalidatesTags: ['AgentConversation'],
+      invalidatesTags: ['AgentConversation']
     }),
 
     listConversations: builder.query<
@@ -120,47 +145,57 @@ export const agentsApi = baseApi.injectEndpoints({
     >({
       query: ({ projectUuid, limit = 20, offset = 0 }) =>
         `/v1/agents/projects/${projectUuid}/conversations?limit=${limit}&offset=${offset}`,
-      providesTags: ['AgentConversation'],
+      providesTags: ['AgentConversation']
     }),
 
     getConversation: builder.query<AgentConversation, string>({
-      query: (uuid) => `/v1/agents/conversations/${uuid}`,
-      providesTags: (_result, _err, uuid) => [{ type: 'AgentConversation', id: uuid }],
+      query: uuid => `/v1/agents/conversations/${uuid}`,
+      providesTags: (_result, _err, uuid) => [
+        { type: 'AgentConversation', id: uuid }
+      ]
     }),
 
     deleteConversation: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/agents/conversations/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['AgentConversation'],
+      invalidatesTags: ['AgentConversation']
     }),
 
     // --- Admin ---
 
     // --- Settings ---
 
-    getProjectSettings: builder.query<{ settings: AgentSettings | null }, string>({
-      query: (uuid) => `/v1/agents/projects/${uuid}/settings`,
-      providesTags: (_result, _err, uuid) => [{ type: 'AgentProject', id: `settings-${uuid}` }],
+    getProjectSettings: builder.query<
+      { settings: AgentSettings | null },
+      string
+    >({
+      query: uuid => `/v1/agents/projects/${uuid}/settings`,
+      providesTags: (_result, _err, uuid) => [
+        { type: 'AgentProject', id: `settings-${uuid}` }
+      ]
     }),
 
-    updateProjectSettings: builder.mutation<AgentProject, { uuid: string; settings: Partial<AgentSettings> }>({
+    updateProjectSettings: builder.mutation<
+      AgentProject,
+      { uuid: string; settings: Partial<AgentSettings> }
+    >({
       query: ({ uuid, settings }) => ({
         url: `/v1/agents/projects/${uuid}/settings`,
         method: 'PATCH',
-        body: settings,
+        body: settings
       }),
       invalidatesTags: (_result, _err, { uuid }) => [
         { type: 'AgentProject', id: uuid },
-        { type: 'AgentProject', id: `settings-${uuid}` },
-      ],
+        { type: 'AgentProject', id: `settings-${uuid}` }
+      ]
     }),
 
     agentHealthCheck: builder.query<{ hindsight: string }, void>({
-      query: () => '/v1/agents/health',
-    }),
-  }),
+      query: () => '/v1/agents/health'
+    })
+  })
 });
 
 export const {
@@ -179,5 +214,5 @@ export const {
   useDeleteConversationMutation,
   useGetProjectSettingsQuery,
   useUpdateProjectSettingsMutation,
-  useAgentHealthCheckQuery,
+  useAgentHealthCheckQuery
 } = agentsApi;

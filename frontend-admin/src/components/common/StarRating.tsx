@@ -1,4 +1,3 @@
-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Rating as ReactRating, RatingProps } from 'react-simple-star-rating';
 

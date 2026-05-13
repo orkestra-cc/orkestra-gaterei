@@ -8,8 +8,10 @@ interface GreetingsDateInputProps {
   onClick?: MouseEventHandler<HTMLElement>;
 }
 
-const GreetingsDateInput = forwardRef<HTMLInputElement, GreetingsDateInputProps>(
-  ({ value, onClick }, ref) => (
+const GreetingsDateInput = forwardRef<
+  HTMLInputElement,
+  GreetingsDateInputProps
+>(({ value, onClick }, ref) => (
   <div className="position-relative">
     <Form.Control
       size="sm"
@@ -33,7 +35,9 @@ GreetingsDateInput.displayName = 'GreetingsDateInput';
 const GreetingsDate = () => {
   const date = new Date();
   const [startDate, setStartDate] = useState<Date | null>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(new Date(date.setDate(date.getDate() + 7)));
+  const [endDate, setEndDate] = useState<Date | null>(
+    new Date(date.setDate(date.getDate() + 7))
+  );
   const onChange = (dates: [Date | null, Date | null]) => {
     const [start, end] = dates;
     setStartDate(start);

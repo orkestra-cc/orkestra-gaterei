@@ -1,4 +1,3 @@
-
 import { Button, Col, Dropdown, Form, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
@@ -10,7 +9,10 @@ interface UnsolvedTicketsHeaderProps {
   layout: string;
 }
 
-const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps) => {
+const UnsolvedTicketsHeader = ({
+  setLayout,
+  layout
+}: UnsolvedTicketsHeaderProps) => {
   const { getSelectedRowModel } = useAdvanceTableContext();
 
   return (
@@ -29,7 +31,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
       <div className="border-bottom border-200 my-3"></div>
       <div className="d-flex align-items-center justify-content-between justify-content-lg-end px-x1">
         <IconButton
-          variant="falcon-default"
+          variant="orkestra-default"
           size="sm"
           icon="filter"
           transform="shrink-4"
@@ -51,7 +53,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
             </Form.Select>
             <Button
               type="button"
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               className="ms-2"
             >
@@ -64,7 +66,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
               align="end"
               className="btn-reveal-trigger d-inline-block me-2"
             >
-              <Dropdown.Toggle split variant="falcon-default" size="sm">
+              <Dropdown.Toggle split variant="orkestra-default" size="sm">
                 <span className="d-none d-sm-inline-block d-xl-none d-xxl-inline-block me-1">
                   {layout === 'tableView' ? 'Table view' : 'Card view'}
                 </span>
@@ -90,7 +92,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
               </Dropdown.Menu>
             </Dropdown>
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="plus"
               transform="shrink-3"
@@ -101,7 +103,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
               </span>
             </IconButton>
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
@@ -113,7 +115,7 @@ const UnsolvedTicketsHeader = ({ setLayout, layout }: UnsolvedTicketsHeaderProps
               </span>
             </IconButton>
             <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
-              <Dropdown.Toggle variant="falcon-default" size="sm">
+              <Dropdown.Toggle variant="orkestra-default" size="sm">
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
               </Dropdown.Toggle>
 

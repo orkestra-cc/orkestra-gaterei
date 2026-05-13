@@ -1,5 +1,5 @@
 import CardDropdown from 'components/common/CardDropdown';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import Flex from 'components/common/Flex';
 import { LineChart } from 'echarts/charts';
 import * as echarts from 'echarts/core';
@@ -32,7 +32,11 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, month: string, data: number[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  month: string,
+  data: number[]
+) => ({
   color: getThemeColor('gray-100'),
   tooltip: {
     trigger: 'axis',
@@ -67,7 +71,8 @@ const getOptions = (getThemeColor: (color: string) => string, month: string, dat
     axisTick: { show: false },
     axisLabel: {
       color: getThemeColor('gray-400'),
-      formatter: (value: string | number) => `${capitalize(month.slice(0, 3))} ${value}`,
+      formatter: (value: string | number) =>
+        `${capitalize(month.slice(0, 3))} ${value}`,
       margin: 15
     }
   },
@@ -130,7 +135,7 @@ const TotalSales = ({ data }: TotalSalesProps) => {
   const { getThemeColor } = useAppContext();
   return (
     <Card className="h-100">
-      <FalconCardHeader
+      <OrkestraCardHeader
         title="Total Sales"
         titleTag="h6"
         className="pb-0"

@@ -17,7 +17,7 @@ export { default as BandwidthSaved } from './default/BandwidthSaved';
 export { default as TopProducts } from './default/TopProducts';
 export { default as Weather } from './default/Weather';
 
-// Analytics Dashboard Components  
+// Analytics Dashboard Components
 export { default as RealTimeUsers } from './analytics/real-time-users/RealTimeUsers';
 export { default as Audience } from './analytics/audience/Audience';
 export { default as ConnectCard } from './analytics/ConnectCard';

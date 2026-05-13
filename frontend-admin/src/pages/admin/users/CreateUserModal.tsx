@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Button, Form, Alert } from 'react-bootstrap';
 import { useCreateUserMutation, CreateUserInput } from 'store/api/userApi';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 
 interface CreateUserModalProps {
   show: boolean;
@@ -35,7 +35,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   ];
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -108,7 +110,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     <Modal show={show} onHide={handleClose} centered size="lg">
       <Modal.Header>
         <Modal.Title>New User</Modal.Title>
-        <FalconCloseButton onClick={handleClose} />
+        <OrkestraCloseButton onClick={handleClose} />
       </Modal.Header>
       <Form onSubmit={handleSubmit}>
         <Modal.Body>

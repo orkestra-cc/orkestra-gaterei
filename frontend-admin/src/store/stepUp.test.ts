@@ -10,7 +10,7 @@ beforeEach(() => {
 describe('stepUp coordination', () => {
   it('opens a pending promise and notifies subscribers on request', () => {
     const events: boolean[] = [];
-    const unsub = subscribeStepUp((open) => events.push(open));
+    const unsub = subscribeStepUp(open => events.push(open));
 
     const p = requestStepUp();
     expect(events).toEqual([true]);

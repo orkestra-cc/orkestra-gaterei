@@ -2,7 +2,10 @@ import { useRef, useEffect, InputHTMLAttributes, Ref, FC } from 'react';
 import classNames from 'classnames';
 import { Form } from 'react-bootstrap';
 
-interface IndeterminateCheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+interface IndeterminateCheckboxProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'type'
+> {
   indeterminate?: boolean;
   className?: string;
   ref?: Ref<HTMLInputElement>;

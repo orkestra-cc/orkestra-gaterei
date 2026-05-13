@@ -9,7 +9,7 @@ const CompanyLookupTable = () => {
   const table = useCompanyLookupTable({
     sortable: true,
     pagination: true,
-    perPage: 10,
+    perPage: 10
   });
 
   return (
@@ -25,7 +25,7 @@ const CompanyLookupTable = () => {
             rowClassName="btn-reveal-trigger align-middle"
             tableProps={{
               size: 'sm',
-              className: 'fs-10 mb-0 overflow-hidden',
+              className: 'fs-10 mb-0 overflow-hidden'
             }}
           />
         </Card.Body>

@@ -1,7 +1,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Alert, Button } from 'react-bootstrap';
 import { Navigate, useLocation } from 'react-router-dom';
-import FalconLoader from 'components/common/FalconLoader';
+import OrkestraLoader from 'components/common/OrkestraLoader';
 import { useGetSetupStatusQuery } from 'store/api/setupApi';
 import { useAppDispatch } from 'store/hooks';
 import { resetTenantState } from 'store/slices/tenantSlice';
@@ -43,12 +43,13 @@ const SetupGate = ({ children }: SetupGateProps) => {
   }, [data, dispatch]);
 
   if (isLoading) {
-    return <FalconLoader />;
+    return <OrkestraLoader />;
   }
 
   if (isError || !data) {
     const detail =
-      (error as { data?: { detail?: string }; status?: number } | undefined)?.data?.detail ||
+      (error as { data?: { detail?: string }; status?: number } | undefined)
+        ?.data?.detail ||
       'The setup probe at /v1/setup/status did not respond.';
     return (
       <div className="container py-6" style={{ maxWidth: 640 }}>
@@ -56,8 +57,8 @@ const SetupGate = ({ children }: SetupGateProps) => {
           <Alert.Heading>Cannot reach the Orkestra backend</Alert.Heading>
           <p className="mb-2">
             The frontend could not contact the backend to check whether the
-            initial setup wizard should run. Make sure the backend container
-            is up and reachable from your browser, then retry.
+            initial setup wizard should run. Make sure the backend container is
+            up and reachable from your browser, then retry.
           </p>
           <p className="fs-10 text-muted mb-3">{detail}</p>
           <Button variant="outline-danger" size="sm" onClick={() => refetch()}>

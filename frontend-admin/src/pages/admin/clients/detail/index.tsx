@@ -24,7 +24,7 @@ const TAB_KEYS = [
   'subscriptions',
   'payments',
   'billing',
-  'activity',
+  'activity'
 ] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
@@ -40,7 +40,7 @@ function readTab(param: string | null): TabKey {
 const planColors: Record<string, BadgeColor> = {
   free: 'secondary',
   pro: 'primary',
-  enterprise: 'success',
+  enterprise: 'success'
 };
 
 function isHttpError(err: unknown, status: number): boolean {
@@ -57,8 +57,12 @@ const ClientDetailPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
 
-  const { data: org, isLoading, error } = useGetOrgAdminQuery(tenantUUID ?? '', {
-    skip: !tenantUUID,
+  const {
+    data: org,
+    isLoading,
+    error
+  } = useGetOrgAdminQuery(tenantUUID ?? '', {
+    skip: !tenantUUID
   });
 
   // ADR-0001 → Phase 6 URL merge. The legacy user-detail route was
@@ -66,11 +70,10 @@ const ClientDetailPage: React.FC = () => {
   // lookup 404s, fall through to the user lookup so old bookmarks resolve
   // to the user's primary external tenant. Skipped while the tenant query
   // is still resolving to avoid a wasted lookup on the happy path.
-  const userLookupSkipped = !tenantUUID || isLoading || !!org || !isHttpError(error, 404);
-  const { data: legacyUser, isLoading: legacyLoading } = useGetClientUserAdminQuery(
-    tenantUUID ?? '',
-    { skip: userLookupSkipped },
-  );
+  const userLookupSkipped =
+    !tenantUUID || isLoading || !!org || !isHttpError(error, 404);
+  const { data: legacyUser, isLoading: legacyLoading } =
+    useGetClientUserAdminQuery(tenantUUID ?? '', { skip: userLookupSkipped });
 
   const statusBadge = useMemo(() => {
     if (!org) return null;
@@ -100,7 +103,7 @@ const ClientDetailPage: React.FC = () => {
   // Legacy user-id URL hit — redirect to the user's first external tenant.
   if (!org && legacyUser) {
     const primary = legacyUser.memberships?.find(
-      (m) => m.tenantKind === 'external',
+      m => m.tenantKind === 'external'
     );
     if (primary) {
       return <Navigate to={`/admin/clients/${primary.tenantUUID}`} replace />;

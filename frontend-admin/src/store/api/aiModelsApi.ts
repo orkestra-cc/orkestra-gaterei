@@ -5,16 +5,16 @@ import type {
   UpdateAIModelRequest,
   TestModelResult,
   QuickPromptResult,
-  AvailableModel,
+  AvailableModel
 } from '../../types/aiModels';
 
 export const aiModelsApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     listAIModels: builder.query<
       { models: AIModelConfig[] },
       { type?: string; provider?: string; category?: string } | void
     >({
-      query: (params) => {
+      query: params => {
         const searchParams = new URLSearchParams();
         if (params?.type) searchParams.append('type', params.type);
         if (params?.provider) searchParams.append('provider', params.provider);
@@ -22,74 +22,80 @@ export const aiModelsApi = baseApi.injectEndpoints({
         const qs = searchParams.toString();
         return `/v1/ai/models${qs ? `?${qs}` : ''}`;
       },
-      providesTags: ['AIModel'],
+      providesTags: ['AIModel']
     }),
 
     getAIModel: builder.query<AIModelConfig, string>({
-      query: (uuid) => `/v1/ai/models/${uuid}`,
-      providesTags: ['AIModel'],
+      query: uuid => `/v1/ai/models/${uuid}`,
+      providesTags: ['AIModel']
     }),
 
     createAIModel: builder.mutation<AIModelConfig, CreateAIModelRequest>({
-      query: (body) => ({
+      query: body => ({
         url: '/v1/ai/models',
         method: 'POST',
-        body,
+        body
       }),
-      invalidatesTags: ['AIModel'],
+      invalidatesTags: ['AIModel']
     }),
 
-    updateAIModel: builder.mutation<AIModelConfig, { uuid: string; body: UpdateAIModelRequest }>({
+    updateAIModel: builder.mutation<
+      AIModelConfig,
+      { uuid: string; body: UpdateAIModelRequest }
+    >({
       query: ({ uuid, body }) => ({
         url: `/v1/ai/models/${uuid}`,
         method: 'PATCH',
-        body,
+        body
       }),
-      invalidatesTags: ['AIModel'],
+      invalidatesTags: ['AIModel']
     }),
 
     deleteAIModel: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/ai/models/${uuid}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['AIModel'],
+      invalidatesTags: ['AIModel']
     }),
 
     setDefaultAIModel: builder.mutation<{ message: string }, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/ai/models/${uuid}/default`,
-        method: 'POST',
+        method: 'POST'
       }),
-      invalidatesTags: ['AIModel'],
+      invalidatesTags: ['AIModel']
     }),
 
     testAIModel: builder.mutation<TestModelResult, string>({
-      query: (uuid) => ({
+      query: uuid => ({
         url: `/v1/ai/models/${uuid}/test`,
-        method: 'POST',
-      }),
+        method: 'POST'
+      })
     }),
 
-    quickPromptAIModel: builder.mutation<QuickPromptResult, { uuid: string; prompt: string }>({
+    quickPromptAIModel: builder.mutation<
+      QuickPromptResult,
+      { uuid: string; prompt: string }
+    >({
       query: ({ uuid, prompt }) => ({
         url: `/v1/ai/models/${uuid}/prompt`,
         method: 'POST',
-        body: { prompt },
-      }),
+        body: { prompt }
+      })
     }),
 
     fetchAIProviderModels: builder.mutation<
       { models: AvailableModel[] },
       { provider: string; baseUrl: string; apiKey?: string; modelType?: string }
     >({
-      query: (body) => ({
+      query: body => ({
         url: '/v1/ai/models/fetch',
         method: 'POST',
-        body,
-      }),
-    }),
-  }),
+        body
+      })
+    })
+  })
 });
 
 export const {
@@ -101,5 +107,5 @@ export const {
   useSetDefaultAIModelMutation,
   useTestAIModelMutation,
   useQuickPromptAIModelMutation,
-  useFetchAIProviderModelsMutation,
+  useFetchAIProviderModelsMutation
 } = aiModelsApi;

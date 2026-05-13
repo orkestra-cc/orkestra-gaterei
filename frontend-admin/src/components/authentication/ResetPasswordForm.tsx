@@ -17,7 +17,9 @@ const ResetPasswordForm = () => {
     setLocalError(null);
 
     if (!token) {
-      setLocalError('Missing reset token. Please use the link from your email.');
+      setLocalError(
+        'Missing reset token. Please use the link from your email.'
+      );
       return;
     }
     if (password.length < 10) {
@@ -34,7 +36,10 @@ const ResetPasswordForm = () => {
       setTimeout(() => navigate('/login?reset=1'), 1500);
     } catch (err: unknown) {
       const anyErr = err as { data?: { detail?: string }; status?: number };
-      setLocalError(anyErr?.data?.detail || 'Unable to reset password. The link may have expired.');
+      setLocalError(
+        anyErr?.data?.detail ||
+          'Unable to reset password. The link may have expired.'
+      );
     }
   };
 
@@ -49,7 +54,12 @@ const ResetPasswordForm = () => {
   return (
     <Form onSubmit={handleSubmit}>
       {localError && (
-        <Alert variant="danger" className="mb-3" dismissible onClose={() => setLocalError(null)}>
+        <Alert
+          variant="danger"
+          className="mb-3"
+          dismissible
+          onClose={() => setLocalError(null)}
+        >
           {localError}
         </Alert>
       )}
@@ -61,12 +71,14 @@ const ResetPasswordForm = () => {
         <Form.Control
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
           autoComplete="new-password"
           minLength={10}
           required
         />
-        <Form.Text className="text-muted">Use at least 10 characters.</Form.Text>
+        <Form.Text className="text-muted">
+          Use at least 10 characters.
+        </Form.Text>
       </Form.Group>
 
       <Form.Group className="mb-3">
@@ -74,7 +86,7 @@ const ResetPasswordForm = () => {
         <Form.Control
           type="password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={e => setConfirm(e.target.value)}
           autoComplete="new-password"
           required
         />

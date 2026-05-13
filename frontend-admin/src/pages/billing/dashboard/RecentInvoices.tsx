@@ -1,13 +1,13 @@
 import { Card, Table, Spinner, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoice, faFileImport } from '@fortawesome/free-solid-svg-icons';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import { Link } from 'react-router';
 import { useGetInvoicesQuery } from 'store/api/billingApi';
 import {
   formatCurrency,
   formatItalianDate,
-  INVOICE_STATUS_LABELS,
+  INVOICE_STATUS_LABELS
 } from 'types/billing';
 import type { InvoiceSummary, InvoiceStatus } from 'types/billing';
 import { lastYearRange } from './dateRanges';
@@ -21,7 +21,7 @@ const getStatusBadge = (status: InvoiceStatus) => {
     rejected: 'danger',
     accepted: 'success',
     paid: 'success',
-    cancelled: 'secondary',
+    cancelled: 'secondary'
   };
   return variants[status] || 'secondary';
 };
@@ -32,23 +32,27 @@ const RecentInvoices = () => {
     direction: 'issued',
     pageSize: 5,
     fromDate: lastYear.fromDate,
-    toDate: lastYear.toDate,
+    toDate: lastYear.toDate
   });
 
-  const { data: receivedData, isLoading: receivedLoading } = useGetInvoicesQuery({
-    direction: 'received',
-    pageSize: 5,
-    fromDate: lastYear.fromDate,
-    toDate: lastYear.toDate,
-  });
+  const { data: receivedData, isLoading: receivedLoading } =
+    useGetInvoicesQuery({
+      direction: 'received',
+      pageSize: 5,
+      fromDate: lastYear.fromDate,
+      toDate: lastYear.toDate
+    });
 
   const isLoading = issuedLoading || receivedLoading;
 
   if (isLoading) {
     return (
       <Card className="h-100">
-        <FalconCardHeader title="Fatture Recenti" titleTag="h6" light />
-        <Card.Body className="d-flex align-items-center justify-content-center" style={{ minHeight: 250 }}>
+        <OrkestraCardHeader title="Fatture Recenti" titleTag="h6" light />
+        <Card.Body
+          className="d-flex align-items-center justify-content-center"
+          style={{ minHeight: 250 }}
+        >
           <Spinner animation="border" />
         </Card.Body>
       </Card>
@@ -56,26 +60,42 @@ const RecentInvoices = () => {
   }
 
   // Combine and sort invoices by date
-  const allInvoices: (InvoiceSummary & { direction: 'issued' | 'received' })[] = [
-    ...(issuedData?.invoices || []).map((inv) => ({ ...inv, direction: 'issued' as const })),
-    ...(receivedData?.invoices || []).map((inv) => ({ ...inv, direction: 'received' as const })),
-  ]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 8);
+  const allInvoices: (InvoiceSummary & { direction: 'issued' | 'received' })[] =
+    [
+      ...(issuedData?.invoices || []).map(inv => ({
+        ...inv,
+        direction: 'issued' as const
+      })),
+      ...(receivedData?.invoices || []).map(inv => ({
+        ...inv,
+        direction: 'received' as const
+      }))
+    ]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 8);
 
   return (
     <Card className="h-100">
-      <FalconCardHeader
+      <OrkestraCardHeader
         title="Fatture Recenti"
         titleTag="h6"
         light
         endEl={
           <div className="d-flex gap-2">
-            <Link to="/billing/invoices/issued" className="fs-10 text-decoration-none">
+            <Link
+              to="/billing/invoices/issued"
+              className="fs-10 text-decoration-none"
+            >
               Emesse
             </Link>
             <span className="text-body-tertiary">|</span>
-            <Link to="/billing/invoices/received" className="fs-10 text-decoration-none">
+            <Link
+              to="/billing/invoices/received"
+              className="fs-10 text-decoration-none"
+            >
               Ricevute
             </Link>
           </div>
@@ -84,7 +104,10 @@ const RecentInvoices = () => {
       <Card.Body className="p-0">
         {allInvoices.length === 0 ? (
           <div className="text-center py-5 text-body-tertiary">
-            <FontAwesomeIcon icon={faFileInvoice} className="fs-3 mb-2 d-block" />
+            <FontAwesomeIcon
+              icon={faFileInvoice}
+              className="fs-3 mb-2 d-block"
+            />
             <span className="fs-10">Nessuna fattura presente</span>
           </div>
         ) : (
@@ -100,13 +123,23 @@ const RecentInvoices = () => {
               </tr>
             </thead>
             <tbody>
-              {allInvoices.map((invoice) => (
+              {allInvoices.map(invoice => (
                 <tr key={invoice.id} className="align-middle">
                   <td className="ps-x1">
                     <FontAwesomeIcon
-                      icon={invoice.direction === 'issued' ? faFileInvoice : faFileImport}
-                      className={invoice.direction === 'issued' ? 'text-primary' : 'text-success'}
-                      title={invoice.direction === 'issued' ? 'Emessa' : 'Ricevuta'}
+                      icon={
+                        invoice.direction === 'issued'
+                          ? faFileInvoice
+                          : faFileImport
+                      }
+                      className={
+                        invoice.direction === 'issued'
+                          ? 'text-primary'
+                          : 'text-success'
+                      }
+                      title={
+                        invoice.direction === 'issued' ? 'Emessa' : 'Ricevuta'
+                      }
                     />
                   </td>
                   <td>

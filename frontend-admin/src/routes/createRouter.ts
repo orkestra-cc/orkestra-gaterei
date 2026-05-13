@@ -11,16 +11,16 @@ import { getReferenceRoutes, getLayoutVariantRoutes } from './referenceRoutes';
  * Layout variant routes (VerticalNav, TopNav, etc.) are appended as top-level routes.
  */
 export function createAppRouter() {
-  const moduleRoutes = Object.values(moduleCatalog).flatMap((m) => m.routes());
+  const moduleRoutes = Object.values(moduleCatalog).flatMap(m => m.routes());
   const referenceRoutes = getReferenceRoutes();
   const layoutVariantRoutes = getLayoutVariantRoutes();
 
   const routes = [
     ...buildCoreRoutes([...moduleRoutes, ...referenceRoutes]),
-    ...layoutVariantRoutes,
+    ...layoutVariantRoutes
   ];
 
   return createBrowserRouter(routes, {
-    basename: import.meta.env.VITE_PUBLIC_URL,
+    basename: import.meta.env.VITE_PUBLIC_URL
   });
 }

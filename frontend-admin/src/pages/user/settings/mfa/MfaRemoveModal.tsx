@@ -36,11 +36,17 @@ const MfaRemoveModal = ({ show, onHide }: Props) => {
       setCode('');
       onHide();
     } catch (err: unknown) {
-      const anyErr = err as { status?: number; data?: { detail?: string; code?: string } };
+      const anyErr = err as {
+        status?: number;
+        data?: { detail?: string; code?: string };
+      };
       if (anyErr?.status === 401 && anyErr?.data?.code !== 'step_up_required') {
         setError('Incorrect code. Please try again.');
       } else {
-        setError(anyErr?.data?.detail ?? 'Could not remove the factor. Please try again.');
+        setError(
+          anyErr?.data?.detail ??
+            'Could not remove the factor. Please try again.'
+        );
       }
     }
   };
@@ -60,25 +66,33 @@ const MfaRemoveModal = ({ show, onHide }: Props) => {
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Body>
           <Alert variant="warning" className="mb-3">
-            Removing your second factor leaves only your password protecting the account. If your
-            role requires MFA, you will be prompted to enroll again on your next sign-in.
+            Removing your second factor leaves only your password protecting the
+            account. If your role requires MFA, you will be prompted to enroll
+            again on your next sign-in.
           </Alert>
 
           {error && (
-            <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+            <Alert
+              variant="danger"
+              className="mb-3"
+              onClose={() => setError(null)}
+              dismissible
+            >
               {error}
             </Alert>
           )}
 
           <Form.Group className="mb-2">
-            <Form.Label>{useBackup ? 'Backup code' : 'Authenticator code'}</Form.Label>
+            <Form.Label>
+              {useBackup ? 'Backup code' : 'Authenticator code'}
+            </Form.Label>
             <Form.Control
               type="text"
               inputMode={useBackup ? 'text' : 'numeric'}
               autoComplete="one-time-code"
               autoFocus
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={e => setCode(e.target.value)}
               placeholder={useBackup ? 'XXXX-XXXX' : '123 456'}
               required
             />
@@ -86,13 +100,22 @@ const MfaRemoveModal = ({ show, onHide }: Props) => {
           <button
             type="button"
             className="btn btn-link p-0 fs-10"
-            onClick={() => { setUseBackup((v) => !v); setCode(''); }}
+            onClick={() => {
+              setUseBackup(v => !v);
+              setCode('');
+            }}
           >
-            {useBackup ? 'Use authenticator app instead' : 'Use a backup code instead'}
+            {useBackup
+              ? 'Use authenticator app instead'
+              : 'Use a backup code instead'}
           </button>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={handleClose} disabled={busy}>
+          <Button
+            variant="outline-secondary"
+            onClick={handleClose}
+            disabled={busy}
+          >
             Cancel
           </Button>
           <Button type="submit" variant="danger" disabled={busy}>

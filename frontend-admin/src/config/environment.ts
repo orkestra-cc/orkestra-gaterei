@@ -39,13 +39,16 @@ function createConfig(): EnvironmentConfig {
 
   return {
     env,
-    apiUrl: import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+    apiUrl:
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_BACKEND_URL ||
+      'http://localhost:3000',
     wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws',
     debug: import.meta.env.VITE_DEBUG === 'true',
     isProduction: env === 'production',
     isStaging: env === 'staging',
     isDevelopment: env === 'development',
-    isProductionLike: env === 'production' || env === 'staging',
+    isProductionLike: env === 'production' || env === 'staging'
   };
 }
 

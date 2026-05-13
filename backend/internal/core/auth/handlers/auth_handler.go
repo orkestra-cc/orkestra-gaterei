@@ -12,15 +12,16 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	userModels "github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/types"
 	"github.com/orkestra/backend/internal/shared/utils"
-	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/go-chi/chi/v5"
 )
 
 // AuthHandler handles authentication endpoints
@@ -236,16 +237,16 @@ type GetAuthPolicyRequest struct{}
 // through a 403. Audience is implicit in the route prefix.
 type GetAuthPolicyResponse struct {
 	Body struct {
-		RegistrationEnabled    bool `json:"registrationEnabled" doc:"Whether self-service signup is currently accepted on this surface"`
-		LoginEnabled           bool `json:"loginEnabled" doc:"Whether interactive login is currently accepted on this surface"`
-		OAuthSignupAllowed     bool `json:"oauthSignupAllowed" doc:"Whether an unknown email returning from an OAuth flow may be auto-provisioned on this surface"`
-		MFAEnabled             bool `json:"mfaEnabled" doc:"Whether the master MFA switch is on — a user MFA settings page should render an inert badge when this is false"`
-		PasswordMinLength      int  `json:"passwordMinLength" doc:"Minimum password length the signup form should advertise"`
-		PasswordMaxLength      int  `json:"passwordMaxLength" doc:"Maximum password length the signup form should accept"`
-		PasswordRequireUpper   bool `json:"passwordRequireUpper" doc:"Whether the signup form should advertise an uppercase requirement"`
-		PasswordRequireLower   bool `json:"passwordRequireLower" doc:"Whether the signup form should advertise a lowercase requirement"`
-		PasswordRequireDigit   bool `json:"passwordRequireDigit" doc:"Whether the signup form should advertise a digit requirement"`
-		PasswordRequireSymbol  bool `json:"passwordRequireSymbol" doc:"Whether the signup form should advertise a symbol requirement"`
+		RegistrationEnabled   bool `json:"registrationEnabled" doc:"Whether self-service signup is currently accepted on this surface"`
+		LoginEnabled          bool `json:"loginEnabled" doc:"Whether interactive login is currently accepted on this surface"`
+		OAuthSignupAllowed    bool `json:"oauthSignupAllowed" doc:"Whether an unknown email returning from an OAuth flow may be auto-provisioned on this surface"`
+		MFAEnabled            bool `json:"mfaEnabled" doc:"Whether the master MFA switch is on — a user MFA settings page should render an inert badge when this is false"`
+		PasswordMinLength     int  `json:"passwordMinLength" doc:"Minimum password length the signup form should advertise"`
+		PasswordMaxLength     int  `json:"passwordMaxLength" doc:"Maximum password length the signup form should accept"`
+		PasswordRequireUpper  bool `json:"passwordRequireUpper" doc:"Whether the signup form should advertise an uppercase requirement"`
+		PasswordRequireLower  bool `json:"passwordRequireLower" doc:"Whether the signup form should advertise a lowercase requirement"`
+		PasswordRequireDigit  bool `json:"passwordRequireDigit" doc:"Whether the signup form should advertise a digit requirement"`
+		PasswordRequireSymbol bool `json:"passwordRequireSymbol" doc:"Whether the signup form should advertise a symbol requirement"`
 	}
 }
 
@@ -443,7 +444,7 @@ type OAuthLinkRequest struct {
 func (h *AuthHandler) InitiateOAuthLink(ctx context.Context, req *OAuthLinkRequest) (*OAuthLoginResponse, error) {
 	logger := slog.Default()
 
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -949,9 +950,9 @@ func (h *AuthHandler) HandleGoogleCallbackHTTP(w http.ResponseWriter, r *http.Re
 
 	// Set only refresh token as secure HttpOnly cookie
 	// Use cookie configuration from environment
-	cookieName := target.config.Auth.Cookie.Name     // Set from COOKIE_NAME env var
-	cookieDomain := target.cookieDomain // ADR-0003 PR-D D-9: per-tier
-	isSecure := target.config.Auth.Cookie.Secure     // Set from COOKIE_SECURE env var
+	cookieName := target.config.Auth.Cookie.Name // Set from COOKIE_NAME env var
+	cookieDomain := target.cookieDomain          // ADR-0003 PR-D D-9: per-tier
+	isSecure := target.config.Auth.Cookie.Secure // Set from COOKIE_SECURE env var
 
 	// Set only refresh token in cookie (7 days expiry)
 	// Access token will be sent in the redirect URL for the client to store
@@ -1048,9 +1049,9 @@ func (h *AuthHandler) HandleDiscordCallbackHTTP(w http.ResponseWriter, r *http.R
 
 	// Set only refresh token as secure HttpOnly cookie
 	// Use cookie configuration from environment
-	cookieName := target.config.Auth.Cookie.Name     // Set from COOKIE_NAME env var
-	cookieDomain := target.cookieDomain // ADR-0003 PR-D D-9: per-tier
-	isSecure := target.config.Auth.Cookie.Secure     // Set from COOKIE_SECURE env var
+	cookieName := target.config.Auth.Cookie.Name // Set from COOKIE_NAME env var
+	cookieDomain := target.cookieDomain          // ADR-0003 PR-D D-9: per-tier
+	isSecure := target.config.Auth.Cookie.Secure // Set from COOKIE_SECURE env var
 
 	// Set only refresh token in cookie (7 days expiry)
 	// Access token will be sent in the redirect URL for the client to store
@@ -1218,9 +1219,9 @@ func (h *AuthHandler) HandleAppleCallbackHTTP(w http.ResponseWriter, r *http.Req
 	}
 	// Set only refresh token as secure HttpOnly cookie
 	// Use cookie configuration from environment
-	cookieName := target.config.Auth.Cookie.Name     // Set from COOKIE_NAME env var
-	cookieDomain := target.cookieDomain // ADR-0003 PR-D D-9: per-tier
-	isSecure := target.config.Auth.Cookie.Secure     // Set from COOKIE_SECURE env var
+	cookieName := target.config.Auth.Cookie.Name // Set from COOKIE_NAME env var
+	cookieDomain := target.cookieDomain          // ADR-0003 PR-D D-9: per-tier
+	isSecure := target.config.Auth.Cookie.Secure // Set from COOKIE_SECURE env var
 
 	// Set only refresh token in cookie (7 days expiry)
 	// Access token will be sent in the redirect URL for the client to store

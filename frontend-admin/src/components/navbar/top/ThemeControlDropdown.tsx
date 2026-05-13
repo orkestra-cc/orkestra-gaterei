@@ -21,7 +21,9 @@ const ThemeControlDropdown = ({
     <Dropdown
       navbar={true}
       as="div"
-      onSelect={(colorMode) => colorMode && changeTheme(colorMode as ThemeVariant)}
+      onSelect={colorMode =>
+        colorMode && changeTheme(colorMode as ThemeVariant)
+      }
       className={`theme-control-dropdown ${dropdownClassName}`}
     >
       <Dropdown.Toggle
@@ -51,8 +53,8 @@ const ThemeControlDropdown = ({
                   colorMode === 'light'
                     ? 'sun'
                     : colorMode === 'dark'
-                    ? 'moon'
-                    : 'adjust'
+                      ? 'moon'
+                      : 'adjust'
                 }
               />
               {colorMode.charAt(0).toUpperCase() + colorMode.slice(1)}

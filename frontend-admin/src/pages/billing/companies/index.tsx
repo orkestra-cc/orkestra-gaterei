@@ -16,10 +16,11 @@ const CompanyManagementPage: React.FC = () => {
           <Alert variant="info" className="d-flex align-items-center">
             <FontAwesomeIcon icon="info-circle" className="me-2" />
             <div>
-              <strong>Configurazione Aziende:</strong> Le aziende qui configurate verranno utilizzate
-              come cedente/prestatore (venditore) nelle fatture elettroniche.
-              L'azienda impostata come <em>Default</em> verrà pre-selezionata automaticamente
-              nella creazione di nuove fatture.
+              <strong>Configurazione Aziende:</strong> Le aziende qui
+              configurate verranno utilizzate come cedente/prestatore
+              (venditore) nelle fatture elettroniche. L'azienda impostata come{' '}
+              <em>Default</em> verrà pre-selezionata automaticamente nella
+              creazione di nuove fatture.
             </div>
           </Alert>
         </Col>

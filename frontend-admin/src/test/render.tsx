@@ -2,7 +2,11 @@ import { type PropsWithChildren, type ReactElement } from 'react';
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router';
-import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
+import {
+  render,
+  type RenderOptions,
+  type RenderResult
+} from '@testing-library/react';
 
 import authReducer from 'store/slices/authSlice';
 import kanbanReducer from 'store/slices/kanbanSlice';
@@ -16,7 +20,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   tenant: tenantReducer,
   kanban: kanbanReducer,
-  [baseApi.reducerPath]: baseApi.reducer,
+  [baseApi.reducerPath]: baseApi.reducer
 });
 
 export type TestRootState = ReturnType<typeof rootReducer>;
@@ -26,7 +30,7 @@ export const setupStore = (preloadedState?: Partial<TestRootState>) =>
   configureStore({
     reducer: rootReducer,
     preloadedState,
-    middleware: (gdm) => gdm().concat(baseApi.middleware),
+    middleware: gdm => gdm().concat(baseApi.middleware)
   });
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
@@ -52,7 +56,7 @@ export function renderWithProviders(
     store = setupStore(preloadedState),
     routerEntries = ['/'],
     ...renderOptions
-  }: ExtendedRenderOptions = {},
+  }: ExtendedRenderOptions = {}
 ): RenderWithProvidersResult {
   const Wrapper = ({ children }: PropsWithChildren) => (
     <Provider store={store}>
@@ -62,7 +66,7 @@ export function renderWithProviders(
 
   const renderResult: RenderResult = render(ui, {
     wrapper: Wrapper,
-    ...renderOptions,
+    ...renderOptions
   });
   return { store, ...renderResult };
 }

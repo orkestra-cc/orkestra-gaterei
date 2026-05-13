@@ -37,7 +37,13 @@ const EDGE_LINE_STYLES: Array<'solid' | 'dashed' | 'dotted'> = [
   'dotted'
 ];
 
-type LayoutName = 'fcose' | 'cose' | 'circle' | 'grid' | 'breadthfirst' | 'concentric';
+type LayoutName =
+  | 'fcose'
+  | 'cose'
+  | 'circle'
+  | 'grid'
+  | 'breadthfirst'
+  | 'concentric';
 
 interface CytoscapeViewerProps {
   nodes: GraphNode[];
@@ -45,8 +51,14 @@ interface CytoscapeViewerProps {
   onNodeClick?: (node: GraphNode) => void;
   onNodeDoubleClick?: (node: GraphNode) => void;
   onEdgeClick?: (rel: GraphRelationship) => void;
-  onNodeContextMenu?: (node: GraphNode, position: { x: number; y: number }) => void;
-  onEdgeContextMenu?: (rel: GraphRelationship, position: { x: number; y: number }) => void;
+  onNodeContextMenu?: (
+    node: GraphNode,
+    position: { x: number; y: number }
+  ) => void;
+  onEdgeContextMenu?: (
+    rel: GraphRelationship,
+    position: { x: number; y: number }
+  ) => void;
   layout?: LayoutName;
   className?: string;
   style?: React.CSSProperties;
@@ -75,10 +87,7 @@ function buildRelTypeStyleMap(
   let styleIndex = 0;
   for (const rel of relationships) {
     if (!map.has(rel.type)) {
-      map.set(
-        rel.type,
-        EDGE_LINE_STYLES[styleIndex % EDGE_LINE_STYLES.length]
-      );
+      map.set(rel.type, EDGE_LINE_STYLES[styleIndex % EDGE_LINE_STYLES.length]);
       styleIndex++;
     }
   }
@@ -88,8 +97,7 @@ function buildRelTypeStyleMap(
 function getNodeDisplayLabel(node: GraphNode): string {
   const primary = node.labels[0] ?? 'Node';
   const props = node.properties;
-  const detail =
-    (props.name as string) ?? (props.title as string) ?? undefined;
+  const detail = (props.name as string) ?? (props.title as string) ?? undefined;
   return detail ? `${primary}\n${detail}` : primary;
 }
 
@@ -98,7 +106,7 @@ function buildCytoscapeElements(
   relationships: GraphRelationship[],
   labelColorMap: Map<string, string>
 ) {
-  const cyNodes = nodes.map((node) => ({
+  const cyNodes = nodes.map(node => ({
     group: 'nodes' as const,
     data: {
       id: String(node.id),
@@ -108,7 +116,7 @@ function buildCytoscapeElements(
     }
   }));
 
-  const cyEdges = relationships.map((rel) => ({
+  const cyEdges = relationships.map(rel => ({
     group: 'edges' as const,
     data: {
       id: `e${rel.id}`,
@@ -140,7 +148,7 @@ function getLayoutOptions(name: LayoutName) {
         edgeElasticity: () => 0.45,
         gravity: 0.2,
         numIter: 2500,
-        packComponents: true,
+        packComponents: true
       };
     case 'cose':
       return {
@@ -155,7 +163,7 @@ function getLayoutOptions(name: LayoutName) {
         numIter: 1000,
         randomize: true,
         componentSpacing: 100,
-        nestingFactor: 1.2,
+        nestingFactor: 1.2
       };
     case 'breadthfirst':
       return { ...base, directed: true, spacingFactor: 1.75 };
@@ -247,7 +255,7 @@ export function CytoscapeViewer({
   layout: layoutProp = 'fcose',
   className,
   style,
-  fillHeight,
+  fillHeight
 }: CytoscapeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -275,7 +283,10 @@ export function CytoscapeViewer({
   }, []);
 
   const labelColorMap = useMemo(() => buildLabelColorMap(nodes), [nodes]);
-  const relTypeStyleMap = useMemo(() => buildRelTypeStyleMap(relationships), [relationships]);
+  const relTypeStyleMap = useMemo(
+    () => buildRelTypeStyleMap(relationships),
+    [relationships]
+  );
 
   // Store callbacks in refs to avoid effect re-runs
   const onNodeClickRef = useRef(onNodeClick);
@@ -294,7 +305,11 @@ export function CytoscapeViewer({
     if (!containerRef.current) return;
     if (nodes.length === 0 && relationships.length === 0) return;
 
-    const elements = buildCytoscapeElements(nodes, relationships, labelColorMap);
+    const elements = buildCytoscapeElements(
+      nodes,
+      relationships,
+      labelColorMap
+    );
 
     const edgeStyleOverrides: StylesheetStyle[] = Array.from(
       relTypeStyleMap.entries()
@@ -313,7 +328,7 @@ export function CytoscapeViewer({
       selectionType: 'single',
       minZoom: 0.05,
       maxZoom: 10,
-      wheelSensitivity: 1,
+      wheelSensitivity: 1
     });
 
     cyRef.current = cy;
@@ -335,7 +350,9 @@ export function CytoscapeViewer({
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    canvases.forEach((c) => c.addEventListener('contextmenu', canvasHandler, true));
+    canvases.forEach(c =>
+      c.addEventListener('contextmenu', canvasHandler, true)
+    );
 
     cy.on('tap', 'node', (evt: EventObject) => {
       const gn = evt.target.data('_graphNode') as GraphNode | undefined;
@@ -372,10 +389,12 @@ export function CytoscapeViewer({
     let cancelled = false;
     const layoutTimer = requestAnimationFrame(() => {
       if (cancelled) return;
-      const isForceDirected = activeLayout === 'fcose' || activeLayout === 'cose';
-      const effectiveLayout = (isForceDirected && relationships.length === 0)
-        ? 'circle' as LayoutName
-        : activeLayout;
+      const isForceDirected =
+        activeLayout === 'fcose' || activeLayout === 'cose';
+      const effectiveLayout =
+        isForceDirected && relationships.length === 0
+          ? ('circle' as LayoutName)
+          : activeLayout;
       const lo = cy.layout(getLayoutOptions(effectiveLayout));
       lo.run();
     });
@@ -385,11 +404,12 @@ export function CytoscapeViewer({
       cancelAnimationFrame(layoutTimer);
       cancelAnimationFrame(resizeRaf);
       ro.disconnect();
-      canvases.forEach((c) => c.removeEventListener('contextmenu', canvasHandler, true));
+      canvases.forEach(c =>
+        c.removeEventListener('contextmenu', canvasHandler, true)
+      );
       cy.destroy();
       cyRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, relationships, activeLayout]);
 
   const handleFit = useCallback(() => {
@@ -424,7 +444,15 @@ export function CytoscapeViewer({
   }, [layoutProp]);
 
   return (
-    <Card className={className} style={{ ...(fillHeight ? { display: 'flex', flexDirection: 'column', height: '100%' } : {}), ...style }}>
+    <Card
+      className={className}
+      style={{
+        ...(fillHeight
+          ? { display: 'flex', flexDirection: 'column', height: '100%' }
+          : {}),
+        ...style
+      }}
+    >
       {/* Toolbar */}
       <Card.Header className="py-2">
         <Row className="align-items-center g-2">
@@ -470,13 +498,16 @@ export function CytoscapeViewer({
       </Card.Header>
 
       {/* Graph canvas */}
-      <Card.Body className="p-0 position-relative" style={fillHeight ? { flex: 1, minHeight: 0 } : undefined}>
+      <Card.Body
+        className="p-0 position-relative"
+        style={fillHeight ? { flex: 1, minHeight: 0 } : undefined}
+      >
         <div
           ref={setContainerRef}
           style={{
             width: '100%',
             height: '100%',
-            ...(fillHeight ? {} : { minHeight: 700 }),
+            ...(fillHeight ? {} : { minHeight: 700 })
           }}
         />
 
@@ -492,10 +523,12 @@ export function CytoscapeViewer({
               zIndex: 10,
               backgroundColor: 'rgba(11, 23, 39, 0.85)',
               border: '1px solid #30363d',
-              color: '#c9d1d9',
+              color: '#c9d1d9'
             }}
           >
-            <div className="fw-semibold mb-1" style={{ color: '#e6edf3' }}>Labels</div>
+            <div className="fw-semibold mb-1" style={{ color: '#e6edf3' }}>
+              Labels
+            </div>
             {Array.from(labelColorMap.entries()).map(([label, color]) => (
               <div key={label} className="d-flex align-items-center gap-1 mb-1">
                 <span

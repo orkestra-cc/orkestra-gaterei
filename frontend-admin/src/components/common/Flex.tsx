@@ -2,9 +2,21 @@ import React, { ElementType } from 'react';
 import classNames from 'classnames';
 
 type FlexDirection = 'row' | 'column' | 'row-reverse' | 'column-reverse';
-type JustifyContent = 'start' | 'end' | 'center' | 'between' | 'around' | 'evenly';
+type JustifyContent =
+  | 'start'
+  | 'end'
+  | 'center'
+  | 'between'
+  | 'around'
+  | 'evenly';
 type AlignItems = 'start' | 'end' | 'center' | 'baseline' | 'stretch';
-type AlignContent = 'start' | 'end' | 'center' | 'between' | 'around' | 'stretch';
+type AlignContent =
+  | 'start'
+  | 'end'
+  | 'center'
+  | 'between'
+  | 'around'
+  | 'stretch';
 type FlexWrap = 'wrap' | 'nowrap' | 'wrap-reverse';
 type Breakpoint = 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
 

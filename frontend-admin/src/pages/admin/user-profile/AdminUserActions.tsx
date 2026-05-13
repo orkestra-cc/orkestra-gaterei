@@ -77,10 +77,9 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
       );
       setShowLockModal(false);
     } catch (error: any) {
-      const errorMessage =
-        error?.data?.message || "Error during operation";
+      const errorMessage = error?.data?.message || 'Error during operation';
       setUpdateError(errorMessage);
-      toast.error("Unable to modify account status");
+      toast.error('Unable to modify account status');
     }
   };
 
@@ -260,15 +259,10 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                   id: user.id,
                   data: { role: selectedRole }
                 }).unwrap();
-                toast.success(
-                  `Role successfully updated to ${selectedRole}`
-                );
+                toast.success(`Role successfully updated to ${selectedRole}`);
                 setShowRoleModal(false);
               } catch (error: any) {
-                setUpdateError(
-                  error?.data?.message ||
-                    "Error updating role"
-                );
+                setUpdateError(error?.data?.message || 'Error updating role');
                 toast.error('Unable to update role');
               }
             }}
@@ -404,7 +398,7 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
                 const errorMessage =
                   error?.data?.detail ||
                   error?.data?.message ||
-                  "Error updating profile";
+                  'Error updating profile';
                 setUpdateError(errorMessage);
 
                 if (
@@ -452,13 +446,13 @@ const AdminUserActions: React.FC<AdminUserActionsProps> = ({ user }) => {
             </Alert>
           )}
           <p>
-            Are you sure you want to {user.isActive ? 'lock' : 'unlock'}{' '}
-            the account of <strong>{user.fullName}</strong>?
+            Are you sure you want to {user.isActive ? 'lock' : 'unlock'} the
+            account of <strong>{user.fullName}</strong>?
           </p>
           {user.isActive ? (
             <p className="text-warning mb-0">
-              The user will no longer be able to access the system until the account
-              is unlocked.
+              The user will no longer be able to access the system until the
+              account is unlocked.
             </p>
           ) : (
             <p className="text-success mb-0">

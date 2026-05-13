@@ -18,11 +18,13 @@ const CompanyDetail = () => {
   const {
     data: company,
     isLoading,
-    error,
+    error
   } = useGetCompanyLookupQuery(companyId!, { skip: !companyId });
 
   // Local state so enrichment updates are reflected immediately
-  const [displayResult, setDisplayResult] = useState<CompanyLookup | null>(null);
+  const [displayResult, setDisplayResult] = useState<CompanyLookup | null>(
+    null
+  );
 
   useEffect(() => {
     if (company) setDisplayResult(company);
@@ -44,7 +46,11 @@ const CompanyDetail = () => {
           ? 'Azienda non trovata.'
           : 'Errore durante il caricamento. Riprova più tardi.'}
         <div className="mt-2">
-          <Button variant="outline-secondary" size="sm" onClick={() => navigate('/company/lookup')}>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => navigate('/company/lookup')}
+          >
             <FontAwesomeIcon icon={faArrowLeft} className="me-1" />
             Torna alla lista
           </Button>
@@ -61,7 +67,11 @@ const CompanyDetail = () => {
     <>
       {/* Back button */}
       <div className="mb-3">
-        <Button variant="link" className="text-decoration-none p-0" onClick={() => navigate('/company/lookup')}>
+        <Button
+          variant="link"
+          className="text-decoration-none p-0"
+          onClick={() => navigate('/company/lookup')}
+        >
           <FontAwesomeIcon icon={faArrowLeft} className="me-1" />
           Ricerca Aziende
         </Button>
@@ -73,9 +83,13 @@ const CompanyDetail = () => {
           <div className="d-flex align-items-center">
             <h4 className="mb-0 me-2">{result.companyName}</h4>
             <SubtleBadge
-              bg={(ACTIVITY_STATUS_COLORS[result.activityStatus] || 'secondary') as BadgeColor}
+              bg={
+                (ACTIVITY_STATUS_COLORS[result.activityStatus] ||
+                  'secondary') as BadgeColor
+              }
             >
-              {ACTIVITY_STATUS_LABELS[result.activityStatus] || result.activityStatus}
+              {ACTIVITY_STATUS_LABELS[result.activityStatus] ||
+                result.activityStatus}
             </SubtleBadge>
           </div>
         </Card.Body>
@@ -91,19 +105,25 @@ const CompanyDetail = () => {
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">Codice Fiscale</small>
-                <span className="font-monospace fw-semibold">{result.taxCode}</span>
+                <span className="font-monospace fw-semibold">
+                  {result.taxCode}
+                </span>
               </div>
             </Col>
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">Partita IVA</small>
-                <span className="font-monospace fw-semibold">{result.vatCode}</span>
+                <span className="font-monospace fw-semibold">
+                  {result.vatCode}
+                </span>
               </div>
             </Col>
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">Codice SDI</small>
-                <span className="font-monospace fw-semibold">{result.sdiCode || '-'}</span>
+                <span className="font-monospace fw-semibold">
+                  {result.sdiCode || '-'}
+                </span>
               </div>
             </Col>
             <Col sm={6} md={4}>
@@ -111,7 +131,9 @@ const CompanyDetail = () => {
                 <small className="text-muted d-block">Indirizzo</small>
                 <span>
                   {result.address.street}
-                  {result.address.streetNumber ? ` ${result.address.streetNumber}` : ''}
+                  {result.address.streetNumber
+                    ? ` ${result.address.streetNumber}`
+                    : ''}
                 </span>
               </div>
             </Col>
@@ -120,14 +142,20 @@ const CompanyDetail = () => {
                 <small className="text-muted d-block">Sede</small>
                 <span>
                   {result.address.zipCode} {result.address.town}
-                  {result.address.province ? ` (${result.address.province})` : ''}
+                  {result.address.province
+                    ? ` (${result.address.province})`
+                    : ''}
                 </span>
               </div>
             </Col>
             <Col sm={6} md={4}>
               <div className="mb-2">
                 <small className="text-muted d-block">Data Registrazione</small>
-                <span>{result.registrationDate ? formatItalianDate(result.registrationDate) : '-'}</span>
+                <span>
+                  {result.registrationDate
+                    ? formatItalianDate(result.registrationDate)
+                    : '-'}
+                </span>
               </div>
             </Col>
           </Row>
@@ -140,10 +168,7 @@ const CompanyDetail = () => {
           <h6 className="mb-0">Arricchimento Dati</h6>
         </Card.Header>
         <Card.Body>
-          <EnrichmentPanel
-            company={result}
-            onEnriched={setDisplayResult}
-          />
+          <EnrichmentPanel company={result} onEnriched={setDisplayResult} />
         </Card.Body>
       </Card>
     </>

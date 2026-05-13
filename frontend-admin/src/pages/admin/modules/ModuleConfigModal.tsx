@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Alert, Button, Form, Modal, Spinner, Tab, Tabs } from 'react-bootstrap';
-import { FalconCloseButton } from 'components/common';
+import {
+  Alert,
+  Button,
+  Form,
+  Modal,
+  Spinner,
+  Tab,
+  Tabs
+} from 'react-bootstrap';
+import { OrkestraCloseButton } from 'components/common';
 import type { ModuleConfig } from 'store/api/moduleApi';
 import { useUpdateModuleMutation } from 'store/api/moduleApi';
 import ModuleConfigFields from './ModuleConfigFields';
@@ -15,7 +23,7 @@ interface ModuleConfigModalProps {
 const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
   module: mod,
   show,
-  onHide,
+  onHide
 }) => {
   const [updateModule, { isLoading }] = useUpdateModuleMutation();
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
@@ -85,7 +93,10 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'data' in err
-          ? String((err as { data: { detail?: string } }).data?.detail || 'Update failed')
+          ? String(
+              (err as { data: { detail?: string } }).data?.detail ||
+                'Update failed'
+            )
           : 'Update failed';
       setError(message);
     }
@@ -109,11 +120,19 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
           {mod.displayName}
           <span className="text-muted fs-10 ms-2">({mod.moduleName})</span>
         </Modal.Title>
-        <FalconCloseButton onClick={onHide} />
+        <OrkestraCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
-        {error && <Alert variant="danger" className="fs-10">{error}</Alert>}
-        {success && <Alert variant="success" className="fs-10">Module updated successfully</Alert>}
+        {error && (
+          <Alert variant="danger" className="fs-10">
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert variant="success" className="fs-10">
+            Module updated successfully
+          </Alert>
+        )}
 
         <Form.Group className="mb-4">
           <Form.Check
@@ -122,10 +141,12 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
             label={enabled ? 'Enabled' : 'Disabled'}
             checked={enabled}
             disabled={isCore}
-            onChange={(e) => setEnabled(e.target.checked)}
+            onChange={e => setEnabled(e.target.checked)}
           />
           {isCore && (
-            <Form.Text className="text-muted">Core modules cannot be disabled</Form.Text>
+            <Form.Text className="text-muted">
+              Core modules cannot be disabled
+            </Form.Text>
           )}
         </Form.Group>
 
@@ -142,7 +163,7 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
               <Tabs
                 id={`module-config-tabs-${mod.moduleName}`}
                 activeKey={currentTab}
-                onSelect={(k) => setActiveTab(k || '')}
+                onSelect={k => setActiveTab(k || '')}
                 className="mb-3"
               >
                 {groupBuckets.map(({ group, keys }) => (
@@ -155,10 +176,10 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
                         secretValues={secretValues}
                         secretStatus={mod.secretStatus}
                         onConfigChange={(key, value) =>
-                          setConfigValues((prev) => ({ ...prev, [key]: value }))
+                          setConfigValues(prev => ({ ...prev, [key]: value }))
                         }
                         onSecretChange={(key, value) =>
-                          setSecretValues((prev) => ({ ...prev, [key]: value }))
+                          setSecretValues(prev => ({ ...prev, [key]: value }))
                         }
                       />
                     </div>
@@ -172,10 +193,10 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
                 secretValues={secretValues}
                 secretStatus={mod.secretStatus}
                 onConfigChange={(key, value) =>
-                  setConfigValues((prev) => ({ ...prev, [key]: value }))
+                  setConfigValues(prev => ({ ...prev, [key]: value }))
                 }
                 onSecretChange={(key, value) =>
-                  setSecretValues((prev) => ({ ...prev, [key]: value }))
+                  setSecretValues(prev => ({ ...prev, [key]: value }))
                 }
               />
             )}
@@ -192,8 +213,17 @@ const ModuleConfigModal: React.FC<ModuleConfigModalProps> = ({
         <Button variant="secondary" size="sm" onClick={onHide}>
           Cancel
         </Button>
-        <Button variant="primary" size="sm" onClick={handleSave} disabled={isLoading}>
-          {isLoading ? <Spinner animation="border" size="sm" /> : 'Save Changes'}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSave}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Spinner animation="border" size="sm" />
+          ) : (
+            'Save Changes'
+          )}
         </Button>
       </Modal.Footer>
     </Modal>

@@ -19,7 +19,7 @@ const sampleSessions = {
       lastActivity: '2026-05-10T10:00:00Z',
       createdAt: '2026-05-10T09:00:00Z',
       expiresAt: '2026-06-10T00:00:00Z',
-      isCurrent: true,
+      isCurrent: true
     },
     {
       sessionId: 's-other',
@@ -31,10 +31,10 @@ const sampleSessions = {
       lastActivity: '2026-05-09T15:00:00Z',
       createdAt: '2026-05-09T14:00:00Z',
       expiresAt: '2026-06-09T00:00:00Z',
-      isCurrent: false,
-    },
+      isCurrent: false
+    }
   ],
-  activeCount: 2,
+  activeCount: 2
 };
 
 describe('SessionsTab', () => {
@@ -69,13 +69,14 @@ describe('SessionsTab', () => {
         calls++;
         if (calls === 1) return HttpResponse.json(sampleSessions);
         return HttpResponse.json({
-          sessions: sampleSessions.sessions.filter((s) => s.isCurrent),
-          activeCount: 1,
+          sessions: sampleSessions.sessions.filter(s => s.isCurrent),
+          activeCount: 1
         });
       }),
-      http.delete(url('/v1/auth/operator/me/sessions/s-other'), () =>
-        new HttpResponse(null, { status: 204 }),
-      ),
+      http.delete(
+        url('/v1/auth/operator/me/sessions/s-other'),
+        () => new HttpResponse(null, { status: 204 })
+      )
     );
 
     renderWithProviders(<SessionsTab />);

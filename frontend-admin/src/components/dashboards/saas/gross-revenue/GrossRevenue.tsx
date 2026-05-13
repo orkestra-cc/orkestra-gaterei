@@ -5,7 +5,7 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import classNames from 'classnames';
 import GrossRevenueChart from './GrossRevenueChart';
-import FalconLink from 'components/common/FalconLink';
+import OrkestraLink from 'components/common/OrkestraLink';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
 const months = [
@@ -88,7 +88,9 @@ const GrossRevenue = ({ data }: GrossRevenueProps) => {
         name: name
       });
     }
-    (event.target as HTMLElement).closest('button')?.classList.toggle('opacity-50');
+    (event.target as HTMLElement)
+      .closest('button')
+      ?.classList.toggle('opacity-50');
   };
 
   return (
@@ -137,7 +139,11 @@ const GrossRevenue = ({ data }: GrossRevenueProps) => {
                   >
                     {row.marketValue.value && (
                       <FontAwesomeIcon
-                        icon={(row.marketValue.up ? 'long-arrow-alt-up' : 'long-arrow-alt-down') as IconProp}
+                        icon={
+                          (row.marketValue.up
+                            ? 'long-arrow-alt-up'
+                            : 'long-arrow-alt-down') as IconProp
+                        }
                         className={classNames('me-1', {
                           'text-success': row.marketValue.up,
                           'text-danger': !row.marketValue.up
@@ -185,7 +191,7 @@ const GrossRevenue = ({ data }: GrossRevenueProps) => {
             <span className="text">{previousMonth}</span>
           </Button>
         </Flex>
-        <FalconLink title="View report" className="px-0" />
+        <OrkestraLink title="View report" className="px-0" />
       </Card.Footer>
     </Card>
   );

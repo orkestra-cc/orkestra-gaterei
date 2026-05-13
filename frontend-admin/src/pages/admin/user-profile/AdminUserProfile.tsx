@@ -1,4 +1,3 @@
-
 import { useParams } from 'react-router';
 import { useGetUserByIdQuery } from 'store/api/userApi';
 import AdminBanner from './AdminBanner';

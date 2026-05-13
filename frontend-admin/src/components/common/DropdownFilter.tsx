@@ -4,7 +4,6 @@ import Flex from './Flex';
 import classNames from 'classnames';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
-
 interface DropdownItemFilterProps {
   filter: string;
   currentFilter: string;
@@ -58,10 +57,10 @@ const DropdownFilter = ({
     <Dropdown
       className={classNames('font-sans-serif me-2', className)}
       align={right ? 'end' : undefined}
-      style={{ '--falcon-dropdown-content': 'none' } as any}
+      style={{ '--orkestra-dropdown-content': 'none' } as any}
     >
       <Dropdown.Toggle
-        variant="falcon-default"
+        variant="orkestra-default"
         className="text-600 dropdown-caret-none"
         size="sm"
       >

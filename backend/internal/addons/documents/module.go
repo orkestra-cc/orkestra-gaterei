@@ -3,21 +3,30 @@ package documents
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/capability"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/addons/documents/config"
 	"github.com/orkestra/backend/internal/addons/documents/handlers"
 	"github.com/orkestra/backend/internal/addons/documents/models"
 	"github.com/orkestra/backend/internal/addons/documents/repository"
 	"github.com/orkestra/backend/internal/addons/documents/services"
-	"github.com/orkestra/backend/internal/shared/capability"
-	sharedConfig "github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// Settings mirrors the documents ConfigSchema 1:1 and is the typed surface
+// Init() consumes module configuration through. Keep field order/names in
+// sync with ConfigSchema() — UnmarshalModule maps via the `module:` tag.
+type Settings struct {
+	GotenbergURL  string        `module:"gotenbergURL"`
+	Timeout       time.Duration `module:"timeout"`
+	RetryAttempts int           `module:"retryAttempts"`
+}
 
 type DocumentsModule struct {
 	module.BaseModule
@@ -28,11 +37,18 @@ type DocumentsModule struct {
 
 func NewModule() *DocumentsModule { return &DocumentsModule{} }
 
-func (m *DocumentsModule) Name() string                   { return "documents" }
-func (m *DocumentsModule) DisplayName() string             { return "Document Templates" }
-func (m *DocumentsModule) Description() string             { return "PDF generation with Gotenberg and customizable HTML templates" }
+func (m *DocumentsModule) Name() string        { return "documents" }
+func (m *DocumentsModule) DisplayName() string { return "Document Templates" }
+func (m *DocumentsModule) Description() string {
+	return "PDF generation with Gotenberg and customizable HTML templates"
+}
 func (m *DocumentsModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *DocumentsModule) Enabled(cfg *sharedConfig.Config) bool { return cfg.Documents.GotenbergURL != "" }
+
+// Enabled gates first-boot activation on a Gotenberg URL being configured.
+// Reads the env var directly to keep this method shared/config-free.
+func (m *DocumentsModule) Enabled() bool {
+	return os.Getenv("GOTENBERG_URL") != ""
+}
 
 func (m *DocumentsModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServicePDFService}
@@ -81,12 +97,23 @@ func (m *DocumentsModule) Capabilities() []capability.Capability {
 }
 
 func (m *DocumentsModule) Init(deps *module.Dependencies) error {
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.Timeout <= 0 {
+		settings.Timeout = 60 * time.Second
+	}
+	if settings.RetryAttempts <= 0 {
+		settings.RetryAttempts = 3
+	}
+
 	docsConfig := &config.Config{
-		GotenbergURL:  deps.GetConfig("documents", "gotenbergURL"),
-		Timeout:       deps.GetConfigDuration("documents", "timeout", 60*time.Second),
-		RetryAttempts: deps.GetConfigInt("documents", "retryAttempts", 3),
+		GotenbergURL:  settings.GotenbergURL,
+		Timeout:       settings.Timeout,
+		RetryAttempts: settings.RetryAttempts,
 		DefaultMargins: config.PDFMargins{
-			Top:    20, Bottom: 20, Left: 20, Right: 20,
+			Top: 20, Bottom: 20, Left: 20, Right: 20,
 		},
 	}
 
@@ -112,7 +139,7 @@ func (m *DocumentsModule) Init(deps *module.Dependencies) error {
 
 func (m *DocumentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		r.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		r.Use(ri.Operator.AuthMW.RequireCapability("documents.access"))
 		r.Use(ri.Operator.AuthMW.RequirePermission("documents.template.read"))
 		api := humachi.New(r, ri.APIConfig)
@@ -131,5 +158,5 @@ func (m *DocumentsModule) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *DocumentsModule) Stop(_ context.Context) error       { return nil }
+func (m *DocumentsModule) Stop(_ context.Context) error        { return nil }
 func (m *DocumentsModule) HealthCheck(_ context.Context) error { return nil }

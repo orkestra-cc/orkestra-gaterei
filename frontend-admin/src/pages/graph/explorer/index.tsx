@@ -8,9 +8,21 @@ import { JsonView, darkStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
 import ResizeHandle from '../../../components/common/ResizeHandle';
 import { useResizable } from '../../../hooks/ui/useResizable';
-import { useExecuteQueryMutation, useLazyGetNodeNeighborsQuery, useDeleteNodeMutation, useDeleteRelationshipMutation } from '../../../store/api/graphApi';
-import { GraphContextMenu, type ContextMenuState } from '../components/GraphContextMenu';
-import type { QueryResult, GraphNode, GraphRelationship } from '../../../types/graph';
+import {
+  useExecuteQueryMutation,
+  useLazyGetNodeNeighborsQuery,
+  useDeleteNodeMutation,
+  useDeleteRelationshipMutation
+} from '../../../store/api/graphApi';
+import {
+  GraphContextMenu,
+  type ContextMenuState
+} from '../components/GraphContextMenu';
+import type {
+  QueryResult,
+  GraphNode,
+  GraphRelationship
+} from '../../../types/graph';
 
 type ViewMode = 'graph' | 'table' | 'split';
 
@@ -29,7 +41,12 @@ const GraphExplorer: React.FC = () => {
     return stored === null ? true : stored === 'true';
   });
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, type: 'node' });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    type: 'node'
+  });
 
   const [executeQuery, { isLoading }] = useExecuteQueryMutation();
   const [fetchNeighbors] = useLazyGetNodeNeighborsQuery();
@@ -40,13 +57,13 @@ const GraphExplorer: React.FC = () => {
   const {
     size: graphHeight,
     isDragging: isResizing,
-    handleProps: resizeHandleProps,
+    handleProps: resizeHandleProps
   } = useResizable({
     direction: 'vertical',
     initialSize: 500,
     minSize: 200,
     maxSize: 900,
-    storageKey: SPLIT_HEIGHT_STORAGE_KEY,
+    storageKey: SPLIT_HEIGHT_STORAGE_KEY
   });
 
   // Persist sidebar state
@@ -54,81 +71,100 @@ const GraphExplorer: React.FC = () => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarOpen));
   }, [sidebarOpen]);
 
-  const handleExecute = useCallback(async (cypher: string, params?: Record<string, unknown>) => {
-    try {
-      const res = await executeQuery({
-        cypher,
-        params,
-        database: database || undefined,
-        readOnly,
-      }).unwrap();
-      setResult(res);
-    } catch {
-      setResult(null);
-    }
-  }, [executeQuery, database, readOnly]);
+  const handleExecute = useCallback(
+    async (cypher: string, params?: Record<string, unknown>) => {
+      try {
+        const res = await executeQuery({
+          cypher,
+          params,
+          database: database || undefined,
+          readOnly
+        }).unwrap();
+        setResult(res);
+      } catch {
+        setResult(null);
+      }
+    },
+    [executeQuery, database, readOnly]
+  );
 
   const handleNodeClick = useCallback((node: GraphNode) => {
     setSelectedNode(node);
   }, []);
 
-  const handleNodeDoubleClick = useCallback(async (node: GraphNode) => {
-    try {
-      const neighbors = await fetchNeighbors({
-        nodeId: node.id,
-        database: database || undefined,
-        depth: 1,
-        limit: 50,
-      }).unwrap();
+  const handleNodeDoubleClick = useCallback(
+    async (node: GraphNode) => {
+      try {
+        const neighbors = await fetchNeighbors({
+          nodeId: node.id,
+          database: database || undefined,
+          depth: 1,
+          limit: 50
+        }).unwrap();
 
-      if (result?.graph && neighbors) {
-        const existingNodeIds = new Set(result.graph.nodes.map(n => n.id));
-        const existingRelIds = new Set(result.graph.relationships.map(r => r.id));
+        if (result?.graph && neighbors) {
+          const existingNodeIds = new Set(result.graph.nodes.map(n => n.id));
+          const existingRelIds = new Set(
+            result.graph.relationships.map(r => r.id)
+          );
 
-        const newNodes = (neighbors.nodes ?? []).filter(n => !existingNodeIds.has(n.id));
-        const newRels = (neighbors.relationships ?? []).filter(r => !existingRelIds.has(r.id));
+          const newNodes = (neighbors.nodes ?? []).filter(
+            n => !existingNodeIds.has(n.id)
+          );
+          const newRels = (neighbors.relationships ?? []).filter(
+            r => !existingRelIds.has(r.id)
+          );
 
-        setResult({
-          ...result,
-          graph: {
-            nodes: [...result.graph.nodes, ...newNodes],
-            relationships: [...result.graph.relationships, ...newRels],
-          },
-        });
+          setResult({
+            ...result,
+            graph: {
+              nodes: [...result.graph.nodes, ...newNodes],
+              relationships: [...result.graph.relationships, ...newRels]
+            }
+          });
+        }
+      } catch {
+        // Silently fail on neighbor expansion
       }
-    } catch {
-      // Silently fail on neighbor expansion
-    }
-  }, [fetchNeighbors, database, result]);
+    },
+    [fetchNeighbors, database, result]
+  );
 
-  const handleLabelClick = useCallback((label: string) => {
-    let cypher: string;
-    let params: Record<string, unknown> | undefined;
-    if (!selectedDocumentUuid) {
-      cypher = `MATCH (n:\`${label}\`) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
-    } else if (label === 'RagDocument') {
-      cypher = 'MATCH (n:`RagDocument` {uuid: $docUuid}) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100';
-      params = { docUuid: selectedDocumentUuid };
-    } else {
-      cypher = `MATCH (n:\`${label}\`) WHERE n.documentUuid = $docUuid OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
-      params = { docUuid: selectedDocumentUuid };
-    }
-    setLastSidebarQuery(cypher);
-    handleExecute(cypher, params);
-  }, [handleExecute, selectedDocumentUuid]);
+  const handleLabelClick = useCallback(
+    (label: string) => {
+      let cypher: string;
+      let params: Record<string, unknown> | undefined;
+      if (!selectedDocumentUuid) {
+        cypher = `MATCH (n:\`${label}\`) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
+      } else if (label === 'RagDocument') {
+        cypher =
+          'MATCH (n:`RagDocument` {uuid: $docUuid}) OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100';
+        params = { docUuid: selectedDocumentUuid };
+      } else {
+        cypher = `MATCH (n:\`${label}\`) WHERE n.documentUuid = $docUuid OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m LIMIT 100`;
+        params = { docUuid: selectedDocumentUuid };
+      }
+      setLastSidebarQuery(cypher);
+      handleExecute(cypher, params);
+    },
+    [handleExecute, selectedDocumentUuid]
+  );
 
-  const handleRelTypeClick = useCallback((type: string) => {
-    let cypher: string;
-    let params: Record<string, unknown> | undefined;
-    if (!selectedDocumentUuid) {
-      cypher = `MATCH (a)-[r:\`${type}\`]->(b) RETURN a, r, b LIMIT 100`;
-    } else {
-      cypher = `MATCH (a)-[r:\`${type}\`]->(b) WHERE a.documentUuid = $docUuid OR a.uuid = $docUuid RETURN a, r, b LIMIT 100`;
-      params = { docUuid: selectedDocumentUuid };
-    }
-    setLastSidebarQuery(cypher);
-    handleExecute(cypher, params);
-  }, [handleExecute, selectedDocumentUuid]);
+  const handleRelTypeClick = useCallback(
+    (type: string) => {
+      let cypher: string;
+      let params: Record<string, unknown> | undefined;
+      if (!selectedDocumentUuid) {
+        cypher = `MATCH (a)-[r:\`${type}\`]->(b) RETURN a, r, b LIMIT 100`;
+      } else {
+        cypher = `MATCH (a)-[r:\`${type}\`]->(b) WHERE a.documentUuid = $docUuid OR a.uuid = $docUuid RETURN a, r, b LIMIT 100`;
+        params = { docUuid: selectedDocumentUuid };
+      }
+      setLastSidebarQuery(cypher);
+      handleExecute(cypher, params);
+    },
+    [handleExecute, selectedDocumentUuid]
+  );
 
   const handleDatabaseChange = useCallback((db: string) => {
     setDatabase(db);
@@ -140,59 +176,97 @@ const GraphExplorer: React.FC = () => {
     setResult(null);
   }, []);
 
-  const handleNodeContextMenu = useCallback((node: GraphNode, position: { x: number; y: number }) => {
-    setContextMenu({ visible: true, x: position.x, y: position.y, type: 'node', node });
-  }, []);
+  const handleNodeContextMenu = useCallback(
+    (node: GraphNode, position: { x: number; y: number }) => {
+      setContextMenu({
+        visible: true,
+        x: position.x,
+        y: position.y,
+        type: 'node',
+        node
+      });
+    },
+    []
+  );
 
-  const handleEdgeContextMenu = useCallback((rel: GraphRelationship, position: { x: number; y: number }) => {
-    setContextMenu({ visible: true, x: position.x, y: position.y, type: 'edge', relationship: rel });
-  }, []);
+  const handleEdgeContextMenu = useCallback(
+    (rel: GraphRelationship, position: { x: number; y: number }) => {
+      setContextMenu({
+        visible: true,
+        x: position.x,
+        y: position.y,
+        type: 'edge',
+        relationship: rel
+      });
+    },
+    []
+  );
 
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(prev => ({ ...prev, visible: false }));
   }, []);
 
-  const handleDeleteNode = useCallback(async (node: GraphNode) => {
-    const labels = node.labels.join(', ');
-    if (!window.confirm(`Delete node ${node.id} (:${labels})?\nThis will also remove all connected relationships.`)) return;
+  const handleDeleteNode = useCallback(
+    async (node: GraphNode) => {
+      const labels = node.labels.join(', ');
+      if (
+        !window.confirm(
+          `Delete node ${node.id} (:${labels})?\nThis will also remove all connected relationships.`
+        )
+      )
+        return;
 
-    try {
-      await deleteNodeMutation({ nodeId: node.id, database: database || undefined }).unwrap();
-      if (result?.graph) {
-        setResult({
-          ...result,
-          graph: {
-            nodes: result.graph.nodes.filter(n => n.id !== node.id),
-            relationships: result.graph.relationships.filter(
-              r => r.startNodeId !== node.id && r.endNodeId !== node.id
-            ),
-          },
-        });
+      try {
+        await deleteNodeMutation({
+          nodeId: node.id,
+          database: database || undefined
+        }).unwrap();
+        if (result?.graph) {
+          setResult({
+            ...result,
+            graph: {
+              nodes: result.graph.nodes.filter(n => n.id !== node.id),
+              relationships: result.graph.relationships.filter(
+                r => r.startNodeId !== node.id && r.endNodeId !== node.id
+              )
+            }
+          });
+        }
+        if (selectedNode?.id === node.id) setSelectedNode(null);
+      } catch {
+        // Error handled by RTK Query
       }
-      if (selectedNode?.id === node.id) setSelectedNode(null);
-    } catch {
-      // Error handled by RTK Query
-    }
-  }, [deleteNodeMutation, database, result, selectedNode]);
+    },
+    [deleteNodeMutation, database, result, selectedNode]
+  );
 
-  const handleDeleteRelationship = useCallback(async (rel: GraphRelationship) => {
-    if (!window.confirm(`Delete relationship ${rel.id} (:${rel.type})?`)) return;
+  const handleDeleteRelationship = useCallback(
+    async (rel: GraphRelationship) => {
+      if (!window.confirm(`Delete relationship ${rel.id} (:${rel.type})?`))
+        return;
 
-    try {
-      await deleteRelationshipMutation({ relationshipId: rel.id, database: database || undefined }).unwrap();
-      if (result?.graph) {
-        setResult({
-          ...result,
-          graph: {
-            nodes: result.graph.nodes,
-            relationships: result.graph.relationships.filter(r => r.id !== rel.id),
-          },
-        });
+      try {
+        await deleteRelationshipMutation({
+          relationshipId: rel.id,
+          database: database || undefined
+        }).unwrap();
+        if (result?.graph) {
+          setResult({
+            ...result,
+            graph: {
+              nodes: result.graph.nodes,
+              relationships: result.graph.relationships.filter(
+                r => r.id !== rel.id
+              )
+            }
+          });
+        }
+      } catch {
+        // Error handled by RTK Query
       }
-    } catch {
-      // Error handled by RTK Query
-    }
-  }, [deleteRelationshipMutation, database, result]);
+    },
+    [deleteRelationshipMutation, database, result]
+  );
 
   const graphNodes = useMemo(() => result?.graph?.nodes ?? [], [result]);
   const graphRels = useMemo(() => result?.graph?.relationships ?? [], [result]);
@@ -241,7 +315,13 @@ const GraphExplorer: React.FC = () => {
           style={{ width: sidebarOpen ? 280 : 40 }}
         >
           {sidebarOpen ? (
-            <Card style={{ height: '100%', maxHeight: 'calc(100vh - 8rem)', overflow: 'auto' }}>
+            <Card
+              style={{
+                height: '100%',
+                maxHeight: 'calc(100vh - 8rem)',
+                overflow: 'auto'
+              }}
+            >
               <Card.Header className="bg-body-tertiary py-2 d-flex align-items-center justify-content-between">
                 <h6 className="mb-0">Database Schema</h6>
                 <Button
@@ -279,7 +359,14 @@ const GraphExplorer: React.FC = () => {
         </div>
 
         {/* Main Content */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
           {/* Cypher Query Editor */}
           <CypherEditor
             onExecute={handleExecute}
@@ -318,7 +405,10 @@ const GraphExplorer: React.FC = () => {
 
               {/* Selected Node Info */}
               {selectedNode && (
-                <SelectedNodeCard node={selectedNode} onClose={() => setSelectedNode(null)} />
+                <SelectedNodeCard
+                  node={selectedNode}
+                  onClose={() => setSelectedNode(null)}
+                />
               )}
 
               {/* Table panel - takes remaining space */}
@@ -329,8 +419,9 @@ const GraphExplorer: React.FC = () => {
                       Results
                       {result && (
                         <small className="text-muted fw-normal ms-2">
-                          {result.metadata.resultCount} row{result.metadata.resultCount !== 1 ? 's' : ''}
-                          {' '}in {result.metadata.executionTimeMs}ms
+                          {result.metadata.resultCount} row
+                          {result.metadata.resultCount !== 1 ? 's' : ''} in{' '}
+                          {result.metadata.executionTimeMs}ms
                         </small>
                       )}
                     </h6>
@@ -341,7 +432,10 @@ const GraphExplorer: React.FC = () => {
                     ) : isLoading ? (
                       <ResultsTable result={null} isLoading={true} />
                     ) : (
-                      <p className="text-muted mb-0">Run a query to see results here. Click a label in the schema to browse nodes.</p>
+                      <p className="text-muted mb-0">
+                        Run a query to see results here. Click a label in the
+                        schema to browse nodes.
+                      </p>
                     )}
                   </Card.Body>
                 </Card>
@@ -377,7 +471,10 @@ const GraphExplorer: React.FC = () => {
 
               {/* Selected Node Info */}
               {selectedNode && (
-                <SelectedNodeCard node={selectedNode} onClose={() => setSelectedNode(null)} />
+                <SelectedNodeCard
+                  node={selectedNode}
+                  onClose={() => setSelectedNode(null)}
+                />
               )}
 
               {/* Table only view */}
@@ -388,8 +485,9 @@ const GraphExplorer: React.FC = () => {
                       Results
                       {result && (
                         <small className="text-muted fw-normal ms-2">
-                          {result.metadata.resultCount} row{result.metadata.resultCount !== 1 ? 's' : ''}
-                          {' '}in {result.metadata.executionTimeMs}ms
+                          {result.metadata.resultCount} row
+                          {result.metadata.resultCount !== 1 ? 's' : ''} in{' '}
+                          {result.metadata.executionTimeMs}ms
                         </small>
                       )}
                     </h6>
@@ -400,7 +498,10 @@ const GraphExplorer: React.FC = () => {
                     ) : isLoading ? (
                       <ResultsTable result={null} isLoading={true} />
                     ) : (
-                      <p className="text-muted mb-0">Run a query to see results here. Click a label in the schema to browse nodes.</p>
+                      <p className="text-muted mb-0">
+                        Run a query to see results here. Click a label in the
+                        schema to browse nodes.
+                      </p>
                     )}
                   </Card.Body>
                 </Card>
@@ -422,17 +523,23 @@ const GraphExplorer: React.FC = () => {
 };
 
 /** Selected node info card with collapsible JSON tree and resizable height */
-function SelectedNodeCard({ node, onClose }: { node: GraphNode; onClose: () => void }) {
+function SelectedNodeCard({
+  node,
+  onClose
+}: {
+  node: GraphNode;
+  onClose: () => void;
+}) {
   const {
     size: cardHeight,
     isDragging,
-    handleProps,
+    handleProps
   } = useResizable({
     direction: 'vertical',
     initialSize: 200,
     minSize: 80,
     maxSize: 600,
-    storageKey: 'orkestra:graph-explorer-node-card-height',
+    storageKey: 'orkestra:graph-explorer-node-card-height'
   });
 
   return (
@@ -443,16 +550,36 @@ function SelectedNodeCard({ node, onClose }: { node: GraphNode; onClose: () => v
             <div>
               <small className="text-muted me-2">Node {node.id}</small>
               {(node.labels ?? []).map(l => (
-                <span key={l} className="badge bg-primary me-1">:{l}</span>
+                <span key={l} className="badge bg-primary me-1">
+                  :{l}
+                </span>
               ))}
             </div>
-            <Button variant="link" size="sm" className="p-0 text-muted" onClick={onClose}>
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 text-muted"
+              onClick={onClose}
+            >
               Close
             </Button>
           </div>
         </Card.Header>
-        <div style={{ height: cardHeight, overflow: 'auto', padding: '0.5rem', fontSize: '0.875rem', fontFamily: "'JetBrains Mono', 'Fira Code', 'Source Code Pro', Consolas, monospace" }}>
-          <JsonView data={node.properties} shouldExpandNode={(_level, _value, field) => field !== 'embedding'} style={darkStyles} />
+        <div
+          style={{
+            height: cardHeight,
+            overflow: 'auto',
+            padding: '0.5rem',
+            fontSize: '0.875rem',
+            fontFamily:
+              "'JetBrains Mono', 'Fira Code', 'Source Code Pro', Consolas, monospace"
+          }}
+        >
+          <JsonView
+            data={node.properties}
+            shouldExpandNode={(_level, _value, field) => field !== 'embedding'}
+            style={darkStyles}
+          />
         </div>
       </Card>
       <ResizeHandle

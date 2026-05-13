@@ -8,7 +8,7 @@ import ProtectedRoute from './ProtectedRoute';
 // testing the gate's branching, not the auth pipeline.
 const mockedUseAuth = vi.fn();
 vi.mock('hooks/auth/useAuthRTK', () => ({
-  useAuth: () => mockedUseAuth(),
+  useAuth: () => mockedUseAuth()
 }));
 
 interface AuthState {
@@ -26,17 +26,18 @@ const setAuth = (state: AuthState) => {
     isLoading: state.isLoading ?? false,
     permissions,
     hasPermission:
-      state.hasPermission ?? ((p: string) => permissions.includes('*') || permissions.includes(p)),
+      state.hasPermission ??
+      ((p: string) => permissions.includes('*') || permissions.includes(p)),
     hasAnyPermission:
       state.hasAnyPermission ??
       ((req: string[]) =>
-        permissions.includes('*') || req.some((p) => permissions.includes(p))),
+        permissions.includes('*') || req.some(p => permissions.includes(p)))
   });
 };
 
 const renderProtected = (
   ui: React.ReactNode,
-  { initialEntries = ['/secret'] }: { initialEntries?: string[] } = {},
+  { initialEntries = ['/secret'] }: { initialEntries?: string[] } = {}
 ) =>
   render(
     <MemoryRouter initialEntries={initialEntries}>
@@ -45,11 +46,18 @@ const renderProtected = (
         <Route path="/login" element={<div>LOGIN_PAGE</div>} />
         <Route path="/errors/401" element={<div>UNAUTHORIZED_PAGE</div>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 
 describe('ProtectedRoute', () => {
-  beforeEach(() => mockedUseAuth.mockReset());
+  beforeEach(() => {
+    mockedUseAuth.mockReset();
+    // ProtectedRoute logs intentional debug lines on the deny / still-loading
+    // branches; this suite exercises both, so swallow them to keep test
+    // stderr readable. Restored automatically between tests by vitest.
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
 
   it('renders a loader while auth state is resolving', () => {
     setAuth({ isLoading: true });
@@ -72,12 +80,14 @@ describe('ProtectedRoute', () => {
           <Route
             path="/secret"
             element={
-              <ProtectedRoute fallbackUrl="/login?reason=custom">SECRET</ProtectedRoute>
+              <ProtectedRoute fallbackUrl="/login?reason=custom">
+                SECRET
+              </ProtectedRoute>
             }
           />
           <Route path="/login" element={<div>LOGIN_PAGE</div>} />
         </Routes>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     expect(screen.getByText('LOGIN_PAGE')).toBeInTheDocument();
   });
@@ -89,11 +99,14 @@ describe('ProtectedRoute', () => {
   });
 
   it('renders children when every required permission is held', () => {
-    setAuth({ isAuthenticated: true, permissions: ['billing.read', 'billing.write'] });
+    setAuth({
+      isAuthenticated: true,
+      permissions: ['billing.read', 'billing.write']
+    });
     renderProtected(
       <ProtectedRoute requiredPermissions={['billing.read', 'billing.write']}>
         SECRET
-      </ProtectedRoute>,
+      </ProtectedRoute>
     );
     expect(screen.getByText('SECRET')).toBeInTheDocument();
   });
@@ -106,7 +119,7 @@ describe('ProtectedRoute', () => {
     renderProtected(
       <ProtectedRoute requiredPermissions={['billing.read', 'billing.write']}>
         SECRET
-      </ProtectedRoute>,
+      </ProtectedRoute>
     );
     expect(screen.queryByText('SECRET')).toBeNull();
     expect(screen.getByText('UNAUTHORIZED_PAGE')).toBeInTheDocument();
@@ -117,7 +130,7 @@ describe('ProtectedRoute', () => {
     renderProtected(
       <ProtectedRoute requiredPermissions={['billing.write', 'audit.admin']}>
         SECRET
-      </ProtectedRoute>,
+      </ProtectedRoute>
     );
     expect(screen.getByText('SECRET')).toBeInTheDocument();
   });
@@ -128,10 +141,12 @@ describe('ProtectedRoute', () => {
     setAuth({ isAuthenticated: true, permissions: ['billing.read'] });
     renderProtected(
       <ProtectedRoute
-        requiredPermissions={[['billing.read', 'billing.write']] as unknown as string[]}
+        requiredPermissions={
+          [['billing.read', 'billing.write']] as unknown as string[]
+        }
       >
         SECRET
-      </ProtectedRoute>,
+      </ProtectedRoute>
     );
     expect(screen.getByText('SECRET')).toBeInTheDocument();
   });
@@ -142,7 +157,9 @@ describe('ProtectedRoute', () => {
   it('shows a loader when authenticated but permissions array has not arrived yet', () => {
     setAuth({ isAuthenticated: true, isLoading: false, permissions: [] });
     renderProtected(
-      <ProtectedRoute requiredPermissions={['billing.read']}>SECRET</ProtectedRoute>,
+      <ProtectedRoute requiredPermissions={['billing.read']}>
+        SECRET
+      </ProtectedRoute>
     );
     expect(screen.queryByText('SECRET')).toBeNull();
     expect(screen.queryByText('UNAUTHORIZED_PAGE')).toBeNull();
@@ -151,7 +168,7 @@ describe('ProtectedRoute', () => {
   it('passes children straight through when requireAuth=false', () => {
     setAuth({ isAuthenticated: false });
     renderProtected(
-      <ProtectedRoute requireAuth={false}>SECRET</ProtectedRoute>,
+      <ProtectedRoute requireAuth={false}>SECRET</ProtectedRoute>
     );
     expect(screen.getByText('SECRET')).toBeInTheDocument();
   });

@@ -38,14 +38,16 @@ const CreateTenantModal: React.FC<Props> = ({
   onHide,
   kind = 'internal',
   title,
-  submitLabel,
+  submitLabel
 }) => {
   const dispatch = useAppDispatch();
   const [createOrg, { isLoading }] = useCreateOrgMutation();
 
   const isExternal = kind === 'external';
-  const resolvedTitle = title ?? (isExternal ? 'Create client' : 'Create internal tenant');
-  const resolvedSubmit = submitLabel ?? (isExternal ? 'Create client' : 'Create tenant');
+  const resolvedTitle =
+    title ?? (isExternal ? 'Create client' : 'Create internal tenant');
+  const resolvedSubmit =
+    submitLabel ?? (isExternal ? 'Create client' : 'Create tenant');
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -68,7 +70,8 @@ const CreateTenantModal: React.FC<Props> = ({
     }
   };
 
-  const canSave = name.trim().length > 0 && slug.trim().length > 0 && !isLoading;
+  const canSave =
+    name.trim().length > 0 && slug.trim().length > 0 && !isLoading;
 
   const onSave = async () => {
     try {
@@ -76,10 +79,10 @@ const CreateTenantModal: React.FC<Props> = ({
         name: name.trim(),
         slug: slug.trim(),
         plan,
-        kind,
+        kind
       }).unwrap();
       toast.success(
-        `${isExternal ? 'Client' : 'Internal tenant'} "${name.trim()}" created`,
+        `${isExternal ? 'Client' : 'Internal tenant'} "${name.trim()}" created`
       );
       // Refresh the platform-admin list so the new org appears immediately.
       dispatch(baseApi.util.invalidateTags([{ type: 'AdminOrg', id: 'LIST' }]));
@@ -106,7 +109,7 @@ const CreateTenantModal: React.FC<Props> = ({
               placeholder="e.g. Acme Corp"
               value={name}
               maxLength={120}
-              onChange={(e) => handleNameChange(e.target.value)}
+              onChange={e => handleNameChange(e.target.value)}
               autoFocus
             />
           </Form.Group>
@@ -117,7 +120,7 @@ const CreateTenantModal: React.FC<Props> = ({
               placeholder="acme-corp"
               value={slug}
               maxLength={80}
-              onChange={(e) => {
+              onChange={e => {
                 setSlug(slugify(e.target.value));
                 setSlugEdited(true);
               }}
@@ -129,7 +132,7 @@ const CreateTenantModal: React.FC<Props> = ({
           </Form.Group>
           <Form.Group className="mb-0">
             <Form.Label className="fw-semibold">Plan</Form.Label>
-            <Form.Select value={plan} onChange={(e) => setPlan(e.target.value)}>
+            <Form.Select value={plan} onChange={e => setPlan(e.target.value)}>
               <option value="free">Free</option>
               <option value="pro">Pro</option>
               <option value="enterprise">Enterprise</option>
@@ -144,7 +147,8 @@ const CreateTenantModal: React.FC<Props> = ({
         <Button variant="primary" onClick={onSave} disabled={!canSave}>
           {isLoading ? (
             <>
-              <Spinner size="sm" animation="border" className="me-2" /> Creating…
+              <Spinner size="sm" animation="border" className="me-2" />{' '}
+              Creating…
             </>
           ) : (
             <>{resolvedSubmit}</>

@@ -4,7 +4,7 @@ import { Col, Row, Spinner } from 'react-bootstrap';
 import {
   useGetModuleQuery,
   useGetModulesQuery,
-  useGetModulesHealthQuery,
+  useGetModulesHealthQuery
 } from 'store/api/moduleApi';
 import ModuleDetailHeader from './ModuleDetailHeader';
 import ModuleDashboardCards from './ModuleDashboardCards';
@@ -16,7 +16,11 @@ const AIModelsConfigSection = lazy(() => import('./AIModelsConfigSection'));
 
 const ModuleDetailPage: React.FC = () => {
   const { moduleName } = useParams<{ moduleName: string }>();
-  const { data: mod, isLoading, error } = useGetModuleQuery(moduleName!, { skip: !moduleName });
+  const {
+    data: mod,
+    isLoading,
+    error
+  } = useGetModuleQuery(moduleName!, { skip: !moduleName });
   const { data: allModules } = useGetModulesQuery();
   const { data: healthData } = useGetModulesHealthQuery();
 
@@ -34,7 +38,7 @@ const ModuleDetailPage: React.FC = () => {
     return <Navigate to="/admin/modules" replace />;
   }
 
-  const health = healthData?.modules.find((h) => h.moduleName === moduleName);
+  const health = healthData?.modules.find(h => h.moduleName === moduleName);
   const activeEnv = mod.activeEnvironment || 'production';
   const environments = mod.availableEnvironments?.length
     ? mod.availableEnvironments
@@ -70,10 +74,7 @@ const ModuleDetailPage: React.FC = () => {
             />
           </Suspense>
         ) : (
-          <ModuleConfigSection
-            module={mod}
-            selectedEnvironment={currentEnv}
-          />
+          <ModuleConfigSection module={mod} selectedEnvironment={currentEnv} />
         )}
 
         <ModuleDependencyCard module={mod} allModules={allModules} />

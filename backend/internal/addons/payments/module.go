@@ -6,17 +6,27 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/addons/payments/handlers"
 	"github.com/orkestra/backend/internal/addons/payments/models"
 	stripeProvider "github.com/orkestra/backend/internal/addons/payments/providers/stripe"
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
 	"github.com/orkestra/backend/internal/addons/payments/webhooks"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// Settings mirrors the payments ConfigSchema 1:1. Init() unmarshals into a
+// value of this type so all four config lookups go through a single typed
+// surface. Keep in sync with ConfigSchema(); UnmarshalModule maps via the
+// `module:` tag.
+type Settings struct {
+	DefaultProvider     string `module:"defaultProvider"`
+	StripeAPIKey        string `module:"stripeApiKey"`
+	StripeWebhookSecret string `module:"stripeWebhookSecret"`
+	StripeAPIVersion    string `module:"stripeApiVersion"`
+}
 
 type PaymentsModule struct {
 	module.BaseModule
@@ -33,16 +43,18 @@ type PaymentsModule struct {
 
 func NewModule() *PaymentsModule { return &PaymentsModule{} }
 
-func (m *PaymentsModule) Name() string                    { return "payments" }
-func (m *PaymentsModule) DisplayName() string             { return "Pagamenti" }
-func (m *PaymentsModule) Description() string             { return "Payment gateway integration (Stripe) — charges, refunds, webhooks" }
+func (m *PaymentsModule) Name() string        { return "payments" }
+func (m *PaymentsModule) DisplayName() string { return "Pagamenti" }
+func (m *PaymentsModule) Description() string {
+	return "Payment gateway integration (Stripe) — charges, refunds, webhooks"
+}
 func (m *PaymentsModule) Category() module.ModuleCategory { return module.CategoryExternal }
 
 // Enabled returns true whenever the module has been registered — it can be
 // toggled on via the admin UI and will start accepting webhooks as soon as
 // a Stripe API key is configured.
-func (m *PaymentsModule) Enabled(_ *config.Config) bool { return true }
-func (m *PaymentsModule) HotReloadConfig() bool         { return true }
+func (m *PaymentsModule) Enabled() bool         { return true }
+func (m *PaymentsModule) HotReloadConfig() bool { return true }
 
 // See subscriptions/module.go for the cycle-free wiring rationale — neither
 // module declares the other in Dependencies().
@@ -126,17 +138,21 @@ func (m *PaymentsModule) Permissions() []iface.PermissionSpec {
 func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+
 	txRepo := repository.NewTransactionRepository(deps.DB)
 	pmRepository := repository.NewPaymentMethodRepository(deps.DB)
 	whRepo := repository.NewWebhookEventRepository(deps.DB)
 
 	providers := map[models.ProviderName]iface.PaymentProvider{}
-	apiKey := deps.GetSecret("payments", "stripeApiKey")
-	if apiKey != "" {
+	if settings.StripeAPIKey != "" {
 		stripeProv, err := stripeProvider.New(stripeProvider.Config{
-			APIKey:        apiKey,
-			WebhookSecret: deps.GetSecret("payments", "stripeWebhookSecret"),
-			APIVersion:    deps.GetConfig("payments", "stripeApiVersion"),
+			APIKey:        settings.StripeAPIKey,
+			WebhookSecret: settings.StripeWebhookSecret,
+			APIVersion:    settings.StripeAPIVersion,
 		}, deps.Logger)
 		if err != nil {
 			deps.Logger.Error("payments: stripe init failed", slog.String("error", err.Error()))
@@ -146,7 +162,7 @@ func (m *PaymentsModule) Init(deps *module.Dependencies) error {
 		}
 	}
 
-	defaultProvider := models.ProviderName(deps.GetConfig("payments", "defaultProvider"))
+	defaultProvider := models.ProviderName(settings.DefaultProvider)
 	if defaultProvider == "" {
 		defaultProvider = models.ProviderStripe
 	}
@@ -210,7 +226,7 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// distinct `payments.transaction.refund` grant so read access cannot
 	// authorise a mutation.
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
@@ -252,7 +268,7 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// entirely when m.clientHandler is nil (tenant module disabled).
 	if m.clientHandler != nil {
 		ri.Client.ProtectedRouter.Group(func(gated chi.Router) {
-			gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+			gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 			gated.Group(func(r chi.Router) {
 				r.Use(ri.Client.AuthMW.RequireGlobal())
 				api := humachi.New(r, ri.APIConfig)
@@ -271,8 +287,8 @@ func (m *PaymentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	}
 }
 
-func (m *PaymentsModule) Start(_ context.Context) error  { return nil }
-func (m *PaymentsModule) Stop(_ context.Context) error   { return nil }
+func (m *PaymentsModule) Start(_ context.Context) error { return nil }
+func (m *PaymentsModule) Stop(_ context.Context) error  { return nil }
 func (m *PaymentsModule) HealthCheck(_ context.Context) error {
 	return nil
 }

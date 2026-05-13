@@ -7,7 +7,12 @@ interface CookieNoticeProps extends Omit<ToastProps, 'show' | 'onClose'> {
   children: ReactNode;
 }
 
-const CookieNotice = ({ show, setShow, children, ...rest }: CookieNoticeProps) => {
+const CookieNotice = ({
+  show,
+  setShow,
+  children,
+  ...rest
+}: CookieNoticeProps) => {
   return (
     <Toast
       onClose={() => setShow(false)}

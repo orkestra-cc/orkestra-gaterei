@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // JWTValidator is a lightweight middleware that validates RS256 JWTs using
@@ -156,18 +157,18 @@ func (v *JWTValidator) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
-		ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
-		ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+		ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, claims.UserUUID)
+		ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, claims.Email)
+		ctx = context.WithValue(ctx, ctxauth.KeySystemRole, claims.SystemRole)
 		ctx = context.WithValue(ctx, ctxClaims, claims)
 		ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 
 		tenantID, roles, kind, resolved := resolveCurrentTenant(r, claims)
 		if resolved {
-			ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-			ctx = context.WithValue(ctx, ctxTenantRoles, roles)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, roles)
 			if kind != "" {
-				ctx = context.WithValue(ctx, ctxTenantKind, kind)
+				ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, kind)
 			}
 		}
 		if h := r.Header.Get(TenantIDHeader); h != "" && !resolved {
@@ -233,12 +234,12 @@ func parseClaims(m jwt.MapClaims) *authModels.JWTClaims {
 func (v *JWTValidator) RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				writeErr(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
-			tenantID, hasTenant := GetTenantID(r.Context())
+			tenantID, hasTenant := ctxauth.GetTenantID(r.Context())
 			if v.authz != nil {
 				if !hasTenant {
 					writeErr(w, http.StatusForbidden, "tenant context required")
@@ -267,7 +268,7 @@ func (v *JWTValidator) RequirePermission(permission string) func(http.Handler) h
 func (v *JWTValidator) RequireSystemPermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				writeErr(w, http.StatusUnauthorized, "authentication required")
 				return
@@ -281,7 +282,7 @@ func (v *JWTValidator) RequireSystemPermission(permission string) func(http.Hand
 				next.ServeHTTP(w, r)
 				return
 			}
-			if role, _ := GetSystemRole(r.Context()); role == "super_admin" || role == "administrator" || role == "developer" {
+			if role, _ := ctxauth.GetSystemRole(r.Context()); role == "super_admin" || role == "administrator" || role == "developer" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -332,13 +333,13 @@ func (v *JWTValidator) RequireCapability(capabilityID string) func(http.Handler)
 // otherwise the user must hold one of those roles in the current tenant.
 // Used only when no authz provider is wired.
 func fallbackAllowedByRole(ctx context.Context, hasTenant bool) bool {
-	if role, _ := GetSystemRole(ctx); role == "super_admin" || role == "administrator" || role == "developer" {
+	if role, _ := ctxauth.GetSystemRole(ctx); role == "super_admin" || role == "administrator" || role == "developer" {
 		return true
 	}
 	if !hasTenant {
 		return false
 	}
-	roles, _ := GetTenantRoles(ctx)
+	roles, _ := ctxauth.GetTenantRoles(ctx)
 	for _, r := range roles {
 		if r == "super_admin" || r == "administrator" || r == "developer" {
 			return true
@@ -350,7 +351,7 @@ func fallbackAllowedByRole(ctx context.Context, hasTenant bool) bool {
 func (v *JWTValidator) RequireGlobal() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := GetUserUUID(r.Context()); !ok {
+			if _, ok := ctxauth.GetUserUUID(r.Context()); !ok {
 				writeErr(w, http.StatusUnauthorized, "authentication required")
 				return
 			}

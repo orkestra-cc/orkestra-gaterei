@@ -20,7 +20,11 @@ echarts.use([
 type ThemeColorGetter = (color: string) => string;
 type GridConfig = Record<string, unknown>;
 
-const getOptions = (getThemeColor: ThemeColorGetter, data: number[], grid: GridConfig) => ({
+const getOptions = (
+  getThemeColor: ThemeColorGetter,
+  data: number[],
+  grid: GridConfig
+) => ({
   tooltip: {
     show: false
   },

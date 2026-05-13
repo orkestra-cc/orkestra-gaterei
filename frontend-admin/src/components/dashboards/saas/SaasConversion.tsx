@@ -1,4 +1,3 @@
-
 import { Card, Col, Row } from 'react-bootstrap';
 import SubtleBadge from 'components/common/SubtleBadge';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

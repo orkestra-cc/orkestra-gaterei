@@ -4,18 +4,18 @@ import (
 	"context"
 	"testing"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/navigation/models"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // ctxTenantKindKey mirrors the unexported middleware.ctxTenantKind constant
-// ("tenantKind"). We key off the same string because middleware.TenantKindFromContext
+// ("tenantKind"). We key off the same string because ctxauth.TenantKindFromContext
 // reads it from ctx.Value("tenantKind"). Kept as a local const so a rename on
 // the middleware side surfaces via the tenantKind tests failing loudly.
 const ctxTenantKindKey = "tenantKind"
 
-// stubEnabled implements middleware.ModuleEnabledChecker for tests.
+// stubEnabled implements modulegate.ModuleEnabledChecker for tests.
 type stubEnabled struct {
 	disabled map[string]bool
 }

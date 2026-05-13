@@ -23,7 +23,7 @@ const ClientManagementPage: React.FC = () => (
       createLabel: 'New client',
       createTitle: 'Create client',
       createSubmitLabel: 'Create client',
-      emptyFootnote: 'All clients are active',
+      emptyFootnote: 'All clients are active'
     }}
   />
 );

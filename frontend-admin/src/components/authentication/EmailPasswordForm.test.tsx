@@ -10,7 +10,11 @@ import EmailPasswordForm from './EmailPasswordForm';
 // Default policy handler — login + registration enabled. Individual tests
 // that need the kill switch override this.
 const policyOk = http.get('*/v1/auth/operator/policy', () =>
-  HttpResponse.json({ registrationEnabled: true, loginEnabled: true, passwordMinLength: 10 }),
+  HttpResponse.json({
+    registrationEnabled: true,
+    loginEnabled: true,
+    passwordMinLength: 10
+  })
 );
 
 // Surfaces useLocation().state on whatever route mounts it, so tests can
@@ -20,7 +24,9 @@ const LocationProbe = ({ label }: { label: string }) => {
   return (
     <div data-testid={label}>
       <span data-testid={`${label}-pathname`}>{location.pathname}</span>
-      <span data-testid={`${label}-state`}>{JSON.stringify(location.state ?? null)}</span>
+      <span data-testid={`${label}-state`}>
+        {JSON.stringify(location.state ?? null)}
+      </span>
     </div>
   );
 };
@@ -29,13 +35,19 @@ const renderForm = () =>
   renderWithProviders(
     <Routes>
       <Route path="/login" element={<EmailPasswordForm />} />
-      <Route path="/dashboard/analytics" element={<LocationProbe label="dashboard" />} />
+      <Route
+        path="/dashboard/analytics"
+        element={<LocationProbe label="dashboard" />}
+      />
       <Route path="/mfa/verify" element={<LocationProbe label="mfa" />} />
     </Routes>,
-    { routerEntries: ['/login'] },
+    { routerEntries: ['/login'] }
   );
 
-const fillCredentials = async (email = 'op@example.com', password = 'hunter22hunter22') => {
+const fillCredentials = async (
+  email = 'op@example.com',
+  password = 'hunter22hunter22'
+) => {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(/email/i), email);
   await user.type(screen.getByLabelText(/password/i), password);
@@ -59,10 +71,10 @@ describe('EmailPasswordForm', () => {
             isActive: true,
             roles: ['operator'],
             createdAt: '2026-01-01T00:00:00Z',
-            updatedAt: '2026-01-01T00:00:00Z',
-          },
-        }),
-      ),
+            updatedAt: '2026-01-01T00:00:00Z'
+          }
+        })
+      )
     );
 
     const { store } = renderForm();
@@ -70,7 +82,7 @@ describe('EmailPasswordForm', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     expect(await screen.findByTestId('dashboard-pathname')).toHaveTextContent(
-      '/dashboard/analytics',
+      '/dashboard/analytics'
     );
     // Redux auth slice was seeded with the response body. Without this the
     // app would render the dashboard route but every protected query would
@@ -93,21 +105,25 @@ describe('EmailPasswordForm', () => {
           success: true,
           requiresMfa: true,
           mfaToken: 'challenge-abc',
-          webauthnAvailable: true,
-        }),
-      ),
+          webauthnAvailable: true
+        })
+      )
     );
 
     const { store } = renderForm();
     const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
-    expect(await screen.findByTestId('mfa-pathname')).toHaveTextContent('/mfa/verify');
-    const state = JSON.parse(screen.getByTestId('mfa-state').textContent ?? 'null');
+    expect(await screen.findByTestId('mfa-pathname')).toHaveTextContent(
+      '/mfa/verify'
+    );
+    const state = JSON.parse(
+      screen.getByTestId('mfa-state').textContent ?? 'null'
+    );
     expect(state).toMatchObject({
       challengeId: 'challenge-abc',
       email: 'op@example.com',
-      webauthnAvailable: true,
+      webauthnAvailable: true
     });
     // Auth state must NOT be seeded — the user has not completed MFA yet.
     expect(store.getState().auth.accessToken).toBeFalsy();
@@ -117,30 +133,34 @@ describe('EmailPasswordForm', () => {
     server.use(
       policyOk,
       http.post('*/v1/auth/operator/login', () =>
-        HttpResponse.json({ detail: 'invalid credentials' }, { status: 401 }),
-      ),
+        HttpResponse.json({ detail: 'invalid credentials' }, { status: 401 })
+      )
     );
 
     renderForm();
     const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
-    expect(await screen.findByText(/invalid email or password/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/invalid email or password/i)
+    ).toBeInTheDocument();
   });
 
   it('shows the rate-limit message on a 429 response', async () => {
     server.use(
       policyOk,
       http.post('*/v1/auth/operator/login', () =>
-        HttpResponse.json({ detail: 'too many' }, { status: 429 }),
-      ),
+        HttpResponse.json({ detail: 'too many' }, { status: 429 })
+      )
     );
 
     renderForm();
     const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
-    expect(await screen.findByText(/too many failed attempts/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/too many failed attempts/i)
+    ).toBeInTheDocument();
   });
 
   it('disables submit and shows the maintenance banner when policy says login is off', async () => {
@@ -149,20 +169,20 @@ describe('EmailPasswordForm', () => {
         HttpResponse.json({
           registrationEnabled: false,
           loginEnabled: false,
-          passwordMinLength: 10,
-        }),
+          passwordMinLength: 10
+        })
       ),
       // If the form ever calls login while disabled, this handler will
       // delay long enough that the assertions below race and fail loud.
       http.post('*/v1/auth/operator/login', async () => {
         await delay(2000);
         return HttpResponse.json({ success: false });
-      }),
+      })
     );
 
     renderForm();
     expect(
-      await screen.findByText(/login is temporarily disabled/i),
+      await screen.findByText(/login is temporarily disabled/i)
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeDisabled();
     // Registration link is hidden by the same kill switch.

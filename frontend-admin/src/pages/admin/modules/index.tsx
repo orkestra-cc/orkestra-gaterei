@@ -13,10 +13,10 @@ const ModuleManagementPage: React.FC = () => {
     if (!modules) return null;
     return {
       total: modules.length,
-      running: modules.filter((m) => m.status === 'running').length,
-      failed: modules.filter((m) => m.status === 'failed').length,
-      disabled: modules.filter((m) => m.status === 'disabled').length,
-      stopped: modules.filter((m) => m.status === 'stopped').length,
+      running: modules.filter(m => m.status === 'running').length,
+      failed: modules.filter(m => m.status === 'failed').length,
+      disabled: modules.filter(m => m.status === 'disabled').length,
+      stopped: modules.filter(m => m.status === 'stopped').length
     };
   }, [modules]);
 
@@ -31,26 +31,40 @@ const ModuleManagementPage: React.FC = () => {
               </div>
               {stats && (
                 <div className="d-flex gap-3 fs-10 text-600">
-                  <span><strong className="text-900">{stats.total}</strong> modules</span>
                   <span>
-                    <span className="rounded-circle bg-success d-inline-block me-1" style={{ width: 8, height: 8 }} />
+                    <strong className="text-900">{stats.total}</strong> modules
+                  </span>
+                  <span>
+                    <span
+                      className="rounded-circle bg-success d-inline-block me-1"
+                      style={{ width: 8, height: 8 }}
+                    />
                     {stats.running} running
                   </span>
                   {stats.failed > 0 && (
                     <span>
-                      <span className="rounded-circle bg-danger d-inline-block me-1" style={{ width: 8, height: 8 }} />
+                      <span
+                        className="rounded-circle bg-danger d-inline-block me-1"
+                        style={{ width: 8, height: 8 }}
+                      />
                       {stats.failed} failed
                     </span>
                   )}
                   {stats.disabled > 0 && (
                     <span>
-                      <span className="rounded-circle bg-400 d-inline-block me-1" style={{ width: 8, height: 8 }} />
+                      <span
+                        className="rounded-circle bg-400 d-inline-block me-1"
+                        style={{ width: 8, height: 8 }}
+                      />
                       {stats.disabled} disabled
                     </span>
                   )}
                   {stats.stopped > 0 && (
                     <span>
-                      <span className="rounded-circle bg-warning d-inline-block me-1" style={{ width: 8, height: 8 }} />
+                      <span
+                        className="rounded-circle bg-warning d-inline-block me-1"
+                        style={{ width: 8, height: 8 }}
+                      />
                       {stats.stopped} stopped
                     </span>
                   )}
@@ -63,9 +77,15 @@ const ModuleManagementPage: React.FC = () => {
         <Tabs
           id="module-management-tabs"
           activeKey={tab}
-          onSelect={(k) => {
+          onSelect={k => {
             if (!k) return;
-            setSearchParams((prev) => { prev.set('tab', k); return prev; }, { replace: true });
+            setSearchParams(
+              prev => {
+                prev.set('tab', k);
+                return prev;
+              },
+              { replace: true }
+            );
           }}
           className="mb-3"
         >

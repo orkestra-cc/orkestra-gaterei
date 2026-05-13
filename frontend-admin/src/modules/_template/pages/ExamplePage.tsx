@@ -2,11 +2,11 @@
 //
 // To use: copy this file to `src/pages/<name>/list/index.tsx` and adapt.
 // Use the primitives in `components/common/` as building blocks — they
-// are the Falcon design-system kit and match the look of every other
+// are the Orkestra design-system kit and match the look of every other
 // page in the app.
 //
 // For richer patterns (calendar, kanban, chat, email, social), copy
-// from `src/reference/app-examples/` instead — those are full Falcon
+// from `src/reference/app-examples/` instead — those are full Orkestra
 // implementations you can lift wholesale.
 
 import { useState } from 'react';
@@ -21,7 +21,7 @@ const ExamplePage: React.FC = () => {
   const [search, setSearch] = useState('');
   const { data, isLoading, isError, refetch } = useListWidgetsQuery({
     search: search || undefined,
-    limit: 20,
+    limit: 20
   });
 
   return (
@@ -41,7 +41,11 @@ const ExamplePage: React.FC = () => {
           >
             New widget
           </IconButton>
-          <IconButton icon="sync" variant="falcon-default" onClick={() => refetch()}>
+          <IconButton
+            icon="sync"
+            variant="orkestra-default"
+            onClick={() => refetch()}
+          >
             Refresh
           </IconButton>
         </Flex>
@@ -53,7 +57,7 @@ const ExamplePage: React.FC = () => {
             type="search"
             placeholder="Search widgets..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
           />
         </Card.Body>
       </Card>
@@ -63,7 +67,11 @@ const ExamplePage: React.FC = () => {
         <Card>
           <Card.Body>
             <p className="mb-2 text-danger">Failed to load widgets.</p>
-            <Button size="sm" variant="outline-primary" onClick={() => refetch()}>
+            <Button
+              size="sm"
+              variant="outline-primary"
+              onClick={() => refetch()}
+            >
               Retry
             </Button>
           </Card.Body>
@@ -72,7 +80,7 @@ const ExamplePage: React.FC = () => {
 
       {data && (
         <Row className="g-3">
-          {data.widgets.map((widget) => (
+          {data.widgets.map(widget => (
             <Col key={widget.uuid} md={6} lg={4}>
               <ExampleCard widget={widget} />
             </Col>

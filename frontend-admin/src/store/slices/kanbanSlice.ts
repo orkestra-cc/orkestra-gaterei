@@ -123,11 +123,11 @@ const kanbanSlice = createSlice({
       state.kanbanModal.show = true;
     },
 
-    toggleKanbanModal: (state) => {
+    toggleKanbanModal: state => {
       state.kanbanModal.show = !state.kanbanModal.show;
     },
 
-    closeKanbanModal: (state) => {
+    closeKanbanModal: state => {
       state.kanbanModal.show = false;
       state.kanbanModal.modalContent = {};
     },
@@ -143,16 +143,25 @@ const kanbanSlice = createSlice({
       );
     },
 
-    updateKanbanColumn: (state, action: PayloadAction<{ id: string; updates: Partial<KanbanItem> }>) => {
+    updateKanbanColumn: (
+      state,
+      action: PayloadAction<{ id: string; updates: Partial<KanbanItem> }>
+    ) => {
       const { id, updates } = action.payload;
       const columnIndex = state.kanbanItems.findIndex(item => item.id === id);
       if (columnIndex !== -1) {
-        state.kanbanItems[columnIndex] = { ...state.kanbanItems[columnIndex], ...updates };
+        state.kanbanItems[columnIndex] = {
+          ...state.kanbanItems[columnIndex],
+          ...updates
+        };
       }
     },
 
     // Task card actions
-    addTaskCard: (state, action: PayloadAction<{ targetListId: string; newCard: TaskCard }>) => {
+    addTaskCard: (
+      state,
+      action: PayloadAction<{ targetListId: string; newCard: TaskCard }>
+    ) => {
       const { targetListId, newCard } = action.payload;
       const column = state.kanbanItems.find(item => item.id === targetListId);
       if (column) {
@@ -166,7 +175,10 @@ const kanbanSlice = createSlice({
       });
     },
 
-    updateTaskCard: (state, action: PayloadAction<{ cardId: string; updates: Partial<TaskCard> }>) => {
+    updateTaskCard: (
+      state,
+      action: PayloadAction<{ cardId: string; updates: Partial<TaskCard> }>
+    ) => {
       const { cardId, updates } = action.payload;
       state.kanbanItems.forEach(column => {
         const cardIndex = column.items.findIndex(item => item.id === cardId);
@@ -177,7 +189,10 @@ const kanbanSlice = createSlice({
     },
 
     // Drag and drop actions - optimized for performance
-    updateSingleColumn: (state, action: PayloadAction<{ columnId: string; reorderedItems: TaskCard[] }>) => {
+    updateSingleColumn: (
+      state,
+      action: PayloadAction<{ columnId: string; reorderedItems: TaskCard[] }>
+    ) => {
       const { columnId, reorderedItems } = action.payload;
       const column = state.kanbanItems.find(item => item.id === columnId);
       if (column) {
@@ -185,16 +200,28 @@ const kanbanSlice = createSlice({
       }
     },
 
-    updateDualColumn: (state, action: PayloadAction<{
-      sourceColumnId: string;
-      destColumnId: string;
-      updatedSourceItems: TaskCard[];
-      updatedDestItems: TaskCard[];
-    }>) => {
-      const { sourceColumnId, destColumnId, updatedSourceItems, updatedDestItems } = action.payload;
+    updateDualColumn: (
+      state,
+      action: PayloadAction<{
+        sourceColumnId: string;
+        destColumnId: string;
+        updatedSourceItems: TaskCard[];
+        updatedDestItems: TaskCard[];
+      }>
+    ) => {
+      const {
+        sourceColumnId,
+        destColumnId,
+        updatedSourceItems,
+        updatedDestItems
+      } = action.payload;
 
-      const sourceColumn = state.kanbanItems.find(item => item.id === sourceColumnId);
-      const destColumn = state.kanbanItems.find(item => item.id === destColumnId);
+      const sourceColumn = state.kanbanItems.find(
+        item => item.id === sourceColumnId
+      );
+      const destColumn = state.kanbanItems.find(
+        item => item.id === destColumnId
+      );
 
       if (sourceColumn) {
         sourceColumn.items = updatedSourceItems;
@@ -219,7 +246,9 @@ const kanbanSlice = createSlice({
     },
 
     removeMember: (state, action: PayloadAction<string>) => {
-      state.members = state.members.filter(member => member.id !== action.payload);
+      state.members = state.members.filter(
+        member => member.id !== action.payload
+      );
     },
 
     addLabel: (state, action: PayloadAction<Label>) => {
@@ -227,7 +256,9 @@ const kanbanSlice = createSlice({
     },
 
     removeLabel: (state, action: PayloadAction<string>) => {
-      state.labels = state.labels.filter(label => label.text !== action.payload);
+      state.labels = state.labels.filter(
+        label => label.text !== action.payload
+      );
     },
 
     addAttachment: (state, action: PayloadAction<Attachment>) => {
@@ -235,7 +266,9 @@ const kanbanSlice = createSlice({
     },
 
     removeAttachment: (state, action: PayloadAction<string>) => {
-      state.attachments = state.attachments.filter(attachment => attachment.id !== action.payload);
+      state.attachments = state.attachments.filter(
+        attachment => attachment.id !== action.payload
+      );
     },
 
     addComment: (state, action: PayloadAction<Comment>) => {
@@ -243,7 +276,9 @@ const kanbanSlice = createSlice({
     },
 
     removeComment: (state, action: PayloadAction<string>) => {
-      state.comments = state.comments.filter(comment => comment.id !== action.payload);
+      state.comments = state.comments.filter(
+        comment => comment.id !== action.payload
+      );
     },
 
     addActivity: (state, action: PayloadAction<Activity>) => {
@@ -251,7 +286,7 @@ const kanbanSlice = createSlice({
     },
 
     // Utility actions
-    resetKanbanState: (state) => {
+    resetKanbanState: state => {
       Object.assign(state, initialState);
     }
   }
@@ -307,9 +342,10 @@ export const selectTaskById = (taskId: string) => (state: RootState) => {
   return null;
 };
 
-export const selectTasksByColumnId = (columnId: string) => (state: RootState) => {
-  const column = state.kanban.kanbanItems.find(item => item.id === columnId);
-  return column ? column.items : [];
-};
+export const selectTasksByColumnId =
+  (columnId: string) => (state: RootState) => {
+    const column = state.kanban.kanbanItems.find(item => item.id === columnId);
+    return column ? column.items : [];
+  };
 
 export default kanbanSlice.reducer;

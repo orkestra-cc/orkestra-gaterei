@@ -10,11 +10,11 @@ import (
 	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/payments/models"
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
 )
 
 // ClientHandler bundles the Tier-2 self-service payment routes. Constructed
@@ -54,7 +54,7 @@ func NewClientHandler(
 // tenant they own. 401 when anonymous, 503 when the tenant provider is
 // missing.
 func (h *ClientHandler) callerTenantSet(ctx context.Context) (map[string]struct{}, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
@@ -342,7 +342,7 @@ func (h *ClientHandler) MeCreateSetupCheckoutSession(ctx context.Context, in *Me
 	if tenantUUID == "" {
 		// Default: the caller's personal tenant. callerTenantSet already
 		// materialized it; pick the first matching entry.
-		userUUID, _ := middleware.GetUserUUID(ctx)
+		userUUID, _ := ctxauth.GetUserUUID(ctx)
 		personal, err := h.tenants.EnsureTenantForUser(ctx, userUUID)
 		if err != nil {
 			return nil, err

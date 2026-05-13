@@ -27,7 +27,6 @@ echarts.use([
   VisualMapComponent
 ]);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 echarts.registerMap('world', { geoJSON: world as any, specialAreas: {} });
 
 const total = 6961500;
@@ -36,7 +35,12 @@ type ThemeColorGetter = (color: string) => string;
 type MapDataItem = { name: string; value: number };
 type TooltipParams = { data?: MapDataItem };
 
-const getOptions = (getThemeColor: ThemeColorGetter, data: MapDataItem[], maxZoomLevel: number, minZoomLevel: number) => ({
+const getOptions = (
+  getThemeColor: ThemeColorGetter,
+  data: MapDataItem[],
+  maxZoomLevel: number,
+  minZoomLevel: number
+) => ({
   tooltip: {
     trigger: 'item',
     padding: [7, 10],

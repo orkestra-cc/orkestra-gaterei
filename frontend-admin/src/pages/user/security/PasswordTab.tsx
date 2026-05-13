@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import {
   useChangePasswordMutation,
-  useGetAuthPolicyQuery,
+  useGetAuthPolicyQuery
 } from 'store/api/authApi';
 import { useGetSelfAuthMethodsQuery } from 'store/api/authApi';
 
@@ -41,14 +41,15 @@ const PasswordTab = () => {
     try {
       await changePassword({
         currentPassword: oldPassword,
-        newPassword,
+        newPassword
       }).unwrap();
       setSuccess('Password updated. Other sessions have been signed out.');
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: unknown) {
-      const data = (err as { data?: { detail?: string; title?: string } })?.data;
+      const data = (err as { data?: { detail?: string; title?: string } })
+        ?.data;
       setError(data?.detail || data?.title || 'Failed to update password.');
     }
   };
@@ -84,7 +85,7 @@ const PasswordTab = () => {
               type="password"
               autoComplete="current-password"
               value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
+              onChange={e => setOldPassword(e.target.value)}
               required={hasPassword}
               disabled={isLoading}
             />
@@ -95,7 +96,7 @@ const PasswordTab = () => {
               type="password"
               autoComplete="new-password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={e => setNewPassword(e.target.value)}
               required
               disabled={isLoading}
               minLength={minLength}
@@ -111,7 +112,7 @@ const PasswordTab = () => {
               type="password"
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={e => setConfirmPassword(e.target.value)}
               required
               disabled={isLoading}
               minLength={minLength}

@@ -5,7 +5,17 @@ import createMarkup from 'helpers/createMarkup';
 import Avatar from 'components/common/Avatar';
 
 type AvatarSize = 'xs' | 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
-type AvatarRounded = 'circle' | '0' | '1' | '2' | '3' | 'pill' | 'top' | 'end' | 'bottom' | 'start';
+type AvatarRounded =
+  | 'circle'
+  | '0'
+  | '1'
+  | '2'
+  | '3'
+  | 'pill'
+  | 'top'
+  | 'end'
+  | 'bottom'
+  | 'start';
 
 interface NotificationAvatarProps {
   size?: AvatarSize;
@@ -51,7 +61,10 @@ const Notification = ({
       </div>
     )}
     <div className="notification-body">
-      <p className="mb-1" dangerouslySetInnerHTML={createMarkup(String(children || ''))} />
+      <p
+        className="mb-1"
+        dangerouslySetInnerHTML={createMarkup(String(children || ''))}
+      />
       <span className="notification-time">
         {emoji && (
           <span className="me-2" role="img" aria-label="Emoji">

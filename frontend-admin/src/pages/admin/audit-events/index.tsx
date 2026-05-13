@@ -12,7 +12,9 @@ const DEFAULT_LIMIT = 50;
 const AuditEventsPage: React.FC = () => {
   // Filter + pagination state. Filter changes always reset offset=0 (see
   // AuditEventsFilters.onApply); paging-only changes mutate offset alone.
-  const [params, setParams] = useState<ListAuditEventsParams>({ limit: DEFAULT_LIMIT });
+  const [params, setParams] = useState<ListAuditEventsParams>({
+    limit: DEFAULT_LIMIT
+  });
   const [selected, setSelected] = useState<AuditEvent | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
@@ -51,12 +53,15 @@ const AuditEventsPage: React.FC = () => {
             <Card.Body className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
               <div>
                 <h5 className="mb-1">
-                  <FontAwesomeIcon icon="clipboard-list" className="me-2 text-primary" />
+                  <FontAwesomeIcon
+                    icon="clipboard-list"
+                    className="me-2 text-primary"
+                  />
                   Audit Events
                 </h5>
                 <p className="fs-10 mb-0 text-body-secondary">
-                  Append-only trail of security-relevant actions across every tenant.
-                  Retention: 2 years (TTL-enforced on MongoDB).
+                  Append-only trail of security-relevant actions across every
+                  tenant. Retention: 2 years (TTL-enforced on MongoDB).
                 </p>
               </div>
               <div className="text-end">
@@ -64,7 +69,8 @@ const AuditEventsPage: React.FC = () => {
                 <div className="fs-5">{total.toLocaleString()}</div>
                 {activeFilterCount > 0 && (
                   <div className="fs-11 text-body-tertiary">
-                    {activeFilterCount} filter{activeFilterCount === 1 ? '' : 's'} active
+                    {activeFilterCount} filter
+                    {activeFilterCount === 1 ? '' : 's'} active
                   </div>
                 )}
               </div>
@@ -77,7 +83,7 @@ const AuditEventsPage: React.FC = () => {
         <Card.Body>
           <AuditEventsFilters
             value={params}
-            onApply={(next) => setParams(next)}
+            onApply={next => setParams(next)}
             onReset={() => setParams({ limit: DEFAULT_LIMIT })}
           />
         </Card.Body>
@@ -102,9 +108,12 @@ const AuditEventsPage: React.FC = () => {
             variant="outline-secondary"
             disabled={!canPrev || isFetching}
             onClick={() =>
-              setParams((prev) => ({
+              setParams(prev => ({
                 ...prev,
-                offset: Math.max(0, (prev.offset ?? 0) - (prev.limit ?? DEFAULT_LIMIT)),
+                offset: Math.max(
+                  0,
+                  (prev.offset ?? 0) - (prev.limit ?? DEFAULT_LIMIT)
+                )
               }))
             }
           >
@@ -115,9 +124,9 @@ const AuditEventsPage: React.FC = () => {
             variant="outline-secondary"
             disabled={!canNext || isFetching}
             onClick={() =>
-              setParams((prev) => ({
+              setParams(prev => ({
                 ...prev,
-                offset: (prev.offset ?? 0) + (prev.limit ?? DEFAULT_LIMIT),
+                offset: (prev.offset ?? 0) + (prev.limit ?? DEFAULT_LIMIT)
               }))
             }
           >

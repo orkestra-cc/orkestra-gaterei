@@ -39,7 +39,7 @@ export const configCompleteness = (
   secretStatus: Record<string, boolean> | null | undefined
 ): { filled: number; total: number } => {
   if (!schema) return { filled: 0, total: 0 };
-  const required = schema.filter((f) => f.required);
+  const required = schema.filter(f => f.required);
   const cv = configValues ?? {};
   const ss = secretStatus ?? {};
   let filled = 0;

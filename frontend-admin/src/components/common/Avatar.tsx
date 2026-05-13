@@ -1,12 +1,30 @@
-
 import { isIterableArray } from 'helpers/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import Flex from './Flex';
 import classNames from 'classnames';
 
-export type AvatarSize = 'xs' | 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
-export type AvatarRounded = 'circle' | '0' | '1' | '2' | '3' | 'pill' | 'top' | 'end' | 'bottom' | 'start';
+export type AvatarSize =
+  | 'xs'
+  | 's'
+  | 'm'
+  | 'l'
+  | 'xl'
+  | '2xl'
+  | '3xl'
+  | '4xl'
+  | '5xl';
+export type AvatarRounded =
+  | 'circle'
+  | '0'
+  | '1'
+  | '2'
+  | '3'
+  | 'pill'
+  | 'top'
+  | 'end'
+  | 'bottom'
+  | 'start';
 
 interface AvatarProps {
   size?: AvatarSize;
@@ -98,10 +116,10 @@ interface AvatarGroupProps {
   className?: string;
 }
 
-export const AvatarGroup: React.FC<AvatarGroupProps> = ({ 
-  children, 
-  dense, 
-  className 
+export const AvatarGroup: React.FC<AvatarGroupProps> = ({
+  children,
+  dense,
+  className
 }) => {
   return (
     <div

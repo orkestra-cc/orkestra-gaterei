@@ -7,16 +7,25 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
+	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 	"github.com/orkestra/backend/internal/addons/subscriptions/handlers"
 	"github.com/orkestra/backend/internal/addons/subscriptions/jobs"
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
+
+// Settings is the typed view of the subscriptions module's config schema.
+// Each field corresponds 1:1 to an entry in ConfigSchema() — keep them in
+// sync. UnmarshalModule decodes the active environment into a value of this
+// type so Init() consumes module config through a single, typed surface
+// instead of multiple deps.GetConfig*/deps.GetSecret calls.
+type Settings struct {
+	RenewalInterval time.Duration `module:"renewalInterval"`
+	DefaultVATRate  string        `module:"defaultVATRate"`
+}
 
 type SubscriptionsModule struct {
 	module.BaseModule
@@ -30,11 +39,13 @@ type SubscriptionsModule struct {
 
 func NewModule() *SubscriptionsModule { return &SubscriptionsModule{} }
 
-func (m *SubscriptionsModule) Name() string                    { return "subscriptions" }
-func (m *SubscriptionsModule) DisplayName() string             { return "Sottoscrizioni" }
-func (m *SubscriptionsModule) Description() string             { return "AI services catalog, recurring tenant subscriptions, and activity logs" }
+func (m *SubscriptionsModule) Name() string        { return "subscriptions" }
+func (m *SubscriptionsModule) DisplayName() string { return "Sottoscrizioni" }
+func (m *SubscriptionsModule) Description() string {
+	return "AI services catalog, recurring tenant subscriptions, and activity logs"
+}
 func (m *SubscriptionsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *SubscriptionsModule) Enabled(_ *config.Config) bool   { return true }
+func (m *SubscriptionsModule) Enabled() bool                   { return true }
 func (m *SubscriptionsModule) HotReloadConfig() bool           { return true }
 
 // Intentionally empty: the payments module is consumed via the
@@ -122,6 +133,14 @@ func (m *SubscriptionsModule) Permissions() []iface.PermissionSpec {
 func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.RenewalInterval <= 0 {
+		settings.RenewalInterval = time.Hour
+	}
+
 	serviceRepo := repository.NewServiceRepository(deps.DB)
 	subRepo := repository.NewSubscriptionRepository(deps.DB)
 	invoiceRepo := repository.NewInvoiceRepository(deps.DB)
@@ -154,8 +173,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	m.serviceHandler = handlers.NewServiceHandler(serviceSvc)
 	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, tenantProvider)
 
-	interval := deps.GetConfigDuration("subscriptions", "renewalInterval", time.Hour)
-	m.renewalJob = jobs.NewRenewalJob(renewalSvc, interval, deps.Logger)
+	m.renewalJob = jobs.NewRenewalJob(renewalSvc, settings.RenewalInterval, deps.Logger)
 
 	// Publish the reconciler so the payments module can call into us on webhooks.
 	deps.Services.Register(module.ServiceSubscriptionReconciler, reconciler)
@@ -179,7 +197,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServiceSelfServiceCheckoutPlanner, iface.SelfServiceCheckoutPlanner(services.NewCheckoutPlanner(subRepo, serviceRepo, invoiceRepo)))
 
 	deps.Logger.Info("Subscriptions module initialized",
-		slog.Duration("renewalInterval", interval),
+		slog.Duration("renewalInterval", settings.RenewalInterval),
 	)
 	return nil
 }
@@ -216,7 +234,7 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// gate already restricts callers to aud=client tokens, so the Tier-2
 	// scope is enforced at the surface boundary.
 	ri.Client.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Client.AuthMW.RequireGlobal())
 			api := humachi.New(r, ri.APIConfig)
@@ -231,7 +249,7 @@ func (m *SubscriptionsModule) RegisterRoutes(ri *module.RouteInfo) {
 	// cannot create subscriptions, change pricing, cancel subscriptions, etc.
 	// All admin routes require an internal tenant.
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
-		gated.Use(middleware.ModuleGate(ri.ConfigService, m.Name()))
+		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
 		// Services (catalog) — operator admin only.
 		gated.Group(func(r chi.Router) {

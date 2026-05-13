@@ -12,20 +12,22 @@ const statusColors: Record<string, BadgeColor> = {
   running: 'success',
   failed: 'danger',
   disabled: 'secondary',
-  stopped: 'warning',
+  stopped: 'warning'
 };
 
 const categoryColors: Record<string, BadgeColor> = {
   core: 'primary',
   toggleable: 'info',
-  external: 'warning',
+  external: 'warning'
 };
 
 interface ModuleDetailHeaderProps {
   module: ModuleConfig;
 }
 
-const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) => {
+const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({
+  module: mod
+}) => {
   const [updateModule] = useUpdateModuleMutation();
   const [toggling, setToggling] = useState(false);
 
@@ -36,7 +38,10 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
     if (isCore) return;
     setToggling(true);
     try {
-      await updateModule({ name: mod.moduleName, enabled: !mod.enabled }).unwrap();
+      await updateModule({
+        name: mod.moduleName,
+        enabled: !mod.enabled
+      }).unwrap();
     } catch {
       // RTK Query handles error state
     } finally {
@@ -46,7 +51,10 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
 
   return (
     <div className="mb-3">
-      <Link to="/admin/modules" className="text-decoration-none fs-10 text-600 mb-2 d-inline-block">
+      <Link
+        to="/admin/modules"
+        className="text-decoration-none fs-10 text-600 mb-2 d-inline-block"
+      >
         <FontAwesomeIcon icon={faArrowLeft} className="me-1" />
         Back to Modules
       </Link>
@@ -55,10 +63,18 @@ const ModuleDetailHeader: React.FC<ModuleDetailHeaderProps> = ({ module: mod }) 
         <div>
           <h4 className="mb-1">
             {mod.displayName}
-            <SubtleBadge bg={categoryColors[mod.category] || 'secondary'} pill className="ms-2 fs-11">
+            <SubtleBadge
+              bg={categoryColors[mod.category] || 'secondary'}
+              pill
+              className="ms-2 fs-11"
+            >
               {mod.category}
             </SubtleBadge>
-            <SubtleBadge bg={statusColors[mod.status] || 'secondary'} pill className="ms-2 fs-11">
+            <SubtleBadge
+              bg={statusColors[mod.status] || 'secondary'}
+              pill
+              className="ms-2 fs-11"
+            >
               {statusLabel}
             </SubtleBadge>
           </h4>

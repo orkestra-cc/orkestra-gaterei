@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/tenant/models"
 	"github.com/orkestra/backend/internal/core/tenant/repository"
 	"github.com/orkestra/backend/internal/core/tenant/services"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type Handler struct {
@@ -39,13 +39,13 @@ type listMyTenantsOutput struct {
 }
 
 type memberDTO struct {
-	TenantID   string   `json:"tenantId"`
-	Name       string   `json:"name"`
-	Slug       string   `json:"slug"`
-	Plan       string   `json:"plan"`
-	Kind       string   `json:"kind"`
-	Roles      []string `json:"roles"`
-	IsOwner    bool     `json:"isOwner"`
+	TenantID string   `json:"tenantId"`
+	Name     string   `json:"name"`
+	Slug     string   `json:"slug"`
+	Plan     string   `json:"plan"`
+	Kind     string   `json:"kind"`
+	Roles    []string `json:"roles"`
+	IsOwner  bool     `json:"isOwner"`
 }
 
 type createTenantInput struct {
@@ -209,7 +209,7 @@ func (h *Handler) RegisterScopedMutationRoutes(api huma.API) {
 // --- Handler implementations ---
 
 func (h *Handler) listMyTenants(ctx context.Context, _ *struct{}) (*listMyTenantsOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -237,7 +237,7 @@ func (h *Handler) listMyTenants(ctx context.Context, _ *struct{}) (*listMyTenant
 }
 
 func (h *Handler) createTenant(ctx context.Context, in *createTenantInput) (*tenantOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -439,7 +439,7 @@ func (h *Handler) attachMemberAdmin(ctx context.Context, in *attachMemberAdminIn
 }
 
 func (h *Handler) createInvite(ctx context.Context, in *inviteInput) (*inviteOutput, error) {
-	userUUID, _ := middleware.GetUserUUID(ctx)
+	userUUID, _ := ctxauth.GetUserUUID(ctx)
 	inv, err := h.svc.CreateInvite(ctx, in.TenantID, userUUID, in.Body)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invite failed: " + err.Error())
@@ -448,7 +448,7 @@ func (h *Handler) createInvite(ctx context.Context, in *inviteInput) (*inviteOut
 }
 
 func (h *Handler) acceptInvite(ctx context.Context, in *acceptInviteInput) (*tenantOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -845,7 +845,7 @@ func (h *Handler) listDivisionsAdmin(ctx context.Context, in *tenantIDPath) (*di
 // caller must be an authenticated user; the new division is owned by them
 // and carries ParentTenantUUID=the current tenant.
 func (h *Handler) createDivision(ctx context.Context, in *createDivisionInput) (*tenantOutput, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok || userUUID == "" {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -991,7 +991,7 @@ func (h *Handler) RegisterClientRoutes(api huma.API) {
 }
 
 func (h *Handler) resolveCallerTenant(ctx context.Context) (*models.Tenant, error) {
-	userUUID, ok := middleware.GetUserUUID(ctx)
+	userUUID, ok := ctxauth.GetUserUUID(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -1074,4 +1074,3 @@ func (h *Handler) setMyItalianBillable(ctx context.Context, in *setMyItalianBill
 	}
 	return &billingIdentityOutput{Body: tenantToBillingIdentityDTO(updated)}, nil
 }
-

@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/sales/models"
 	"github.com/orkestra/backend/internal/addons/sales/repository"
 	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // OrchestratorService manages the lifecycle of sales intelligence jobs and skill execution
@@ -30,19 +30,19 @@ type OrchestratorService interface {
 }
 
 type orchestratorService struct {
-	jobRepo         repository.JobRepository
-	reportRepo      repository.ReportRepository
-	settingsRepo    repository.SettingsRepository
-	batchRepo       repository.BatchRepository
-	modelProvider   AIModelProvider
-	promptLoader    *PromptLoader
-	scraper         *Scraper
-	agentExecutor   *AgentExecutor
-	scorer          *Scorer
-	enrichment      CompanyEnrichmentService // optional
-	reportGen       *ReportGenerator
-	cfg             config.SalesConfig
-	logger          *slog.Logger
+	jobRepo       repository.JobRepository
+	reportRepo    repository.ReportRepository
+	settingsRepo  repository.SettingsRepository
+	batchRepo     repository.BatchRepository
+	modelProvider AIModelProvider
+	promptLoader  *PromptLoader
+	scraper       *Scraper
+	agentExecutor *AgentExecutor
+	scorer        *Scorer
+	enrichment    CompanyEnrichmentService // optional
+	reportGen     *ReportGenerator
+	cfg           config.SalesConfig
+	logger        *slog.Logger
 
 	// Track running jobs for cancellation
 	runningJobs   map[string]context.CancelFunc
@@ -85,12 +85,12 @@ func NewOrchestrator(
 
 // userLLMSettings holds resolved LLM provider and user preferences
 type userLLMSettings struct {
-	llm        iface.LLMProvider
-	modelUUID  string
-	temp       float64
-	maxTokens  int
-	locale     string
-	batchMode  bool
+	llm       iface.LLMProvider
+	modelUUID string
+	temp      float64
+	maxTokens int
+	locale    string
+	batchMode bool
 }
 
 // getLLMForUser resolves the LLM provider based on user settings, falling back to system default

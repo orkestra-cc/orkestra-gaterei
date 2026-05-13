@@ -4,7 +4,11 @@ interface ResizeHandleProps {
   onPointerDown: (e: React.PointerEvent) => void;
 }
 
-const ResizeHandle: React.FC<ResizeHandleProps> = ({ direction, isDragging, onPointerDown }) => {
+const ResizeHandle: React.FC<ResizeHandleProps> = ({
+  direction,
+  isDragging,
+  onPointerDown
+}) => {
   const isVertical = direction === 'vertical';
 
   return (
@@ -21,7 +25,7 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ direction, isDragging, onPo
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        touchAction: 'none',
+        touchAction: 'none'
       }}
     >
       {/* Grip dots */}

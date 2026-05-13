@@ -19,22 +19,24 @@ import type {
   WebAuthnLoginBeginResponse,
   WebAuthnLoginFinishInput,
   WebAuthnLoginFinishResponse,
-  WebAuthnCredentialsListResponse,
+  WebAuthnCredentialsListResponse
 } from 'types/mfa';
 import { setAccessToken } from '../slices/authSlice';
 
 // Huma v2 lifts the Go handler's `Body` field directly to the top of the
 // JSON response — there is no `{body: ...}` wrapper on the wire. Pass the
 // parsed payload through as-is.
-const unwrap = <T,>(res: unknown): T => res as T;
+function unwrap<T>(res: unknown): T {
+  return res as T;
+}
 
 export const mfaApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Current user's factor status — drives the settings card.
     getMfaStatus: builder.query<MfaStatusResponse, void>({
       query: () => 'v1/auth/operator/me/mfa',
       providesTags: ['MFA'],
-      transformResponse: (res: unknown) => unwrap<MfaStatusResponse>(res),
+      transformResponse: (res: unknown) => unwrap<MfaStatusResponse>(res)
     }),
 
     // Start enrollment — returns TOTP secret + otpauth:// URI for the QR.
@@ -42,21 +44,24 @@ export const mfaApi = baseApi.injectEndpoints({
     enrollMfaBegin: builder.mutation<MfaEnrollBeginResponse, void>({
       query: () => ({
         url: 'v1/auth/operator/mfa/enroll/begin',
-        method: 'POST',
+        method: 'POST'
       }),
-      transformResponse: (res: unknown) => unwrap<MfaEnrollBeginResponse>(res),
+      transformResponse: (res: unknown) => unwrap<MfaEnrollBeginResponse>(res)
     }),
 
     // Confirm enrollment with a TOTP code. Successful response carries the
     // one-shot backup codes that MUST be displayed exactly once.
-    enrollMfaConfirm: builder.mutation<MfaEnrollConfirmResponse, MfaEnrollConfirmInput>({
-      query: (body) => ({
+    enrollMfaConfirm: builder.mutation<
+      MfaEnrollConfirmResponse,
+      MfaEnrollConfirmInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/enroll/confirm',
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: ['MFA', 'User'],
-      transformResponse: (res: unknown) => unwrap<MfaEnrollConfirmResponse>(res),
+      transformResponse: (res: unknown) => unwrap<MfaEnrollConfirmResponse>(res)
     }),
 
     // Self-service step-up: verify a TOTP or backup code for the *current*
@@ -64,25 +69,27 @@ export const mfaApi = baseApi.injectEndpoints({
     // last_otp_at. The new token is dispatched into Redux so subsequent
     // requests carry the stepped-up bearer automatically.
     verifyMfa: builder.mutation<MfaVerifyResponse, MfaVerifyInput>({
-      query: (body) => ({
+      query: body => ({
         url: 'v1/auth/operator/mfa/verify',
         method: 'POST',
-        body,
+        body
       }),
       transformResponse: (res: unknown) => unwrap<MfaVerifyResponse>(res),
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           if (data?.accessToken && data?.expiresIn) {
-            dispatch(setAccessToken({
-              accessToken: data.accessToken,
-              expiresIn: data.expiresIn,
-            }));
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
           }
         } catch {
           // handled by the mutation consumer
         }
-      },
+      }
     }),
 
     // Regenerate backup codes — destroys the existing set and returns
@@ -92,10 +99,10 @@ export const mfaApi = baseApi.injectEndpoints({
       query: () => ({
         url: 'v1/auth/operator/me/mfa/backup-codes/regenerate',
         method: 'POST',
-        body: {},
+        body: {}
       }),
       invalidatesTags: ['MFA', 'SelfAuthMethods'],
-      transformResponse: (res: unknown) => unwrap<{ codes: string[] }>(res),
+      transformResponse: (res: unknown) => unwrap<{ codes: string[] }>(res)
     }),
 
     // Remove the current user's factor. Gated server-side by RequireStepUp —
@@ -105,48 +112,57 @@ export const mfaApi = baseApi.injectEndpoints({
       query: () => ({
         url: 'v1/auth/operator/me/mfa/remove',
         method: 'POST',
-        body: {},
+        body: {}
       }),
       invalidatesTags: ['MFA', 'User'],
-      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res)
     }),
 
     // Admin — wipe another user's factor. Gated server-side by
     // RequireStepUp(5m) so the caller must have verified recently. Returns
     // 401 with `code: "step_up_required"` if not; the caller's UI should
     // chain /mfa/verify first to satisfy the gate.
-    adminResetUserMfa: builder.mutation<{ success: boolean }, { userId: string }>({
+    adminResetUserMfa: builder.mutation<
+      { success: boolean },
+      { userId: string }
+    >({
       query: ({ userId }) => ({
         url: `v1/admin/users/${encodeURIComponent(userId)}/mfa/reset`,
-        method: 'POST',
+        method: 'POST'
       }),
       invalidatesTags: ['User'],
-      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res)
     }),
 
     // Admin — same surface as adminResetUserMfa but routed at the
     // client-tier admin path so the backend's clientMFAHandler operates
     // against client_users + client_mfa_factors.
-    adminResetClientUserMfa: builder.mutation<{ success: boolean }, { userId: string }>({
+    adminResetClientUserMfa: builder.mutation<
+      { success: boolean },
+      { userId: string }
+    >({
       query: ({ userId }) => ({
         url: `v1/admin/client-users/${encodeURIComponent(userId)}/mfa/reset`,
-        method: 'POST',
+        method: 'POST'
       }),
       invalidatesTags: (_r, _e, { userId }) => [
         { type: 'User', id: userId },
-        { type: 'User', id: 'CLIENT_LIST' },
+        { type: 'User', id: 'CLIENT_LIST' }
       ],
-      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res)
     }),
 
     // Public — completes a login that was paused with requiresMfa. Unlike
     // /mfa/verify this endpoint has no bearer token yet; the challengeId
     // ties the code back to the paused login so the same user UUID is used.
-    loginVerifyMfa: builder.mutation<MfaLoginVerifyResponse, MfaLoginVerifyInput>({
-      query: (body) => ({
+    loginVerifyMfa: builder.mutation<
+      MfaLoginVerifyResponse,
+      MfaLoginVerifyInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/login/verify',
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: ['User', 'Navigation'],
       transformResponse: (res: unknown) => unwrap<MfaLoginVerifyResponse>(res),
@@ -154,10 +170,12 @@ export const mfaApi = baseApi.injectEndpoints({
         try {
           const { data } = await queryFulfilled;
           if (data?.accessToken && data?.expiresIn) {
-            dispatch(setAccessToken({
-              accessToken: data.accessToken,
-              expiresIn: data.expiresIn,
-            }));
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
           }
           // Seed the getSession cache so ProtectedRoute sees an authenticated
           // session immediately on the next render — same pattern as the
@@ -171,14 +189,14 @@ export const mfaApi = baseApi.injectEndpoints({
                 tokenType: data.tokenType ?? 'Bearer',
                 expiresIn: data.expiresIn ?? 0,
                 user: data.user,
-                success: true,
+                success: true
               } as SessionResponse)
             );
           }
         } catch {
           // handled by the mutation consumer
         }
-      },
+      }
     }),
 
     // --- WebAuthn ---
@@ -187,101 +205,130 @@ export const mfaApi = baseApi.injectEndpoints({
     // begin endpoints return the W3C JSON the browser needs; the finish
     // endpoints accept the encoded credential JSON returned by the API.
 
-    webAuthnRegisterBegin: builder.mutation<WebAuthnRegisterBeginResponse, void>({
+    webAuthnRegisterBegin: builder.mutation<
+      WebAuthnRegisterBeginResponse,
+      void
+    >({
       query: () => ({
         url: 'v1/auth/operator/mfa/webauthn/register/begin',
-        method: 'POST',
+        method: 'POST'
       }),
-      transformResponse: (res: unknown) => unwrap<WebAuthnRegisterBeginResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnRegisterBeginResponse>(res)
     }),
-    webAuthnRegisterFinish: builder.mutation<WebAuthnRegisterFinishResponse, WebAuthnRegisterFinishInput>({
-      query: (body) => ({
+    webAuthnRegisterFinish: builder.mutation<
+      WebAuthnRegisterFinishResponse,
+      WebAuthnRegisterFinishInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/webauthn/register/finish',
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: ['MFA'],
-      transformResponse: (res: unknown) => unwrap<WebAuthnRegisterFinishResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnRegisterFinishResponse>(res)
     }),
 
     webAuthnList: builder.query<WebAuthnCredentialsListResponse, void>({
       query: () => 'v1/auth/operator/me/mfa/webauthn/credentials',
       providesTags: ['MFA'],
-      transformResponse: (res: unknown) => unwrap<WebAuthnCredentialsListResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnCredentialsListResponse>(res)
     }),
 
     // Step-up gated server-side; if the caller hasn't recently re-verified
     // the global StepUpModal will intercept the 401 and replay this DELETE.
-    webAuthnRemove: builder.mutation<{ success: boolean }, { credentialId: string }>({
+    webAuthnRemove: builder.mutation<
+      { success: boolean },
+      { credentialId: string }
+    >({
       query: ({ credentialId }) => ({
         url: `v1/auth/operator/me/mfa/webauthn/credentials/${encodeURIComponent(credentialId)}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
       invalidatesTags: ['MFA'],
-      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res),
+      transformResponse: (res: unknown) => unwrap<{ success: boolean }>(res)
     }),
 
     webAuthnVerifyBegin: builder.mutation<WebAuthnVerifyBeginResponse, void>({
       query: () => ({
         url: 'v1/auth/operator/mfa/webauthn/verify/begin',
-        method: 'POST',
+        method: 'POST'
       }),
-      transformResponse: (res: unknown) => unwrap<WebAuthnVerifyBeginResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnVerifyBeginResponse>(res)
     }),
-    webAuthnVerifyFinish: builder.mutation<WebAuthnVerifyFinishResponse, WebAuthnVerifyFinishInput>({
-      query: (body) => ({
+    webAuthnVerifyFinish: builder.mutation<
+      WebAuthnVerifyFinishResponse,
+      WebAuthnVerifyFinishInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/webauthn/verify/finish',
         method: 'POST',
-        body,
+        body
       }),
-      transformResponse: (res: unknown) => unwrap<WebAuthnVerifyFinishResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnVerifyFinishResponse>(res),
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           if (data?.accessToken && data?.expiresIn) {
-            dispatch(setAccessToken({
-              accessToken: data.accessToken,
-              expiresIn: data.expiresIn,
-            }));
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
           }
         } catch {
           // handled by the mutation consumer
         }
-      },
+      }
     }),
 
-    webAuthnLoginBegin: builder.mutation<WebAuthnLoginBeginResponse, WebAuthnLoginBeginInput>({
-      query: (body) => ({
+    webAuthnLoginBegin: builder.mutation<
+      WebAuthnLoginBeginResponse,
+      WebAuthnLoginBeginInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/webauthn/login/begin',
         method: 'POST',
-        body,
+        body
       }),
-      transformResponse: (res: unknown) => unwrap<WebAuthnLoginBeginResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnLoginBeginResponse>(res)
     }),
-    webAuthnLoginFinish: builder.mutation<WebAuthnLoginFinishResponse, WebAuthnLoginFinishInput>({
-      query: (body) => ({
+    webAuthnLoginFinish: builder.mutation<
+      WebAuthnLoginFinishResponse,
+      WebAuthnLoginFinishInput
+    >({
+      query: body => ({
         url: 'v1/auth/operator/mfa/webauthn/login/finish',
         method: 'POST',
-        body,
+        body
       }),
       invalidatesTags: ['User', 'Navigation'],
-      transformResponse: (res: unknown) => unwrap<WebAuthnLoginFinishResponse>(res),
+      transformResponse: (res: unknown) =>
+        unwrap<WebAuthnLoginFinishResponse>(res),
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           if (data?.accessToken && data?.expiresIn) {
-            dispatch(setAccessToken({
-              accessToken: data.accessToken,
-              expiresIn: data.expiresIn,
-            }));
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
           }
         } catch {
           // handled by the mutation consumer
         }
-      },
-    }),
+      }
+    })
   }),
-  overrideExisting: false,
+  overrideExisting: false
 });
 
 export const {
@@ -301,5 +348,5 @@ export const {
   useWebAuthnVerifyBeginMutation,
   useWebAuthnVerifyFinishMutation,
   useWebAuthnLoginBeginMutation,
-  useWebAuthnLoginFinishMutation,
+  useWebAuthnLoginFinishMutation
 } = mfaApi;

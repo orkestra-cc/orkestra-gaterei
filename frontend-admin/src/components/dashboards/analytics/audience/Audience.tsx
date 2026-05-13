@@ -2,7 +2,7 @@ import { Card, Col, Row, Tab, Nav, Form } from 'react-bootstrap';
 import Flex from 'components/common/Flex';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import AudienceChart from './AudienceChart';
-import FalconLink from 'components/common/FalconLink';
+import OrkestraLink from 'components/common/OrkestraLink';
 import SimpleBar from 'simplebar-react';
 import classNames from 'classnames';
 
@@ -117,14 +117,22 @@ const Audience = ({ chartData, className }: AudienceProps) => {
       <Card.Footer className="bg-body-tertiary py-2">
         <Row className="g-0 flex-between-center">
           <Col xs="auto">
-            <Form.Select size="sm" className="me-2" name="date-range" aria-label="Date range">
+            <Form.Select
+              size="sm"
+              className="me-2"
+              name="date-range"
+              aria-label="Date range"
+            >
               <option>Last 7 days</option>
               <option>Last Month</option>
               <option>Last Year</option>
             </Form.Select>
           </Col>
           <Col xs="auto">
-            <FalconLink title="Visitors overview" className="px-0 fw-medium" />
+            <OrkestraLink
+              title="Visitors overview"
+              className="px-0 fw-medium"
+            />
           </Col>
         </Row>
       </Card.Footer>

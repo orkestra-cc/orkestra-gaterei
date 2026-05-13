@@ -3,7 +3,7 @@ import type {
   IdPConfigPayload,
   IdPConfigView,
   ScimTokenRotated,
-  ScimTokenStatus,
+  ScimTokenStatus
 } from '../../types/identity';
 
 // identityApi wraps the tenant-scoped identity admin endpoints. All
@@ -11,7 +11,7 @@ import type {
 // stamps it automatically from the current tenant context, so no special
 // handling is needed here.
 export const identityApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // --- IdP (OIDC) config ---
     // 404 is the happy path for "unset" — surfaces to the page as
     // `data === undefined && error.status === 404`, which the page
@@ -19,31 +19,31 @@ export const identityApi = baseApi.injectEndpoints({
     // queryFn indirection.
     getIdPConfig: builder.query<IdPConfigView, void>({
       query: () => ({ url: '/v1/identity/idp', method: 'GET' }),
-      providesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }],
+      providesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }]
     }),
 
     putIdPConfig: builder.mutation<IdPConfigView, IdPConfigPayload>({
-      query: (body) => ({ url: '/v1/identity/idp', method: 'PUT', body }),
-      invalidatesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }],
+      query: body => ({ url: '/v1/identity/idp', method: 'PUT', body }),
+      invalidatesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }]
     }),
 
     deleteIdPConfig: builder.mutation<{ success: boolean }, void>({
       query: () => ({ url: '/v1/identity/idp', method: 'DELETE' }),
-      invalidatesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }],
+      invalidatesTags: [{ type: 'IdentityIdP' as const, id: 'CURRENT' }]
     }),
 
     // --- SCIM token ---
     getScimTokenStatus: builder.query<ScimTokenStatus, void>({
       query: () => ({ url: '/v1/identity/scim/token', method: 'GET' }),
-      providesTags: [{ type: 'IdentityScim' as const, id: 'CURRENT' }],
+      providesTags: [{ type: 'IdentityScim' as const, id: 'CURRENT' }]
     }),
 
     rotateScimToken: builder.mutation<ScimTokenRotated, void>({
       query: () => ({ url: '/v1/identity/scim/rotate-token', method: 'POST' }),
-      invalidatesTags: [{ type: 'IdentityScim' as const, id: 'CURRENT' }],
-    }),
+      invalidatesTags: [{ type: 'IdentityScim' as const, id: 'CURRENT' }]
+    })
   }),
-  overrideExisting: false,
+  overrideExisting: false
 });
 
 export const {
@@ -51,5 +51,5 @@ export const {
   usePutIdPConfigMutation,
   useDeleteIdPConfigMutation,
   useGetScimTokenStatusQuery,
-  useRotateScimTokenMutation,
+  useRotateScimTokenMutation
 } = identityApi;

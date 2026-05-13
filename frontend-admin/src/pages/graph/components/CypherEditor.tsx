@@ -1,12 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  Card,
-  Button,
-  Form,
-  Collapse,
-  Dropdown,
-  Badge,
-} from 'react-bootstrap';
+import { Card, Button, Form, Collapse, Dropdown, Badge } from 'react-bootstrap';
 
 const HISTORY_KEY = 'orkestra:cypher-history';
 const MAX_HISTORY = 20;
@@ -38,7 +31,7 @@ function saveHistory(history: string[]) {
 function pushToHistory(query: string) {
   const trimmed = query.trim();
   if (!trimmed) return;
-  const history = loadHistory().filter((q) => q !== trimmed);
+  const history = loadHistory().filter(q => q !== trimmed);
   history.unshift(trimmed);
   saveHistory(history.slice(0, MAX_HISTORY));
 }
@@ -49,7 +42,7 @@ const CypherEditor = ({
   readOnly = false,
   onReadOnlyChange,
   defaultValue = '',
-  externalQuery,
+  externalQuery
 }: CypherEditorProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [query, setQuery] = useState(defaultValue);
@@ -120,7 +113,9 @@ const CypherEditor = ({
     <Card className="mb-0">
       <Card.Header className="bg-body-tertiary py-2 d-flex align-items-center justify-content-between">
         <h6 className="mb-0">Cypher Query</h6>
-        <span className="text-muted fs-10 d-none d-md-inline">Ctrl+Enter to execute</span>
+        <span className="text-muted fs-10 d-none d-md-inline">
+          Ctrl+Enter to execute
+        </span>
       </Card.Header>
       <Card.Body className="p-3">
         {/* Query Textarea */}
@@ -128,7 +123,7 @@ const CypherEditor = ({
           ref={textareaRef}
           as="textarea"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           className="font-monospace"
           style={{
@@ -139,7 +134,7 @@ const CypherEditor = ({
             resize: 'none',
             backgroundColor: '#0d1117',
             color: '#e6edf3',
-            border: '1px solid #30363d',
+            border: '1px solid #30363d'
           }}
           placeholder="MATCH (n) RETURN n LIMIT 25"
           spellCheck={false}
@@ -155,7 +150,10 @@ const CypherEditor = ({
           >
             {isLoading ? (
               <>
-                <span className="spinner-border spinner-border-sm me-1" role="status" />
+                <span
+                  className="spinner-border spinner-border-sm me-1"
+                  role="status"
+                />
                 Running...
               </>
             ) : (
@@ -169,7 +167,7 @@ const CypherEditor = ({
             label="Read Only"
             className="mb-0 ms-1"
             checked={readOnly}
-            onChange={(e) => onReadOnlyChange?.(e.target.checked)}
+            onChange={e => onReadOnlyChange?.(e.target.checked)}
           />
 
           <Button variant="outline-secondary" size="sm" onClick={handleClear}>
@@ -179,22 +177,34 @@ const CypherEditor = ({
           <Button
             variant="outline-secondary"
             size="sm"
-            onClick={() => setShowParams((p) => !p)}
+            onClick={() => setShowParams(p => !p)}
             className="d-flex align-items-center gap-1"
           >
             Parameters
-            {showParams && paramsText.trim() !== '{}' && paramsText.trim() !== '' && (
-              <Badge bg="info" pill className="ms-1">set</Badge>
-            )}
+            {showParams &&
+              paramsText.trim() !== '{}' &&
+              paramsText.trim() !== '' && (
+                <Badge bg="info" pill className="ms-1">
+                  set
+                </Badge>
+              )}
           </Button>
 
           {history.length > 0 && (
             <Dropdown>
-              <Dropdown.Toggle variant="outline-secondary" size="sm" id="cypher-history-dropdown">
+              <Dropdown.Toggle
+                variant="outline-secondary"
+                size="sm"
+                id="cypher-history-dropdown"
+              >
                 History
-                <Badge bg="secondary" pill className="ms-1">{history.length}</Badge>
+                <Badge bg="secondary" pill className="ms-1">
+                  {history.length}
+                </Badge>
               </Dropdown.Toggle>
-              <Dropdown.Menu style={{ maxHeight: 300, overflowY: 'auto', minWidth: 350 }}>
+              <Dropdown.Menu
+                style={{ maxHeight: 300, overflowY: 'auto', minWidth: 350 }}
+              >
                 {history.map((q, idx) => (
                   <Dropdown.Item
                     key={idx}
@@ -214,12 +224,14 @@ const CypherEditor = ({
         <Collapse in={showParams}>
           <div>
             <div className="mt-2">
-              <Form.Label className="fs-10 mb-1">Query Parameters (JSON)</Form.Label>
+              <Form.Label className="fs-10 mb-1">
+                Query Parameters (JSON)
+              </Form.Label>
               <Form.Control
                 as="textarea"
                 rows={3}
                 value={paramsText}
-                onChange={(e) => {
+                onChange={e => {
                   setParamsText(e.target.value);
                   setParamsError('');
                 }}

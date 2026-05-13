@@ -9,7 +9,7 @@ import {
   useListSubscriptionActivityQuery,
   useCancelSubscriptionMutation,
   useReactivateSubscriptionMutation,
-  useRetryChargeMutation,
+  useRetryChargeMutation
 } from 'store/api/subscriptionsApi';
 import type { InvoiceStatus, SubStatus } from 'types/subscriptions';
 
@@ -18,7 +18,7 @@ const statusColor: Record<SubStatus, string> = {
   past_due: 'warning',
   suspended: 'danger',
   cancelled: 'secondary',
-  expired: 'secondary',
+  expired: 'secondary'
 };
 
 const invoiceColor: Record<InvoiceStatus, string> = {
@@ -27,11 +27,13 @@ const invoiceColor: Record<InvoiceStatus, string> = {
   failed: 'danger',
   refunded: 'info',
   void: 'secondary',
-  awaiting_manual_payment: 'warning',
+  awaiting_manual_payment: 'warning'
 };
 
 const formatMoney = (cents: number, currency = 'EUR') =>
-  new Intl.NumberFormat('it-IT', { style: 'currency', currency }).format(cents / 100);
+  new Intl.NumberFormat('it-IT', { style: 'currency', currency }).format(
+    cents / 100
+  );
 
 const SubscriptionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,8 +41,13 @@ const SubscriptionDetailPage: React.FC = () => {
   const activeTab = searchParams.get('tab') || 'overview';
 
   const { data: sub } = useGetSubscriptionQuery(id!, { skip: !id });
-  const { data: invoices } = useListSubscriptionInvoicesQuery(id!, { skip: !id });
-  const { data: activity } = useListSubscriptionActivityQuery({ id: id! }, { skip: !id });
+  const { data: invoices } = useListSubscriptionInvoicesQuery(id!, {
+    skip: !id
+  });
+  const { data: activity } = useListSubscriptionActivityQuery(
+    { id: id! },
+    { skip: !id }
+  );
 
   const [cancel] = useCancelSubscriptionMutation();
   const [reactivate] = useReactivateSubscriptionMutation();
@@ -62,11 +69,13 @@ const SubscriptionDetailPage: React.FC = () => {
         className="mb-3"
       >
         <Flex className="gap-2 mt-3 align-items-center">
-          <Badge bg={statusColor[s.status]} className="fs--1">{s.status}</Badge>
+          <Badge bg={statusColor[s.status]} className="fs--1">
+            {s.status}
+          </Badge>
           {s.status === 'active' && (
             <IconButton
               icon="times"
-              variant="falcon-warning"
+              variant="orkestra-warning"
               size="sm"
               onClick={async () => {
                 if (confirm('Cancellare a fine periodo?')) {
@@ -81,7 +90,7 @@ const SubscriptionDetailPage: React.FC = () => {
             <>
               <IconButton
                 icon="redo"
-                variant="falcon-primary"
+                variant="orkestra-primary"
                 size="sm"
                 onClick={() => retry(s.uuid).unwrap()}
               >
@@ -89,7 +98,7 @@ const SubscriptionDetailPage: React.FC = () => {
               </IconButton>
               <IconButton
                 icon="play"
-                variant="falcon-success"
+                variant="orkestra-success"
                 size="sm"
                 onClick={() => reactivate(s.uuid).unwrap()}
               >
@@ -100,13 +109,23 @@ const SubscriptionDetailPage: React.FC = () => {
         </Flex>
       </PageHeader>
 
-      <Tab.Container activeKey={activeTab} onSelect={(k) => k && setTab(k)}>
+      <Tab.Container activeKey={activeTab} onSelect={k => k && setTab(k)}>
         <Card className="mb-3">
           <Card.Header className="py-0 bg-light">
             <Nav variant="tabs" className="border-0">
-              <Nav.Item><Nav.Link eventKey="overview">Overview</Nav.Link></Nav.Item>
-              <Nav.Item><Nav.Link eventKey="invoices">Fatture ({invoices?.total ?? 0})</Nav.Link></Nav.Item>
-              <Nav.Item><Nav.Link eventKey="activity">Attività ({activity?.total ?? 0})</Nav.Link></Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="overview">Overview</Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="invoices">
+                  Fatture ({invoices?.total ?? 0})
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="activity">
+                  Attività ({activity?.total ?? 0})
+                </Nav.Link>
+              </Nav.Item>
             </Nav>
           </Card.Header>
         </Card>
@@ -117,17 +136,29 @@ const SubscriptionDetailPage: React.FC = () => {
               <Card.Body>
                 <dl className="row mb-0">
                   <dt className="col-sm-3">Cliente UUID</dt>
-                  <dd className="col-sm-9"><code>{s.tenantUUID}</code></dd>
+                  <dd className="col-sm-9">
+                    <code>{s.tenantUUID}</code>
+                  </dd>
                   <dt className="col-sm-3">Servizio UUID</dt>
-                  <dd className="col-sm-9"><code>{s.serviceUUID}</code></dd>
+                  <dd className="col-sm-9">
+                    <code>{s.serviceUUID}</code>
+                  </dd>
                   <dt className="col-sm-3">Tier</dt>
-                  <dd className="col-sm-9"><code>{s.tierCode}</code></dd>
+                  <dd className="col-sm-9">
+                    <code>{s.tierCode}</code>
+                  </dd>
                   <dt className="col-sm-3">Creata</dt>
-                  <dd className="col-sm-9">{new Date(s.createdAt).toLocaleString('it-IT')}</dd>
+                  <dd className="col-sm-9">
+                    {new Date(s.createdAt).toLocaleString('it-IT')}
+                  </dd>
                   <dt className="col-sm-3">Iniziata</dt>
-                  <dd className="col-sm-9">{new Date(s.startedAt).toLocaleString('it-IT')}</dd>
+                  <dd className="col-sm-9">
+                    {new Date(s.startedAt).toLocaleString('it-IT')}
+                  </dd>
                   <dt className="col-sm-3">Prossimo addebito</dt>
-                  <dd className="col-sm-9">{new Date(s.nextBillingAt).toLocaleString('it-IT')}</dd>
+                  <dd className="col-sm-9">
+                    {new Date(s.nextBillingAt).toLocaleString('it-IT')}
+                  </dd>
                   <dt className="col-sm-3">Tentativi falliti</dt>
                   <dd className="col-sm-9">{s.failedChargeCount}</dd>
                   {s.cancelAtPeriodEnd && (
@@ -145,7 +176,9 @@ const SubscriptionDetailPage: React.FC = () => {
             <Card>
               <Card.Body className="p-0">
                 {!invoices?.items.length ? (
-                  <div className="p-4 text-muted text-center">Nessuna fattura generata.</div>
+                  <div className="p-4 text-muted text-center">
+                    Nessuna fattura generata.
+                  </div>
                 ) : (
                   <Table responsive hover className="mb-0">
                     <thead className="bg-200">
@@ -159,19 +192,34 @@ const SubscriptionDetailPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {invoices.items.map((inv) => (
+                      {invoices.items.map(inv => (
                         <tr key={inv.uuid}>
-                          <td><code>{inv.number}</code></td>
                           <td>
-                            {new Date(inv.periodStart).toLocaleDateString('it-IT')} →{' '}
-                            {new Date(inv.periodEnd).toLocaleDateString('it-IT')}
+                            <code>{inv.number}</code>
+                          </td>
+                          <td>
+                            {new Date(inv.periodStart).toLocaleDateString(
+                              'it-IT'
+                            )}{' '}
+                            →{' '}
+                            {new Date(inv.periodEnd).toLocaleDateString(
+                              'it-IT'
+                            )}
                           </td>
                           <td>{formatMoney(inv.totalCents, inv.currency)}</td>
                           <td>
-                            <Badge bg={invoiceColor[inv.status]}>{inv.status}</Badge>
+                            <Badge bg={invoiceColor[inv.status]}>
+                              {inv.status}
+                            </Badge>
                           </td>
-                          <td>{new Date(inv.issuedAt).toLocaleDateString('it-IT')}</td>
-                          <td>{inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('it-IT') : '—'}</td>
+                          <td>
+                            {new Date(inv.issuedAt).toLocaleDateString('it-IT')}
+                          </td>
+                          <td>
+                            {inv.paidAt
+                              ? new Date(inv.paidAt).toLocaleDateString('it-IT')
+                              : '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -185,18 +233,23 @@ const SubscriptionDetailPage: React.FC = () => {
             <Card>
               <Card.Body>
                 {!activity?.items.length ? (
-                  <div className="p-4 text-muted text-center">Nessun evento registrato.</div>
+                  <div className="p-4 text-muted text-center">
+                    Nessun evento registrato.
+                  </div>
                 ) : (
                   <ul className="list-unstyled mb-0">
-                    {activity.items.map((a) => (
+                    {activity.items.map(a => (
                       <li key={a.uuid} className="border-bottom py-2">
                         <Flex justifyContent="between">
                           <div>
-                            <Badge bg="soft-info" className="me-2">{a.type}</Badge>
+                            <Badge bg="soft-info" className="me-2">
+                              {a.type}
+                            </Badge>
                             <strong>{a.message}</strong>
                             <div>
                               <small className="text-muted">
-                                {new Date(a.createdAt).toLocaleString('it-IT')} · {a.actor}
+                                {new Date(a.createdAt).toLocaleString('it-IT')}{' '}
+                                · {a.actor}
                               </small>
                             </div>
                           </div>

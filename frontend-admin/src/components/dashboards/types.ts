@@ -12,14 +12,14 @@ export interface TimeSeriesData {
 }
 
 // Common theme colors used across components
-export type ThemeColor = 
-  | 'primary' 
-  | 'secondary' 
-  | 'success' 
-  | 'info' 
-  | 'warning' 
-  | 'danger' 
-  | 'light' 
+export type ThemeColor =
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'info'
+  | 'warning'
+  | 'danger'
+  | 'light'
   | 'dark';
 
 // ECharts specific types
@@ -27,7 +27,12 @@ export interface EChartsOptions {
   [key: string]: any;
 }
 
-export type EChartsSeriesType = 'line' | 'bar' | 'pie' | 'scatter' | 'candlestick';
+export type EChartsSeriesType =
+  | 'line'
+  | 'bar'
+  | 'pie'
+  | 'scatter'
+  | 'candlestick';
 
 // Analytics data interfaces
 export interface AnalyticsData {
@@ -175,7 +180,9 @@ export interface DropdownOption {
 }
 
 // Common props for cards with dropdowns
-export interface CardWithDropdownProps extends React.ComponentProps<typeof Card> {
+export interface CardWithDropdownProps extends React.ComponentProps<
+  typeof Card
+> {
   title?: string;
   showDropdown?: boolean;
   dropdownOptions?: DropdownOption[];

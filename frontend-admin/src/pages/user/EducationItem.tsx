@@ -19,7 +19,10 @@ interface EducationItemProps {
   isLast?: boolean;
 }
 
-export const EducationItem: React.FC<EducationItemProps> = ({ details, isLast }) => {
+export const EducationItem: React.FC<EducationItemProps> = ({
+  details,
+  isLast
+}) => {
   const { logo, institution, degree, duration, location, verified } = details;
   return (
     <Flex>

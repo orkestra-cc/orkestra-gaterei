@@ -18,16 +18,18 @@ import { useAppSelector } from 'store/hooks';
  * the whole session is revoked on page refresh.
  */
 export function useModuleApiInjection() {
-  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
-  const { data: modules } = useGetModulesQuery(undefined, { skip: !hasAccessToken });
+  const hasAccessToken = useAppSelector(s => !!s.auth.accessToken);
+  const { data: modules } = useGetModulesQuery(undefined, {
+    skip: !hasAccessToken
+  });
   const injectedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!modules) return;
 
     const enabled = modules
-      .filter((m) => m.enabled && m.status === 'running')
-      .map((m) => m.moduleName);
+      .filter(m => m.enabled && m.status === 'running')
+      .map(m => m.moduleName);
 
     for (const name of enabled) {
       if (injectedRef.current.has(name)) continue;

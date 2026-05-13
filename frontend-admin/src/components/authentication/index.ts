@@ -1,6 +1,10 @@
 // Authentication Components - Barrel Exports
 export { default as SocialLoginForm } from './SocialLoginForm';
-export { default as ProtectedRoute, PublicRoute, withAuth } from './ProtectedRoute';
+export {
+  default as ProtectedRoute,
+  PublicRoute,
+  withAuth
+} from './ProtectedRoute';
 export { default as SocialAuthCallback } from './SocialAuthCallback';
 
 // Authentication Layout Components

@@ -1,7 +1,7 @@
 package providers
 
 import (
-	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 )
 
 // EmbeddingProvider, LLMProvider, CompletionOptions, StreamChunk,

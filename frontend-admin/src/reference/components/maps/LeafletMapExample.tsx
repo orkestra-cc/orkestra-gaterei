@@ -2,7 +2,7 @@
 import { Button } from 'react-bootstrap';
 import PageHeader from 'components/common/PageHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import FalconComponentCard from 'components/common/FalconComponentCard';
+import OrkestraComponentCard from 'components/common/OrkestraComponentCard';
 import L from 'leaflet';
 import 'leaflet.tilelayer.colorfilter';
 import 'leaflet/dist/leaflet.css';
@@ -32,27 +32,18 @@ function LayerComponent() {
     map.invalidateSize();
   }, [config]);
 
+  // Single tile layer with the colorFilter option (leaflet.tilelayer.colorfilter v2 API).
+  // Recreated on isDark change; cleanup removes the previous layer.
   useEffect(() => {
-    if (map) {
-      L.tileLayer
-        .colorFilter(
-          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          {
-            attribution: null,
-            transparent: true,
-            filter: filter
-          }
-        )
-        .addTo(map);
-    }
+    const layer = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      { colorFilter: filter }
+    ).addTo(map);
+    return () => { map.removeLayer(layer); };
   }, [isDark]);
 
   return (
     <>
-      <TileLayer
-        attribution={null}
-        url={'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'}
-      />
       <MarkerClusterGroup chunkedLoading={true} spiderfyOnMaxZoom={false}>
         {markers.map(marker => (
           <Marker
@@ -86,6 +77,7 @@ function LeafletMap() {
       <MapContainer
         zoom={isRTL ? 1.8 : 1.5}
         minZoom={isRTL ? 1.8 : 1.3}
+        maxZoom={18}
         zoomSnap={0.5}
         center={position}
         radius={200}
@@ -104,7 +96,7 @@ const LeafletMapExample = () => {
     <>
       <PageHeader
         title="React Leaflet"
-        description={`Falcon uses <code> React-Leaflet </code> that provides an abstraction of <strong>Leaflet</strong> as <strong>React components</strong>. For the beautiful animated marker Clustering functionality for leaflet map we use <a href="https://github.com/YUzhva/react-leaflet-markercluster#readme" target="_blank">react-leaflet-markercluster</a> and we apply CSS color filter on map tiles by <a href="https://github.com/xtk93x/Leaflet.TileLayer.ColorFilter" target="_blank">Leaflet.TileLayer.ColorFilter</a> .  It has all the mapping features most developers ever need`}
+        description={`Orkestra uses <code> React-Leaflet </code> that provides an abstraction of <strong>Leaflet</strong> as <strong>React components</strong>. For the beautiful animated marker Clustering functionality for leaflet map we use <a href="https://github.com/YUzhva/react-leaflet-markercluster#readme" target="_blank">react-leaflet-markercluster</a> and we apply CSS color filter on map tiles by <a href="https://github.com/xtk93x/Leaflet.TileLayer.ColorFilter" target="_blank">Leaflet.TileLayer.ColorFilter</a> .  It has all the mapping features most developers ever need`}
         className="mb-3"
       >
         <Button
@@ -119,9 +111,9 @@ const LeafletMapExample = () => {
         </Button>
       </PageHeader>
 
-      <FalconComponentCard>
-        <FalconComponentCard.Header title="Example" />
-        <FalconComponentCard.Body
+      <OrkestraComponentCard>
+        <OrkestraComponentCard.Header title="Example" />
+        <OrkestraComponentCard.Body
           code={exampleCode}
           language="jsx"
           noInline
@@ -137,7 +129,7 @@ const LeafletMapExample = () => {
             useAppContext
           }}
         />
-      </FalconComponentCard>
+      </OrkestraComponentCard>
     </>
   );
 };

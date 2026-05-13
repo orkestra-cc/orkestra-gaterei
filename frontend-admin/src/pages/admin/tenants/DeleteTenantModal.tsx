@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import {
   useDeleteOrgAdminMutation,
-  type AdminOrgListItem,
+  type AdminOrgListItem
 } from 'store/api/tenantApi';
 
 interface Props {
@@ -46,12 +46,12 @@ const DeleteTenantModal: React.FC<Props> = ({ org, show, onHide }) => {
         <p className="mb-3">
           You are about to soft-delete tenant{' '}
           <code className="fs-9">{org?.name}</code>. It will stop appearing in
-          the default tenant list and no user will be able to access it. You
-          can still view it with the "Include soft-deleted" toggle.
+          the default tenant list and no user will be able to access it. You can
+          still view it with the "Include soft-deleted" toggle.
         </p>
         <Alert variant="warning" className="fs-10 mb-3">
-          <strong>Bindings and memberships remain in place.</strong> If you
-          also need to crypto-shred the tenant's encryption key (GDPR
+          <strong>Bindings and memberships remain in place.</strong> If you also
+          need to crypto-shred the tenant's encryption key (GDPR
           right-to-erasure), open the tenant's detail modal and use the{' '}
           <em>Purge</em> action instead.
         </Alert>
@@ -62,7 +62,7 @@ const DeleteTenantModal: React.FC<Props> = ({ org, show, onHide }) => {
           <Form.Control
             type="text"
             value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
+            onChange={e => setConfirmText(e.target.value)}
             placeholder={org?.slug}
           />
         </Form.Group>
@@ -74,7 +74,8 @@ const DeleteTenantModal: React.FC<Props> = ({ org, show, onHide }) => {
         <Button variant="danger" onClick={onConfirm} disabled={!canDelete}>
           {isLoading ? (
             <>
-              <Spinner size="sm" animation="border" className="me-2" /> Deleting…
+              <Spinner size="sm" animation="border" className="me-2" />{' '}
+              Deleting…
             </>
           ) : (
             <>Delete tenant</>

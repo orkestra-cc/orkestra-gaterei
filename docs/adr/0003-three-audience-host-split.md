@@ -71,7 +71,7 @@ Split the API surface into **three audiences**, each with its own JWT `aud` clai
 
 ### Contract change — `RouteInfo` becomes per-audience
 
-The current `module.RouteInfo` (`backend/internal/shared/module/module.go:337`) carries one `PublicAPI huma.API` plus one `ProtectedRouter chi.Router`. Replace with:
+The current `module.RouteInfo` (`backend/pkg/sdk/module/module.go:337`) carries one `PublicAPI huma.API` plus one `ProtectedRouter chi.Router`. Replace with:
 
 ```go
 type APISurface struct {
@@ -212,7 +212,7 @@ A repository invariant test (`backend/internal/core/auth/repository/integrity_te
 The current `iface.UserProvider` is replaced by two providers. Consumers pick which they need:
 
 ```go
-// backend/internal/shared/iface/user.go
+// backend/pkg/sdk/iface/user.go
 type OperatorUserProvider interface {
     GetByUUID(ctx context.Context, uuid string) (*OperatorUser, error)
     GetByEmail(ctx context.Context, email string) (*OperatorUser, error)
@@ -322,10 +322,10 @@ The script is idempotent given the sentinel and re-runnable in dev. Production g
 
 | File | Change |
 |---|---|
-| `backend/internal/shared/module/module.go` | `RouteInfo` reshape; new `Audience`, `APISurface` |
+| `backend/pkg/sdk/module/module.go` | `RouteInfo` reshape; new `Audience`, `APISurface` |
 | `backend/cmd/server/main.go` | Two `huma.API`s, `hostRouter`, audience middleware wiring |
 | `backend/cmd/server/catalog.go` | No structural change; modules updated in PR-A |
-| `backend/internal/shared/iface/user.go` | Split `UserProvider` → `OperatorUserProvider` + `ClientUserProvider` |
+| `backend/pkg/sdk/iface/user.go` | Split `UserProvider` → `OperatorUserProvider` + `ClientUserProvider` |
 | `backend/internal/core/user/` | Tier-aware repos; two services |
 | `backend/internal/core/auth/` | Tier-aware login flows; new path layout; JWT v2 issuance |
 | `backend/internal/shared/middleware/jwt_validator.go` | `aud` claim required; mismatch ⇒ 401 |

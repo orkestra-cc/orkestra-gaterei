@@ -21,7 +21,8 @@ const UserDashboard = () => {
               />
               <h4 className="text-700">Dashboard Coming Soon</h4>
               <p className="text-500 mb-0">
-                Your personal dashboard with activity summaries and quick actions will be available here.
+                Your personal dashboard with activity summaries and quick
+                actions will be available here.
               </p>
             </Card.Body>
           </Card>

@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/addons/graph/models"
 	"github.com/orkestra/backend/internal/addons/graph/repository"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 // VectorService defines the interface for vector search operations
@@ -52,7 +52,7 @@ func (s *vectorService) VectorSearch(ctx context.Context, database string, req m
 	cypher := "CALL vector_search.search($indexName, $topK, $queryVector) YIELD node, similarity RETURN node, similarity"
 	params := map[string]interface{}{
 		"indexName":   req.IndexName,
-		"topK":       topK,
+		"topK":        topK,
 		"queryVector": req.QueryVector,
 	}
 

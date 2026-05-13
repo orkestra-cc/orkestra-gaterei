@@ -56,7 +56,7 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
   // Same rationale as useModuleApi.ts: gate on access token being in
   // Redux, not just isAuthenticated. Prevents a race with /v1/auth/session
   // cookie rotation that trips the backend's family-replay guard.
-  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
+  const hasAccessToken = useAppSelector(s => !!s.auth.accessToken);
 
   // Fetch navigation from backend (skip if not authenticated)
   const {
@@ -64,9 +64,9 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
     isLoading,
     isError,
     error,
-    refetch,
+    refetch
   } = useGetNavigationQuery(undefined, {
-    skip: !isAuthenticated || !hasAccessToken,
+    skip: !isAuthenticated || !hasAccessToken
   });
 
   const result = useMemo((): UseRoleBasedNavigationResult => {
@@ -80,7 +80,7 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
         isLoading,
         isError,
         error,
-        refetch,
+        refetch
       };
     }
 
@@ -93,7 +93,7 @@ export const useRoleBasedNavigation = (): UseRoleBasedNavigationResult => {
       isLoading,
       isError,
       error,
-      refetch,
+      refetch
     };
   }, [isAuthenticated, navigationData, isLoading, isError, error, refetch]);
 

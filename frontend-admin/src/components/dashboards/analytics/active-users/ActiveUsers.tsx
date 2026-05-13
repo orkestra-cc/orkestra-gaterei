@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Card, Col, Form, Row } from 'react-bootstrap';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import CardDropdown from 'components/common/CardDropdown';
-import FalconLink from 'components/common/FalconLink';
+import OrkestraLink from 'components/common/OrkestraLink';
 import ActiveUsersChart from './ActiveUsersChart';
 import classNames from 'classnames';
 import { activeUsersChart } from 'data/dashboard/analytics';
@@ -39,7 +39,7 @@ const ActiveUsers: React.FC<ActiveUsersProps> = ({ ...rest }) => {
   ]);
   return (
     <Card {...rest}>
-      <FalconCardHeader
+      <OrkestraCardHeader
         title="Active Users"
         titleTag="h6"
         className="py-2"
@@ -81,14 +81,19 @@ const ActiveUsers: React.FC<ActiveUsersProps> = ({ ...rest }) => {
       <Card.Footer className="bg-body-tertiary py-2">
         <Row className="g-0 flex-between-center">
           <Col xs="auto">
-            <Form.Select size="sm" className="me-2" name="date-range" aria-label="Date range">
+            <Form.Select
+              size="sm"
+              className="me-2"
+              name="date-range"
+              aria-label="Date range"
+            >
               <option>Last 7 days</option>
               <option>Last Month</option>
               <option>Last Year</option>
             </Form.Select>
           </Col>
           <Col xs="auto">
-            <FalconLink title="Active users report" className="px-0" />
+            <OrkestraLink title="Active users report" className="px-0" />
           </Col>
         </Row>
       </Card.Footer>

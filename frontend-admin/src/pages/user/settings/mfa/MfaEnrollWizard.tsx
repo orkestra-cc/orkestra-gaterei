@@ -3,7 +3,7 @@ import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   useEnrollMfaBeginMutation,
-  useEnrollMfaConfirmMutation,
+  useEnrollMfaConfirmMutation
 } from 'store/api/mfaApi';
 
 type Step = 'qr' | 'confirm' | 'backup';
@@ -34,7 +34,8 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
   const [error, setError] = useState<string | null>(null);
 
   const [begin, { isLoading: beginLoading }] = useEnrollMfaBeginMutation();
-  const [confirm, { isLoading: confirmLoading }] = useEnrollMfaConfirmMutation();
+  const [confirm, { isLoading: confirmLoading }] =
+    useEnrollMfaConfirmMutation();
 
   // Kick off enrollment whenever the modal opens. Re-opening after a close
   // mints a fresh challenge so stale secrets never reach the authenticator.
@@ -48,13 +49,15 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
 
     begin()
       .unwrap()
-      .then((res) => {
+      .then(res => {
         setChallengeId(res.challengeId);
         setSecret(res.secret);
         setProvisioningUri(res.provisioningUri);
       })
       .catch((err: { data?: { detail?: string } }) => {
-        setError(err?.data?.detail ?? 'Could not start enrollment. Please try again.');
+        setError(
+          err?.data?.detail ?? 'Could not start enrollment. Please try again.'
+        );
       });
   }, [show, begin]);
 
@@ -74,7 +77,10 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
       if (anyErr?.status === 401 || anyErr?.status === 400) {
         setError('Incorrect code. Double-check the digits and try again.');
       } else {
-        setError(anyErr?.data?.detail ?? 'Could not confirm the code. Please try again.');
+        setError(
+          anyErr?.data?.detail ??
+            'Could not confirm the code. Please try again.'
+        );
       }
     }
   };
@@ -101,7 +107,12 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
       </Modal.Header>
       <Modal.Body>
         {error && (
-          <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+          <Alert
+            variant="danger"
+            className="mb-3"
+            onClose={() => setError(null)}
+            dismissible
+          >
             {error}
           </Alert>
         )}
@@ -109,24 +120,35 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
         {step === 'qr' && (
           <>
             {beginLoading && (
-              <div className="text-center py-3"><Spinner size="sm" /></div>
+              <div className="text-center py-3">
+                <Spinner size="sm" />
+              </div>
             )}
             {provisioningUri && (
               <>
                 <p className="fs-10 mb-2">
-                  Scan this code with your authenticator app (Google Authenticator, Authy, 1Password…).
+                  Scan this code with your authenticator app (Google
+                  Authenticator, Authy, 1Password…).
                 </p>
                 <div className="d-flex justify-content-center my-3">
                   <div className="p-3 bg-white rounded border">
                     <QRCodeSVG value={provisioningUri} size={192} level="M" />
                   </div>
                 </div>
-                <p className="fs-10 text-muted mb-1">Can&apos;t scan? Enter this secret manually:</p>
+                <p className="fs-10 text-muted mb-1">
+                  Can&apos;t scan? Enter this secret manually:
+                </p>
                 <code className="d-block bg-body-tertiary p-2 rounded small text-break">
                   {secret}
                 </code>
                 <div className="d-flex justify-content-end mt-3">
-                  <Button variant="primary" onClick={() => { setStep('confirm'); setError(null); }}>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setStep('confirm');
+                      setError(null);
+                    }}
+                  >
                     I&apos;ve added it — continue
                   </Button>
                 </div>
@@ -148,7 +170,7 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
                 autoComplete="one-time-code"
                 autoFocus
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={e => setCode(e.target.value)}
                 placeholder="123 456"
                 required
               />
@@ -167,13 +189,16 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
         {step === 'backup' && (
           <>
             <Alert variant="warning" className="mb-3">
-              <strong>Save these backup codes now.</strong> They are the only way to sign in if you
-              lose access to your authenticator. Each code works once.
+              <strong>Save these backup codes now.</strong> They are the only
+              way to sign in if you lose access to your authenticator. Each code
+              works once.
             </Alert>
             <div className="bg-body-tertiary p-3 rounded font-monospace mb-3">
               <div className="row g-2">
-                {backupCodes.map((c) => (
-                  <div key={c} className="col-6 text-center">{c}</div>
+                {backupCodes.map(c => (
+                  <div key={c} className="col-6 text-center">
+                    {c}
+                  </div>
                 ))}
               </div>
             </div>
@@ -185,7 +210,9 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
                 variant="outline-secondary"
                 size="sm"
                 onClick={() => {
-                  const blob = new Blob([backupCodes.join('\n')], { type: 'text/plain' });
+                  const blob = new Blob([backupCodes.join('\n')], {
+                    type: 'text/plain'
+                  });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
@@ -202,7 +229,7 @@ const MfaEnrollWizard = ({ show, onHide }: Props) => {
               id="mfa-backup-ack"
               label="I have saved these backup codes somewhere safe."
               checked={ack}
-              onChange={(e) => setAck(e.target.checked)}
+              onChange={e => setAck(e.target.checked)}
             />
             <div className="d-flex justify-content-end mt-3">
               <Button variant="primary" disabled={!ack} onClick={onHide}>

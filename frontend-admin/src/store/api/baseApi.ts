@@ -1,8 +1,15 @@
-import { createApi, fetchBaseQuery, BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
+import {
+  createApi,
+  fetchBaseQuery,
+  BaseQueryFn,
+  FetchArgs,
+  FetchBaseQueryError
+} from '@reduxjs/toolkit/query/react';
 import { toast } from 'react-toastify';
 import type { RootState } from '../index';
 import { setAccessToken, clearAccessToken } from '../slices/authSlice';
 import { requestStepUp } from '../stepUp';
+import { requestPasswordConfirm } from '../passwordConfirm';
 
 // Navigation helper - will be set by the auth provider
 let navigateToLogin: ((location?: string) => void) | null = null;
@@ -23,11 +30,11 @@ const AUTH_ENDPOINT_PATHS = [
   'v1/auth/operator/refresh',
   'v1/auth/operator/refresh-cookie',
   'v1/auth/operator/register',
-  'v1/auth/operator/mfa/login/verify',
+  'v1/auth/operator/mfa/login/verify'
 ];
 
 function isAuthEndpoint(url: string): boolean {
-  return AUTH_ENDPOINT_PATHS.some((p) => url.includes(p));
+  return AUTH_ENDPOINT_PATHS.some(p => url.includes(p));
 }
 
 // Shared in-flight refresh promise. Any 401 arriving while a refresh is
@@ -46,12 +53,19 @@ async function performRefresh(baseUrl: string): Promise<RefreshResult> {
       const res = await fetch(`${baseUrl}/v1/auth/operator/refresh-cookie`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) return { ok: false } as const;
-      const body = (await res.json()) as { accessToken?: string; expiresIn?: number };
+      const body = (await res.json()) as {
+        accessToken?: string;
+        expiresIn?: number;
+      };
       if (!body.accessToken || !body.expiresIn) return { ok: false } as const;
-      return { ok: true, accessToken: body.accessToken, expiresIn: body.expiresIn } as const;
+      return {
+        ok: true,
+        accessToken: body.accessToken,
+        expiresIn: body.expiresIn
+      } as const;
     } catch {
       return { ok: false } as const;
     } finally {
@@ -72,15 +86,15 @@ async function performRefresh(baseUrl: string): Promise<RefreshResult> {
 // reject a stray header.
 const TENANT_AGNOSTIC_PATHS = [
   '/v1/auth/',
-  '/v1/tenants',              // GET list, POST create
+  '/v1/tenants', // GET list, POST create
   '/v1/tenants/accept-invite',
   '/v1/notifications/preferences',
-  '/v1/admin/modules',        // platform-level module admin, not per-tenant
-  '/v1/admin/tenants',        // platform-level tenant admin, not per-tenant
-  '/v1/admin/audit-events',   // platform-level audit read, not per-tenant
-  '/v1/admin/compliance',     // platform-level compliance (SOC2 evidence, …)
-  '/v1/me/dsr',               // DSR endpoints operate on the caller's own subject
-  '/v1/setup',                // first-install wizard endpoints
+  '/v1/admin/modules', // platform-level module admin, not per-tenant
+  '/v1/admin/tenants', // platform-level tenant admin, not per-tenant
+  '/v1/admin/audit-events', // platform-level audit read, not per-tenant
+  '/v1/admin/compliance', // platform-level compliance (SOC2 evidence, …)
+  '/v1/me/dsr', // DSR endpoints operate on the caller's own subject
+  '/v1/setup' // first-install wizard endpoints
 ];
 
 function isTenantAgnostic(url: string): boolean {
@@ -88,7 +102,9 @@ function isTenantAgnostic(url: string): boolean {
   // /v1/tenants/{tenantId}/...
   if (url === '/v1/tenants' || url.startsWith('/v1/tenants?')) return true;
   if (url === '/v1/tenants/accept-invite') return true;
-  return TENANT_AGNOSTIC_PATHS.some((p) => p !== '/v1/tenants' && url.startsWith(p));
+  return TENANT_AGNOSTIC_PATHS.some(
+    p => p !== '/v1/tenants' && url.startsWith(p)
+  );
 }
 
 // Base fetch with cookies + Bearer token. Tenant context (X-Tenant-ID) is
@@ -117,7 +133,7 @@ const baseQuery = fetchBaseQuery({
     }
 
     return headers;
-  },
+  }
 });
 
 // Enhanced base query with automatic retry, error handling, and tenant context.
@@ -136,9 +152,16 @@ const baseQueryWithRetry: BaseQueryFn<
   if (effectiveTenantId) {
     const url = typeof args === 'string' ? args : args.url;
     if (!isTenantAgnostic(url)) {
-      const merged: FetchArgs = typeof args === 'string'
-        ? { url: args, headers: { 'X-Tenant-ID': effectiveTenantId } }
-        : { ...args, headers: { ...(args.headers as Record<string, string> | undefined), 'X-Tenant-ID': effectiveTenantId } };
+      const merged: FetchArgs =
+        typeof args === 'string'
+          ? { url: args, headers: { 'X-Tenant-ID': effectiveTenantId } }
+          : {
+              ...args,
+              headers: {
+                ...(args.headers as Record<string, string> | undefined),
+                'X-Tenant-ID': effectiveTenantId
+              }
+            };
       args = merged;
     }
   }
@@ -151,7 +174,9 @@ const baseQueryWithRetry: BaseQueryFn<
 
     const requestUrl = typeof args === 'string' ? args : args.url;
     const isSessionEndpoint = requestUrl.includes('v1/auth/session');
-    const isAuthCheck = requestUrl.includes('v1/auth/operator/me') || requestUrl.includes('v1/auth/session');
+    const isAuthCheck =
+      requestUrl.includes('v1/auth/operator/me') ||
+      requestUrl.includes('v1/auth/session');
 
     // Server-side session revocation (logout, admin-kill, password change)
     // sets `code: "session_revoked"` on the 401 body. Skip the silent-refresh
@@ -164,7 +189,7 @@ const baseQueryWithRetry: BaseQueryFn<
       if (!isAuthCheck) {
         toast.error('Your session has been revoked. Please sign in again.', {
           toastId: 'session-revoked',
-          autoClose: 5000,
+          autoClose: 5000
         });
       }
       if (navigateToLogin) {
@@ -191,16 +216,41 @@ const baseQueryWithRetry: BaseQueryFn<
       return result;
     }
 
+    // Password reconfirm required — the no-MFA-factor fallback path of
+    // RequireStepUp. The backend emits this 401 when the user has no
+    // TOTP / passkey enrolled and the policy doesn't require them to;
+    // asking for an MFA code in StepUpModal would be a dead-end. We
+    // open PasswordConfirmModal instead, which posts to
+    // /me/password-confirm and replays the original request with the
+    // amr=[…,"reauth"] bearer dispatched by the mutation.
+    if (
+      result.error.status === 401 &&
+      errorData?.code === 'password_confirm_required' &&
+      !isAuthEndpoint(requestUrl)
+    ) {
+      const verified = await requestPasswordConfirm();
+      if (verified) {
+        return await baseQuery(args, api, extraOptions);
+      }
+      return result;
+    }
+
     // On a fresh install the session endpoint legitimately returns 401
     // because no user exists yet. The SetupGate should be steering the
     // browser to /setup, not /login. Suppress the forced login redirect
     // and the toast while the setup wizard is active or while we have
     // not yet confirmed setupCompleted === true.
     const isOnSetupPath =
-      typeof window !== 'undefined' && window.location.pathname.startsWith('/setup');
-    const apiState = (api.getState() as { api?: { queries?: Record<string, unknown> } }).api;
-    const setupQueryEntry = Object.values(apiState?.queries ?? {}).find((q) => {
-      return (q as { endpointName?: string } | null)?.endpointName === 'getSetupStatus';
+      typeof window !== 'undefined' &&
+      window.location.pathname.startsWith('/setup');
+    const apiState = (
+      api.getState() as { api?: { queries?: Record<string, unknown> } }
+    ).api;
+    const setupQueryEntry = Object.values(apiState?.queries ?? {}).find(q => {
+      return (
+        (q as { endpointName?: string } | null)?.endpointName ===
+        'getSetupStatus'
+      );
     }) as { data?: { setupCompleted?: boolean } } | undefined;
     const setupCompleted = setupQueryEntry?.data?.setupCompleted === true;
 
@@ -224,7 +274,7 @@ const baseQueryWithRetry: BaseQueryFn<
         api.dispatch(
           setAccessToken({
             accessToken: refreshResult.accessToken,
-            expiresIn: refreshResult.expiresIn,
+            expiresIn: refreshResult.expiresIn
           })
         );
         result = await baseQuery(args, api, extraOptions);
@@ -248,7 +298,7 @@ const baseQueryWithRetry: BaseQueryFn<
     if (!isAuthCheck) {
       toast.error('Session expired. Please log in again.', {
         toastId: 'auth-expired',
-        autoClose: 5000,
+        autoClose: 5000
       });
       if (navigateToLogin) {
         navigateToLogin(window.location.pathname);
@@ -257,7 +307,11 @@ const baseQueryWithRetry: BaseQueryFn<
   }
 
   // Skip toast for other 4xx client errors (except 401 which is handled above)
-  if (result.error && Number(result.error.status) >= 400 && Number(result.error.status) < 500) {
+  if (
+    result.error &&
+    Number(result.error.status) >= 400 &&
+    Number(result.error.status) < 500
+  ) {
     // Don't show toasts for client errors (400-499) - these should be handled by the UI
     // This includes 400 Bad Request, 403 Forbidden, 404 Not Found, etc.
     // Note: 401 is already handled above with specific logic
@@ -268,7 +322,7 @@ const baseQueryWithRetry: BaseQueryFn<
   if (result.error && Number(result.error.status) >= 500) {
     toast.error('Server error. Please try again later.', {
       toastId: 'server-error',
-      autoClose: 5000,
+      autoClose: 5000
     });
   }
 
@@ -314,7 +368,7 @@ export const baseApi = createApi({
     // Graph database module tags
     'GraphQuery',
     'GraphSchema',
-        'VectorIndex',
+    'VectorIndex',
     // RAG module tags
     'RagModel',
     'RagDocument',
@@ -362,24 +416,60 @@ export const baseApi = createApi({
     'Soc2Evidence',
     // Identity module
     'IdentityIdP',
-    'IdentityScim',
+    'IdentityScim'
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,
-  endpoints: () => ({}),
+  endpoints: () => ({})
 });
 
 // Export hooks and utilities
 export const {
-  util: {
-    getRunningQueriesThunk,
-    getRunningMutationsThunk,
-    invalidateTags
-  }
+  util: { getRunningQueriesThunk, getRunningMutationsThunk, invalidateTags }
 } = baseApi;
 
 // Helper function to invalidate multiple tags
-export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "Dashboard" | "Analytics" | "Sales" | "Orders" | "Projects" | "Tasks" | "Events" | "Chat" | "Email" | "Kanban" | "SupportTicket" | "Weather" | "Storage" | "Customer" | "Supplier" | "Company" | "Invoice" | "Notification" | "BillingStats" | "BusinessRegistry" | "CompanyLookup" | "DocumentTemplate" | "GeneratedDocument" | "GraphQuery" | "GraphSchema" | "VectorIndex" | "RagModel" | "RagDocument" | "RagRelationship" | "AIModel" | "AgentProject" | "AgentConversation" | "PersonalAgent" | "PersonalConversation">) => {
+export const invalidateApiTags = (
+  tags: Array<
+    | 'User'
+    | 'Auth'
+    | 'Navigation'
+    | 'Dashboard'
+    | 'Analytics'
+    | 'Sales'
+    | 'Orders'
+    | 'Projects'
+    | 'Tasks'
+    | 'Events'
+    | 'Chat'
+    | 'Email'
+    | 'Kanban'
+    | 'SupportTicket'
+    | 'Weather'
+    | 'Storage'
+    | 'Customer'
+    | 'Supplier'
+    | 'Company'
+    | 'Invoice'
+    | 'Notification'
+    | 'BillingStats'
+    | 'BusinessRegistry'
+    | 'CompanyLookup'
+    | 'DocumentTemplate'
+    | 'GeneratedDocument'
+    | 'GraphQuery'
+    | 'GraphSchema'
+    | 'VectorIndex'
+    | 'RagModel'
+    | 'RagDocument'
+    | 'RagRelationship'
+    | 'AIModel'
+    | 'AgentProject'
+    | 'AgentConversation'
+    | 'PersonalAgent'
+    | 'PersonalConversation'
+  >
+) => {
   return baseApi.util.invalidateTags(tags);
 };
 
@@ -391,25 +481,63 @@ export const invalidateApiTags = (tags: Array<"User" | "Auth" | "Navigation" | "
 // session query has a chance to refetch — see the bug fixed alongside this
 // constant.
 export const TENANT_SCOPED_TAGS = [
-  'User', 'Navigation', 'Dashboard', 'Analytics', 'Sales', 'Orders',
-  'Projects', 'Tasks', 'Events', 'Chat', 'Email', 'Kanban',
-  'SupportTicket', 'Weather', 'Storage',
-  'Customer', 'Supplier', 'Company', 'Invoice', 'Notification',
-  'BillingStats', 'BusinessRegistry', 'CompanyLookup',
-  'DocumentTemplate', 'GeneratedDocument',
-  'GraphQuery', 'GraphSchema', 'VectorIndex',
-  'RagModel', 'RagDocument', 'RagRelationship',
+  'User',
+  'Navigation',
+  'Dashboard',
+  'Analytics',
+  'Sales',
+  'Orders',
+  'Projects',
+  'Tasks',
+  'Events',
+  'Chat',
+  'Email',
+  'Kanban',
+  'SupportTicket',
+  'Weather',
+  'Storage',
+  'Customer',
+  'Supplier',
+  'Company',
+  'Invoice',
+  'Notification',
+  'BillingStats',
+  'BusinessRegistry',
+  'CompanyLookup',
+  'DocumentTemplate',
+  'GeneratedDocument',
+  'GraphQuery',
+  'GraphSchema',
+  'VectorIndex',
+  'RagModel',
+  'RagDocument',
+  'RagRelationship',
   'AIModel',
-  'AgentProject', 'AgentConversation',
-  'PersonalAgent', 'PersonalConversation',
-  'Module', 'ModuleHealth',
-  'Org', 'Membership', 'Role', 'Binding', 'Permission', 'EffectivePermissions',
-  'AdminOrg', 'OrgInvite',
-  'SubscriptionService', 'Subscription',
-  'SubscriptionInvoice', 'SubscriptionActivity',
-  'PaymentTransaction', 'PaymentMethodRec', 'PaymentWebhookEvent',
-  'AuditEvent', 'Soc2Evidence',
-  'IdentityIdP', 'IdentityScim',
+  'AgentProject',
+  'AgentConversation',
+  'PersonalAgent',
+  'PersonalConversation',
+  'Module',
+  'ModuleHealth',
+  'Org',
+  'Membership',
+  'Role',
+  'Binding',
+  'Permission',
+  'EffectivePermissions',
+  'AdminOrg',
+  'OrgInvite',
+  'SubscriptionService',
+  'Subscription',
+  'SubscriptionInvoice',
+  'SubscriptionActivity',
+  'PaymentTransaction',
+  'PaymentMethodRec',
+  'PaymentWebhookEvent',
+  'AuditEvent',
+  'Soc2Evidence',
+  'IdentityIdP',
+  'IdentityScim'
 ] as const;
 
 export default baseApi;

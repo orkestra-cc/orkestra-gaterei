@@ -6,20 +6,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // Defaults applied when the corresponding ConfigSchema key is unset
 // or invalid. These match the values that were hardcoded before the
 // admin-managed Login & Sessions tab was introduced.
 const (
-	defaultLockoutThreshold       = 5
-	defaultLockoutDuration        = 15 * time.Minute
-	defaultPasswordMinLength      = 10
-	defaultPasswordMaxLength      = 128
-	defaultBreachedPasswordCheck  = true
+	defaultLockoutThreshold      = 5
+	defaultLockoutDuration       = 15 * time.Minute
+	defaultPasswordMinLength     = 10
+	defaultPasswordMaxLength     = 128
+	defaultBreachedPasswordCheck = true
 )
 
 // PolicyAudience names the surface a policy lookup is being performed for.

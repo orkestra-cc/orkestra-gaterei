@@ -3,24 +3,24 @@ package main
 import (
 	"log/slog"
 
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth"
 	"github.com/orkestra/backend/internal/core/authz"
 	"github.com/orkestra/backend/internal/core/navigation"
 	"github.com/orkestra/backend/internal/core/notification"
 	"github.com/orkestra/backend/internal/core/tenant"
 	"github.com/orkestra/backend/internal/core/user"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // coreModules are always loaded — they provide the foundation
 // (users, notifications, tenancy, authorization, auth, navigation).
 // Order matters: each entry below depends on the previous ones.
-//  - user: base identity (no deps)
-//  - notification: email delivery (no hard deps)
-//  - tenant: orgs + memberships (depends on user)
-//  - authz: permissions + roles (depends on user + tenant)
-//  - auth: JWT + OAuth + password login (depends on user, notification, tenant, authz)
-//  - navigation: menu aggregation (no deps; reads others' NavItems at runtime)
+//   - user: base identity (no deps)
+//   - notification: email delivery (no hard deps)
+//   - tenant: orgs + memberships (depends on user)
+//   - authz: permissions + roles (depends on user + tenant)
+//   - auth: JWT + OAuth + password login (depends on user, notification, tenant, authz)
+//   - navigation: menu aggregation (no deps; reads others' NavItems at runtime)
 var coreModules = []func() module.Module{
 	func() module.Module { return user.NewModule() },
 	func() module.Module { return notification.NewModule() },

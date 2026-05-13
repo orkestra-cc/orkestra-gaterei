@@ -41,7 +41,7 @@ const TreeviewListItem = ({
   const getChildrens = (treeItem: TreeviewItem): string[] => {
     function flatInner(items: TreeviewItem[]): string[] {
       let flat: string[] = [];
-      items.forEach((child) => {
+      items.forEach(child => {
         if (child.children) {
           flat = [...flat, child.id, ...flatInner(child.children)];
         } else {
@@ -59,29 +59,35 @@ const TreeviewListItem = ({
   };
 
   const isChildrenOpen = () => {
-    return openedItems.some((openedItem) => firstChildren.indexOf(openedItem) !== -1);
+    return openedItems.some(
+      openedItem => firstChildren.indexOf(openedItem) !== -1
+    );
   };
 
   const handleOnExiting = () => {
-    setOpenedItems(openedItems.filter((openedItem) => openedItem !== item.id));
+    setOpenedItems(openedItems.filter(openedItem => openedItem !== item.id));
   };
   const handleEntering = () => {
     setOpenedItems([...openedItems, item.id]);
   };
 
-  const handleSingleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSingleCheckboxChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     if (e.target.checked) {
       setSelectedItems([...selectedItems, item.id]);
     } else {
       setSelectedItems(
-        selectedItems.filter((selectedItem) => selectedItem !== item.id)
+        selectedItems.filter(selectedItem => selectedItem !== item.id)
       );
     }
   };
 
-  const handleParentCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleParentCheckboxChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const filteredItems = selectedItems.filter(
-      (selectedItem) => children.indexOf(selectedItem) === -1
+      selectedItem => children.indexOf(selectedItem) === -1
     );
     if (e.target.checked) {
       setSelectedItems([...filteredItems, ...children]);
@@ -93,9 +99,8 @@ const TreeviewListItem = ({
   useEffect(() => {
     setChildren(getChildrens(item));
     if (item.children) {
-      setFirstChildren(item.children.map((child) => child.id));
+      setFirstChildren(item.children.map(child => child.id));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

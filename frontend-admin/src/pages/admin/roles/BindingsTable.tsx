@@ -43,7 +43,8 @@ const BindingsTable: React.FC<Props> = ({ tenantId }) => {
   const bindings: Binding[] = data?.bindings ?? [];
 
   const onRevoke = async (b: Binding) => {
-    if (!window.confirm(`Revoke ${b.roleName} from ${shortUUID(b.userUUID)}?`)) return;
+    if (!window.confirm(`Revoke ${b.roleName} from ${shortUUID(b.userUUID)}?`))
+      return;
     try {
       await deleteBinding({ tenantId, bindingId: b.id }).unwrap();
       toast.success('Binding revoked');
@@ -56,7 +57,8 @@ const BindingsTable: React.FC<Props> = ({ tenantId }) => {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
-          <strong>{bindings.length}</strong> active binding{bindings.length === 1 ? '' : 's'}
+          <strong>{bindings.length}</strong> active binding
+          {bindings.length === 1 ? '' : 's'}
         </div>
         <Button size="sm" variant="primary" onClick={() => setShowCreate(true)}>
           <FontAwesomeIcon icon="plus" className="me-1" />
@@ -66,8 +68,8 @@ const BindingsTable: React.FC<Props> = ({ tenantId }) => {
 
       {bindings.length === 0 ? (
         <div className="text-muted text-center py-4">
-          No role bindings yet. Use <strong>Grant role to user</strong> to assign
-          a role to a specific user in this organization.
+          No role bindings yet. Use <strong>Grant role to user</strong> to
+          assign a role to a specific user in this organization.
         </div>
       ) : (
         <Table responsive hover className="mb-0">
@@ -81,7 +83,7 @@ const BindingsTable: React.FC<Props> = ({ tenantId }) => {
             </tr>
           </thead>
           <tbody>
-            {bindings.map((b) => (
+            {bindings.map(b => (
               <tr key={b.id}>
                 <td>
                   <code>{shortUUID(b.userUUID)}</code>
@@ -91,9 +93,7 @@ const BindingsTable: React.FC<Props> = ({ tenantId }) => {
                 </td>
                 <td className="text-muted small">
                   {new Date(b.grantedAt).toLocaleString()}
-                  {b.grantedBy && (
-                    <div>by {shortUUID(b.grantedBy)}</div>
-                  )}
+                  {b.grantedBy && <div>by {shortUUID(b.grantedBy)}</div>}
                 </td>
                 <td>
                   {b.expiresAt ? (

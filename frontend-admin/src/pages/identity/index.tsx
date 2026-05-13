@@ -20,9 +20,9 @@ const IdentityAdminPage: React.FC = () => {
               </h5>
               <p className="fs-10 mb-0 text-body-secondary">
                 Configure per-tenant OIDC sign-in and provision the SCIM 2.0
-                bearer token the IdP uses to push user lifecycle events.
-                Changes apply to the <strong>currently selected tenant</strong>;
-                switch tenants to configure a different one.
+                bearer token the IdP uses to push user lifecycle events. Changes
+                apply to the <strong>currently selected tenant</strong>; switch
+                tenants to configure a different one.
               </p>
             </Card.Body>
           </Card>

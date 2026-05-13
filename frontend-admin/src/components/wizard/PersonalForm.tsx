@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import WizardInput from './WizardInput';
-import FalconDropzone, { CustomFile } from 'components/common/FalconDropzone';
+import OrkestraDropzone, {
+  CustomFile
+} from 'components/common/OrkestraDropzone';
 import avatarImg from 'assets/img/team/avatar.png';
 import { isIterableArray } from 'helpers/utils';
 import Avatar from 'components/common/Avatar';
@@ -35,7 +37,7 @@ const PersonalForm = ({ register, errors, setValue }: PersonalFormProps) => {
           />
         </Col>
         <Col md>
-          <FalconDropzone
+          <OrkestraDropzone
             files={avatar}
             onChange={files => {
               setAvatar(files);

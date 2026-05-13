@@ -7,11 +7,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   useGetCompaniesQuery,
   useDeleteCompanyMutation,
-  useSetDefaultCompanyMutation,
+  useSetDefaultCompanyMutation
 } from 'store/api/billingApi';
 import type { Company } from 'types/billing';
 import { REGIME_FISCALE_LABELS } from 'types/billing';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 
 // Deactivation Modal Component
 interface CompanyDeactivationModalProps {
@@ -35,7 +35,7 @@ const CompanyDeactivationModal: React.FC<CompanyDeactivationModalProps> = ({
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
         <Modal.Title>Disattiva Azienda</Modal.Title>
-        <FalconCloseButton onClick={onHide} />
+        <OrkestraCloseButton onClick={onHide} />
       </Modal.Header>
       <Modal.Body>
         <p>
@@ -44,7 +44,8 @@ const CompanyDeactivationModal: React.FC<CompanyDeactivationModalProps> = ({
         </p>
         <p className="text-warning mb-0">
           L'azienda non sarà più disponibile per nuove fatture.
-          {company.isDefault && " Questa è l'azienda default - dopo l'eliminazione dovrai impostarne un'altra."}
+          {company.isDefault &&
+            " Questa è l'azienda default - dopo l'eliminazione dovrai impostarne un'altra."}
         </p>
       </Modal.Body>
       <Modal.Footer>
@@ -72,7 +73,8 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
   const [showModal, setShowModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [deleteCompany, { isLoading: isDeleting }] = useDeleteCompanyMutation();
-  const [setDefaultCompany, { isLoading: isSettingDefault }] = useSetDefaultCompanyMutation();
+  const [setDefaultCompany, { isLoading: isSettingDefault }] =
+    useSetDefaultCompanyMutation();
 
   // Fetch companies from backend API
   const { data: companiesResponse } = useGetCompaniesQuery({
@@ -137,7 +139,8 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
                 )}
               </h6>
               <small className="text-muted">
-                {REGIME_FISCALE_LABELS[original.regimeFiscale] || original.regimeFiscale}
+                {REGIME_FISCALE_LABELS[original.regimeFiscale] ||
+                  original.regimeFiscale}
               </small>
             </div>
           </Flex>
@@ -154,10 +157,15 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
       cell: ({ row: { original } }: { row: { original: Company } }) => {
         return (
           <div>
-            <div className="text-900 font-monospace">{original.fiscalIdCode}</div>
-            {original.codiceFiscale && original.codiceFiscale !== original.fiscalIdCode && (
-              <small className="text-muted font-monospace">{original.codiceFiscale}</small>
-            )}
+            <div className="text-900 font-monospace">
+              {original.fiscalIdCode}
+            </div>
+            {original.codiceFiscale &&
+              original.codiceFiscale !== original.fiscalIdCode && (
+                <small className="text-muted font-monospace">
+                  {original.codiceFiscale}
+                </small>
+              )}
           </div>
         );
       }
@@ -234,9 +242,7 @@ const useCompanyTable = (options?: UseCompanyTableOptions) => {
             <Dropdown.Menu className="border py-0">
               <div className="py-2">
                 {options?.onEdit && (
-                  <Dropdown.Item
-                    onClick={() => options.onEdit?.(original)}
-                  >
+                  <Dropdown.Item onClick={() => options.onEdit?.(original)}>
                     Modifica
                   </Dropdown.Item>
                 )}

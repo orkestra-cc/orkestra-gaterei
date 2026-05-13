@@ -1,10 +1,20 @@
 import { useState, useCallback } from 'react';
-import { Row, Col, Card, Button, Form, Table, Badge, Spinner, Alert } from 'react-bootstrap';
+import {
+  Row,
+  Col,
+  Card,
+  Button,
+  Form,
+  Table,
+  Badge,
+  Spinner,
+  Alert
+} from 'react-bootstrap';
 import {
   useListVectorIndexesQuery,
   useCreateVectorIndexMutation,
   useDropVectorIndexMutation,
-  useVectorSearchMutation,
+  useVectorSearchMutation
 } from '../../../store/api/graphApi';
 import ResultsTable from '../components/ResultsTable';
 import type { QueryResult } from '../../../types/graph';
@@ -14,7 +24,8 @@ const VectorSearch: React.FC = () => {
   const [searchResult, setSearchResult] = useState<QueryResult | null>(null);
 
   // Vector indexes
-  const { data: indexData, isLoading: indexLoading } = useListVectorIndexesQuery(database ? { database } : undefined);
+  const { data: indexData, isLoading: indexLoading } =
+    useListVectorIndexesQuery(database ? { database } : undefined);
   const [createIndex, { isLoading: creating }] = useCreateVectorIndexMutation();
   const [dropIndex] = useDropVectorIndexMutation();
   const [vectorSearch, { isLoading: searching }] = useVectorSearchMutation();
@@ -30,7 +41,9 @@ const VectorSearch: React.FC = () => {
   const [newLabel, setNewLabel] = useState('');
   const [newProperty, setNewProperty] = useState('');
   const [newDimensions, setNewDimensions] = useState(256);
-  const [newSimilarity, setNewSimilarity] = useState<'cos' | 'l2sq' | 'ip'>('cos');
+  const [newSimilarity, setNewSimilarity] = useState<'cos' | 'l2sq' | 'ip'>(
+    'cos'
+  );
 
   const handleSearch = useCallback(async () => {
     if (!searchIndex || !vectorInput) return;
@@ -43,7 +56,7 @@ const VectorSearch: React.FC = () => {
         queryVector,
         topK,
         minScore: minScore > 0 ? minScore : undefined,
-        database: database || undefined,
+        database: database || undefined
       }).unwrap();
       setSearchResult(res);
     } catch {
@@ -60,7 +73,7 @@ const VectorSearch: React.FC = () => {
         property: newProperty,
         dimensions: newDimensions,
         similarity: newSimilarity,
-        database: database || undefined,
+        database: database || undefined
       }).unwrap();
       setNewName('');
       setNewLabel('');
@@ -68,15 +81,26 @@ const VectorSearch: React.FC = () => {
     } catch {
       // Error handled by RTK Query
     }
-  }, [createIndex, newName, newLabel, newProperty, newDimensions, newSimilarity, database]);
+  }, [
+    createIndex,
+    newName,
+    newLabel,
+    newProperty,
+    newDimensions,
+    newSimilarity,
+    database
+  ]);
 
-  const handleDropIndex = useCallback(async (name: string) => {
-    try {
-      await dropIndex({ name, database: database || undefined }).unwrap();
-    } catch {
-      // Error handled by RTK Query
-    }
-  }, [dropIndex, database]);
+  const handleDropIndex = useCallback(
+    async (name: string) => {
+      try {
+        await dropIndex({ name, database: database || undefined }).unwrap();
+      } catch {
+        // Error handled by RTK Query
+      }
+    },
+    [dropIndex, database]
+  );
 
   const indexes = indexData?.indexes ?? [];
 
@@ -87,7 +111,9 @@ const VectorSearch: React.FC = () => {
           <div className="d-flex align-items-center justify-content-between">
             <h5 className="mb-0">Vector Search</h5>
             <Form.Group className="d-flex align-items-center gap-2">
-              <Form.Label className="mb-0 small text-muted">Database:</Form.Label>
+              <Form.Label className="mb-0 small text-muted">
+                Database:
+              </Form.Label>
               <Form.Control
                 size="sm"
                 type="text"
@@ -113,9 +139,13 @@ const VectorSearch: React.FC = () => {
             </Card.Header>
             <Card.Body>
               {indexLoading ? (
-                <div className="text-center"><Spinner size="sm" /></div>
+                <div className="text-center">
+                  <Spinner size="sm" />
+                </div>
               ) : indexes.length === 0 ? (
-                <Alert variant="info" className="mb-3">No vector indexes found.</Alert>
+                <Alert variant="info" className="mb-3">
+                  No vector indexes found.
+                </Alert>
               ) : (
                 <Table size="sm" hover className="mb-3">
                   <thead>
@@ -133,15 +163,33 @@ const VectorSearch: React.FC = () => {
                     {indexes.map(idx => (
                       <tr key={idx.name}>
                         <td className="fw-semibold">{idx.name}</td>
-                        <td><Badge bg="soft-primary" text="dark">:{idx.label}</Badge></td>
-                        <td><code className="small">{idx.property}</code></td>
-                        <td>{idx.dimensions}</td>
-                        <td><small>{idx.similarity}</small></td>
                         <td>
-                          <Badge bg={idx.state === 'ONLINE' ? 'success' : 'secondary'}>{idx.state}</Badge>
+                          <Badge bg="soft-primary" text="dark">
+                            :{idx.label}
+                          </Badge>
                         </td>
                         <td>
-                          <Button variant="outline-danger" size="sm" onClick={() => handleDropIndex(idx.name)}>
+                          <code className="small">{idx.property}</code>
+                        </td>
+                        <td>{idx.dimensions}</td>
+                        <td>
+                          <small>{idx.similarity}</small>
+                        </td>
+                        <td>
+                          <Badge
+                            bg={
+                              idx.state === 'ONLINE' ? 'success' : 'secondary'
+                            }
+                          >
+                            {idx.state}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => handleDropIndex(idx.name)}
+                          >
                             Drop
                           </Button>
                         </td>
@@ -153,31 +201,67 @@ const VectorSearch: React.FC = () => {
 
               {/* Create Index Form */}
               <div className="border rounded p-2">
-                <small className="text-muted fw-semibold d-block mb-2">Create Vector Index</small>
+                <small className="text-muted fw-semibold d-block mb-2">
+                  Create Vector Index
+                </small>
                 <Row className="g-2 mb-2">
                   <Col xs={6}>
-                    <Form.Control size="sm" placeholder="Index name" value={newName} onChange={e => setNewName(e.target.value)} />
+                    <Form.Control
+                      size="sm"
+                      placeholder="Index name"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                    />
                   </Col>
                   <Col xs={6}>
-                    <Form.Control size="sm" placeholder="Label" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
+                    <Form.Control
+                      size="sm"
+                      placeholder="Label"
+                      value={newLabel}
+                      onChange={e => setNewLabel(e.target.value)}
+                    />
                   </Col>
                 </Row>
                 <Row className="g-2 mb-2">
                   <Col>
-                    <Form.Control size="sm" placeholder="Property" value={newProperty} onChange={e => setNewProperty(e.target.value)} />
+                    <Form.Control
+                      size="sm"
+                      placeholder="Property"
+                      value={newProperty}
+                      onChange={e => setNewProperty(e.target.value)}
+                    />
                   </Col>
                   <Col xs={3}>
-                    <Form.Control size="sm" type="number" placeholder="Dims" value={newDimensions} onChange={e => setNewDimensions(Number(e.target.value))} />
+                    <Form.Control
+                      size="sm"
+                      type="number"
+                      placeholder="Dims"
+                      value={newDimensions}
+                      onChange={e => setNewDimensions(Number(e.target.value))}
+                    />
                   </Col>
                   <Col xs={3}>
-                    <Form.Select size="sm" value={newSimilarity} onChange={e => setNewSimilarity(e.target.value as 'cos' | 'l2sq' | 'ip')}>
+                    <Form.Select
+                      size="sm"
+                      value={newSimilarity}
+                      onChange={e =>
+                        setNewSimilarity(
+                          e.target.value as 'cos' | 'l2sq' | 'ip'
+                        )
+                      }
+                    >
                       <option value="cos">Cosine</option>
                       <option value="l2sq">Euclidean (L2)</option>
                       <option value="ip">Inner Product</option>
                     </Form.Select>
                   </Col>
                 </Row>
-                <Button size="sm" variant="primary" onClick={handleCreateIndex} disabled={creating || !newName || !newLabel || !newProperty}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleCreateIndex}
+                  disabled={creating || !newName || !newLabel || !newProperty}
+                >
                   {creating ? <Spinner size="sm" /> : 'Create Index'}
                 </Button>
               </div>
@@ -194,7 +278,11 @@ const VectorSearch: React.FC = () => {
             <Card.Body>
               <Form.Group className="mb-2">
                 <Form.Label className="small">Index</Form.Label>
-                <Form.Select size="sm" value={searchIndex} onChange={e => setSearchIndex(e.target.value)}>
+                <Form.Select
+                  size="sm"
+                  value={searchIndex}
+                  onChange={e => setSearchIndex(e.target.value)}
+                >
                   <option value="">Select index...</option>
                   {indexes.map(idx => (
                     <option key={idx.name} value={idx.name}>
@@ -205,7 +293,9 @@ const VectorSearch: React.FC = () => {
               </Form.Group>
 
               <Form.Group className="mb-2">
-                <Form.Label className="small">Query Vector (JSON array)</Form.Label>
+                <Form.Label className="small">
+                  Query Vector (JSON array)
+                </Form.Label>
                 <Form.Control
                   as="textarea"
                   rows={3}
@@ -221,13 +311,28 @@ const VectorSearch: React.FC = () => {
                 <Col>
                   <Form.Group>
                     <Form.Label className="small">Top K</Form.Label>
-                    <Form.Control size="sm" type="number" value={topK} onChange={e => setTopK(Number(e.target.value))} min={1} max={1000} />
+                    <Form.Control
+                      size="sm"
+                      type="number"
+                      value={topK}
+                      onChange={e => setTopK(Number(e.target.value))}
+                      min={1}
+                      max={1000}
+                    />
                   </Form.Group>
                 </Col>
                 <Col>
                   <Form.Group>
                     <Form.Label className="small">Min Score</Form.Label>
-                    <Form.Control size="sm" type="number" step={0.01} value={minScore} onChange={e => setMinScore(Number(e.target.value))} min={0} max={1} />
+                    <Form.Control
+                      size="sm"
+                      type="number"
+                      step={0.01}
+                      value={minScore}
+                      onChange={e => setMinScore(Number(e.target.value))}
+                      min={0}
+                      max={1}
+                    />
                   </Form.Group>
                 </Col>
               </Row>
@@ -238,7 +343,13 @@ const VectorSearch: React.FC = () => {
                 onClick={handleSearch}
                 disabled={searching || !searchIndex || !vectorInput}
               >
-                {searching ? <><Spinner size="sm" className="me-1" /> Searching...</> : 'Search'}
+                {searching ? (
+                  <>
+                    <Spinner size="sm" className="me-1" /> Searching...
+                  </>
+                ) : (
+                  'Search'
+                )}
               </Button>
             </Card.Body>
           </Card>

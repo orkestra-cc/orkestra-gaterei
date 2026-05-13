@@ -7,7 +7,7 @@ import {
   Spinner,
   Tab,
   Table,
-  Tabs,
+  Tabs
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
@@ -22,7 +22,7 @@ import {
   useCreateOrgInviteAdminMutation,
   useRevokeOrgInviteAdminMutation,
   type AdminOrgListItem,
-  type Invite,
+  type Invite
 } from 'store/api/tenantApi';
 
 interface Props {
@@ -38,20 +38,34 @@ interface Props {
 const PLAN_FEATURES: Record<string, string[]> = {
   free: ['billing', 'documents'],
   pro: ['billing', 'documents', 'company', 'sales', 'agents'],
-  enterprise: ['*'],
+  enterprise: ['*']
 };
 
-const ALL_FEATURES = ['billing', 'documents', 'company', 'sales', 'agents', 'graph', 'rag'];
+const ALL_FEATURES = [
+  'billing',
+  'documents',
+  'company',
+  'sales',
+  'agents',
+  'graph',
+  'rag'
+];
 
 const planColors: Record<string, BadgeColor> = {
   free: 'secondary',
   pro: 'primary',
-  enterprise: 'success',
+  enterprise: 'success'
 };
 
 type TenantTabKey = 'overview' | 'plan' | 'members' | 'invites';
 
-const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete, onPurge }) => {
+const TenantDetailModal: React.FC<Props> = ({
+  org,
+  show,
+  onHide,
+  onDelete,
+  onPurge
+}) => {
   const [tab, setTab] = useState<TenantTabKey>('overview');
 
   useEffect(() => {
@@ -84,7 +98,7 @@ const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete, onPur
         <Tabs
           id="tenant-detail-tabs"
           activeKey={tab}
-          onSelect={(k) => setTab((k as TenantTabKey) || 'overview')}
+          onSelect={k => setTab((k as TenantTabKey) || 'overview')}
           className="mb-3"
         >
           <Tab eventKey="overview" title="Overview">
@@ -104,7 +118,11 @@ const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete, onPur
       <Modal.Footer className="d-flex justify-content-between flex-wrap gap-2">
         <div className="d-flex gap-2 flex-wrap">
           {org.status !== 'purged' && !org.deletedAt && (
-            <Button variant="outline-danger" size="sm" onClick={() => onDelete(org)}>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={() => onDelete(org)}
+            >
               <FontAwesomeIcon icon="trash" className="me-1" />
               Delete tenant
             </Button>
@@ -117,7 +135,8 @@ const TenantDetailModal: React.FC<Props> = ({ org, show, onHide, onDelete, onPur
           )}
           {org.status === 'purged' && org.purgedAt && (
             <span className="text-muted fs-10">
-              Purged on {new Date(org.purgedAt).toLocaleString()} — key shredded.
+              Purged on {new Date(org.purgedAt).toLocaleString()} — key
+              shredded.
             </span>
           )}
           {org.status !== 'purged' && org.deletedAt && (
@@ -154,8 +173,8 @@ const OverviewTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
         tenantId: org.id,
         body: {
           name: name !== org.name ? name : undefined,
-          slug: slug !== org.slug ? slug : undefined,
-        },
+          slug: slug !== org.slug ? slug : undefined
+        }
       }).unwrap();
       toast.success('Tenant updated');
     } catch (err: unknown) {
@@ -167,15 +186,19 @@ const OverviewTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
     <Form className="px-1">
       <Form.Group className="mb-3">
         <Form.Label className="fw-semibold fs-10">Tenant ID</Form.Label>
-        <Form.Control readOnly value={org.id} className="fs-11 font-monospace" />
+        <Form.Control
+          readOnly
+          value={org.id}
+          className="fs-11 font-monospace"
+        />
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label className="fw-semibold fs-10">Name</Form.Label>
-        <Form.Control value={name} onChange={(e) => setName(e.target.value)} />
+        <Form.Control value={name} onChange={e => setName(e.target.value)} />
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label className="fw-semibold fs-10">Slug</Form.Label>
-        <Form.Control value={slug} onChange={(e) => setSlug(e.target.value)} />
+        <Form.Control value={slug} onChange={e => setSlug(e.target.value)} />
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label className="fw-semibold fs-10">Owner</Form.Label>
@@ -217,8 +240,10 @@ const PlanTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
   };
 
   const toggleFeature = (feature: string) => {
-    setFeatures((prev) =>
-      prev.includes(feature) ? prev.filter((f) => f !== feature) : [...prev, feature],
+    setFeatures(prev =>
+      prev.includes(feature)
+        ? prev.filter(f => f !== feature)
+        : [...prev, feature]
     );
   };
 
@@ -237,7 +262,10 @@ const PlanTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
     <Form className="px-1">
       <Form.Group className="mb-3">
         <Form.Label className="fw-semibold fs-10">Plan</Form.Label>
-        <Form.Select value={plan} onChange={(e) => handlePlanChange(e.target.value)}>
+        <Form.Select
+          value={plan}
+          onChange={e => handlePlanChange(e.target.value)}
+        >
           <option value="free">Free</option>
           <option value="pro">Pro</option>
           <option value="enterprise">Enterprise</option>
@@ -257,7 +285,7 @@ const PlanTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
           </Alert>
         )}
         <div className="d-flex flex-wrap gap-3">
-          {ALL_FEATURES.map((feature) => (
+          {ALL_FEATURES.map(feature => (
             <Form.Check
               key={feature}
               type="checkbox"
@@ -272,7 +300,12 @@ const PlanTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
       </Form.Group>
 
       <div className="d-flex justify-content-end">
-        <Button variant="primary" size="sm" disabled={isLoading} onClick={onSave}>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={isLoading}
+          onClick={onSave}
+        >
           {isLoading ? 'Saving…' : 'Save plan'}
         </Button>
       </div>
@@ -331,7 +364,7 @@ const MembersTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
           </tr>
         </thead>
         <tbody>
-          {members.map((m) => (
+          {members.map(m => (
             <tr key={m.id} className="align-middle">
               <td className="font-monospace fs-11">{m.userUUID}</td>
               <td>{m.roles.join(', ') || '—'}</td>
@@ -375,8 +408,11 @@ const MembersTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
 // --- Invites tab ---
 
 const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
-  const { data, isLoading, error } = useListOrgInvitesAdminQuery({ tenantId: org.id });
-  const [createInvite, { isLoading: isCreating }] = useCreateOrgInviteAdminMutation();
+  const { data, isLoading, error } = useListOrgInvitesAdminQuery({
+    tenantId: org.id
+  });
+  const [createInvite, { isLoading: isCreating }] =
+    useCreateOrgInviteAdminMutation();
   const [revokeInvite] = useRevokeOrgInviteAdminMutation();
 
   const [email, setEmail] = useState('');
@@ -386,7 +422,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
   const onCreate = async () => {
     const roles = rolesInput
       .split(',')
-      .map((r) => r.trim())
+      .map(r => r.trim())
       .filter(Boolean);
     if (!email || roles.length === 0) {
       toast.error('Email and at least one role are required');
@@ -395,7 +431,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
     try {
       const inv = await createInvite({
         tenantId: org.id,
-        body: { email, roles },
+        body: { email, roles }
       }).unwrap();
       setFreshInvite(inv);
       setEmail('');
@@ -433,7 +469,9 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
         >
           <strong>Copy this token now — it cannot be shown again.</strong>
           <div className="d-flex align-items-center gap-2 mt-2">
-            <code className="flex-grow-1 fs-11 text-break">{freshInvite.token}</code>
+            <code className="flex-grow-1 fs-11 text-break">
+              {freshInvite.token}
+            </code>
             <Button size="sm" variant="outline-dark" onClick={copyToken}>
               <FontAwesomeIcon icon="copy" className="me-1" />
               Copy
@@ -451,7 +489,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
               size="sm"
               placeholder="user@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
             />
           </Form.Group>
           <Form.Group className="col-md-5">
@@ -462,7 +500,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
               type="text"
               size="sm"
               value={rolesInput}
-              onChange={(e) => setRolesInput(e.target.value)}
+              onChange={e => setRolesInput(e.target.value)}
             />
           </Form.Group>
           <Form.Group className="col-md-2">
@@ -499,7 +537,7 @@ const InvitesTab: React.FC<{ org: AdminOrgListItem }> = ({ org }) => {
             </tr>
           </thead>
           <tbody>
-            {invites.map((inv) => (
+            {invites.map(inv => (
               <tr key={inv.id} className="align-middle">
                 <td>{inv.email}</td>
                 <td>{inv.roles.join(', ')}</td>

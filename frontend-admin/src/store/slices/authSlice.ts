@@ -84,11 +84,13 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.isLoading = false;
       state.error = null;
-      state.sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      state.sessionExpiry = new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+      ).toISOString();
       state.permissions = userData.role ? [userData.role] : [];
     },
 
-    logout: (state) => {
+    logout: state => {
       state._isLoggingOut = true;
       state.user = null;
       state.isAuthenticated = false;
@@ -108,13 +110,15 @@ const authSlice = createSlice({
       state.isLoading = false;
     },
 
-    clearError: (state) => {
+    clearError: state => {
       state.error = null;
     },
 
-    updateSession: (state) => {
+    updateSession: state => {
       // Session updated via HttpOnly cookies - just update expiry
-      state.sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      state.sessionExpiry = new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+      ).toISOString();
     },
 
     updateUser: (state, action: PayloadAction<Partial<BackendUser>>) => {
@@ -136,15 +140,18 @@ const authSlice = createSlice({
       }
     },
 
-    updatePreferences: (state, action: PayloadAction<Partial<UserPreferences>>) => {
+    updatePreferences: (
+      state,
+      action: PayloadAction<Partial<UserPreferences>>
+    ) => {
       state.preferences = { ...state.preferences, ...action.payload };
     },
 
-    resetAuthState: (state) => {
+    resetAuthState: state => {
       Object.assign(state, initialState);
     },
 
-    checkSessionExpiry: (state) => {
+    checkSessionExpiry: state => {
       if (state.sessionExpiry) {
         const now = new Date();
         const expiry = new Date(state.sessionExpiry);
@@ -155,7 +162,10 @@ const authSlice = createSlice({
     },
 
     // Save /auth/me API response directly as Redux state
-    setUserFromApiResponse: (state, action: PayloadAction<BackendUser | null>) => {
+    setUserFromApiResponse: (
+      state,
+      action: PayloadAction<BackendUser | null>
+    ) => {
       const userData = action.payload;
 
       if (userData && userData.isActive) {
@@ -167,7 +177,9 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.isLoading = false;
         state.error = null;
-        state.sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        state.sessionExpiry = new Date(
+          Date.now() + 24 * 60 * 60 * 1000
+        ).toISOString();
 
         // Set permissions based on role (simplified RBAC)
         state.permissions = userData.role ? [userData.role] : [];
@@ -181,28 +193,35 @@ const authSlice = createSlice({
     },
 
     // Set access token from /auth/session response
-    setAccessToken: (state, action: PayloadAction<{ accessToken: string; expiresIn: number }>) => {
+    setAccessToken: (
+      state,
+      action: PayloadAction<{ accessToken: string; expiresIn: number }>
+    ) => {
       state.accessToken = action.payload.accessToken;
-      state.tokenExpiry = new Date(Date.now() + action.payload.expiresIn * 1000).toISOString();
+      state.tokenExpiry = new Date(
+        Date.now() + action.payload.expiresIn * 1000
+      ).toISOString();
     },
 
     // Clear access token
-    clearAccessToken: (state) => {
+    clearAccessToken: state => {
       state.accessToken = null;
       state.tokenExpiry = null;
     }
   },
-  extraReducers: (builder) => {
+  extraReducers: builder => {
     builder
-      .addCase(refreshSession.pending, (state) => {
+      .addCase(refreshSession.pending, state => {
         state.isLoading = true;
       })
-      .addCase(refreshSession.fulfilled, (state) => {
+      .addCase(refreshSession.fulfilled, state => {
         // Session refreshed via HttpOnly cookies - just update expiry
-        state.sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        state.sessionExpiry = new Date(
+          Date.now() + 24 * 60 * 60 * 1000
+        ).toISOString();
         state.isLoading = false;
       })
-      .addCase(refreshSession.rejected, (state) => {
+      .addCase(refreshSession.rejected, state => {
         Object.assign(state, initialState);
         state.isLoading = false;
       });
@@ -228,19 +247,22 @@ export const {
 
 export const selectAuth = (state: RootState) => state.auth;
 export const selectUser = (state: RootState) => state.auth.user;
-export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated;
+export const selectIsAuthenticated = (state: RootState) =>
+  state.auth.isAuthenticated;
 export const selectIsLoading = (state: RootState) => state.auth.isLoading;
 export const selectAuthError = (state: RootState) => state.auth.error;
 export const selectPermissions = (state: RootState) => state.auth.permissions;
 export const selectPreferences = (state: RootState) => state.auth.preferences;
 
-export const selectHasPermission = (permission: string) => (state: RootState) => {
-  return state.auth.permissions.includes(permission);
-};
+export const selectHasPermission =
+  (permission: string) => (state: RootState) => {
+    return state.auth.permissions.includes(permission);
+  };
 
-export const selectHasAnyPermission = (permissions: string[]) => (state: RootState) => {
-  return permissions.some(p => state.auth.permissions.includes(p));
-};
+export const selectHasAnyPermission =
+  (permissions: string[]) => (state: RootState) => {
+    return permissions.some(p => state.auth.permissions.includes(p));
+  };
 
 export const selectIsSessionValid = (state: RootState) => {
   if (!state.auth.sessionExpiry) return false;
@@ -271,11 +293,15 @@ export const selectUserOAuthProviders = (state: RootState) => {
 };
 
 export const selectUserLastLogin = (state: RootState) => {
-  return state.auth.user?.lastLogin ? new Date(state.auth.user.lastLogin) : null;
+  return state.auth.user?.lastLogin
+    ? new Date(state.auth.user.lastLogin)
+    : null;
 };
 
 export const selectUserCreatedAt = (state: RootState) => {
-  return state.auth.user?.createdAt ? new Date(state.auth.user.createdAt) : null;
+  return state.auth.user?.createdAt
+    ? new Date(state.auth.user.createdAt)
+    : null;
 };
 
 export const selectAccessToken = (state: RootState) => state.auth.accessToken;

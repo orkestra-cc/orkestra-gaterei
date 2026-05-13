@@ -1,4 +1,3 @@
-
 import { BarChart } from 'echarts/charts';
 import {
   GridComponent,
@@ -8,7 +7,11 @@ import {
 } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { getPosition, tooltipFormatter, TooltipParam } from 'helpers/echart-utils';
+import {
+  getPosition,
+  tooltipFormatter,
+  TooltipParam
+} from 'helpers/echart-utils';
 import { rgbaColor } from 'helpers/utils';
 import { useAppContext } from 'providers/AppProvider';
 import ReactEchart from 'components/common/ReactEchart';
@@ -93,7 +96,13 @@ const getOptions = (getThemeColor: ThemeColorGetter) => ({
     textStyle: { color: getThemeColor('gray-1100') },
     borderWidth: 1,
     transitionDuration: 0,
-    position(pos: [number, number], params: TooltipParam | TooltipParam[], dom: HTMLElement, rect: { x: number; y: number; width: number; height: number }, size: { contentSize: [number, number]; viewSize: [number, number] }) {
+    position(
+      pos: [number, number],
+      params: TooltipParam | TooltipParam[],
+      dom: HTMLElement,
+      rect: { x: number; y: number; width: number; height: number },
+      size: { contentSize: [number, number]; viewSize: [number, number] }
+    ) {
       return getPosition(pos, params, dom, rect, size);
     },
     formatter: tooltipFormatter

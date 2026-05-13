@@ -1,4 +1,3 @@
-
 import ModalAuth from 'components/authentication/modal/ModalAuth';
 import { DoubleTopLayoutNavbarTop } from 'components/navbar/top/DoubleTopLayoutNavbarTop';
 import { Outlet } from 'react-router';

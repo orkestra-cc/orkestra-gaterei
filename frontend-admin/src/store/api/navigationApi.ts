@@ -53,7 +53,7 @@ export interface NavigationResponse {
 
 // Navigation API slice
 export const navigationApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Get navigation menu (role-filtered by backend)
     getNavigation: builder.query<NavigationResponse | null, void>({
       providesTags: ['Navigation'],
@@ -61,7 +61,10 @@ export const navigationApi = baseApi.injectEndpoints({
         const result = await baseQuery('v1/navigation');
 
         // Handle authentication errors - return null instead of error
-        if (result.error && (result.error.status === 401 || result.error.status === 403)) {
+        if (
+          result.error &&
+          (result.error.status === 401 || result.error.status === 403)
+        ) {
           return { data: null };
         }
 
@@ -74,13 +77,11 @@ export const navigationApi = baseApi.injectEndpoints({
         return { data: navigationData ?? null };
       },
       // Cache for 5 minutes (matches backend expiresIn)
-      keepUnusedDataFor: 300,
-    }),
-  }),
+      keepUnusedDataFor: 300
+    })
+  })
 });
 
 // Export hooks
-export const {
-  useGetNavigationQuery,
-  useLazyGetNavigationQuery,
-} = navigationApi;
+export const { useGetNavigationQuery, useLazyGetNavigationQuery } =
+  navigationApi;

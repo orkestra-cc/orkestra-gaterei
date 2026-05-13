@@ -19,7 +19,13 @@ interface CrmStatData {
   icon: IconProp;
   caret: IconProp;
   color: 'primary' | 'success' | 'info' | 'warning' | 'danger' | 'secondary';
-  caretColor: 'primary' | 'success' | 'info' | 'warning' | 'danger' | 'secondary';
+  caretColor:
+    | 'primary'
+    | 'success'
+    | 'info'
+    | 'warning'
+    | 'danger'
+    | 'secondary';
   data: number[];
 }
 

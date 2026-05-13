@@ -7,7 +7,9 @@ interface InputFieldProps {
   label: string;
   type?: string;
   name: string;
-  handleChange?: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
+  handleChange?: React.ChangeEventHandler<
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  >;
   onChange?: (value: string) => void;
   value?: string;
   as?: React.ElementType;
@@ -28,7 +30,14 @@ const DateInputField: React.FC = () => {
   );
 };
 
-const InputField: React.FC<InputFieldProps> = ({ label, type = 'text', name, handleChange, onChange: _onChange, ...rest }) => (
+const InputField: React.FC<InputFieldProps> = ({
+  label,
+  type = 'text',
+  name,
+  handleChange,
+  onChange: _onChange,
+  ...rest
+}) => (
   <Form.Group as={Row} className="mb-3" controlId={name}>
     <Form.Label column sm={3} className="text-lg-end">
       {label}

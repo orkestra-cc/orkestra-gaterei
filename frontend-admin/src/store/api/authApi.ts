@@ -45,7 +45,6 @@ export interface LogoutResponse {
   message?: string;
 }
 
-
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -179,7 +178,7 @@ export interface SelfSessionsResponse {
 
 // Auth API slice
 export const authApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
+  endpoints: builder => ({
     // Public auth policy — read by the login + register pages before
     // the user types anything so a maintenance kill switch hides the
     // CTA instead of making the user discover it via a 403.
@@ -194,14 +193,14 @@ export const authApi = baseApi.injectEndpoints({
             data: {
               registrationEnabled: true,
               loginEnabled: true,
-              passwordMinLength: 10,
-            },
+              passwordMinLength: 10
+            }
           };
         }
         const wrapper = result.data as AuthPolicy;
         return { data: wrapper };
       },
-      keepUnusedDataFor: 30,
+      keepUnusedDataFor: 30
     }),
 
     // Check authentication status - returns backend user data directly
@@ -211,7 +210,10 @@ export const authApi = baseApi.injectEndpoints({
         const result = await baseQuery('v1/auth/operator/me');
 
         // Handle 401/403 as expected unauthenticated state, not an error
-        if (result.error && (result.error.status === 401 || result.error.status === 403)) {
+        if (
+          result.error &&
+          (result.error.status === 401 || result.error.status === 403)
+        ) {
           return { data: null };
         }
 
@@ -226,15 +228,15 @@ export const authApi = baseApi.injectEndpoints({
         return { data: userData?.isActive ? userData : null };
       },
       // Check auth status frequently
-      keepUnusedDataFor: 30, // 30 seconds
+      keepUnusedDataFor: 30 // 30 seconds
     }),
 
     // Email/password login — returns access token + user
     login: builder.mutation<PasswordLoginResponse, LoginCredentials>({
-      query: (credentials) => ({
+      query: credentials => ({
         url: 'v1/auth/operator/login',
         method: 'POST',
-        body: credentials,
+        body: credentials
       }),
       // Intentionally does NOT invalidate 'Auth'. Invalidating 'Auth' would
       // trigger useGetSessionQuery to immediately refetch /v1/auth/session,
@@ -258,7 +260,7 @@ export const authApi = baseApi.injectEndpoints({
             dispatch(
               setAccessToken({
                 accessToken: result.data.accessToken,
-                expiresIn: result.data.expiresIn,
+                expiresIn: result.data.expiresIn
               })
             );
           }
@@ -272,75 +274,120 @@ export const authApi = baseApi.injectEndpoints({
                 tokenType: result.data.tokenType ?? 'Bearer',
                 expiresIn: result.data.expiresIn ?? 0,
                 user: result.data.user,
-                success: true,
+                success: true
               } as SessionResponse)
             );
           }
         } catch {
           // login failed — nothing to seed, error surfaces via mutation result
         }
-      },
+      }
     }),
 
     // Self-service registration with email/password
     register: builder.mutation<RegisterResponse, RegisterInput>({
-      query: (input) => ({
+      query: input => ({
         url: 'v1/auth/operator/register',
         method: 'POST',
-        body: input,
-      }),
+        body: input
+      })
     }),
 
     // Verify email address with token from link
     verifyEmail: builder.mutation<SimpleMessageResponse, { token: string }>({
-      query: (body) => ({
+      query: body => ({
         url: 'v1/auth/operator/verify-email',
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     // Resend the verification email
-    resendVerification: builder.mutation<SimpleMessageResponse, { email: string }>({
-      query: (body) => ({
+    resendVerification: builder.mutation<
+      SimpleMessageResponse,
+      { email: string }
+    >({
+      query: body => ({
         url: 'v1/auth/operator/verify-email/resend',
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     // Request password reset email
     forgotPassword: builder.mutation<SimpleMessageResponse, { email: string }>({
-      query: (body) => ({
+      query: body => ({
         url: 'v1/auth/operator/forgot-password',
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     // Consume a password reset token and set a new password
-    resetPassword: builder.mutation<SimpleMessageResponse, { token: string; newPassword: string }>({
-      query: (body) => ({
+    resetPassword: builder.mutation<
+      SimpleMessageResponse,
+      { token: string; newPassword: string }
+    >({
+      query: body => ({
         url: 'v1/auth/operator/reset-password',
         method: 'POST',
-        body,
-      }),
+        body
+      })
     }),
 
     // Change password while authenticated
-    changePassword: builder.mutation<SimpleMessageResponse, { currentPassword: string; newPassword: string }>({
-      query: (body) => ({
+    changePassword: builder.mutation<
+      SimpleMessageResponse,
+      { currentPassword: string; newPassword: string }
+    >({
+      query: body => ({
         url: 'v1/auth/operator/change-password',
         method: 'POST',
-        body,
+        body
+      })
+    }),
+
+    // Password reconfirm — the step-up bypass for users with no MFA
+    // factor enrolled. Backend mints an access token with
+    // amr += "reauth" + last_otp_at = now so the next destructive
+    // request passes RequireStepUp. The fresh token is dispatched into
+    // Redux on success so the in-flight replay carries it.
+    confirmPassword: builder.mutation<
+      {
+        success: boolean;
+        accessToken: string;
+        tokenType: string;
+        expiresIn: number;
+      },
+      { password: string }
+    >({
+      query: body => ({
+        url: 'v1/auth/operator/me/password-confirm',
+        method: 'POST',
+        body
       }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.accessToken && data?.expiresIn) {
+            dispatch(
+              setAccessToken({
+                accessToken: data.accessToken,
+                expiresIn: data.expiresIn
+              })
+            );
+          }
+        } catch {
+          // handled by the mutation consumer
+        }
+      }
     }),
 
     // User logout
     logout: builder.mutation<LogoutResponse, void>({
       query: () => ({
         url: 'v1/auth/operator/logout',
-        method: 'POST',
+        method: 'POST'
       }),
       // Clear navigation cache on logout
       invalidatesTags: ['Auth', 'User', 'Navigation'],
@@ -357,30 +404,35 @@ export const authApi = baseApi.injectEndpoints({
         } catch (error) {
           console.error('Logout failed:', error);
         }
-      },
+      }
     }),
-
 
     // OAuth start — operator tier. Backend signature is POST
     // /v1/auth/operator/oauth/login with `{provider}` in the body.
-    initiateOAuth: builder.mutation<{ redirectUrl: string }, { provider: string }>({
+    initiateOAuth: builder.mutation<
+      { redirectUrl: string },
+      { provider: string }
+    >({
       query: ({ provider }) => ({
         url: 'v1/auth/operator/oauth/login',
         method: 'POST',
-        body: { provider },
-      }),
+        body: { provider }
+      })
     }),
 
     // OAuth callback — single shared endpoint per provider, dispatched
     // server-side to the correct tier via the signed-state JWT.
-    handleOAuthCallback: builder.mutation<LoginResponse, { code: string; state?: string; provider: string }>({
+    handleOAuthCallback: builder.mutation<
+      LoginResponse,
+      { code: string; state?: string; provider: string }
+    >({
       query: ({ code, state, provider }) => ({
         url: `v1/auth/oauth/${provider}/callback`,
         method: 'POST',
-        body: { code, state },
+        body: { code, state }
       }),
       // Invalidate navigation to fetch role-filtered menu for new user
-      invalidatesTags: ['Auth', 'User', 'Navigation'],
+      invalidatesTags: ['Auth', 'User', 'Navigation']
     }),
 
     // --- Self-service security center ---
@@ -390,7 +442,7 @@ export const authApi = baseApi.injectEndpoints({
     // that need a quick is-it-set check.
     getSelfAuthMethods: builder.query<SelfAuthMethods, void>({
       query: () => 'v1/auth/operator/me/auth-methods',
-      providesTags: ['SelfAuthMethods'],
+      providesTags: ['SelfAuthMethods']
     }),
 
     // Active sessions for the current user. The IsCurrent flag is
@@ -398,28 +450,34 @@ export const authApi = baseApi.injectEndpoints({
     // coming from is highlighted.
     getMySessions: builder.query<SelfSessionsResponse, void>({
       query: () => 'v1/auth/operator/me/sessions',
-      providesTags: ['Sessions'],
+      providesTags: ['Sessions']
     }),
 
     // Self-service unlink — gated server-side by RequireStepUp(5m).
     // The global StepUpModal intercepts the 401 and replays.
-    unlinkOauthSelf: builder.mutation<{ success: boolean }, { provider: OAuthProvider }>({
+    unlinkOauthSelf: builder.mutation<
+      { success: boolean },
+      { provider: OAuthProvider }
+    >({
       query: ({ provider }) => ({
         url: `v1/auth/operator/me/oauth/${provider}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['SelfAuthMethods', 'User'],
+      invalidatesTags: ['SelfAuthMethods', 'User']
     }),
 
     // Self-service link — start the OAuth flow that binds a new
     // sign-in provider to the current account. Same step-up gate as
     // unlink (it adds a credential). Returns the IdP redirect URL;
     // the caller is responsible for `window.location.assign(authUrl)`.
-    initiateOauthLinkSelf: builder.mutation<{ authUrl: string; state: string }, { provider: OAuthProvider }>({
+    initiateOauthLinkSelf: builder.mutation<
+      { authUrl: string; state: string },
+      { provider: OAuthProvider }
+    >({
       query: ({ provider }) => ({
         url: `v1/auth/operator/me/oauth/link/${provider}`,
-        method: 'POST',
-      }),
+        method: 'POST'
+      })
     }),
 
     // Revoke one session. Server returns 409 cannot_revoke_current
@@ -428,9 +486,9 @@ export const authApi = baseApi.injectEndpoints({
     revokeSession: builder.mutation<void, { sessionId: string }>({
       query: ({ sessionId }) => ({
         url: `v1/auth/operator/me/sessions/${encodeURIComponent(sessionId)}`,
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['Sessions'],
+      invalidatesTags: ['Sessions']
     }),
 
     // Revoke every session except the calling one. The current
@@ -438,9 +496,9 @@ export const authApi = baseApi.injectEndpoints({
     revokeAllSessions: builder.mutation<{ revoked: number }, void>({
       query: () => ({
         url: 'v1/auth/operator/me/sessions',
-        method: 'DELETE',
+        method: 'DELETE'
       }),
-      invalidatesTags: ['Sessions'],
+      invalidatesTags: ['Sessions']
     }),
 
     // Get session after OAuth callback - retrieves access token using refresh token from cookie
@@ -453,7 +511,10 @@ export const authApi = baseApi.injectEndpoints({
         // 401 now means "cookie present but refresh rejected" (expired,
         // revoked, replay) — the bootstrap "no cookie" case returns 200
         // with authenticated:false, handled below.
-        if (result.error && (result.error.status === 401 || result.error.status === 403)) {
+        if (
+          result.error &&
+          (result.error.status === 401 || result.error.status === 403)
+        ) {
           return { data: null };
         }
 
@@ -493,7 +554,7 @@ export const authApi = baseApi.injectEndpoints({
           api.dispatch(
             setAccessToken({
               accessToken: sessionData.accessToken,
-              expiresIn: sessionData.expiresIn,
+              expiresIn: sessionData.expiresIn
             })
           );
         }
@@ -501,9 +562,9 @@ export const authApi = baseApi.injectEndpoints({
         return { data: sessionData };
       },
       // Keep cache for session management
-      keepUnusedDataFor: 60, // 1 minute
-    }),
-  }),
+      keepUnusedDataFor: 60 // 1 minute
+    })
+  })
 });
 
 // Export hooks
@@ -517,6 +578,7 @@ export const {
   useForgotPasswordMutation,
   useResetPasswordMutation,
   useChangePasswordMutation,
+  useConfirmPasswordMutation,
   useLogoutMutation,
   useInitiateOAuthMutation,
   useHandleOAuthCallbackMutation,
@@ -530,7 +592,7 @@ export const {
   useUnlinkOauthSelfMutation,
   useInitiateOauthLinkSelfMutation,
   useRevokeSessionMutation,
-  useRevokeAllSessionsMutation,
+  useRevokeAllSessionsMutation
 } = authApi;
 
 // Export endpoints for manual cache management

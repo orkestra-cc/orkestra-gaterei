@@ -37,24 +37,28 @@ export function useTenantBootstrap() {
   // queries are tenant-scoped and racing them against the /v1/auth/session
   // cookie rotation trips the backend's family-replay guard. See
   // useModuleApi.ts for the full rationale.
-  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
+  const hasAccessToken = useAppSelector(s => !!s.auth.accessToken);
   const gate = isAuthenticated && hasAccessToken;
 
   // Use stored orgId as an optimistic hint so we can fire all three
   // queries in parallel instead of waiting for memberships to resolve
   // before fetching permissions and org details.
-  const storedOrgId = typeof window !== 'undefined'
-    ? window.localStorage.getItem(STORAGE_KEY)
-    : null;
+  const storedOrgId =
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem(STORAGE_KEY)
+      : null;
   const optimisticOrgId = currentOrgId || storedOrgId;
 
   const { data: membershipsData } = useListMyOrgsQuery(undefined, {
     skip: !gate
   });
 
-  const { data: effective } = useGetEffectivePermissionsQuery(optimisticOrgId as string, {
-    skip: !gate || !optimisticOrgId
-  });
+  const { data: effective } = useGetEffectivePermissionsQuery(
+    optimisticOrgId as string,
+    {
+      skip: !gate || !optimisticOrgId
+    }
+  );
 
   const { data: org } = useGetOrgQuery(optimisticOrgId as string, {
     skip: !gate || !optimisticOrgId

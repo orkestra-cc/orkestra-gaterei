@@ -1,4 +1,11 @@
-import React, { useState, useReducer, useContext, createContext, ReactNode, Dispatch } from 'react';
+import React, {
+  useState,
+  useReducer,
+  useContext,
+  createContext,
+  ReactNode,
+  Dispatch
+} from 'react';
 import users from 'data/people';
 import rawThreads from 'data/chat/threads';
 import rawMessages from 'data/chat/messages';
@@ -76,7 +83,9 @@ interface ChatProviderProps {
   children: ReactNode;
 }
 
-export const ChatContext = createContext<ChatContextValue | undefined>(undefined);
+export const ChatContext = createContext<ChatContextValue | undefined>(
+  undefined
+);
 
 const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [messages, messagesDispatch] = useReducer(arrayReducer, rawMessages);
@@ -89,19 +98,21 @@ const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const getUser = (thread: Thread): User | GroupUser => {
     if (thread.type === 'group') {
-      const group = groups.find(({ id }: { id: number }) => id === thread.groupId);
+      const group = groups.find(
+        ({ id }: { id: number }) => id === thread.groupId
+      );
       if (!group) {
         return { name: 'Unknown Group', avatarSrc: [] };
       }
       const { name, members } = group;
       return {
         name,
-        avatarSrc: members.map(
-          (member: { userId: number }) => {
-            const user = users.find(({ id }: { id: number }) => id === member.userId);
-            return user ? user.avatarSrc : '';
-          }
-        )
+        avatarSrc: members.map((member: { userId: number }) => {
+          const user = users.find(
+            ({ id }: { id: number }) => id === member.userId
+          );
+          return user ? user.avatarSrc : '';
+        })
       };
     } else {
       const user = users.find(({ id }: { id: number }) => id === thread.userId);

@@ -11,7 +11,16 @@ interface GoogleMapProps {
 }
 
 const GoogleMap = ({ children, className }: GoogleMapProps) => (
-  <div className={className} style={{ background: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+  <div
+    className={className}
+    style={{
+      background: '#e9ecef',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 200
+    }}
+  >
     <span className="text-muted">Google Maps removed — use Leaflet</span>
     {children}
   </div>

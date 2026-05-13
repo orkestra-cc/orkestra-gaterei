@@ -36,13 +36,21 @@ const getTotalPrice = (items: Product[]) =>
     .map(({ unit, price }) => unit * price)
     .reduce((total, currentValue) => total + currentValue, 0);
 
-const getProductItemCalculatedData = (unit: number, price: number, totalPrice: number) => {
+const getProductItemCalculatedData = (
+  unit: number,
+  price: number,
+  totalPrice: number
+) => {
   const productTotalPrice = unit * price;
   const percentage = ((productTotalPrice * 100) / totalPrice).toFixed(0);
   return { productTotalPrice, percentage };
 };
 
-const BestSellingProduct = ({ product, totalPrice, isLast }: BestSellingProductProps) => {
+const BestSellingProduct = ({
+  product,
+  totalPrice,
+  isLast
+}: BestSellingProductProps) => {
   const { img, title, type, unit, price } = product;
   const { productTotalPrice, percentage } = getProductItemCalculatedData(
     unit,
@@ -75,7 +83,10 @@ const BestSellingProduct = ({ product, totalPrice, isLast }: BestSellingProductP
       </td>
       <td className="align-middle pe-x1">
         <Flex alignItems="center">
-          <ProgressBar now={Number(percentage)} style={{ width: '80px', height: 5 }} />
+          <ProgressBar
+            now={Number(percentage)}
+            style={{ width: '80px', height: 5 }}
+          />
           <div className="fw-semibold ms-3">{percentage}%</div>
         </Flex>
       </td>
@@ -122,7 +133,7 @@ const BestSellingProducts = ({ products }: BestSellingProductsProps) => {
             </Form.Select>
           </Col>
           <Col xs="auto">
-            <Button variant="falcon-default" size="sm" as="a" href="#!">
+            <Button variant="orkestra-default" size="sm" as="a" href="#!">
               View All
             </Button>
           </Col>

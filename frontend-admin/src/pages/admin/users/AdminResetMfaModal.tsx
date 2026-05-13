@@ -3,7 +3,7 @@ import { Alert, Button, Form, Modal } from 'react-bootstrap';
 import {
   useAdminResetClientUserMfaMutation,
   useAdminResetUserMfaMutation,
-  useVerifyMfaMutation,
+  useVerifyMfaMutation
 } from 'store/api/mfaApi';
 import type { User } from 'store/api/userApi';
 
@@ -24,7 +24,12 @@ interface Props {
  * last_otp_at, then the reset call succeeds immediately. One linear flow,
  * no round-trip through the step-up toast.
  */
-const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) => {
+const AdminResetMfaModal = ({
+  show,
+  user,
+  onHide,
+  tier = 'operator'
+}: Props) => {
   const [code, setCode] = useState('');
   const [useBackup, setUseBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +37,10 @@ const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) =>
   const [verify, { isLoading: verifyLoading }] = useVerifyMfaMutation();
   // Both mutation hooks are unconditionally instantiated (rules of hooks);
   // only the one matching `tier` is invoked when the form submits.
-  const [resetOperator, { isLoading: resetOperatorLoading }] = useAdminResetUserMfaMutation();
-  const [resetClient, { isLoading: resetClientLoading }] = useAdminResetClientUserMfaMutation();
+  const [resetOperator, { isLoading: resetOperatorLoading }] =
+    useAdminResetUserMfaMutation();
+  const [resetClient, { isLoading: resetClientLoading }] =
+    useAdminResetClientUserMfaMutation();
   const reset = tier === 'client' ? resetClient : resetOperator;
   const resetLoading = resetOperatorLoading || resetClientLoading;
   const busy = verifyLoading || resetLoading;
@@ -52,13 +59,19 @@ const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) =>
       setCode('');
       onHide();
     } catch (err: unknown) {
-      const anyErr = err as { status?: number; data?: { detail?: string; code?: string } };
+      const anyErr = err as {
+        status?: number;
+        data?: { detail?: string; code?: string };
+      };
       if (anyErr?.status === 401 && anyErr?.data?.code !== 'step_up_required') {
         setError('Incorrect code. Please try again.');
       } else if (anyErr?.status === 404) {
         setError('This user has no MFA factor to reset.');
       } else {
-        setError(anyErr?.data?.detail ?? 'Could not reset the factor. Please try again.');
+        setError(
+          anyErr?.data?.detail ??
+            'Could not reset the factor. Please try again.'
+        );
       }
     }
   };
@@ -80,29 +93,38 @@ const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) =>
       <Form onSubmit={handleSubmit} noValidate>
         <Modal.Body>
           <Alert variant="warning" className="mb-3">
-            This will delete the user&apos;s registered authenticator and backup codes. They will be
-            forced to enroll a new factor on their next sign-in, subject to the 7-day grace window.
+            This will delete the user&apos;s registered authenticator and backup
+            codes. They will be forced to enroll a new factor on their next
+            sign-in, subject to the 7-day grace window.
           </Alert>
 
           {error && (
-            <Alert variant="danger" className="mb-3" onClose={() => setError(null)} dismissible>
+            <Alert
+              variant="danger"
+              className="mb-3"
+              onClose={() => setError(null)}
+              dismissible
+            >
               {error}
             </Alert>
           )}
 
           <p className="fs-10 mb-3">
-            Enter <strong>your own</strong> authenticator code to authorize this action.
+            Enter <strong>your own</strong> authenticator code to authorize this
+            action.
           </p>
 
           <Form.Group className="mb-2">
-            <Form.Label>{useBackup ? 'Your backup code' : 'Your authenticator code'}</Form.Label>
+            <Form.Label>
+              {useBackup ? 'Your backup code' : 'Your authenticator code'}
+            </Form.Label>
             <Form.Control
               type="text"
               inputMode={useBackup ? 'text' : 'numeric'}
               autoComplete="one-time-code"
               autoFocus
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={e => setCode(e.target.value)}
               placeholder={useBackup ? 'XXXX-XXXX' : '123 456'}
               required
             />
@@ -110,13 +132,22 @@ const AdminResetMfaModal = ({ show, user, onHide, tier = 'operator' }: Props) =>
           <button
             type="button"
             className="btn btn-link p-0 fs-10"
-            onClick={() => { setUseBackup((v) => !v); setCode(''); }}
+            onClick={() => {
+              setUseBackup(v => !v);
+              setCode('');
+            }}
           >
-            {useBackup ? 'Use authenticator app instead' : 'Use a backup code instead'}
+            {useBackup
+              ? 'Use authenticator app instead'
+              : 'Use a backup code instead'}
           </button>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="outline-secondary" onClick={handleClose} disabled={busy}>
+          <Button
+            variant="outline-secondary"
+            onClick={handleClose}
+            disabled={busy}
+          >
             Cancel
           </Button>
           <Button type="submit" variant="warning" disabled={busy}>

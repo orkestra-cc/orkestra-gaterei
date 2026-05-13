@@ -7,7 +7,7 @@ import { Link } from 'react-router';
 import Avatar from 'components/common/Avatar';
 import { isIterableArray } from 'helpers/utils';
 import Flex from 'components/common/Flex';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 import SubtleBadge, { BadgeColor } from 'components/common/SubtleBadge';
 
 interface SearchItem {
@@ -96,8 +96,6 @@ const SearchBox = ({ autoCompleteItem }: SearchBoxProps) => {
     } else {
       setResultItem(autoCompleteItem);
     }
-
-    // eslint-disable-next-line
   }, [searchInputValue]);
 
   return (
@@ -124,7 +122,7 @@ const SearchBox = ({ autoCompleteItem }: SearchBoxProps) => {
           />
           {(dropdownOpen || searchInputValue) && (
             <div className="search-box-close-btn-container">
-              <FalconCloseButton
+              <OrkestraCloseButton
                 size="sm"
                 noOutline
                 className="fs-11"
@@ -161,7 +159,8 @@ const SearchBox = ({ autoCompleteItem }: SearchBoxProps) => {
                         return (
                           <Fragment key={breadCrumbText}>
                             {breadCrumbText}
-                            {(item.breadCrumbTexts?.length ?? 0) - 1 > index && (
+                            {(item.breadCrumbTexts?.length ?? 0) - 1 >
+                              index && (
                               <FontAwesomeIcon
                                 icon="chevron-right"
                                 className="mx-1 text-500 fs-11"

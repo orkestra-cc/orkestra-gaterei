@@ -1,4 +1,3 @@
-
 import classNames from 'classnames';
 import Flex from 'components/common/Flex';
 import { Card, Col, ProgressBar, Row } from 'react-bootstrap';
@@ -18,7 +17,8 @@ const StorageStatus = ({ data, className }: StorageStatusProps) => {
   const totalStorage = data
     .map((d: StorageItem) => d.size)
     .reduce((total: number, currentValue: number) => total + currentValue, 0);
-  const freeStorage = data.find((d: StorageItem) => d.name === 'Free')?.size || 0;
+  const freeStorage =
+    data.find((d: StorageItem) => d.name === 'Free')?.size || 0;
 
   return (
     <Card className={className}>

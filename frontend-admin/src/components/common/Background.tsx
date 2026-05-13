@@ -1,4 +1,3 @@
-
 import classNames from 'classnames';
 
 interface BackgroundPosition {
@@ -15,19 +14,19 @@ interface BackgroundProps {
   style?: React.CSSProperties;
 }
 
-const Background: React.FC<BackgroundProps> = ({ 
-  image, 
-  overlay, 
-  position, 
-  video, 
-  className, 
-  style 
+const Background: React.FC<BackgroundProps> = ({
+  image,
+  overlay,
+  position,
+  video,
+  className,
+  style
 }) => {
-  const bgStyle: React.CSSProperties = { 
-    ...(image && { backgroundImage: `url(${image})` }), 
-    ...style 
+  const bgStyle: React.CSSProperties = {
+    ...(image && { backgroundImage: `url(${image})` }),
+    ...style
   };
-  
+
   if (typeof position === 'string') {
     bgStyle.backgroundPosition = position;
   } else if (typeof position === 'object') {

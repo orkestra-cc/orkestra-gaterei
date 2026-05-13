@@ -18,9 +18,12 @@ interface Props {
  * authz_bindings auto-reaps expired entries.
  */
 const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
-  const { data: rolesData, isLoading: rolesLoading } = useListRolesQuery(tenantId, {
-    skip: !show
-  });
+  const { data: rolesData, isLoading: rolesLoading } = useListRolesQuery(
+    tenantId,
+    {
+      skip: !show
+    }
+  );
   const [createBinding, { isLoading: isSaving }] = useCreateBindingMutation();
 
   const [userUUID, setUserUUID] = useState('');
@@ -68,12 +71,12 @@ const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
               type="text"
               placeholder="019bc6a4-fe55-7cf5-aea7-bfb8142d2b4e"
               value={userUUID}
-              onChange={(e) => setUserUUID(e.target.value)}
+              onChange={e => setUserUUID(e.target.value)}
               autoFocus
             />
             <Form.Text muted>
-              The global user UUID (from <code>/v1/admin/users</code> or the user
-              profile page). A proper user picker is planned.
+              The global user UUID (from <code>/v1/admin/users</code> or the
+              user profile page). A proper user picker is planned.
             </Form.Text>
           </Form.Group>
 
@@ -86,23 +89,23 @@ const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
             ) : (
               <Form.Select
                 value={roleId}
-                onChange={(e) => setRoleId(e.target.value)}
+                onChange={e => setRoleId(e.target.value)}
               >
                 <option value="">— Select a role —</option>
                 <optgroup label="System roles">
                   {roles
-                    .filter((r) => r.isSystem)
-                    .map((r) => (
+                    .filter(r => r.isSystem)
+                    .map(r => (
                       <option key={r.id} value={r.id}>
                         {r.name} ({r.permissions.length} perms)
                       </option>
                     ))}
                 </optgroup>
-                {roles.some((r) => !r.isSystem) && (
+                {roles.some(r => !r.isSystem) && (
                   <optgroup label="Custom roles">
                     {roles
-                      .filter((r) => !r.isSystem)
-                      .map((r) => (
+                      .filter(r => !r.isSystem)
+                      .map(r => (
                         <option key={r.id} value={r.id}>
                           {r.name} ({r.permissions.length} perms)
                         </option>
@@ -118,7 +121,7 @@ const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
             <Form.Control
               type="datetime-local"
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={e => setExpiresAt(e.target.value)}
             />
             <Form.Text muted>
               Leave empty for permanent grants. Use this for contractor access,
@@ -132,7 +135,9 @@ const CreateBindingModal: React.FC<Props> = ({ tenantId, show, onHide }) => {
           Cancel
         </Button>
         <Button variant="primary" onClick={onSave} disabled={!canSave}>
-          {isSaving ? <Spinner size="sm" animation="border" className="me-2" /> : null}
+          {isSaving ? (
+            <Spinner size="sm" animation="border" className="me-2" />
+          ) : null}
           Grant role
         </Button>
       </Modal.Footer>

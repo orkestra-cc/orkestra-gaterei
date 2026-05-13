@@ -8,7 +8,10 @@ Go 1.25.1 | Huma v2 (OpenAPI-first) | MongoDB 8.0 | Redis 8.2 | Chi router | AIR
 
 ## Module System
 
-Every module implements the `Module` interface (`internal/shared/module/module.go`):
+Every module implements the `Module` interface from the Orkestra SDK
+(`pkg/sdk/module/module.go` — see [`pkg/sdk/CLAUDE.md`](pkg/sdk/CLAUDE.md)
+for the SDK boundary rules and [`../docs/onboarding/orkestra-sdk.md`](../docs/onboarding/orkestra-sdk.md)
+for the new-developer walkthrough):
 
 ```
 Name, DisplayName, Description, Category
@@ -32,7 +35,7 @@ Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 
 Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). `Dockerfile.minimal` defaults to `BUILD_TAGS="no_addons addon_dev"` so `docker-compose.minimal.yml` ships a true minimal binary. CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge. On push to `dev`/`main`, the same matrix publishes one image per profile to GHCR: `ghcr.io/<repo>/backend:<profile>` (rolling) and `:<profile>-<sha>` (pinned). `:latest` stays as an alias for `:enterprise` for backward compatibility.
 
-**Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `internal/shared/iface/` — never import another module's `services/` or `repository/` package.
+**Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `pkg/sdk/iface/` — never import another module's `services/` or `repository/` package.
 
 **Runtime config**: `ModuleConfigService` stores module state in MongoDB (`module_configs` collection), cached in Redis (30s TTL). Secrets encrypted with AES-256-GCM. Each module supports named config environments (production/sandbox) stored as nested maps in the same document. Admin API at `GET/PATCH /v1/admin/modules`, with per-environment endpoints at `/v1/admin/modules/{name}/environments/{env}` and `PUT /v1/admin/modules/{name}/active-environment`.
 
@@ -170,3 +173,4 @@ docker restart orkestra-backend-dev
 - **Use `shared/iface`** for cross-module deps — never import another module's services package from module.go
 - **Validate all inputs**, implement RBAC on every endpoint, never expose secrets in responses
 - **MongoDB indexes** — declare them in `Collections()`, don't create them manually
+- **Vulnerability allowlist** — `backend/.vulncheck-allowlist.txt` lists upstream-unfixed reachable CVEs accepted by `make backend-vulncheck` (and the Backend CI workflow). Each entry must be re-evaluated when the relevant dependency is bumped.

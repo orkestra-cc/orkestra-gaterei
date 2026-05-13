@@ -95,24 +95,29 @@ export interface AgentQueryResponse {
 export interface AgentSettings {
   systemPrompt?: string;
   directives?: string[];
-  skepticism?: number;  // 1-5, 0=default
-  literalism?: number;  // 1-5, 0=default
-  empathy?: number;     // 1-5, 0=default
-  maxTokens?: number;   // 0=default
+  skepticism?: number; // 1-5, 0=default
+  literalism?: number; // 1-5, 0=default
+  empathy?: number; // 1-5, 0=default
+  maxTokens?: number; // 0=default
   temperature?: 'precise' | 'balanced' | 'creative';
-  language?: string;    // e.g. "en", "it"
+  language?: string; // e.g. "en", "it"
 }
 
 // --- Persona Types ---
 
-export type PersonaType = 'developer' | 'administrator' | 'manager' | 'auditor' | 'guest';
+export type PersonaType =
+  | 'developer'
+  | 'administrator'
+  | 'manager'
+  | 'auditor'
+  | 'guest';
 
 export const PERSONA_LABELS: Record<PersonaType, string> = {
   developer: 'Developer',
   administrator: 'Administrator',
   manager: 'Manager',
   auditor: 'Auditor',
-  guest: 'Guest',
+  guest: 'Guest'
 };
 
 export const PERSONA_DESCRIPTIONS: Record<PersonaType, string> = {
@@ -120,5 +125,5 @@ export const PERSONA_DESCRIPTIONS: Record<PersonaType, string> = {
   administrator: 'Comprehensive, compliance + management',
   manager: 'Summaries, business impact, risk',
   auditor: 'Evidence-based, compliance status, citations',
-  guest: 'General overviews, no internal details',
+  guest: 'General overviews, no internal details'
 };

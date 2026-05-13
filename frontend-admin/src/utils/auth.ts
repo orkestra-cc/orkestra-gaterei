@@ -35,8 +35,8 @@ export const checkAuthStatus = async (): Promise<AuthStatusResponse> => {
       method: 'GET',
       credentials: 'include', // Include HttpOnly cookies
       headers: {
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     if (response.ok) {
@@ -50,13 +50,13 @@ export const checkAuthStatus = async (): Promise<AuthStatusResponse> => {
         _source: 'auth_status_success'
       };
     }
-    
+
     // Auth status endpoint responded but user not authenticated
-    return { 
-      authenticated: false, 
-      user_id: null, 
-      character_id: null, 
-      character_name: null, 
+    return {
+      authenticated: false,
+      user_id: null,
+      character_id: null,
+      character_name: null,
       characters: [],
       _source: 'auth_status_unauthenticated'
     };
@@ -84,8 +84,8 @@ export const logout = async (): Promise<void> => {
       method: 'POST',
       credentials: 'include', // Include HttpOnly cookies
       headers: {
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
   } catch (error) {
     console.error('Logout request failed:', error);
@@ -100,7 +100,7 @@ export const getAuthenticatedUser = (): AuthenticatedUser | null => {
   // For now, return a basic user object if authenticated
   if (isAuthenticated()) {
     return {
-      isLoggedIn: true,
+      isLoggedIn: true
       // Add more user properties as needed from cookies/tokens
     };
   }
@@ -109,6 +109,6 @@ export const getAuthenticatedUser = (): AuthenticatedUser | null => {
 
 // Temporary function to set auth cookie for testing
 export const setTestAuthCookie = (): void => {
-  document.cookie = 'falcon_auth_token=test_token_123; path=/; max-age=86400';
+  document.cookie = 'orkestra_auth_token=test_token_123; path=/; max-age=86400';
   console.log('Test auth cookie set');
 };

@@ -31,12 +31,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	identityModels "github.com/orkestra/backend/internal/addons/identity/models"
 	"github.com/orkestra/backend/internal/addons/identity/repository"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
-	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 

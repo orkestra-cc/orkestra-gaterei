@@ -1,10 +1,27 @@
 import React, { useState, useRef } from 'react';
-import { Modal, Button, Form, Alert, Nav, Tab, Spinner, Table } from 'react-bootstrap';
+import {
+  Modal,
+  Button,
+  Form,
+  Alert,
+  Nav,
+  Tab,
+  Spinner,
+  Table
+} from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useImportXMLInvoiceMutation } from 'store/api/billingApi';
-import type { ImportXMLInvoiceResponse, ImportedInvoiceSummary, SkippedInvoice } from 'types/billing';
-import { DOCUMENT_TYPE_LABELS, formatCurrency, formatItalianDate } from 'types/billing';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import type {
+  ImportXMLInvoiceResponse,
+  ImportedInvoiceSummary,
+  SkippedInvoice
+} from 'types/billing';
+import {
+  DOCUMENT_TYPE_LABELS,
+  formatCurrency,
+  formatItalianDate
+} from 'types/billing';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 
 interface ImportXMLModalProps {
   show: boolean;
@@ -36,7 +53,7 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
     setResult(null);
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = event => {
       const content = event.target?.result as string;
       setXmlContent(content);
     };
@@ -63,7 +80,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
     }
 
     // Basic XML validation
-    if (!xmlContent.includes('<FatturaElettronica') && !xmlContent.includes('<?xml')) {
+    if (
+      !xmlContent.includes('<FatturaElettronica') &&
+      !xmlContent.includes('<?xml')
+    ) {
       setError('Il contenuto non sembra essere un file FatturaPA XML valido');
       return;
     }
@@ -82,7 +102,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
         onSuccess?.();
       }
     } catch (err: unknown) {
-      const apiError = err as { data?: { title?: string; detail?: string; error?: string }; status?: number };
+      const apiError = err as {
+        data?: { title?: string; detail?: string; error?: string };
+        status?: number;
+      };
       if (apiError?.data?.detail) {
         setError(apiError.data.detail);
       } else if (apiError?.data?.title) {
@@ -124,7 +147,7 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
           <FontAwesomeIcon icon="file-import" className="me-2 text-primary" />
           Importa Fattura XML
         </Modal.Title>
-        <FalconCloseButton onClick={handleClose} />
+        <OrkestraCloseButton onClick={handleClose} />
       </Modal.Header>
 
       <Modal.Body className="p-4">
@@ -148,7 +171,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
             {result.supplier && (
               <div className="mb-3 p-3 bg-body-tertiary rounded">
                 <h6 className="mb-2">
-                  <FontAwesomeIcon icon="building" className="me-2 text-primary" />
+                  <FontAwesomeIcon
+                    icon="building"
+                    className="me-2 text-primary"
+                  />
                   Fornitore
                   {result.supplier.isNew && (
                     <span className="badge bg-success ms-2">Nuovo</span>
@@ -157,7 +183,9 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
                 <div>
                   <strong>{result.supplier.name}</strong>
                   <br />
-                  <small className="text-body-secondary">P.IVA: {result.supplier.fiscalId}</small>
+                  <small className="text-body-secondary">
+                    P.IVA: {result.supplier.fiscalId}
+                  </small>
                 </div>
               </div>
             )}
@@ -165,7 +193,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
             {result.invoices && result.invoices.length > 0 && (
               <div className="mb-3">
                 <h6 className="mb-2">
-                  <FontAwesomeIcon icon="file-invoice" className="me-2 text-success" />
+                  <FontAwesomeIcon
+                    icon="file-invoice"
+                    className="me-2 text-success"
+                  />
                   Fatture Importate ({result.count})
                 </h6>
                 <Table size="sm" bordered hover responsive>
@@ -182,10 +213,15 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
                       <tr key={invoice.id}>
                         <td>{invoice.number}</td>
                         <td>
-                          <small>{DOCUMENT_TYPE_LABELS[invoice.documentType] || invoice.documentType}</small>
+                          <small>
+                            {DOCUMENT_TYPE_LABELS[invoice.documentType] ||
+                              invoice.documentType}
+                          </small>
                         </td>
                         <td>{formatItalianDate(invoice.date)}</td>
-                        <td className="text-end fw-semibold">{formatCurrency(invoice.totalAmount)}</td>
+                        <td className="text-end fw-semibold">
+                          {formatCurrency(invoice.totalAmount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -196,7 +232,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
             {result.skipped && result.skipped.length > 0 && (
               <div className="mb-3">
                 <h6 className="mb-2">
-                  <FontAwesomeIcon icon="forward" className="me-2 text-warning" />
+                  <FontAwesomeIcon
+                    icon="forward"
+                    className="me-2 text-warning"
+                  />
                   Fatture Saltate ({result.skipped.length})
                 </h6>
                 <Table size="sm" bordered responsive className="table-warning">
@@ -207,12 +246,14 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {result.skipped.map((skipped: SkippedInvoice, idx: number) => (
-                      <tr key={idx}>
-                        <td>{skipped.number}</td>
-                        <td>{skipped.reason}</td>
-                      </tr>
-                    ))}
+                    {result.skipped.map(
+                      (skipped: SkippedInvoice, idx: number) => (
+                        <tr key={idx}>
+                          <td>{skipped.number}</td>
+                          <td>{skipped.reason}</td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </Table>
               </div>
@@ -230,7 +271,10 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
           </div>
         ) : (
           <Form onSubmit={handleSubmit}>
-            <Tab.Container activeKey={activeTab} onSelect={(k) => k && setActiveTab(k)}>
+            <Tab.Container
+              activeKey={activeTab}
+              onSelect={k => k && setActiveTab(k)}
+            >
               <Nav variant="tabs" className="mb-3">
                 <Nav.Item>
                   <Nav.Link eventKey="file">
@@ -257,7 +301,8 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
                       onChange={handleFileChange}
                     />
                     <Form.Text className="text-body-secondary">
-                      Supporta file FatturaPA in formato XML (es. IT12345678901_XXXXX.xml)
+                      Supporta file FatturaPA in formato XML (es.
+                      IT12345678901_XXXXX.xml)
                     </Form.Text>
                   </Form.Group>
                   {fileName && (
@@ -295,15 +340,20 @@ const ImportXMLModal: React.FC<ImportXMLModalProps> = ({
                 id="skipDuplicates"
                 label="Salta fatture duplicate (consigliato)"
                 checked={skipDuplicates}
-                onChange={(e) => setSkipDuplicates(e.target.checked)}
+                onChange={e => setSkipDuplicates(e.target.checked)}
               />
               <Form.Text className="text-body-secondary">
-                Se attivo, le fatture già presenti nel sistema verranno saltate invece di generare un errore
+                Se attivo, le fatture già presenti nel sistema verranno saltate
+                invece di generare un errore
               </Form.Text>
             </Form.Group>
 
             <div className="d-flex gap-2 justify-content-end">
-              <Button variant="outline-secondary" onClick={handleClose} disabled={isLoading}>
+              <Button
+                variant="outline-secondary"
+                onClick={handleClose}
+                disabled={isLoading}
+              >
                 Annulla
               </Button>
               <Button

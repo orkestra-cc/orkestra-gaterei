@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import { FaUsers } from 'react-icons/fa';
 import Background from 'components/common/Background';

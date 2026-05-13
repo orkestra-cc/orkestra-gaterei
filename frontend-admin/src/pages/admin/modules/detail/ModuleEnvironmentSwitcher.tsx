@@ -18,7 +18,7 @@ const ModuleEnvironmentSwitcher: React.FC<ModuleEnvironmentSwitcherProps> = ({
   activeEnvironment,
   availableEnvironments,
   selectedEnvironment,
-  onSelect,
+  onSelect
 }) => {
   const [setActive, { isLoading }] = useSetActiveEnvironmentMutation();
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +27,17 @@ const ModuleEnvironmentSwitcher: React.FC<ModuleEnvironmentSwitcherProps> = ({
     if (selectedEnvironment === activeEnvironment) return;
     setError(null);
     try {
-      await setActive({ name: moduleName, environment: selectedEnvironment }).unwrap();
+      await setActive({
+        name: moduleName,
+        environment: selectedEnvironment
+      }).unwrap();
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'data' in err
-          ? String((err as { data: { detail?: string } }).data?.detail || 'Failed to switch environment')
+          ? String(
+              (err as { data: { detail?: string } }).data?.detail ||
+                'Failed to switch environment'
+            )
           : 'Failed to switch environment';
       setError(message);
     }
@@ -41,10 +47,12 @@ const ModuleEnvironmentSwitcher: React.FC<ModuleEnvironmentSwitcherProps> = ({
     <div className="d-flex align-items-center gap-3 mb-3 flex-wrap">
       <span className="fs-10 fw-semibold text-600">Environment:</span>
       <ButtonGroup size="sm">
-        {availableEnvironments.map((env) => (
+        {availableEnvironments.map(env => (
           <Button
             key={env}
-            variant={selectedEnvironment === env ? 'primary' : 'outline-primary'}
+            variant={
+              selectedEnvironment === env ? 'primary' : 'outline-primary'
+            }
             onClick={() => onSelect(env)}
             className="text-capitalize"
           >

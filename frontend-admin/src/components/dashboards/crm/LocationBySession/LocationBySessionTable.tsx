@@ -1,4 +1,3 @@
-
 import { ProgressBar } from 'react-bootstrap';
 import { Link } from 'react-router';
 import type { CellContext } from '@tanstack/react-table';
@@ -26,7 +25,9 @@ const columns = [
         className: 'py-3'
       }
     },
-    cell: ({ row: { original } }: CellContext<LocationSessionData, unknown>) => {
+    cell: ({
+      row: { original }
+    }: CellContext<LocationSessionData, unknown>) => {
       const { flag, country } = original;
       return (
         <Link to="#!">
@@ -67,7 +68,9 @@ const columns = [
         }
       }
     },
-    cell: ({ row: { original } }: CellContext<LocationSessionData, unknown>) => {
+    cell: ({
+      row: { original }
+    }: CellContext<LocationSessionData, unknown>) => {
       const { percentage } = original;
       return (
         <Flex alignItems="center" justifyContent="end">

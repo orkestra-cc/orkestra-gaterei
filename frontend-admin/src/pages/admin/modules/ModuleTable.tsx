@@ -10,20 +10,20 @@ import type { ModuleConfig } from 'store/api/moduleApi';
 import {
   useGetModulesQuery,
   useGetModulesHealthQuery,
-  useUpdateModuleMutation,
+  useUpdateModuleMutation
 } from 'store/api/moduleApi';
 
 const categoryColors: Record<string, BadgeColor> = {
   core: 'primary',
   toggleable: 'info',
-  external: 'warning',
+  external: 'warning'
 };
 
 const statusColors: Record<string, BadgeColor> = {
   running: 'success',
   failed: 'danger',
   disabled: 'secondary',
-  stopped: 'warning',
+  stopped: 'warning'
 };
 
 type ModuleScope = 'core' | 'addons';
@@ -39,7 +39,7 @@ const healthDotColors: Record<string, string> = {
   failed: 'bg-danger',
   unhealthy: 'bg-danger',
   disabled: 'bg-400',
-  stopped: 'bg-warning',
+  stopped: 'bg-warning'
 };
 
 const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
@@ -54,14 +54,13 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
 
   const scopedModules = useMemo(() => {
     if (!modules) return [];
-    if (scope === 'core') return modules.filter((m) => m.category === 'core');
-    if (scope === 'addons')
-      return modules.filter((m) => m.category !== 'core');
+    if (scope === 'core') return modules.filter(m => m.category === 'core');
+    if (scope === 'addons') return modules.filter(m => m.category !== 'core');
     return modules;
   }, [modules, scope]);
 
   const filteredModules = useMemo(() => {
-    return scopedModules.filter((m) => {
+    return scopedModules.filter(m => {
       if (
         searchTerm &&
         !m.displayName.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -78,7 +77,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
   const addonCategoryOptions = [
     { value: '', label: 'All Categories' },
     { value: 'toggleable', label: 'Toggleable' },
-    { value: 'external', label: 'External' },
+    { value: 'external', label: 'External' }
   ];
 
   const handleToggle = async (mod: ModuleConfig) => {
@@ -87,7 +86,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
     try {
       await updateModule({
         name: mod.moduleName,
-        enabled: !mod.enabled,
+        enabled: !mod.enabled
       }).unwrap();
     } catch {
       // RTK Query handles error state
@@ -97,7 +96,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
   };
 
   const getHealthDot = (mod: ModuleConfig): string => {
-    const h = healthData?.modules.find((m) => m.moduleName === mod.moduleName);
+    const h = healthData?.modules.find(m => m.moduleName === mod.moduleName);
     if (h) return healthDotColors[h.status] || 'bg-400';
     return healthDotColors[mod.status] || 'bg-400';
   };
@@ -110,7 +109,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -148,11 +147,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
               <Spinner animation="border" size="sm" />
             </div>
           ) : (
-            <Table
-              responsive
-              size="sm"
-              className="fs-10 mb-0 overflow-hidden"
-            >
+            <Table responsive size="sm" className="fs-10 mb-0 overflow-hidden">
               <thead className="bg-body-tertiary">
                 <tr>
                   <th className="pe-4 ps-3">Module</th>
@@ -165,7 +160,7 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                 </tr>
               </thead>
               <tbody>
-                {filteredModules.map((mod) => (
+                {filteredModules.map(mod => (
                   <tr key={mod.moduleName} className="align-middle">
                     <td className="ps-3">
                       <div className="d-flex align-items-center gap-2">
@@ -214,7 +209,13 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                     </td>
                     <td>
                       <SubtleBadge
-                        bg={mod.activeEnvironment === 'production' ? 'success' : mod.activeEnvironment === 'sandbox' ? 'warning' : 'secondary'}
+                        bg={
+                          mod.activeEnvironment === 'production'
+                            ? 'success'
+                            : mod.activeEnvironment === 'sandbox'
+                              ? 'warning'
+                              : 'secondary'
+                        }
                         pill
                       >
                         {mod.activeEnvironment || 'production'}
@@ -250,7 +251,10 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
                           className="text-500 px-1"
                           title="Configure"
                         >
-                          <FontAwesomeIcon icon={faChevronRight} className="fs-10" />
+                          <FontAwesomeIcon
+                            icon={faChevronRight}
+                            className="fs-10"
+                          />
                         </Link>
                       </div>
                     </td>
@@ -270,23 +274,21 @@ const ModuleTable: React.FC<ModuleTableProps> = ({ scope, title }) => {
         {modules && (
           <Card.Footer className="fs-10 text-muted">
             {scopedModules.length} modules total &middot;{' '}
-            {scopedModules.filter((m) => m.status === 'running').length} running
-            &middot;{' '}
-            {scopedModules.filter((m) => m.status === 'failed').length} failed
-            &middot;{' '}
-            {scopedModules.filter((m) => m.status === 'disabled').length}{' '}
-            disabled
-            {scopedModules.filter((m) => m.status === 'stopped').length > 0 && (
+            {scopedModules.filter(m => m.status === 'running').length} running
+            &middot; {scopedModules.filter(m => m.status === 'failed').length}{' '}
+            failed &middot;{' '}
+            {scopedModules.filter(m => m.status === 'disabled').length} disabled
+            {scopedModules.filter(m => m.status === 'stopped').length > 0 && (
               <>
-                {' '}&middot;{' '}
-                {scopedModules.filter((m) => m.status === 'stopped').length}{' '}
+                {' '}
+                &middot;{' '}
+                {scopedModules.filter(m => m.status === 'stopped').length}{' '}
                 stopped
               </>
             )}
           </Card.Footer>
         )}
       </Card>
-
     </>
   );
 };

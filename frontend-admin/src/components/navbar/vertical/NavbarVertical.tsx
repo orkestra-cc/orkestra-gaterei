@@ -11,6 +11,13 @@ import NavbarTopDropDownMenus from 'components/navbar/top/NavbarTopDropDownMenus
 import bgNavbar from 'assets/img/generic/bg-navbar.png';
 import { useAppContext } from 'providers/AppProvider';
 import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
+import { developerRealm } from 'reference/navigation/referenceRoutes';
+
+// Show the Developer realm whenever the reference routes are registered.
+// Mirrors the gate in `src/routes/referenceRoutes.tsx` so nav and routes
+// stay in lockstep — they're either both present or both absent.
+const SHOW_DEVELOPER_REALM =
+  import.meta.env.DEV || !!import.meta.env.VITE_ENABLE_REFERENCE;
 
 interface NavbarLabelProps {
   label: string;
@@ -23,7 +30,7 @@ interface NavbarLabelProps {
 const NavbarSkeleton = () => (
   <div className="navbar-vertical-content scrollbar">
     <Nav className="flex-column" as="ul">
-      {[1, 2, 3].map((group) => (
+      {[1, 2, 3].map(group => (
         <Fragment key={group}>
           <Nav.Item as="li">
             <Row className="mt-3 mb-2 navbar-vertical-label-wrapper">
@@ -37,7 +44,7 @@ const NavbarSkeleton = () => (
               </Col>
             </Row>
           </Nav.Item>
-          {[1, 2, 3].map((item) => (
+          {[1, 2, 3].map(item => (
             <Nav.Item as="li" key={`${group}-${item}`} className="px-3 py-2">
               <Placeholder as="div" animation="glow">
                 <Placeholder xs={8} />
@@ -152,51 +159,60 @@ const NavbarVertical = () => {
           </div>
         )}
 
-        {/* Loaded navigation — prefer v2 realms shape; fall back to v1 flat groups. */}
-        {!isLoading && !isError && (
-          <div className="navbar-vertical-content scrollbar">
-            <Nav className="flex-column" as="ul">
-              {realms.length > 0
-                ? realms.map(realm => (
-                    <Fragment key={realm.key}>
-                      <NavbarLabel label={capitalize(realm.label)} />
-                      {realm.sections.map(section => (
-                        <Fragment key={`${realm.key}::${section.label}`}>
-                          {section.label &&
-                            section.label !== realm.label && (
-                              <NavbarSectionLabel
-                                label={capitalize(section.label)}
-                              />
-                            )}
-                          <NavbarVerticalMenu routes={section.children} />
+        {/* Loaded navigation — prefer v2 realms shape; fall back to v1 flat groups.
+            In dev (or when VITE_ENABLE_REFERENCE is set), append the Developer realm
+            pointing at the dev-only /reference/* routes. */}
+        {!isLoading &&
+          !isError &&
+          (() => {
+            const renderedRealms = SHOW_DEVELOPER_REALM
+              ? [...realms, developerRealm]
+              : realms;
+            return (
+              <div className="navbar-vertical-content scrollbar">
+                <Nav className="flex-column" as="ul">
+                  {renderedRealms.length > 0
+                    ? renderedRealms.map(realm => (
+                        <Fragment key={realm.key}>
+                          <NavbarLabel label={capitalize(realm.label)} />
+                          {realm.sections.map(section => (
+                            <Fragment key={`${realm.key}::${section.label}`}>
+                              {section.label &&
+                                section.label !== realm.label && (
+                                  <NavbarSectionLabel
+                                    label={capitalize(section.label)}
+                                  />
+                                )}
+                              <NavbarVerticalMenu routes={section.children} />
+                            </Fragment>
+                          ))}
+                        </Fragment>
+                      ))
+                    : filteredNavigation.map(route => (
+                        <Fragment key={route.label}>
+                          {!route.labelDisable && (
+                            <NavbarLabel label={capitalize(route.label)} />
+                          )}
+                          <NavbarVerticalMenu routes={route.children} />
                         </Fragment>
                       ))}
-                    </Fragment>
-                  ))
-                : filteredNavigation.map(route => (
-                    <Fragment key={route.label}>
-                      {!route.labelDisable && (
-                        <NavbarLabel label={capitalize(route.label)} />
-                      )}
-                      <NavbarVerticalMenu routes={route.children} />
-                    </Fragment>
-                  ))}
-            </Nav>
+                </Nav>
 
-            <>
-              {navbarPosition === 'combo' && (
-                <div className={`d-${topNavbarBreakpoint}-none`}>
-                  <div className="navbar-vertical-divider">
-                    <hr className="navbar-vertical-hr my-2" />
-                  </div>
-                  <Nav navbar>
-                    <NavbarTopDropDownMenus />
-                  </Nav>
-                </div>
-              )}
-            </>
-          </div>
-        )}
+                <>
+                  {navbarPosition === 'combo' && (
+                    <div className={`d-${topNavbarBreakpoint}-none`}>
+                      <div className="navbar-vertical-divider">
+                        <hr className="navbar-vertical-hr my-2" />
+                      </div>
+                      <Nav navbar>
+                        <NavbarTopDropDownMenus />
+                      </Nav>
+                    </div>
+                  )}
+                </>
+              </div>
+            );
+          })()}
       </Navbar.Collapse>
     </Navbar>
   );

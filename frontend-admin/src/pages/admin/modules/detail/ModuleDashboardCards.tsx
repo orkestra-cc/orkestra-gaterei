@@ -4,7 +4,7 @@ import {
   faHeartPulse,
   faGear,
   faSitemap,
-  faClock,
+  faClock
 } from '@fortawesome/free-solid-svg-icons';
 import SubtleBadge from 'components/common/SubtleBadge';
 import type { ModuleConfig, ModuleHealthStatus } from 'store/api/moduleApi';
@@ -31,15 +31,16 @@ const formatRelativeTime = (dateStr: string): string => {
 const ModuleDashboardCards: React.FC<ModuleDashboardCardsProps> = ({
   module: mod,
   health,
-  allModules,
+  allModules
 }) => {
   const healthStatus = health?.status || (mod.enabled ? 'healthy' : 'disabled');
-  const healthColor = {
-    healthy: 'success',
-    unhealthy: 'danger',
-    disabled: 'secondary',
-    failed: 'danger',
-  }[healthStatus] || 'secondary';
+  const healthColor =
+    {
+      healthy: 'success',
+      unhealthy: 'danger',
+      disabled: 'secondary',
+      failed: 'danger'
+    }[healthStatus] || 'secondary';
 
   const { filled, total } = configCompleteness(
     mod.configSchema,
@@ -48,10 +49,11 @@ const ModuleDashboardCards: React.FC<ModuleDashboardCardsProps> = ({
   );
 
   const depCount = mod.dependsOn?.length || 0;
-  const depsHealthy = mod.dependsOn?.filter((dep) => {
-    const depMod = allModules?.find((m) => m.moduleName === dep);
-    return depMod && depMod.status === 'running';
-  }).length || 0;
+  const depsHealthy =
+    mod.dependsOn?.filter(dep => {
+      const depMod = allModules?.find(m => m.moduleName === dep);
+      return depMod && depMod.status === 'running';
+    }).length || 0;
 
   return (
     <Row className="g-3 mb-3">
@@ -62,12 +64,17 @@ const ModuleDashboardCards: React.FC<ModuleDashboardCardsProps> = ({
               <FontAwesomeIcon icon={faHeartPulse} className="text-400 me-2" />
               <span className="fs-10 text-600 fw-semibold">Health</span>
             </div>
-            <SubtleBadge bg={healthColor as 'success' | 'danger' | 'secondary'} pill>
+            <SubtleBadge
+              bg={healthColor as 'success' | 'danger' | 'secondary'}
+              pill
+            >
               {healthStatus}
             </SubtleBadge>
             {health?.error && (
               <div className="text-danger fs-11 mt-1" title={health.error}>
-                {health.error.length > 40 ? health.error.slice(0, 40) + '...' : health.error}
+                {health.error.length > 40
+                  ? health.error.slice(0, 40) + '...'
+                  : health.error}
               </div>
             )}
           </Card.Body>
@@ -91,7 +98,9 @@ const ModuleDashboardCards: React.FC<ModuleDashboardCardsProps> = ({
               <div className="progress mt-2" style={{ height: '4px' }}>
                 <div
                   className={`progress-bar bg-${filled === total ? 'success' : 'warning'}`}
-                  style={{ width: `${total > 0 ? (filled / total) * 100 : 0}%` }}
+                  style={{
+                    width: `${total > 0 ? (filled / total) * 100 : 0}%`
+                  }}
                 />
               </div>
             )}
@@ -131,7 +140,7 @@ const ModuleDashboardCards: React.FC<ModuleDashboardCardsProps> = ({
                 ? new Date(mod.updatedAt).toLocaleDateString('en-GB', {
                     day: '2-digit',
                     month: 'short',
-                    year: 'numeric',
+                    year: 'numeric'
                   })
                 : ''}
             </div>

@@ -1,7 +1,10 @@
-
 import dayjs from 'dayjs';
 import * as echarts from 'echarts/core';
-import { getPosition, tooltipFormatter, TooltipParam } from 'helpers/echart-utils';
+import {
+  getPosition,
+  tooltipFormatter,
+  TooltipParam
+} from 'helpers/echart-utils';
 import { getPastDates, rgbaColor } from 'helpers/utils';
 import { useBreakpoints } from 'hooks/ui/useBreakpoints';
 import { useAppContext } from 'providers/AppProvider';
@@ -21,7 +24,13 @@ const getOptions = (getThemeColor: ThemeColorGetter, data: DealVsGoalData) => ({
     borderWidth: 1,
     formatter: tooltipFormatter,
     transitionDuration: 0,
-    position(pos: [number, number], params: TooltipParam | TooltipParam[], dom: HTMLElement, rect: { x: number; y: number; width: number; height: number }, size: { contentSize: [number, number]; viewSize: [number, number] }) {
+    position(
+      pos: [number, number],
+      params: TooltipParam | TooltipParam[],
+      dom: HTMLElement,
+      rect: { x: number; y: number; width: number; height: number },
+      size: { contentSize: [number, number]; viewSize: [number, number] }
+    ) {
       return getPosition(pos, params, dom, rect, size);
     }
   },

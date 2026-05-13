@@ -8,7 +8,7 @@ import Rules from './Rules';
 import Liability from './Liability';
 import Instructions from './Instructions';
 import Rights from './Rights';
-import useScrollSpy from 'react-use-scrollspy';
+import useScrollSpy from 'hooks/useScrollSpy';
 
 const PrivacyPolicy: React.FC = () => {
   const sectionRefs = [

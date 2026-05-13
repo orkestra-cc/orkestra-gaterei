@@ -1,4 +1,3 @@
-
 import merge from 'lodash.merge';
 import { useAppContext } from 'providers/AppProvider';
 import ReactEchart from './ReactEchart';
@@ -42,7 +41,11 @@ const getOption = (getThemeColor: (color: string) => string): any => ({
   grid: { right: '0', left: '0', bottom: '0', top: '0' }
 });
 
-const BasicECharts: React.FC<BasicEChartsProps> = ({ echarts, options, ...rest }) => {
+const BasicECharts: React.FC<BasicEChartsProps> = ({
+  echarts,
+  options,
+  ...rest
+}) => {
   const { getThemeColor } = useAppContext();
   return (
     <ReactEchart

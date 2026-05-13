@@ -16,16 +16,16 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	authzServices "github.com/orkestra/backend/internal/core/authz/services"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 	"github.com/orkestra/backend/internal/shared/remote"
 	"github.com/orkestra/backend/internal/shared/setup"
 	"github.com/orkestra/backend/internal/shared/systeminit"
@@ -116,6 +116,7 @@ func main() {
 		DB:           db,
 		RedisAdapter: redisAdapter,
 		Config:       cfg,
+		Platform:     cfg,
 		Logger:       logger,
 		Services:     svcRegistry,
 	}
@@ -140,7 +141,7 @@ func main() {
 		log.Fatalf("Failed to resolve module dependencies: %v", err)
 	}
 
-	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
 	}
 
@@ -197,6 +198,22 @@ func main() {
 			// alias. Adapt via a thin wrapper.
 			authzSvc.SetSessionRiskLookup(authzServices.SessionRiskLookup(lookup))
 		}
+	}
+	// MFA-enrollment lookup + auth policy reader feed RequireStepUp's
+	// no-factor branch. When the user has no factor: privileged roles
+	// get 403 mfa_enrollment_required; everyone else gets 401
+	// password_confirm_required so the frontend can collect a password
+	// reconfirm instead of asking for an MFA code that can't exist. All
+	// three setters are optional — when any is unwired, RequireStepUp
+	// falls back to today's "always emit step_up_required" behaviour.
+	if lookup, ok := module.GetTyped[authMiddleware.MFAEnrollmentLookup](svcRegistry, module.ServiceMFAEnrollmentLookup); ok {
+		authMW.SetMFAEnrollmentLookup(lookup)
+	}
+	if policy, ok := module.GetTyped[*services.AuthPolicyService](svcRegistry, module.ServiceAuthPolicy); ok && policy != nil {
+		authMW.SetStepUpPolicy(policy)
+	}
+	if userProv, ok := module.GetTyped[iface.UserProvider](svcRegistry, module.ServiceUserService); ok {
+		authMW.SetUserProvider(userProv)
 	}
 	deviceMW := authMiddleware.NewDeviceMiddleware(errorManager)
 

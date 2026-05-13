@@ -108,7 +108,7 @@ All access and refresh tokens are RS256-signed JWTs from the same key pair (`AUT
 ```
 
 - **`srole`** is the global system role (`super_admin` > `administrator` > `developer` > `manager` > `operator` > `guest`). Memberships carry org-scoped roles. **Permissions are not embedded** — they are resolved per-request by middleware via `authz.HasPermission`.
-- **`amr`** (RFC 8176) records the authentication method(s) used. `pwd` for password login, `oauth` for OAuth, `otp` after MFA verification, `webauthn` after a passkey assertion. `last_otp_at` lets `RequireStepUp(maxAge)` middleware demand a fresh MFA proof for catastrophic actions.
+- **`amr`** (RFC 8176) records the authentication method(s) used. `pwd` for password login, `oauth` for OAuth, `otp` after MFA verification, `webauthn` after a passkey assertion, `reauth` after a successful password reconfirm via `/me/password-confirm`. `last_otp_at` lets `RequireStepUp(maxAge)` middleware demand a fresh MFA proof (or fresh reconfirm) for catastrophic actions.
 - **`sid`** is the session UUID. Logout / change-password add it to a Redis-backed revocation set so the access token stops working instantly without waiting for the TTL.
 
 ### Refresh token
@@ -213,7 +213,15 @@ A privileged user logging in without an MFA factor has `User.MFAGraceStartedAt` 
 
 ### Step-up gate
 
-`RoleMiddleware.RequireStepUp(maxAge)` is a stricter variant applied to catastrophic / irreversible actions (`POST /v1/auth/{tier}/me/mfa/remove`, `POST /v1/admin/users/{id}/mfa/reset`). It checks both that `amr` contains an MFA marker **AND** that `last_otp_at` is within `maxAge` of now — a session-long MFA proof is not enough. On failure it returns `401 step_up_required` + `maxAgeSeconds`; the web frontend's global `StepUpModal` pauses the request, drives the user through `/v1/auth/{tier}/mfa/verify`, and replays the original.
+`RoleMiddleware.RequireStepUp(maxAge)` is a stricter variant applied to catastrophic / irreversible actions (`POST /v1/auth/{tier}/me/mfa/remove`, `POST /v1/admin/users/{id}/mfa/reset`, self-service OAuth link/unlink, session revoke / revoke-all, backup-code regeneration). It checks both that `amr` contains an MFA-or-reauth marker **AND** that `last_otp_at` is within `maxAge` of now — a session-long MFA proof is not enough.
+
+The middleware emits **three** distinct envelopes so the SPA can pick the right modal without a second round-trip:
+
+1. **`401 step_up_required`** — the user has at least one MFA factor enrolled; ask for an OTP / passkey. The global `StepUpModal` drives the user through `/v1/auth/{tier}/mfa/verify` (or WebAuthn assertion) and replays the original request.
+2. **`401 password_confirm_required`** — the user has **no** MFA factor enrolled AND the policy doesn't require them to. The `PasswordConfirmModal` posts the password to `POST /v1/auth/{tier}/me/password-confirm`; the response mints a fresh access token with `amr += "reauth"` + `last_otp_at = now`, and `RequireStepUp` accepts the `"reauth"` marker on the replay.
+3. **`403 mfa_enrollment_required`** — the user's role obligates MFA but they haven't enrolled. No bypass — the SPA nudges them to enroll a factor first.
+
+The enrollment branching is driven by `MFAEnrollmentLookup` (per-tier `MFAFactorRepository` lookups for TOTP + WebAuthn) and the live `AuthPolicyService.MFARequired` check. Any lookup error fails closed to `step_up_required` — a degraded Mongo must never silently weaken the gate.
 
 ### TOTP details
 

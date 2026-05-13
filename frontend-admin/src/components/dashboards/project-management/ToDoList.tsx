@@ -7,7 +7,7 @@ import IconItem from 'components/common/icon/IconItem';
 import classNames from 'classnames';
 import { Link } from 'react-router';
 import { todoList } from 'data/dashboard/projectManagement';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 
 interface ToDoItem {
   id: string | number;
@@ -73,7 +73,9 @@ const ToDoListItem = ({ item, index, handleChange }: ToDoListItemProps) => {
 };
 
 const ToDoList = () => {
-  const [todoItems, setTodoItems] = useState<ToDoItem[]>(todoList as ToDoItem[]);
+  const [todoItems, setTodoItems] = useState<ToDoItem[]>(
+    todoList as ToDoItem[]
+  );
   const handleChange = (id: string | number, completed: boolean) => {
     const updatedTodos = todoItems.map((item: ToDoItem) =>
       item.id === id ? { ...item, completed } : item
@@ -82,7 +84,7 @@ const ToDoList = () => {
   };
   return (
     <Card className="h-100">
-      <FalconCardHeader title="To Do List" titleTag="h6" />
+      <OrkestraCardHeader title="To Do List" titleTag="h6" />
       <Card.Body className="p-0 overflow-hidden">
         {todoItems.map((item: ToDoItem, index: number) => (
           <ToDoListItem
@@ -94,10 +96,7 @@ const ToDoList = () => {
         ))}
       </Card.Body>
       <Card.Footer className="p-0 bg-body-tertiary">
-        <Link
-          to="#!"
-          className="btn btn-link btn-sm w-100 py-2"
-        >
+        <Link to="#!" className="btn btn-link btn-sm w-100 py-2">
           <FontAwesomeIcon icon="plus" className="me-1 fs-11" />
           Add New Task
         </Link>

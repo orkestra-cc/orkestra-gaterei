@@ -13,7 +13,6 @@ import { tooltipFormatter } from 'helpers/echart-utils';
 import { getPastDates } from 'helpers/utils';
 import { useAppContext } from 'providers/AppProvider';
 
-
 // TypeScript interfaces
 interface BounceRateChartProps {
   data: number[];
@@ -28,7 +27,10 @@ echarts.use([
   LegendComponent
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: number[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: number[]
+) => ({
   color: getThemeColor('white'),
   title: {
     text: 'Bounce Rate',

@@ -1,4 +1,3 @@
-
 import { Card } from 'react-bootstrap';
 import greetingImage from '../../../assets/img/illustrations/ticket-greetings.png';
 import greetingsBg from '../../../assets/img/illustrations/ticket-greetings-bg.png';
@@ -13,7 +12,7 @@ function Greetings() {
         <div className="ms-n3">
           <h6 className="mb-1 text-primary">Welcome to</h6>
           <h4 className="mb-0 text-primary fw-bold">
-            Falcon
+            Orkestra
             <span className="text-info fw-medium"> Support Desk</span>
           </h4>
         </div>

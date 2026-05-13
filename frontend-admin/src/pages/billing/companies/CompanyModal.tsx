@@ -1,14 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Alert, Tab, Nav, Row, Col, Spinner } from 'react-bootstrap';
+import {
+  Modal,
+  Button,
+  Form,
+  Alert,
+  Tab,
+  Nav,
+  Row,
+  Col,
+  Spinner
+} from 'react-bootstrap';
 import {
   useCreateCompanyMutation,
   useUpdateCompanyMutation,
   useLazyGetBusinessRegistryConfigQuery,
-  useConfigureBusinessRegistryMutation,
+  useConfigureBusinessRegistryMutation
 } from 'store/api/billingApi';
-import type { Company, CreateCompanyInput, UpdateCompanyInput } from 'types/billing';
+import type {
+  Company,
+  CreateCompanyInput,
+  UpdateCompanyInput
+} from 'types/billing';
 import { REGIME_FISCALE_OPTIONS } from 'types/billing';
-import FalconCloseButton from 'components/common/FalconCloseButton';
+import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
 
 interface CompanyModalProps {
   show: boolean;
@@ -29,8 +43,10 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
   const isLoading = isCreating || isUpdating;
 
   // OpenAPI SDI Business Registry
-  const [getBusinessRegistryConfig, { data: businessRegistryConfig, isLoading: isLoadingConfig }] =
-    useLazyGetBusinessRegistryConfigQuery();
+  const [
+    getBusinessRegistryConfig,
+    { data: businessRegistryConfig, isLoading: isLoadingConfig }
+  ] = useLazyGetBusinessRegistryConfigQuery();
   const [configureBusinessRegistry, { isLoading: isConfiguringRegistry }] =
     useConfigureBusinessRegistryMutation();
 
@@ -73,7 +89,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
     beneficiario: '',
     istitutoFinanziario: '',
     notes: '',
-    isProfessional: false,
+    isProfessional: false
   };
 
   const [formData, setFormData] = useState<CreateCompanyInput>(initialFormData);
@@ -111,7 +127,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
         beneficiario: company.beneficiario || '',
         istitutoFinanziario: company.istitutoFinanziario || '',
         notes: company.notes || '',
-        isProfessional: company.isProfessional || false,
+        isProfessional: company.isProfessional || false
       });
     }
   }, [company, show]);
@@ -132,7 +148,9 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
   }, [businessRegistryConfig]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -144,9 +162,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
     setError('');
   };
 
-  const handleNumberChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev: CreateCompanyInput) => ({
       ...prev,
@@ -173,11 +189,13 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
         fiscalId: company.fiscalIdCode,
         email,
         applySignature,
-        applyLegalStorage,
+        applyLegalStorage
       }).unwrap();
 
       if (result.success) {
-        setOpenApiSuccess(result.message || 'Registrazione su OpenAPI SDI completata');
+        setOpenApiSuccess(
+          result.message || 'Registrazione su OpenAPI SDI completata'
+        );
         // Refresh config
         getBusinessRegistryConfig(company.fiscalIdCode);
       } else {
@@ -221,7 +239,11 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
       return;
     }
 
-    if (!formData.address.trim() || !formData.city.trim() || !formData.postalCode.trim()) {
+    if (
+      !formData.address.trim() ||
+      !formData.city.trim() ||
+      !formData.postalCode.trim()
+    ) {
       setError('Indirizzo, Città e CAP sono obbligatori');
       setActiveTab('address');
       return;
@@ -256,7 +278,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
           beneficiario: formData.beneficiario,
           istitutoFinanziario: formData.istitutoFinanziario,
           notes: formData.notes,
-          isProfessional: formData.isProfessional,
+          isProfessional: formData.isProfessional
         };
         await updateCompany({ id: company.id, data: updateData }).unwrap();
       } else {
@@ -266,7 +288,10 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
       handleClose();
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      setError(err?.data?.message || `Errore durante ${isEditMode ? 'il salvataggio' : 'la creazione'} dell'azienda`);
+      setError(
+        err?.data?.message ||
+          `Errore durante ${isEditMode ? 'il salvataggio' : 'la creazione'} dell'azienda`
+      );
     }
   };
 
@@ -288,7 +313,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
         <Modal.Title>
           {isEditMode ? 'Modifica Azienda' : 'Nuova Azienda'}
         </Modal.Title>
-        <FalconCloseButton onClick={handleClose} />
+        <OrkestraCloseButton onClick={handleClose} />
       </Modal.Header>
       <Form onSubmit={handleSubmit}>
         <Modal.Body>
@@ -298,7 +323,10 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
             </Alert>
           )}
 
-          <Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'general')}>
+          <Tab.Container
+            activeKey={activeTab}
+            onSelect={k => setActiveTab(k || 'general')}
+          >
             <Nav variant="tabs" className="mb-3">
               <Nav.Item>
                 <Nav.Link eventKey="general">Dati Generali</Nav.Link>
@@ -397,7 +425,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                     onChange={handleChange}
                     required
                   >
-                    {REGIME_FISCALE_OPTIONS.map((option) => (
+                    {REGIME_FISCALE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -416,8 +444,9 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                       onChange={handleChange}
                     />
                     <Form.Text className="text-muted">
-                      Attiva per professionisti in regime forfettario: disabilita ritenuta d'acconto
-                      e pre-compila la cassa previdenziale in fattura
+                      Attiva per professionisti in regime forfettario:
+                      disabilita ritenuta d'acconto e pre-compila la cassa
+                      previdenziale in fattura
                     </Form.Text>
                   </Form.Group>
                 )}
@@ -596,8 +625,9 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
 
                 <Alert variant="info" className="mt-3">
                   <small>
-                    I dati REA (Repertorio Economico Amministrativo) sono obbligatori
-                    per le società di capitali e cooperative iscritte al Registro Imprese.
+                    I dati REA (Repertorio Economico Amministrativo) sono
+                    obbligatori per le società di capitali e cooperative
+                    iscritte al Registro Imprese.
                   </small>
                 </Alert>
               </Tab.Pane>
@@ -738,12 +768,20 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
               {/* OpenAPI SDI Tab */}
               <Tab.Pane eventKey="openapi">
                 {openApiError && (
-                  <Alert variant="danger" dismissible onClose={() => setOpenApiError('')}>
+                  <Alert
+                    variant="danger"
+                    dismissible
+                    onClose={() => setOpenApiError('')}
+                  >
                     {openApiError}
                   </Alert>
                 )}
                 {openApiSuccess && (
-                  <Alert variant="success" dismissible onClose={() => setOpenApiSuccess('')}>
+                  <Alert
+                    variant="success"
+                    dismissible
+                    onClose={() => setOpenApiSuccess('')}
+                  >
                     {openApiSuccess}
                   </Alert>
                 )}
@@ -751,10 +789,13 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                 {isEditMode ? (
                   <>
                     <Alert variant="info" className="mb-3">
-                      <strong>Registrazione Business Registry OpenAPI SDI</strong>
+                      <strong>
+                        Registrazione Business Registry OpenAPI SDI
+                      </strong>
                       <p className="mb-0 mt-1">
-                        Prima di poter inviare fatture elettroniche tramite OpenAPI SDI,
-                        è necessario registrare l'anagrafica aziendale.
+                        Prima di poter inviare fatture elettroniche tramite
+                        OpenAPI SDI, è necessario registrare l'anagrafica
+                        aziendale.
                       </p>
                     </Alert>
 
@@ -763,8 +804,18 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                         <strong>Stato: Registrato</strong>
                         <ul className="mb-0 mt-2">
                           <li>Email: {businessRegistryConfig.email}</li>
-                          <li>Firma digitale: {businessRegistryConfig.applySignature ? 'Attiva' : 'Non attiva'}</li>
-                          <li>Conservazione: {businessRegistryConfig.applyLegalStorage ? 'Attiva' : 'Non attiva'}</li>
+                          <li>
+                            Firma digitale:{' '}
+                            {businessRegistryConfig.applySignature
+                              ? 'Attiva'
+                              : 'Non attiva'}
+                          </li>
+                          <li>
+                            Conservazione:{' '}
+                            {businessRegistryConfig.applyLegalStorage
+                              ? 'Attiva'
+                              : 'Non attiva'}
+                          </li>
                         </ul>
                       </Alert>
                     )}
@@ -776,7 +827,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                           id="applySignature"
                           label="Applica firma digitale"
                           checked={applySignature}
-                          onChange={(e) => setApplySignature(e.target.checked)}
+                          onChange={e => setApplySignature(e.target.checked)}
                         />
                         <Form.Text className="text-muted d-block mt-1">
                           Firma digitalmente le fatture prima dell'invio
@@ -788,7 +839,7 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                           id="applyLegalStorage"
                           label="Conservazione sostitutiva"
                           checked={applyLegalStorage}
-                          onChange={(e) => setApplyLegalStorage(e.target.checked)}
+                          onChange={e => setApplyLegalStorage(e.target.checked)}
                         />
                         <Form.Text className="text-muted d-block mt-1">
                           Archivia le fatture in conservazione a norma
@@ -798,7 +849,12 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
 
                     <Alert variant="secondary" className="mb-3">
                       <small>
-                        L'email per le notifiche SDI sarà: <strong>{formData.email || formData.pec || '(non configurata)'}</strong>
+                        L'email per le notifiche SDI sarà:{' '}
+                        <strong>
+                          {formData.email ||
+                            formData.pec ||
+                            '(non configurata)'}
+                        </strong>
                         <br />
                         Per modificarla, vai alla tab "Contatti".
                       </small>
@@ -827,7 +883,8 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
                   <Alert variant="warning">
                     <strong>Azienda non ancora salvata</strong>
                     <p className="mb-0 mt-1">
-                      Salva prima l'azienda per poterla registrare su OpenAPI SDI.
+                      Salva prima l'azienda per poterla registrare su OpenAPI
+                      SDI.
                     </p>
                   </Alert>
                 )}
@@ -836,13 +893,21 @@ const CompanyModal: React.FC<CompanyModalProps> = ({
           </Tab.Container>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={handleClose} disabled={isLoading}>
+          <Button
+            variant="secondary"
+            onClick={handleClose}
+            disabled={isLoading}
+          >
             Annulla
           </Button>
           <Button variant="primary" type="submit" disabled={isLoading}>
             {isLoading
-              ? (isEditMode ? 'Salvataggio...' : 'Creazione...')
-              : (isEditMode ? 'Salva Modifiche' : 'Crea Azienda')}
+              ? isEditMode
+                ? 'Salvataggio...'
+                : 'Creazione...'
+              : isEditMode
+                ? 'Salva Modifiche'
+                : 'Crea Azienda'}
           </Button>
         </Modal.Footer>
       </Form>

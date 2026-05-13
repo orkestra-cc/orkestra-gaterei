@@ -19,9 +19,12 @@ import { EnrichmentPanel } from './CompanyEnrichment';
 
 const CompanyLookupSearch = () => {
   const [taxCode, setTaxCode] = useState('');
-  const [displayResult, setDisplayResult] = useState<CompanyLookup | null>(null);
+  const [displayResult, setDisplayResult] = useState<CompanyLookup | null>(
+    null
+  );
 
-  const [triggerLookup, { isFetching, error, isSuccess }] = useLazyLookupCompanyQuery();
+  const [triggerLookup, { isFetching, error, isSuccess }] =
+    useLazyLookupCompanyQuery();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +40,8 @@ const CompanyLookupSearch = () => {
     }
   };
 
-  const isValidLength = taxCode.trim().length >= 11 && taxCode.trim().length <= 16;
+  const isValidLength =
+    taxCode.trim().length >= 11 && taxCode.trim().length <= 16;
 
   const getErrorMessage = () => {
     if (!error) return null;
@@ -70,7 +74,7 @@ const CompanyLookupSearch = () => {
                   type="text"
                   placeholder="Es. 12485671007"
                   value={taxCode}
-                  onChange={(e) => setTaxCode(e.target.value.toUpperCase())}
+                  onChange={e => setTaxCode(e.target.value.toUpperCase())}
                   className="font-monospace"
                   maxLength={16}
                 />
@@ -110,9 +114,13 @@ const CompanyLookupSearch = () => {
                   <div className="d-flex align-items-center mb-3">
                     <h5 className="mb-0 me-2">{result.companyName}</h5>
                     <SubtleBadge
-                      bg={(ACTIVITY_STATUS_COLORS[result.activityStatus] || 'secondary') as BadgeColor}
+                      bg={
+                        (ACTIVITY_STATUS_COLORS[result.activityStatus] ||
+                          'secondary') as BadgeColor
+                      }
                     >
-                      {ACTIVITY_STATUS_LABELS[result.activityStatus] || result.activityStatus}
+                      {ACTIVITY_STATUS_LABELS[result.activityStatus] ||
+                        result.activityStatus}
                     </SubtleBadge>
                   </div>
                 </Col>
@@ -124,13 +132,17 @@ const CompanyLookupSearch = () => {
                 <Col sm={6} md={4}>
                   <div className="mb-2">
                     <small className="text-muted d-block">Codice Fiscale</small>
-                    <span className="font-monospace fw-semibold">{result.taxCode}</span>
+                    <span className="font-monospace fw-semibold">
+                      {result.taxCode}
+                    </span>
                   </div>
                 </Col>
                 <Col sm={6} md={4}>
                   <div className="mb-2">
                     <small className="text-muted d-block">Partita IVA</small>
-                    <span className="font-monospace fw-semibold">{result.vatCode}</span>
+                    <span className="font-monospace fw-semibold">
+                      {result.vatCode}
+                    </span>
                   </div>
                 </Col>
                 <Col sm={6} md={4}>
@@ -146,7 +158,9 @@ const CompanyLookupSearch = () => {
                     <small className="text-muted d-block">Indirizzo</small>
                     <span>
                       {result.address.street}
-                      {result.address.streetNumber ? ` ${result.address.streetNumber}` : ''}
+                      {result.address.streetNumber
+                        ? ` ${result.address.streetNumber}`
+                        : ''}
                     </span>
                   </div>
                 </Col>
@@ -155,13 +169,17 @@ const CompanyLookupSearch = () => {
                     <small className="text-muted d-block">Sede</small>
                     <span>
                       {result.address.zipCode} {result.address.town}
-                      {result.address.province ? ` (${result.address.province})` : ''}
+                      {result.address.province
+                        ? ` (${result.address.province})`
+                        : ''}
                     </span>
                   </div>
                 </Col>
                 <Col sm={6} md={4}>
                   <div className="mb-2">
-                    <small className="text-muted d-block">Data Registrazione</small>
+                    <small className="text-muted d-block">
+                      Data Registrazione
+                    </small>
                     <span>
                       {result.registrationDate
                         ? formatItalianDate(result.registrationDate)
@@ -173,10 +191,7 @@ const CompanyLookupSearch = () => {
 
               {/* Enrichment */}
               <hr className="my-3" />
-              <EnrichmentPanel
-                company={result}
-                onEnriched={setDisplayResult}
-              />
+              <EnrichmentPanel company={result} onEnriched={setDisplayResult} />
             </Card.Body>
           </Card>
         )}

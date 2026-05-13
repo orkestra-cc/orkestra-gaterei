@@ -33,7 +33,7 @@ const TenantTableHeader: React.FC<Props> = ({
   onPlanChange,
   onCreateClick,
   title = 'Tenant Management',
-  createLabel = 'New Tenant',
+  createLabel = 'New Tenant'
 }) => {
   return (
     <Row className="align-items-center g-3">
@@ -46,7 +46,7 @@ const TenantTableHeader: React.FC<Props> = ({
           size="sm"
           placeholder="Search by name, slug, member email, or surname..."
           value={searchTerm}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={e => onSearchChange(e.target.value)}
         />
         {searchActive && (
           <Form.Check
@@ -54,7 +54,7 @@ const TenantTableHeader: React.FC<Props> = ({
             id="tenant-search-include-deleted-users"
             label="Include soft-deleted users in member matches"
             checked={includeDeletedUsers}
-            onChange={(e) => onIncludeDeletedUsersChange(e.target.checked)}
+            onChange={e => onIncludeDeletedUsersChange(e.target.checked)}
             className="fs-11 text-muted mt-1"
           />
         )}
@@ -63,7 +63,7 @@ const TenantTableHeader: React.FC<Props> = ({
         <Form.Select
           size="sm"
           value={planFilter}
-          onChange={(e) => onPlanChange(e.target.value)}
+          onChange={e => onPlanChange(e.target.value)}
         >
           <option value="">All Plans</option>
           <option value="free">Free</option>

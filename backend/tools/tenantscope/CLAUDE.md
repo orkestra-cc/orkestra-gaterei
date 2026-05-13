@@ -130,6 +130,6 @@ printed to stderr and visible in the job log).
 
 - [ADR-0001 — Unified Tenant model](../../../docs/adr/0001-unified-tenant-model.md)
 - [ADR-0002 — Metrics label schema](../../../docs/adr/0002-metrics-label-schema.md)
-- [`shared/tenantrepo/scope.go`](../../internal/shared/tenantrepo/scope.go) — the helpers the analyzer accepts as scope sources
+- [`shared/tenantrepo/scope.go`](../../pkg/sdk/tenantrepo/scope.go) — the helpers the analyzer accepts as scope sources
 - [`shared/middleware/auth.go`](../../internal/shared/middleware/auth.go) — populates the tenant context the helpers read
 - [`authz/CLAUDE.md`](../../internal/core/authz/CLAUDE.md) — the 9-invariant checklist this analyzer enforces #1 of

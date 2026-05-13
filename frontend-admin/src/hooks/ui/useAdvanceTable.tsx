@@ -12,7 +12,10 @@ import {
 } from '@tanstack/react-table';
 import IndeterminateCheckbox from 'components/common/advance-table/IndeterminateCheckbox';
 
-const selectionColumn = <T,>(selectionColumnWidth?: string | number, selectionHeaderClassname?: string): ColumnDef<T> => {
+const selectionColumn = <T,>(
+  selectionColumnWidth?: string | number,
+  selectionHeaderClassname?: string
+): ColumnDef<T> => {
   return {
     id: 'selection',
     accessorKey: '',
@@ -83,7 +86,11 @@ const useAdvanceTable = <T,>({
   };
 
   // Custom global filter function for better search
-  const globalFilterFn = (row: Row<T>, _columnId: string, filterValue: string) => {
+  const globalFilterFn = (
+    row: Row<T>,
+    _columnId: string,
+    filterValue: string
+  ) => {
     const search = filterValue.toLowerCase();
 
     // Get all row values

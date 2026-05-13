@@ -7,7 +7,7 @@ import SubtleBadge from 'components/common/SubtleBadge';
 import type { BadgeColor } from 'components/common/SubtleBadge';
 import {
   complianceApi,
-  useGetSoc2EvidenceQuery,
+  useGetSoc2EvidenceQuery
 } from 'store/api/complianceApi';
 import type { Soc2Evidence } from 'types/compliance';
 
@@ -20,7 +20,7 @@ interface StatCardProps {
   badge?: { text: string; bg: BadgeColor };
 }
 
-// Reused Falcon-style card pattern from /admin/tenants. Kept local so the
+// Reused Orkestra-style card pattern from /admin/tenants. Kept local so the
 // SOC2 page owns its visual language — stat cards elsewhere tend to drift.
 const StatCard: React.FC<StatCardProps> = ({
   title,
@@ -28,7 +28,7 @@ const StatCard: React.FC<StatCardProps> = ({
   icon,
   accent,
   footnote,
-  badge,
+  badge
 }) => (
   <Card className="h-100 shadow-none border">
     <Card.Body>
@@ -68,7 +68,12 @@ interface ControlRowProps {
 // Each control rendered with a badge + an expandable <details> holding the
 // raw backend payload. Auditors want to see the raw numbers — the summary
 // is for operators at-a-glance, the payload is the receipt.
-const ControlRow: React.FC<ControlRowProps> = ({ id, name, status, payload }) => (
+const ControlRow: React.FC<ControlRowProps> = ({
+  id,
+  name,
+  status,
+  payload
+}) => (
   <tr>
     <td className="ps-3 fw-semibold">
       <code className="fs-11 me-2">{id}</code>
@@ -107,14 +112,14 @@ const statusColor: Record<StatusKey, BadgeColor> = {
   pass: 'success',
   warn: 'warning',
   alert: 'danger',
-  unknown: 'secondary',
+  unknown: 'secondary'
 };
 
 const statusLabel: Record<StatusKey, string> = {
   pass: 'Healthy',
   warn: 'Attention',
   alert: 'Critical',
-  unknown: 'No data',
+  unknown: 'No data'
 };
 
 interface ControlViewModel {
@@ -163,7 +168,7 @@ const CONTROL_NAMES: Record<string, string> = {
   'CC6.6_account_management': 'Account management — MFA coverage',
   'CC6.8_data_protection': 'Data protection — KMS key lifecycle',
   'CC7.2_monitoring': 'Monitoring — failed-login trend',
-  'CC7.2_audit_coverage': 'Monitoring — audit trail coverage',
+  'CC7.2_audit_coverage': 'Monitoring — audit trail coverage'
 };
 
 function buildControlViewModels(ev?: Soc2Evidence): ControlViewModel[] {
@@ -172,7 +177,7 @@ function buildControlViewModels(ev?: Soc2Evidence): ControlViewModel[] {
     id,
     name: CONTROL_NAMES[id] ?? id,
     status: classifyControl(id, payload),
-    payload,
+    payload
   }));
 }
 
@@ -184,8 +189,10 @@ const Soc2EvidencePage: React.FC = () => {
   const summary = data?.summary ?? {};
   const privileged = summary.privileged_users ?? 0;
   const privMFA = summary.privileged_with_mfa ?? 0;
-  const coveragePct = privileged === 0 ? 100 : Math.round((privMFA / privileged) * 100);
-  const coverageBadge: BadgeColor = coveragePct === 100 ? 'success' : coveragePct >= 80 ? 'warning' : 'danger';
+  const coveragePct =
+    privileged === 0 ? 100 : Math.round((privMFA / privileged) * 100);
+  const coverageBadge: BadgeColor =
+    coveragePct === 100 ? 'success' : coveragePct >= 80 ? 'warning' : 'danger';
   const failed24 = summary.failed_logins_24h ?? 0;
   const auditRows = summary.audit_rows_24h ?? 0;
   const kmsActive = summary.kms_keys_active ?? 0;
@@ -196,7 +203,8 @@ const Soc2EvidencePage: React.FC = () => {
       <Card>
         <Card.Body className="text-center text-danger py-5">
           Failed to load SOC2 evidence. You need the{' '}
-          <code>system.compliance.audit.read</code> permission to view this page.
+          <code>system.compliance.audit.read</code> permission to view this
+          page.
         </Card.Body>
       </Card>
     );
@@ -210,13 +218,17 @@ const Soc2EvidencePage: React.FC = () => {
             <Card.Body className="d-flex justify-content-between align-items-center flex-wrap gap-3">
               <div>
                 <h5 className="mb-1">
-                  <FontAwesomeIcon icon="shield-alt" className="me-2 text-primary" />
+                  <FontAwesomeIcon
+                    icon="shield-alt"
+                    className="me-2 text-primary"
+                  />
                   SOC2 Evidence
                 </h5>
                 <p className="fs-10 mb-0 text-body-secondary">
-                  Point-in-time aggregate of the CC-class controls auditors commonly sample.
-                  Every refresh recomputes from source — two auditors hitting this one minute
-                  apart see the same answer when state hasn't changed.
+                  Point-in-time aggregate of the CC-class controls auditors
+                  commonly sample. Every refresh recomputes from source — two
+                  auditors hitting this one minute apart see the same answer
+                  when state hasn't changed.
                 </p>
                 {data?.generatedAt && (
                   <p className="fs-11 mb-0 text-body-tertiary mt-1">
@@ -232,8 +244,8 @@ const Soc2EvidencePage: React.FC = () => {
                   // like it re-runs evidence collection end-to-end.
                   dispatch(
                     complianceApi.util.invalidateTags([
-                      { type: 'Soc2Evidence', id: 'SNAPSHOT' },
-                    ]),
+                      { type: 'Soc2Evidence', id: 'SNAPSHOT' }
+                    ])
                   );
                   refetch();
                 }}
@@ -241,7 +253,8 @@ const Soc2EvidencePage: React.FC = () => {
               >
                 {isFetching ? (
                   <>
-                    <Spinner animation="border" size="sm" className="me-2" /> Regenerating…
+                    <Spinner animation="border" size="sm" className="me-2" />{' '}
+                    Regenerating…
                   </>
                 ) : (
                   <>
@@ -289,7 +302,9 @@ const Soc2EvidencePage: React.FC = () => {
             title="Failed logins (24h)"
             value={failed24}
             icon="bell"
-            accent={failed24 < 50 ? 'success' : failed24 < 500 ? 'warning' : 'danger'}
+            accent={
+              failed24 < 50 ? 'success' : failed24 < 500 ? 'warning' : 'danger'
+            }
             footnote="CC7.2 — spikes indicate credential stuffing or integration drift"
           />
         </Col>
@@ -353,12 +368,15 @@ const Soc2EvidencePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {controls.map((c) => (
+                {controls.map(c => (
                   <ControlRow
                     key={c.id}
                     id={c.id}
                     name={c.name}
-                    status={{ label: statusLabel[c.status], color: statusColor[c.status] }}
+                    status={{
+                      label: statusLabel[c.status],
+                      color: statusColor[c.status]
+                    }}
                     payload={c.payload}
                   />
                 ))}

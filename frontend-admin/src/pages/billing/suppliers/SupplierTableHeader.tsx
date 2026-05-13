@@ -4,13 +4,19 @@ import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 import IconButton from 'components/common/IconButton';
 import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableSearchBox';
 import { useState } from 'react';
-import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
+import {
+  arrayToCSV,
+  downloadCSV,
+  formatDateForCSV,
+  generateTimestampedFilename
+} from 'utils/csvExport';
 import type { Supplier } from 'types/billing';
 import { getPartyDisplayName, REGIME_FISCALE_LABELS } from 'types/billing';
 import SupplierModal from './SupplierModal';
 
 const SupplierTableHeader = () => {
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
+  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
+    useAdvanceTableContext();
   const [selectedStatus, setSelectedStatus] = useState<string>('Tutti');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -36,23 +42,23 @@ const SupplierTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const supplier = row.original as Supplier;
       return {
-        'Denominazione': getPartyDisplayName(supplier),
+        Denominazione: getPartyDisplayName(supplier),
         'P.IVA': supplier.fiscalIdCode,
         'Codice Fiscale': supplier.codiceFiscale || '',
-        'Tipo': supplier.isCompany ? 'Azienda' : 'Persona fisica',
+        Tipo: supplier.isCompany ? 'Azienda' : 'Persona fisica',
         'Regime Fiscale': supplier.regimeFiscale
           ? `${supplier.regimeFiscale} - ${REGIME_FISCALE_LABELS[supplier.regimeFiscale]}`
           : '',
-        'Indirizzo': supplier.address,
-        'Città': supplier.city,
-        'Provincia': supplier.province || '',
-        'CAP': supplier.postalCode,
-        'Email': supplier.email || '',
-        'PEC': supplier.pec || '',
-        'Telefono': supplier.phone || '',
-        'IBAN': supplier.iban || '',
-        'Stato': supplier.isActive ? 'Attivo' : 'Inattivo',
-        'Creato il': formatDateForCSV(supplier.createdAt),
+        Indirizzo: supplier.address,
+        Città: supplier.city,
+        Provincia: supplier.province || '',
+        CAP: supplier.postalCode,
+        Email: supplier.email || '',
+        PEC: supplier.pec || '',
+        Telefono: supplier.phone || '',
+        IBAN: supplier.iban || '',
+        Stato: supplier.isActive ? 'Attivo' : 'Inattivo',
+        'Creato il': formatDateForCSV(supplier.createdAt)
       };
     });
 
@@ -71,7 +77,7 @@ const SupplierTableHeader = () => {
       'Telefono',
       'IBAN',
       'Stato',
-      'Creato il',
+      'Creato il'
     ];
 
     const csv = arrayToCSV(csvData, headers);
@@ -96,15 +102,19 @@ const SupplierTableHeader = () => {
       <div className="d-flex align-items-center justify-content-between justify-content-lg-end px-x1">
         <Dropdown className="font-sans-serif">
           <Dropdown.Toggle
-            variant="falcon-default"
+            variant="orkestra-default"
             size="sm"
             className="text-600"
           >
-            <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
+            <FontAwesomeIcon
+              icon="filter"
+              transform="shrink-4"
+              className="me-2"
+            />
             <span className="d-none d-sm-inline-block">{selectedStatus}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
-            {statusFilters.map((status) => (
+            {statusFilters.map(status => (
               <Dropdown.Item
                 key={status}
                 onClick={() => handleStatusFilter(status)}
@@ -136,7 +146,7 @@ const SupplierTableHeader = () => {
             </Form.Select>
             <Button
               type="button"
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               className="ms-2"
             >
@@ -146,7 +156,7 @@ const SupplierTableHeader = () => {
         ) : (
           <div id="supplier-actions">
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="plus"
               transform="shrink-3"
@@ -158,7 +168,7 @@ const SupplierTableHeader = () => {
               </span>
             </IconButton>
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
@@ -171,7 +181,7 @@ const SupplierTableHeader = () => {
               </span>
             </IconButton>
             <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
-              <Dropdown.Toggle variant="falcon-default" size="sm">
+              <Dropdown.Toggle variant="orkestra-default" size="sm">
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
               </Dropdown.Toggle>
 
@@ -183,7 +193,9 @@ const SupplierTableHeader = () => {
                   <Dropdown.Item>Esporta</Dropdown.Item>
                   <Dropdown.Item>Importa</Dropdown.Item>
                   <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">Elimina Tutti</Dropdown.Item>
+                  <Dropdown.Item className="text-danger">
+                    Elimina Tutti
+                  </Dropdown.Item>
                 </div>
               </Dropdown.Menu>
             </Dropdown>

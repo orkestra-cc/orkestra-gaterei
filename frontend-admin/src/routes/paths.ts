@@ -119,9 +119,7 @@ export interface AppPaths {
   associations: string;
   invitePeople: string;
   privacyPolicy: string;
-  authTest: string;
   authStateTest: string;
-  roleNavigationTester: string;
   userManagement: string;
   moduleManagement: string;
   roleManagement: string;
@@ -397,9 +395,6 @@ export interface AppPaths {
   refDocDesignFile: string;
   refDocChangelog: string;
   refDocMigration: string;
-  // Reference Test
-  refTestAuth: string;
-  refTestRoleNavigation: string;
 }
 
 const paths: AppPaths = {
@@ -449,9 +444,7 @@ const paths: AppPaths = {
   associations: `/${rootPaths.miscRoot}/associations`,
   invitePeople: `/${rootPaths.miscRoot}/invite-people`,
   privacyPolicy: `/${rootPaths.miscRoot}/privacy-policy`,
-  authTest: `/${rootPaths.miscRoot}/auth-test`,
   authStateTest: `/${rootPaths.miscRoot}/auth-state-test`,
-  roleNavigationTester: '/test/role-navigation',
   userManagement: `/${rootPaths.adminRoot}/users`,
   moduleManagement: `/${rootPaths.adminRoot}/modules`,
   roleManagement: `/${rootPaths.adminRoot}/roles`,
@@ -727,10 +720,7 @@ const paths: AppPaths = {
   refDocFaq: `/${rootPaths.referenceRoot}/documentation/faq`,
   refDocDesignFile: `/${rootPaths.referenceRoot}/documentation/design-file`,
   refDocChangelog: `/${rootPaths.referenceRoot}/documentation/changelog`,
-  refDocMigration: `/${rootPaths.referenceRoot}/documentation/migration`,
-  // Reference Test
-  refTestAuth: `/${rootPaths.referenceRoot}/test/auth-test`,
-  refTestRoleNavigation: `/${rootPaths.referenceRoot}/test/role-navigation`
+  refDocMigration: `/${rootPaths.referenceRoot}/documentation/migration`
 };
 
 export default paths;

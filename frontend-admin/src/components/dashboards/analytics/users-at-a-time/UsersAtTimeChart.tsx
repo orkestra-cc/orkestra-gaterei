@@ -12,7 +12,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { getPastDates, getRandomNumber, rgbaColor } from 'helpers/utils';
 import { useAppContext } from 'providers/AppProvider';
 
-
 echarts.use([
   TitleComponent,
   TooltipComponent,
@@ -74,8 +73,8 @@ const tooltipFormatter = (params: TooltipParams) => {
             ${dayjs()
               .hour(params.data[1])
               .format('hA')} : <span class='text-800 fw-semibold'>${
-    params.data[2]
-  }</span>
+              params.data[2]
+            }</span>
           </p>
         </div>
       </div>`;

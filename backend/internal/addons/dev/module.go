@@ -2,11 +2,11 @@ package dev
 
 import (
 	"log/slog"
+	"os"
 
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/dev/handlers"
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type DevModule struct {
@@ -18,10 +18,13 @@ type DevModule struct {
 func NewModule() *DevModule { return &DevModule{} }
 
 func (m *DevModule) Name() string        { return "dev" }
-func (m *DevModule) DisplayName() string  { return "Development Tools" }
-func (m *DevModule) Description() string  { return "Dev token generation and testing utilities" }
+func (m *DevModule) DisplayName() string { return "Development Tools" }
+func (m *DevModule) Description() string { return "Dev token generation and testing utilities" }
 
-func (m *DevModule) Enabled(cfg *config.Config) bool { return !cfg.IsProduction() }
+// Enabled keeps dev disabled in production. Sourced directly from the ENV
+// env var (matches shared/config's Server.Environment loader) so no
+// shared/config dependency is needed for the SDK split.
+func (m *DevModule) Enabled() bool { return os.Getenv("ENV") != "production" }
 
 func (m *DevModule) Dependencies() []string { return []string{"auth"} }
 func (m *DevModule) RequiredServices() []module.ServiceKey {
@@ -34,7 +37,7 @@ func (m *DevModule) RequiredServices() []module.ServiceKey {
 func (m *DevModule) Init(deps *module.Dependencies) error {
 	operatorJWT := module.MustGetTyped[iface.JWTProvider](deps.Services, module.ServiceOperatorJWTService)
 	clientJWT := module.MustGetTyped[iface.JWTProvider](deps.Services, module.ServiceClientJWTService)
-	m.handler = handlers.NewDevTokenHandler(operatorJWT, clientJWT, deps.Config)
+	m.handler = handlers.NewDevTokenHandler(operatorJWT, clientJWT, deps.Platform)
 	m.logger = deps.Logger
 	return nil
 }

@@ -12,7 +12,7 @@ interface Props {
 const outcomeColor: Record<AuditOutcome, BadgeColor> = {
   success: 'success',
   failure: 'danger',
-  denied: 'warning',
+  denied: 'warning'
 };
 
 // The modal surfaces the raw audit event so operators can verify the
@@ -38,16 +38,22 @@ const AuditEventDetailModal: React.FC<Props> = ({ event, show, onHide }) => {
           </dd>
 
           <dt className="col-sm-3 text-body-secondary">Timestamp</dt>
-          <dd className="col-sm-9">{new Date(event.timestamp).toISOString()}</dd>
+          <dd className="col-sm-9">
+            {new Date(event.timestamp).toISOString()}
+          </dd>
 
           <dt className="col-sm-3 text-body-secondary">Actor</dt>
           <dd className="col-sm-9">
             <SubtleBadge bg="info" pill className="me-2">
               {event.actorType}
             </SubtleBadge>
-            {event.actorEmail && <span className="me-2">{event.actorEmail}</span>}
+            {event.actorEmail && (
+              <span className="me-2">{event.actorEmail}</span>
+            )}
             {event.actorUserId && (
-              <code className="fs-11 text-body-tertiary">{event.actorUserId}</code>
+              <code className="fs-11 text-body-tertiary">
+                {event.actorUserId}
+              </code>
             )}
             {!event.actorEmail && !event.actorUserId && (
               <span className="text-body-tertiary">—</span>
@@ -60,7 +66,9 @@ const AuditEventDetailModal: React.FC<Props> = ({ event, show, onHide }) => {
               <>
                 <code className="fs-11">{event.tenantId}</code>
                 {event.tenantKind && (
-                  <span className="text-body-tertiary ms-2">({event.tenantKind})</span>
+                  <span className="text-body-tertiary ms-2">
+                    ({event.tenantKind})
+                  </span>
                 )}
               </>
             ) : (
@@ -74,7 +82,9 @@ const AuditEventDetailModal: React.FC<Props> = ({ event, show, onHide }) => {
               <>
                 <span className="me-2">{event.resourceType}</span>
                 {event.resourceId && (
-                  <code className="fs-11 text-body-tertiary">{event.resourceId}</code>
+                  <code className="fs-11 text-body-tertiary">
+                    {event.resourceId}
+                  </code>
                 )}
               </>
             ) : (

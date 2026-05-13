@@ -4,15 +4,24 @@ import { useAdvanceTableContext } from 'providers/AdvanceTableProvider';
 import IconButton from 'components/common/IconButton';
 import AdvanceTableSearchBox from 'components/common/advance-table/AdvanceTableSearchBox';
 import { useState } from 'react';
-import { arrayToCSV, downloadCSV, formatDateForCSV, generateTimestampedFilename } from 'utils/csvExport';
+import {
+  arrayToCSV,
+  downloadCSV,
+  formatDateForCSV,
+  generateTimestampedFilename
+} from 'utils/csvExport';
 import type { SDINotification, NotificationType } from 'types/billing';
 import { NOTIFICATION_TYPE_LABELS } from 'types/billing';
 
 const NotificationTableHeader = () => {
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } = useAdvanceTableContext();
+  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
+    useAdvanceTableContext();
   const [selectedFilter, setSelectedFilter] = useState<string>('Tutti');
 
-  const filters: { label: string; value: NotificationType | 'all' | 'unprocessed' }[] = [
+  const filters: {
+    label: string;
+    value: NotificationType | 'all' | 'unprocessed';
+  }[] = [
     { label: 'Tutti', value: 'all' },
     { label: 'Da Processare', value: 'unprocessed' },
     { label: 'Ricevuta Consegna (RC)', value: 'RC' },
@@ -20,10 +29,13 @@ const NotificationTableHeader = () => {
     { label: 'Mancata Consegna (MC)', value: 'MC' },
     { label: 'Notifica Esito (NE)', value: 'NE' },
     { label: 'Decorrenza Termini (DT)', value: 'DT' },
-    { label: 'Attestazione (AT)', value: 'AT' },
+    { label: 'Attestazione (AT)', value: 'AT' }
   ];
 
-  const handleFilter = (filter: { label: string; value: NotificationType | 'all' | 'unprocessed' }) => {
+  const handleFilter = (filter: {
+    label: string;
+    value: NotificationType | 'all' | 'unprocessed';
+  }) => {
     setSelectedFilter(filter.label);
     if (filter.value === 'all') {
       setColumnFilters([]);
@@ -40,15 +52,17 @@ const NotificationTableHeader = () => {
     const csvData = filteredRows.map((row: any) => {
       const notification = row.original as SDINotification;
       return {
-        'Tipo': NOTIFICATION_TYPE_LABELS[notification.notificationType],
-        'Data': formatDateForCSV(notification.notificationDate),
+        Tipo: NOTIFICATION_TYPE_LABELS[notification.notificationType],
+        Data: formatDateForCSV(notification.notificationDate),
         'ID SDI': notification.sdiIdentifier || '',
-        'Progressivo': notification.progressivoInvio || '',
-        'Descrizione': notification.description || '',
+        Progressivo: notification.progressivoInvio || '',
+        Descrizione: notification.description || '',
         'Codice Errore': notification.errorCode || '',
         'Descrizione Errore': notification.errorDescription || '',
-        'Processato': notification.processed ? 'Si' : 'No',
-        'Processato il': notification.processedAt ? formatDateForCSV(notification.processedAt) : '',
+        Processato: notification.processed ? 'Si' : 'No',
+        'Processato il': notification.processedAt
+          ? formatDateForCSV(notification.processedAt)
+          : ''
       };
     });
 
@@ -61,7 +75,7 @@ const NotificationTableHeader = () => {
       'Codice Errore',
       'Descrizione Errore',
       'Processato',
-      'Processato il',
+      'Processato il'
     ];
 
     const csv = arrayToCSV(csvData, headers);
@@ -86,15 +100,19 @@ const NotificationTableHeader = () => {
       <div className="d-flex align-items-center justify-content-between justify-content-lg-end px-x1">
         <Dropdown className="font-sans-serif">
           <Dropdown.Toggle
-            variant="falcon-default"
+            variant="orkestra-default"
             size="sm"
             className="text-600"
           >
-            <FontAwesomeIcon icon="filter" transform="shrink-4" className="me-2" />
+            <FontAwesomeIcon
+              icon="filter"
+              transform="shrink-4"
+              className="me-2"
+            />
             <span className="d-none d-sm-inline-block">{selectedFilter}</span>
           </Dropdown.Toggle>
           <Dropdown.Menu className="border py-2">
-            {filters.map((filter) => (
+            {filters.map(filter => (
               <Dropdown.Item
                 key={filter.value}
                 onClick={() => handleFilter(filter)}
@@ -124,7 +142,7 @@ const NotificationTableHeader = () => {
             </Form.Select>
             <Button
               type="button"
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               className="ms-2"
             >
@@ -134,7 +152,7 @@ const NotificationTableHeader = () => {
         ) : (
           <div id="notification-actions">
             <IconButton
-              variant="falcon-default"
+              variant="orkestra-default"
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
@@ -145,8 +163,11 @@ const NotificationTableHeader = () => {
                 Esporta
               </span>
             </IconButton>
-            <Dropdown align="end" className="btn-reveal-trigger d-inline-block ms-2">
-              <Dropdown.Toggle variant="falcon-default" size="sm">
+            <Dropdown
+              align="end"
+              className="btn-reveal-trigger d-inline-block ms-2"
+            >
+              <Dropdown.Toggle variant="orkestra-default" size="sm">
                 <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
               </Dropdown.Toggle>
 

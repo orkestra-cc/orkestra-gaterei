@@ -30,7 +30,6 @@ export const testHttpOnlyCookieAuth = async () => {
     } else {
       console.log('ℹ️  No session refresh occurred (session already valid)');
     }
-
   } catch (error) {
     console.error('❌ API test failed:', error);
   }
@@ -41,7 +40,9 @@ export const testHttpOnlyCookieAuth = async () => {
 // Auto-run if in browser environment
 if (typeof window !== 'undefined') {
   (window as any).testHttpOnlyCookieAuth = testHttpOnlyCookieAuth;
-  console.log('💡 Run testHttpOnlyCookieAuth() in the console to test secure authentication');
+  console.log(
+    '💡 Run testHttpOnlyCookieAuth() in the console to test secure authentication'
+  );
 }
 
 // Manual test steps for browser console

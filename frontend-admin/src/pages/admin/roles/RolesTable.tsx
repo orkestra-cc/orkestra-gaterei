@@ -8,14 +8,14 @@ import {
   InputGroup,
   OverlayTrigger,
   Spinner,
-  Tooltip,
+  Tooltip
 } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'react-toastify';
 import {
   useListRolesQuery,
   useUpdateRoleMutation,
-  type Role,
+  type Role
 } from 'store/api/tenantApi';
 import CreateRoleModal from './CreateRoleModal';
 import EditRoleModal from './EditRoleModal';
@@ -33,11 +33,13 @@ const SYSTEM_ROLE_ORDER = [
   'developer',
   'manager',
   'operator',
-  'guest',
+  'guest'
 ] as const;
 
 const systemRoleRank = (name: string): number => {
-  const idx = SYSTEM_ROLE_ORDER.indexOf(name as (typeof SYSTEM_ROLE_ORDER)[number]);
+  const idx = SYSTEM_ROLE_ORDER.indexOf(
+    name as (typeof SYSTEM_ROLE_ORDER)[number]
+  );
   return idx === -1 ? SYSTEM_ROLE_ORDER.length : idx;
 };
 
@@ -72,33 +74,38 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
     if (!q) return true;
     if (r.name.toLowerCase().includes(q)) return true;
     if (r.description.toLowerCase().includes(q)) return true;
-    return r.permissions.some((p) => p.toLowerCase().includes(q));
+    return r.permissions.some(p => p.toLowerCase().includes(q));
   };
 
   const systemRoles = useMemo(
     () =>
       roles
-        .filter((r) => r.isSystem && matches(r))
+        .filter(r => r.isSystem && matches(r))
         .sort((a, b) => systemRoleRank(a.name) - systemRoleRank(b.name)),
-    [roles, q], // eslint-disable-line react-hooks/exhaustive-deps
+    [roles, q]
   );
   const customRoles = useMemo(
-    () => roles.filter((r) => !r.isSystem && matches(r)).sort((a, b) => a.name.localeCompare(b.name)),
-    [roles, q], // eslint-disable-line react-hooks/exhaustive-deps
+    () =>
+      roles
+        .filter(r => !r.isSystem && matches(r))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [roles, q]
   );
 
-  const totalSystem = roles.filter((r) => r.isSystem).length;
-  const totalCustom = roles.filter((r) => !r.isSystem).length;
+  const totalSystem = roles.filter(r => r.isSystem).length;
+  const totalCustom = roles.filter(r => !r.isSystem).length;
 
   const onToggleActive = async (role: Role) => {
     try {
       await updateRole({
         tenantId,
         roleId: role.id,
-        body: { isActive: !role.isActive },
+        body: { isActive: !role.isActive }
       }).unwrap();
       toast.success(
-        role.isActive ? `Role "${role.name}" disabled` : `Role "${role.name}" enabled`,
+        role.isActive
+          ? `Role "${role.name}" disabled`
+          : `Role "${role.name}" enabled`
       );
     } catch (err: unknown) {
       toast.error('Toggle failed: ' + extractError(err));
@@ -118,9 +125,9 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
       <Alert variant="danger">
         <Alert.Heading className="fs-9">Could not load roles</Alert.Heading>
         <p className="mb-0 fs-10">
-          Your account needs the <code>authz.role.read</code> permission in
-          this organization. If this is a fresh install and you are the
-          first admin, try signing out and back in to refresh your token.
+          Your account needs the <code>authz.role.read</code> permission in this
+          organization. If this is a fresh install and you are the first admin,
+          try signing out and back in to refresh your token.
         </p>
       </Alert>
     );
@@ -149,7 +156,7 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
               type="search"
               placeholder="Search roles or permissions…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={e => setQuery(e.target.value)}
               aria-label="Search roles"
             />
             {query && (
@@ -158,7 +165,11 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
               </Button>
             )}
           </InputGroup>
-          <Button size="sm" variant="primary" onClick={() => setShowCreate(true)}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setShowCreate(true)}
+          >
             <FontAwesomeIcon icon="plus" className="me-1" />
             New custom role
           </Button>
@@ -175,16 +186,21 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
           q ? (
             <EmptyResult query={q} />
           ) : (
-            <div className="text-muted fs-10 py-3">No system roles loaded. This should never happen — check backend logs.</div>
+            <div className="text-muted fs-10 py-3">
+              No system roles loaded. This should never happen — check backend
+              logs.
+            </div>
           )
         }
       >
-        {systemRoles.map((role) => (
+        {systemRoles.map(role => (
           <RoleRow
             key={role.id}
             role={role}
             expanded={expanded === role.id}
-            onToggleExpand={() => setExpanded(expanded === role.id ? null : role.id)}
+            onToggleExpand={() =>
+              setExpanded(expanded === role.id ? null : role.id)
+            }
             onEdit={() => setEditing(role)}
             onDelete={null}
             onToggleActive={() => onToggleActive(role)}
@@ -207,12 +223,14 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
             )
           }
         >
-          {customRoles.map((role) => (
+          {customRoles.map(role => (
             <RoleRow
               key={role.id}
               role={role}
               expanded={expanded === role.id}
-              onToggleExpand={() => setExpanded(expanded === role.id ? null : role.id)}
+              onToggleExpand={() =>
+                setExpanded(expanded === role.id ? null : role.id)
+              }
               onEdit={() => setEditing(role)}
               onDelete={() => setDeleting(role)}
               onToggleActive={() => onToggleActive(role)}
@@ -221,7 +239,11 @@ const RolesTable: React.FC<Props> = ({ tenantId }) => {
         </RoleSection>
       </div>
 
-      <CreateRoleModal tenantId={tenantId} show={showCreate} onHide={() => setShowCreate(false)} />
+      <CreateRoleModal
+        tenantId={tenantId}
+        show={showCreate}
+        onHide={() => setShowCreate(false)}
+      />
       <EditRoleModal
         tenantId={tenantId}
         role={editing}
@@ -257,7 +279,7 @@ const RoleSection: React.FC<RoleSectionProps> = ({
   icon,
   roles,
   empty,
-  children,
+  children
 }) => {
   return (
     <Card className="shadow-none border">
@@ -302,7 +324,7 @@ const RoleRow: React.FC<RoleRowProps> = ({
   onToggleExpand,
   onEdit,
   onDelete,
-  onToggleActive,
+  onToggleActive
 }) => {
   const dimmed = !role.isActive ? 'opacity-75' : '';
   return (
@@ -344,7 +366,9 @@ const RoleRow: React.FC<RoleRowProps> = ({
             )}
           </div>
           {role.description && (
-            <div className="text-muted small text-truncate">{role.description}</div>
+            <div className="text-muted small text-truncate">
+              {role.description}
+            </div>
           )}
         </button>
 
@@ -405,7 +429,10 @@ const RoleRow: React.FC<RoleRowProps> = ({
 
         {/* Delete (custom only) */}
         {onDelete ? (
-          <OverlayTrigger placement="top" overlay={<Tooltip>Delete role</Tooltip>}>
+          <OverlayTrigger
+            placement="top"
+            overlay={<Tooltip>Delete role</Tooltip>}
+          >
             <Button
               variant="outline-danger"
               size="sm"
@@ -433,7 +460,9 @@ const RoleRow: React.FC<RoleRowProps> = ({
 // Expanded view: permission badges grouped by module prefix. Much more
 // scannable than a raw flat list.
 // -------------------------------------------------------------------------
-const PermissionChips: React.FC<{ permissions: string[] }> = ({ permissions }) => {
+const PermissionChips: React.FC<{ permissions: string[] }> = ({
+  permissions
+}) => {
   if (permissions.length === 1 && permissions[0] === '*') {
     return (
       <div>
@@ -453,15 +482,19 @@ const PermissionChips: React.FC<{ permissions: string[] }> = ({ permissions }) =
   const sortedGroups = Object.keys(groups).sort();
   return (
     <div>
-      {sortedGroups.map((mod) => (
+      {sortedGroups.map(mod => (
         <div key={mod} className="mb-2">
           <div className="text-muted small text-uppercase fw-bold mb-1">
-            {mod}{' '}
-            <span className="fw-normal">({groups[mod].length})</span>
+            {mod} <span className="fw-normal">({groups[mod].length})</span>
           </div>
           <div className="d-flex flex-wrap gap-1">
-            {groups[mod].sort().map((p) => (
-              <Badge key={p} bg="light" text="dark" className="fw-normal border">
+            {groups[mod].sort().map(p => (
+              <Badge
+                key={p}
+                bg="light"
+                text="dark"
+                className="fw-normal border"
+              >
                 {p}
               </Badge>
             ))}
@@ -482,11 +515,12 @@ const NoCustomRoles: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
     </div>
     <div className="fw-semibold text-body">No custom roles yet</div>
     <div className="fs-10 mb-3">
-      System roles usually cover the common cases. Create a custom role when
-      you need a narrow set of permissions for a specific team.
+      System roles usually cover the common cases. Create a custom role when you
+      need a narrow set of permissions for a specific team.
     </div>
     <Button size="sm" variant="primary" onClick={onCreate}>
-      <FontAwesomeIcon icon="plus" className="me-1" /> Create your first custom role
+      <FontAwesomeIcon icon="plus" className="me-1" /> Create your first custom
+      role
     </Button>
   </div>
 );

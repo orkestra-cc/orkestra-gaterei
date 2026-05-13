@@ -10,12 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	userModels "github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
-	"github.com/orkestra/backend/internal/shared/iface"
-	"github.com/orkestra/backend/internal/shared/metrics"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -24,34 +26,16 @@ import (
 // file in the package starts using it.
 func slogString(key, value string) slog.Attr { return slog.String(key, value) }
 
-// Context keys used by the auth middleware to carry identity and the
-// resolved current-org context into downstream handlers. Kept as plain
-// string constants so existing handlers that read ctx.Value("userUUID")
-// directly keep working — they can migrate to the typed helpers below
-// incrementally.
+// Context keys for auth-internal values that did NOT move to pkg/sdk/ctxauth.
+// The values that DID move (userUUID/userEmail/systemRole/tenantID/tenantRoles/
+// clientIP/tenantKind/tenantImpersonated) are written using the exported
+// ctxauth.Key* constants. Search for "ctxauth.Key" to find the stamping
+// sites; legacy handlers that read ctx.Value("userUUID") directly still
+// work because the SDK key constants are untyped strings with the same
+// values.
 const (
-	ctxUserUUID          = "userUUID"
-	ctxUserEmail         = "userEmail"
-	ctxSystemRole        = "userRole" // legacy key name: "userRole" still holds the system role
 	ctxClaims            = "claims"
-	ctxTenantID          = "tenantID"
 	ctxTenantMemberships = "tenantMemberships"
-	ctxTenantRoles       = "tenantRoles"
-	// ctxClientIP carries the caller's source IP as resolved by
-	// utils.GetClientIP. Stamped on every authenticated request so
-	// downstream consumers (Cedar's ip_bucket ABAC attribute, audit
-	// trails, risk scoring) can read the same value the middleware
-	// observed without another request-scoped helper.
-	ctxClientIP = "clientIP"
-	// ctxTenantKind carries the tier ("internal" | "external") of the tenant
-	// the current request is acting in. Populated from claims.ActingTenantKind
-	// or resolved from the matched membership. See ADR-0001.
-	ctxTenantKind = "tenantKind"
-	// ctxTenantImpersonated is set when the current tenant context was
-	// resolved via the operator-admin impersonation bypass rather than a
-	// real membership. Handlers that want to block self-destructive actions
-	// while impersonating (e.g. demote own user) read this flag.
-	ctxTenantImpersonated = "tenantImpersonated"
 )
 
 // TenantIDHeader is the HTTP header clients use to pick the current tenant
@@ -66,6 +50,27 @@ const TenantIDHeader = "X-Tenant-ID"
 // through.
 type SessionRiskLookup func(ctx context.Context, sessionID string) (float64, error)
 
+// MFAEnrollmentLookup resolves whether a user has any MFA factor (TOTP
+// or WebAuthn) enrolled. The audience argument lets the implementation
+// dispatch to the operator vs client mfa_factors collection without the
+// middleware having to know about tiering. Returns (false, nil) when no
+// factor is enrolled — a non-nil error is a lookup failure (e.g. Mongo
+// outage), which the gate treats as "presence unknown" and fails closed
+// to the legacy step-up path so a degraded DB never silently weakens the
+// gate.
+type MFAEnrollmentLookup func(ctx context.Context, audience, userUUID string) (hasFactor bool, err error)
+
+// StepUpPolicy is the subset of *services.AuthPolicyService the middleware
+// needs to decide between password-reconfirm and mfa-enrollment-required
+// when the user has no factor. The interface is declared here (not in
+// shared/iface) to avoid a package cycle — AuthMiddleware already imports
+// auth/services, but the policy reader is parameter-shaped so a test can
+// substitute a fake. Nil-tolerant: when unset, the gate falls back to the
+// legacy "always emit step_up_required" behaviour.
+type StepUpPolicy interface {
+	MFARequired(user *userModels.User, memberships []models.OrgMembership) bool
+}
+
 type AuthMiddleware struct {
 	jwtService        services.JWTService
 	authService       services.AuthService
@@ -75,6 +80,9 @@ type AuthMiddleware struct {
 	auditSink         iface.AuditSink
 	sessionRevocation services.SessionRevocationService
 	sessionRiskLookup SessionRiskLookup
+	mfaEnrollment     MFAEnrollmentLookup
+	stepUpPolicy      StepUpPolicy
+	users             iface.UserProvider
 	errorManager      *errors.Manager
 	cookieName        string
 	config            *config.Config
@@ -83,7 +91,7 @@ type AuthMiddleware struct {
 	// event to one emit per (actorUserUUID|targetTenantID) every
 	// impersonationDedupeTTL so a page that fires dozens of requests
 	// generates a single audit row. nil when auditSink is unset.
-	impersonationDedupe   sync.Map
+	impersonationDedupe    sync.Map
 	impersonationDedupeTTL time.Duration
 }
 
@@ -162,6 +170,35 @@ func (m *AuthMiddleware) SetSessionRevocation(s services.SessionRevocationServic
 // Optional — when unset, RequireLowRisk is a pass-through.
 func (m *AuthMiddleware) SetSessionRiskLookup(lookup SessionRiskLookup) {
 	m.sessionRiskLookup = lookup
+}
+
+// SetMFAEnrollmentLookup wires the per-tier MFA factor presence resolver
+// consumed by RequireStepUp. When set, a request that fails the freshness
+// check is split into two paths: users with no factor enrolled (and no
+// policy requirement) receive a `password_confirm_required` envelope so
+// the frontend can collect a password reconfirm instead of asking for an
+// MFA code they can't produce. Optional — nil falls back to legacy
+// behaviour (every step-up failure → step_up_required).
+func (m *AuthMiddleware) SetMFAEnrollmentLookup(lookup MFAEnrollmentLookup) {
+	m.mfaEnrollment = lookup
+}
+
+// SetStepUpPolicy wires the policy reader RequireStepUp uses to decide
+// whether a no-factor user must enroll first (`mfa_enrollment_required`)
+// or may bypass with a password reconfirm. Optional — nil receivers
+// default to "no role requires MFA", which keeps the gate permissive in
+// test setups that don't wire the auth policy.
+func (m *AuthMiddleware) SetStepUpPolicy(p StepUpPolicy) {
+	m.stepUpPolicy = p
+}
+
+// SetUserProvider wires the user lookup so RequireStepUp can resolve the
+// caller's record (role + memberships) when deciding between the
+// password-reconfirm and mfa-enroll branches. Optional — nil falls back
+// to claims-only reasoning (system role from `srole`, memberships from
+// `mbr`), which is sufficient for the role-based MFA requirement check.
+func (m *AuthMiddleware) SetUserProvider(u iface.UserProvider) {
+	m.users = u
 }
 
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -272,21 +309,21 @@ func (m *AuthMiddleware) sendSessionRevoked(w http.ResponseWriter, r *http.Reque
 //  4. empty — only allowed on RequireGlobal() routes.
 func (m *AuthMiddleware) setUserContext(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, next http.Handler) {
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
-	ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
-	ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, claims.UserUUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, claims.Email)
+	ctx = context.WithValue(ctx, ctxauth.KeySystemRole, claims.SystemRole)
 	ctx = context.WithValue(ctx, ctxClaims, claims)
 	ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 	if ip := utils.GetClientIP(r); ip != "" {
-		ctx = context.WithValue(ctx, ctxClientIP, ip)
+		ctx = context.WithValue(ctx, ctxauth.KeyClientIP, ip)
 	}
 
 	tenantID, roles, kind, ok := resolveCurrentTenant(r, claims)
 	if ok {
-		ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-		ctx = context.WithValue(ctx, ctxTenantRoles, roles)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, roles)
 		if kind != "" {
-			ctx = context.WithValue(ctx, ctxTenantKind, kind)
+			ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, kind)
 		}
 	}
 
@@ -369,12 +406,12 @@ func (m *AuthMiddleware) tryImpersonationBypass(
 		return ctx, target.Kind, impersonationBypassMFARequired
 	}
 
-	ctx = context.WithValue(ctx, ctxTenantID, target.UUID)
-	ctx = context.WithValue(ctx, ctxTenantRoles, []string{"administrator"})
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantID, target.UUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, []string{"administrator"})
 	if target.Kind != "" {
-		ctx = context.WithValue(ctx, ctxTenantKind, target.Kind)
+		ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, target.Kind)
 	}
-	ctx = context.WithValue(ctx, ctxTenantImpersonated, true)
+	ctx = context.WithValue(ctx, ctxauth.KeyTenantImpersonated, true)
 
 	action := auditActionImpersonateBusiness
 	if personal {
@@ -430,11 +467,11 @@ func (m *AuthMiddleware) recordImpersonationAudit(
 		IPAddress:    utils.GetClientIP(r),
 		UserAgent:    r.UserAgent(),
 		Metadata: map[string]any{
-			"targetTenantSlug":     target.Slug,
-			"targetTenantName":     target.Name,
-			"targetIsCompany":      target.IsCompany,
-			"targetSignupChannel":  target.SignupChannel,
-			"requestPath":          r.URL.Path,
+			"targetTenantSlug":    target.Slug,
+			"targetTenantName":    target.Name,
+			"targetIsCompany":     target.IsCompany,
+			"targetSignupChannel": target.SignupChannel,
+			"requestPath":         r.URL.Path,
 		},
 	})
 }
@@ -482,35 +519,6 @@ func resolveCurrentTenant(r *http.Request, claims *models.JWTClaims) (string, []
 	return "", nil, "", false
 }
 
-// TenantKindFromContext returns the tier ("internal" | "external") for the
-// tenant this request is acting in, or empty when no tier is known (global
-// routes, or pre-ADR-0001 tokens). See ADR-0001.
-func TenantKindFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxTenantKind).(string); ok {
-		return v
-	}
-	return ""
-}
-
-// WithTenantKind returns ctx with the tier stamped under the same key the
-// auth middleware writes during request resolution. Exposed for tests that
-// need to exercise tier-aware logic (Cedar tenant_scope.cedar forbids,
-// tenant-kind gates) without booting the middleware chain. Production
-// code paths should never call this — the kind comes from the resolved
-// tenant in resolveCurrentTenant.
-func WithTenantKind(ctx context.Context, kind string) context.Context {
-	return context.WithValue(ctx, ctxTenantKind, kind)
-}
-
-// IsImpersonating returns true when the current tenant context was resolved
-// via the operator-admin impersonation bypass rather than a real membership.
-// Handlers that want to guard destructive self-targeted actions can read
-// this flag and refuse when set.
-func IsImpersonating(ctx context.Context) bool {
-	v, _ := ctx.Value(ctxTenantImpersonated).(bool)
-	return v
-}
-
 // tenantKindEnforcementMode returns "warn" when TENANT_KIND_ENFORCEMENT=warn,
 // otherwise "enforce". Read once per invocation rather than cached so an
 // operator flipping the env var on a hot-reloaded process takes effect on the
@@ -537,7 +545,7 @@ func tenantKindEnforcementMode() string {
 func (m *AuthMiddleware) RequireTenantKind(expected string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			kind := TenantKindFromContext(r.Context())
+			kind := ctxauth.TenantKindFromContext(r.Context())
 			if kind == "" {
 				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_tenant_kind").
@@ -615,19 +623,19 @@ func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
 		claims, err := m.jwtService.ValidateAccessToken(token)
 		if err == nil {
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, ctxUserUUID, claims.UserUUID)
-			ctx = context.WithValue(ctx, ctxUserEmail, claims.Email)
-			ctx = context.WithValue(ctx, ctxSystemRole, claims.SystemRole)
+			ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, claims.UserUUID)
+			ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, claims.Email)
+			ctx = context.WithValue(ctx, ctxauth.KeySystemRole, claims.SystemRole)
 			ctx = context.WithValue(ctx, ctxClaims, claims)
 			ctx = context.WithValue(ctx, ctxTenantMemberships, claims.Memberships)
 			if ip := utils.GetClientIP(r); ip != "" {
-				ctx = context.WithValue(ctx, ctxClientIP, ip)
+				ctx = context.WithValue(ctx, ctxauth.KeyClientIP, ip)
 			}
 			if tenantID, roles, kind, ok := resolveCurrentTenant(r, claims); ok {
-				ctx = context.WithValue(ctx, ctxTenantID, tenantID)
-				ctx = context.WithValue(ctx, ctxTenantRoles, roles)
+				ctx = context.WithValue(ctx, ctxauth.KeyTenantID, tenantID)
+				ctx = context.WithValue(ctx, ctxauth.KeyTenantRoles, roles)
 				if kind != "" {
-					ctx = context.WithValue(ctx, ctxTenantKind, kind)
+					ctx = context.WithValue(ctx, ctxauth.KeyTenantKind, kind)
 				}
 			}
 			r = r.WithContext(ctx)
@@ -652,35 +660,15 @@ func isOAuthCallbackRequest(r *http.Request) bool {
 		r.URL.Path == "/v1/auth/github/callback")
 }
 
-// --- Context accessors ---
-
-// GetUserUUID extracts the user UUID from the request context.
-func GetUserUUID(ctx context.Context) (string, bool) {
-	userUUID, ok := ctx.Value(ctxUserUUID).(string)
-	return userUUID, ok
-}
-
-// GetUserEmail extracts the user email from the request context.
-func GetUserEmail(ctx context.Context) (string, bool) {
-	email, ok := ctx.Value(ctxUserEmail).(string)
-	return email, ok
-}
-
-// GetSystemRole extracts the user's global system role from the context.
-func GetSystemRole(ctx context.Context) (string, bool) {
-	role, ok := ctx.Value(ctxSystemRole).(string)
-	return role, ok
-}
-
-// GetTenantID extracts the current tenant UUID from the request context.
-// Returns ok=false when the request has no resolved tenant (global routes).
-func GetTenantID(ctx context.Context) (string, bool) {
-	tenantID, ok := ctx.Value(ctxTenantID).(string)
-	if !ok || tenantID == "" {
-		return "", false
-	}
-	return tenantID, true
-}
+// --- Context accessors (auth-internal, JWT-claims-dependent) ---
+//
+// Plain getters that don't touch claims (GetUserUUID, GetUserEmail,
+// GetSystemRole, GetTenantID, GetTenantRoles, GetClientIP, IsImpersonating,
+// TenantKindFromContext, WithTenantKind, WithClientIP) live in
+// pkg/sdk/ctxauth so extracted addons can read them without importing
+// backend internals. The accessors below stay here because they read
+// *models.JWTClaims, which is auth-module-internal — Phase 1c exposes
+// them through an iface.ClaimsAccessor SDK contract.
 
 // GetSessionID extracts the JWT sid claim (session identifier) from the
 // request context. Used by the logout handler to revoke the current
@@ -693,12 +681,6 @@ func GetSessionID(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return claims.SessionID, true
-}
-
-// GetTenantRoles extracts the user's roles in the current tenant.
-func GetTenantRoles(ctx context.Context) ([]string, bool) {
-	roles, ok := ctx.Value(ctxTenantRoles).([]string)
-	return roles, ok
 }
 
 // GetMemberships returns all tenant memberships the user has.
@@ -730,25 +712,6 @@ func IsMFAEnrolled(ctx context.Context) bool {
 		return false
 	}
 	return amrSatisfiesMFA(amr)
-}
-
-// GetClientIP returns the caller's source IP as resolved by
-// utils.GetClientIP at the middleware boundary. Background jobs and
-// service-to-service calls made outside the HTTP stack return ok=false.
-func GetClientIP(ctx context.Context) (string, bool) {
-	ip, ok := ctx.Value(ctxClientIP).(string)
-	if !ok || ip == "" {
-		return "", false
-	}
-	return ip, true
-}
-
-// WithClientIP stamps a client IP onto the context under the same key
-// AuthMiddleware uses. Exposed for tests that want to exercise IP-gated
-// ABAC policies without booting the middleware chain. Production code
-// paths receive the IP from utils.GetClientIP in setUserContext.
-func WithClientIP(ctx context.Context, ip string) context.Context {
-	return context.WithValue(ctx, ctxClientIP, ip)
 }
 
 // WithAMR stamps an amr slice onto the request's JWT claims so tests can
@@ -790,13 +753,13 @@ func (m *AuthMiddleware) RequirePermission(permission string) func(http.Handler)
 					WithOperation("require_permission").Build())
 				return
 			}
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_permission").Build())
 				return
 			}
-			tenantID, hasTenant := GetTenantID(r.Context())
+			tenantID, hasTenant := ctxauth.GetTenantID(r.Context())
 			if !hasTenant {
 				m.sendErrorResponse(w, r, errors.AuthorizationError("tenant context required").
 					WithOperation("require_permission").
@@ -830,7 +793,7 @@ func (m *AuthMiddleware) RequireSystemPermission(permission string) func(http.Ha
 					WithOperation("require_system_permission").Build())
 				return
 			}
-			userUUID, ok := GetUserUUID(r.Context())
+			userUUID, ok := ctxauth.GetUserUUID(r.Context())
 			if !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_system_permission").Build())
@@ -911,7 +874,7 @@ func (m *AuthMiddleware) RequireCapability(capabilityID string) func(http.Handle
 // undefined post Unified Client Aggregate (every billable principal is a
 // tenant).
 func capabilityTenantFromRequest(r *http.Request) (string, bool) {
-	if tenantID, ok := GetTenantID(r.Context()); ok && tenantID != "" {
+	if tenantID, ok := ctxauth.GetTenantID(r.Context()); ok && tenantID != "" {
 		return tenantID, true
 	}
 	return "", false
@@ -923,7 +886,7 @@ func capabilityTenantFromRequest(r *http.Request) (string, bool) {
 func (m *AuthMiddleware) RequireGlobal() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := GetUserUUID(r.Context()); !ok {
+			if _, ok := ctxauth.GetUserUUID(r.Context()); !ok {
 				m.sendErrorResponse(w, r, errors.AuthenticationError("authentication required").
 					WithOperation("require_global").Build())
 				return
@@ -955,13 +918,26 @@ func (m *AuthMiddleware) RequireMFA() func(http.Handler) http.Handler {
 	}
 }
 
-// RequireStepUp blocks the request unless a second factor was completed
-// within maxAge of now. Used for catastrophic / irreversible operations
-// where a session-long MFA proof (what RequireMFA accepts) would leave
-// too wide a window between authentication and action. Returns 401 with
-// code="step_up_required" and the maxAge in seconds; the client is
-// expected to prompt the user, call /v1/auth/mfa/verify to obtain a
-// refreshed access token, and retry.
+// RequireStepUp blocks the request unless a second factor (or a fresh
+// password reconfirm) was completed within maxAge of now. Used for
+// catastrophic / irreversible operations where a session-long MFA proof
+// (what RequireMFA accepts) would leave too wide a window between
+// authentication and action.
+//
+// The gate has three failure shapes so the frontend can pick the right
+// modal without a second round-trip:
+//
+//   - code="step_up_required" — user has a factor; ask for an OTP/passkey
+//     (the legacy path, unchanged).
+//   - code="password_confirm_required" — user has no factor enrolled AND
+//     the policy doesn't require them to. Frontend collects a password
+//     reconfirm via POST /v1/auth/{tier}/me/password-confirm and replays.
+//   - code="mfa_enrollment_required" — user's role requires MFA but they
+//     haven't enrolled. Frontend nudges them to /user/settings to enroll.
+//
+// The split is gated by the MFAEnrollmentLookup setter. When the lookup
+// isn't wired (legacy tests, sidecar fallback) every step-up failure
+// emits the legacy step_up_required envelope.
 func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) http.Handler {
 	if maxAge <= 0 {
 		maxAge = 5 * time.Minute
@@ -974,17 +950,73 @@ func (m *AuthMiddleware) RequireStepUp(maxAge time.Duration) func(http.Handler) 
 					WithOperation("require_step_up").Build())
 				return
 			}
-			if !amrSatisfiesMFA(claims.AMR) || claims.LastOTPAt == 0 {
-				m.sendStepUpRequired(w, r, maxAge)
+			// Fresh proof — pass through. amrSatisfiesMFA also accepts the
+			// "reauth" marker minted by the password-confirm endpoint; that
+			// endpoint refuses to issue a reauth token for users with an
+			// enrolled factor, so the marker can never be used to bypass
+			// MFA-required scenarios.
+			if amrSatisfiesMFA(claims.AMR) && claims.LastOTPAt > 0 &&
+				time.Since(time.Unix(claims.LastOTPAt, 0)) <= maxAge {
+				next.ServeHTTP(w, r)
 				return
 			}
-			if time.Since(time.Unix(claims.LastOTPAt, 0)) > maxAge {
-				m.sendStepUpRequired(w, r, maxAge)
-				return
-			}
-			next.ServeHTTP(w, r)
+			// No fresh proof. Branch on enrollment + policy.
+			m.dispatchStepUpFailure(w, r, claims, maxAge)
 		})
 	}
+}
+
+// dispatchStepUpFailure picks the failure envelope that lets the
+// frontend run the right recovery UX. Three outcomes:
+//
+//  1. enrollment lookup unavailable, or it reports the user has at
+//     least one factor → step_up_required (legacy path).
+//  2. no factor + role requires MFA → mfa_enrollment_required (the user
+//     must enroll before they can use the destructive surface).
+//  3. no factor + role does not require MFA → password_confirm_required
+//     (the password reconfirm path).
+//
+// The branching is deliberately defensive: any error from the lookup
+// falls through to the legacy step_up_required path. A degraded Mongo
+// must never silently weaken the gate (e.g. trick the frontend into
+// asking for a password when the user actually has TOTP enrolled).
+func (m *AuthMiddleware) dispatchStepUpFailure(w http.ResponseWriter, r *http.Request, claims *models.JWTClaims, maxAge time.Duration) {
+	if m.mfaEnrollment == nil {
+		m.sendStepUpRequired(w, r, maxAge)
+		return
+	}
+	hasFactor, err := m.mfaEnrollment(r.Context(), claims.Audience, claims.UserUUID)
+	if err != nil || hasFactor {
+		m.sendStepUpRequired(w, r, maxAge)
+		return
+	}
+	// No factor enrolled. If the role requires MFA, the right answer is
+	// "enroll first" — letting them bypass with a password would defeat
+	// the policy. Otherwise emit the password-confirm envelope.
+	if m.roleRequiresMFA(r.Context(), claims) {
+		m.sendMFAEnrollmentRequired(w, r)
+		return
+	}
+	m.sendPasswordConfirmRequired(w, r, maxAge)
+}
+
+// roleRequiresMFA resolves whether the caller's current role + memberships
+// trip the MFA-required policy. Prefers a fresh User lookup (so a role
+// change applied since the JWT was minted is honoured) and falls back to
+// reasoning from the claims when the user provider isn't wired.
+func (m *AuthMiddleware) roleRequiresMFA(ctx context.Context, claims *models.JWTClaims) bool {
+	if m.stepUpPolicy == nil {
+		return false
+	}
+	if m.users != nil {
+		if user, err := m.users.GetUserByID(ctx, claims.UserUUID); err == nil && user != nil {
+			return m.stepUpPolicy.MFARequired(user, claims.Memberships)
+		}
+	}
+	// Claims-only fallback — synthesize a minimal user from srole. The
+	// policy reader only reads user.Role and the membership roles, so
+	// this is sufficient for the role-based MFA gate.
+	return m.stepUpPolicy.MFARequired(&userModels.User{Role: claims.SystemRole}, claims.Memberships)
 }
 
 // RequireLowRisk blocks the request when the current session's risk
@@ -1061,29 +1093,81 @@ func (m *AuthMiddleware) sendStepUpRequired(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("WWW-Authenticate", `MFA error="step_up_required"`)
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"status":       http.StatusUnauthorized,
-		"title":        "step-up authentication required",
-		"detail":       "this action requires a fresh second-factor verification",
-		"type":         "about:blank",
+		"status": http.StatusUnauthorized,
+		"title":  "step-up authentication required",
+		"detail": "this action requires a fresh second-factor verification",
+		"type":   "about:blank",
 		"errors": []map[string]any{{
 			"message":  "step-up required",
 			"location": "require_step_up",
 			"value":    "STEP_UP_REQUIRED",
 		}},
-		"code":         "step_up_required",
+		"code":          "step_up_required",
 		"maxAgeSeconds": int(maxAge.Seconds()),
 	})
 }
 
-// amrSatisfiesMFA checks whether any second-factor method is recorded on the
-// token. Method names follow RFC 8176.
+// amrSatisfiesMFA checks whether any second-factor method (or a fresh
+// password reconfirm) is recorded on the token. Method names follow
+// RFC 8176 with one local extension:
+//
+//   - "reauth" — a fresh password reconfirm minted by the
+//     /v1/auth/{tier}/me/password-confirm endpoint. The endpoint refuses
+//     to mint a "reauth" token for a user with any MFA factor enrolled,
+//     so accepting it here cannot weaken the gate for an
+//     MFA-required user.
 func amrSatisfiesMFA(amr []string) bool {
 	for _, v := range amr {
-		if v == "otp" || v == "webauthn" || v == "mfa" {
+		if v == "otp" || v == "webauthn" || v == "mfa" || v == "reauth" {
 			return true
 		}
 	}
 	return false
+}
+
+// sendPasswordConfirmRequired emits the 401 envelope that tells the
+// frontend the user has no MFA factor and may bypass step-up with a
+// password reconfirm. Same outer shape as sendStepUpRequired so the
+// frontend's RTK Query base branch can switch on `code` alone.
+func (m *AuthMiddleware) sendPasswordConfirmRequired(w http.ResponseWriter, _ *http.Request, maxAge time.Duration) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer error="password_confirm_required"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusUnauthorized,
+		"title":  "password reconfirm required",
+		"detail": "this action requires a fresh password reconfirm because no second factor is enrolled",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "password confirm required",
+			"location": "require_step_up",
+			"value":    "PASSWORD_CONFIRM_REQUIRED",
+		}},
+		"code":          "password_confirm_required",
+		"maxAgeSeconds": int(maxAge.Seconds()),
+	})
+}
+
+// sendMFAEnrollmentRequired emits the 403 envelope used when the caller's
+// role obligates MFA but they have no factor. Distinguished from
+// password_confirm_required so the frontend nudges to /user/settings
+// instead of opening the password modal.
+func (m *AuthMiddleware) sendMFAEnrollmentRequired(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer error="mfa_enrollment_required"`)
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": http.StatusForbidden,
+		"title":  "mfa enrollment required",
+		"detail": "your role requires a second factor; enroll one before performing this action",
+		"type":   "about:blank",
+		"errors": []map[string]any{{
+			"message":  "mfa enrollment required",
+			"location": "require_step_up",
+			"value":    "MFA_ENROLLMENT_REQUIRED",
+		}},
+		"code": "mfa_enrollment_required",
+	})
 }
 
 // sendMFARequired emits the structured 401 the frontend looks for to trigger
@@ -1136,7 +1220,6 @@ func (m *AuthMiddleware) sendErrorResponse(w http.ResponseWriter, r *http.Reques
 
 	json.NewEncoder(w).Encode(response)
 }
-
 
 // sendCapabilityRequiredResponse returns a 402 Payment Required when a
 // capability-gated route is hit by a tenant that does not hold an active

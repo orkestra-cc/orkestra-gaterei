@@ -11,7 +11,7 @@ import {
   getPaginationArray,
   chunk,
   getPercentage,
-  addId,
+  addId
 } from './utils';
 
 describe('isIterableArray', () => {
@@ -88,7 +88,9 @@ describe('string utilities', () => {
 
   it('slugifyText creates URL-safe slugs', () => {
     expect(slugifyText('Hello World')).toBe('hello-world');
-    expect(slugifyText('  Leading and trailing  ')).toBe('leading-and-trailing');
+    expect(slugifyText('  Leading and trailing  ')).toBe(
+      'leading-and-trailing'
+    );
   });
 });
 

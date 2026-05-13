@@ -9,11 +9,15 @@ interface AdvanceTableSearchBoxProps {
   className?: string;
 }
 
-const AdvanceTableSearchBox = ({ placeholder = 'Search...', className }: AdvanceTableSearchBoxProps) => {
+const AdvanceTableSearchBox = ({
+  placeholder = 'Search...',
+  className
+}: AdvanceTableSearchBoxProps) => {
   const { globalFilter, setGlobalFilter } = useAdvanceTableContext();
   const [value, setValue] = useState(globalFilter);
 
-  const onChange = (val: string | undefined) => setGlobalFilter(val || undefined);
+  const onChange = (val: string | undefined) =>
+    setGlobalFilter(val || undefined);
 
   return (
     <InputGroup className={classNames(className, 'position-relative')}>

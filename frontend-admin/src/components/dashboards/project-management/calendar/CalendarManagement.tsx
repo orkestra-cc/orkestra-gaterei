@@ -54,12 +54,20 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
   const calendarRef = useRef<FullCalendar>(null);
   const [title, setTitle] = useState('');
   const [day, setDay] = useState('');
-  const [calendarApi, setCalendarApi] = useState<ReturnType<FullCalendar['getApi']> | null>(null);
+  const [calendarApi, setCalendarApi] = useState<ReturnType<
+    FullCalendar['getApi']
+  > | null>(null);
   const [isOpenScheduleModal, setIsOpenScheduleModal] = useState(false);
   const [isOpenEventModal, setIsOpenEventModal] = useState(false);
-  const [modalEventContent, setModalEventContent] = useState<ModalEventContent>({ event: null });
-  const [scheduleStartDate, setScheduleStartDate] = useState<Date | null | undefined>();
-  const [scheduleEndDate, setScheduleEndDate] = useState<Date | null | undefined>();
+  const [modalEventContent, setModalEventContent] = useState<ModalEventContent>(
+    { event: null }
+  );
+  const [scheduleStartDate, setScheduleStartDate] = useState<
+    Date | null | undefined
+  >();
+  const [scheduleEndDate, setScheduleEndDate] = useState<
+    Date | null | undefined
+  >();
 
   const handleEventClick = (eventsInfo: CalendarEventData) => {
     if (calendarApi) {
@@ -120,7 +128,7 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
                       }
                     >
                       <Button
-                        variant="falcon-default"
+                        variant="orkestra-default"
                         size="sm"
                         className="me-1"
                         onClick={() => {
@@ -135,7 +143,7 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
                     </OverlayTrigger>
                     <Button
                       size="sm"
-                      variant="falcon-default"
+                      variant="orkestra-default"
                       onClick={() => {
                         if (!calendarApi) return;
                         calendarApi.today();
@@ -154,7 +162,7 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
                       }
                     >
                       <Button
-                        variant="falcon-default"
+                        variant="orkestra-default"
                         size="sm"
                         className="ms-1"
                         onClick={() => {
@@ -170,7 +178,7 @@ const CalendarManagement = ({ data }: CalendarManagementProps) => {
                   </div>
 
                   <IconButton
-                    variant="falcon-primary"
+                    variant="orkestra-primary"
                     iconClassName="me-2"
                     icon="plus"
                     size="sm"

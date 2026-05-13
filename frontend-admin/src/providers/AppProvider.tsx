@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useReducer, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+  ReactNode
+} from 'react';
 import { settings, AppSettings, ThemeVariant, NavbarPosition } from 'config';
 import { getColor, getItemFromStore } from 'helpers/utils';
 import useToggleStyle from 'hooks/ui/useToggleStyle';
@@ -140,11 +146,7 @@ const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     getThemeColor
   };
 
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 
 export const useAppContext = (): AppContextValue => {

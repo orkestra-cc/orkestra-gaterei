@@ -64,7 +64,9 @@ const ToDoItems = ({ item, index, length, handleChange }: ToDoItemsProps) => {
 };
 
 const ToDoList = ({ previewClassName }: ToDoListProps) => {
-  const [todoItems, setTodoItems] = useState<ToDoItem[]>(todoList as ToDoItem[]);
+  const [todoItems, setTodoItems] = useState<ToDoItem[]>(
+    todoList as ToDoItem[]
+  );
   const handleChange = (id: string | number, completed: boolean) => {
     const updatedTodos = todoItems.map((item: ToDoItem) =>
       item.id === id ? { ...item, completed } : item
@@ -76,7 +78,7 @@ const ToDoList = ({ previewClassName }: ToDoListProps) => {
       <Card.Header className="d-flex flex-between-center bg-body-tertiary">
         <h6 className="mb-0">To-do List</h6>
         <IconButton
-          variant="falcon-default"
+          variant="orkestra-default"
           size="sm"
           icon="plus"
           transform="shrink-3"

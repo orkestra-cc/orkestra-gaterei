@@ -1,6 +1,5 @@
-
 import CardDropdown from 'components/common/CardDropdown';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import Flex from 'components/common/Flex';
 import { BarChart } from 'echarts/charts';
 import {
@@ -28,9 +27,17 @@ echarts.use([
 ]);
 
 type ThemeColorGetter = (color: string) => string;
-type TooltipParams = { seriesName: string; name: string; value: (string | number)[]; componentIndex: number };
+type TooltipParams = {
+  seriesName: string;
+  name: string;
+  value: (string | number)[];
+  componentIndex: number;
+};
 
-const getOption = (getThemeColor: ThemeColorGetter, data: (string | number)[][]) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: (string | number)[][]
+) => ({
   color: [getThemeColor('primary'), getThemeColor('gray-300')],
   dataset: { source: data },
   tooltip: {
@@ -118,7 +125,7 @@ const TopProducts = ({ data, className }: TopProductsProps) => {
   const { getThemeColor } = useAppContext();
   return (
     <Card className={className || 'h-100'}>
-      <FalconCardHeader
+      <OrkestraCardHeader
         title="Top Products"
         titleTag="h6"
         className="py-2"

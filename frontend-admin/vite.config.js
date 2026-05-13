@@ -116,10 +116,19 @@ export default ({ mode }) => {
             'charts-vendor': ['echarts', 'echarts-for-react'],
 
             // Maps
-            'maps-vendor': ['leaflet', 'react-leaflet', 'react-leaflet-markercluster'],
+            'maps-vendor': [
+              'leaflet',
+              'react-leaflet',
+              'react-leaflet-markercluster'
+            ],
 
             // Form handling
-            'forms-vendor': ['react-hook-form', '@hookform/resolvers', 'yup', 'react-select'],
+            'forms-vendor': [
+              'react-hook-form',
+              '@hookform/resolvers',
+              'yup',
+              'react-select'
+            ],
 
             // Icons and media
             'icons-media-vendor': [
@@ -145,7 +154,11 @@ export default ({ mode }) => {
             ],
 
             // Editor and rich content
-            'editor-vendor': ['@tinymce/tinymce-react', 'tinymce', 'prism-react-renderer'],
+            'editor-vendor': [
+              '@tinymce/tinymce-react',
+              'tinymce',
+              'prism-react-renderer'
+            ],
 
             // Utilities
             'utils-vendor': ['uuid', 'fuse.js', 'imask', 'react-imask']
@@ -170,7 +183,7 @@ export default ({ mode }) => {
           './src/pages/user/settings/Settings.tsx',
           './src/pages/user/calendar/UserCalendar.tsx',
           './src/pages/operator/profile/OperatorProfile.tsx',
-          './src/pages/admin/user-profile/AdminUserProfile.tsx',
+          './src/pages/admin/user-profile/AdminUserProfile.tsx'
         ]
       },
       open: false,

@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	stderrors "errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -12,15 +14,16 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	gowebauthn "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
+	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth/handlers"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/auth/services"
+	"github.com/orkestra/backend/internal/shared/config"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
-	"github.com/orkestra/backend/internal/shared/module"
 )
 
 type AuthModule struct {
@@ -36,10 +39,10 @@ type AuthModule struct {
 	// callback URL — its tierDispatch map routes callbacks to the
 	// matching tier's authService. webauthn handler stays nil when
 	// passkeys are disabled at boot.
-	operatorAuthHandler          *handlers.AuthHandler
-	operatorPasswordHandler      *handlers.PasswordAuthHandler
-	operatorMFAHandler           *handlers.MFAHandler
-	operatorWebAuthnHandler      *handlers.WebAuthnHandler
+	operatorAuthHandler     *handlers.AuthHandler
+	operatorPasswordHandler *handlers.PasswordAuthHandler
+	operatorMFAHandler      *handlers.MFAHandler
+	operatorWebAuthnHandler *handlers.WebAuthnHandler
 	// operatorAdminUserAuthHandler hosts the admin endpoints that
 	// inspect and manage another operator user's auth methods
 	// (password, MFA, OAuth, email verification). Mounted under
@@ -70,10 +73,12 @@ type AuthModule struct {
 func NewModule() *AuthModule { return &AuthModule{} }
 
 func (m *AuthModule) Name() string        { return "auth" }
-func (m *AuthModule) DisplayName() string  { return "Authentication" }
-func (m *AuthModule) Description() string  { return "OAuth 2.1, JWT, sessions, RBAC" }
+func (m *AuthModule) DisplayName() string { return "Authentication" }
+func (m *AuthModule) Description() string { return "OAuth 2.1, JWT, sessions, RBAC" }
 
-func (m *AuthModule) Dependencies() []string { return []string{"user", "notification", "tenant", "authz"} }
+func (m *AuthModule) Dependencies() []string {
+	return []string{"user", "notification", "tenant", "authz"}
+}
 func (m *AuthModule) RequiredServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceUserService, module.ServiceTenantProvider}
 }
@@ -152,7 +157,7 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Key: "defaultRoleClient", Label: "Default role for new client signups", Group: "Registration",
 			Description: "System role assigned to a Tier-2 client account on signup. Lower-privilege roles are recommended.",
 			Type:        module.FieldEnum, Default: "operator",
-			Options:     []string{"operator", "manager", "guest"},
+			Options: []string{"operator", "manager", "guest"},
 		},
 		{
 			Key: "allowedEmailDomainsAdmin", Label: "Allowed email domains (operator)", Group: "Registration",
@@ -457,7 +462,14 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 }
 
 func (m *AuthModule) Init(deps *module.Dependencies) error {
-	cfg := deps.Config
+	// Auth is the last consumer of the legacy Dependencies.Config handle
+	// (the field is typed `any` so the SDK package has no shared/config
+	// dependency). Phase 1c retires this entirely; until then the auth
+	// module type-asserts at boot.
+	cfg, ok := deps.Config.(*config.Config)
+	if !ok || cfg == nil {
+		return fmt.Errorf("auth: deps.Config must be *config.Config, got %T", deps.Config)
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -892,6 +904,40 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	}
 	deps.Services.Register(module.ServiceSessionRiskLookup, sessionRiskLookup)
 
+	// MFA-enrollment lookup: reports whether a user has any TOTP or
+	// WebAuthn factor on the tier the caller's token was minted for.
+	// Consumed by AuthMiddleware.RequireStepUp to split step-up failures
+	// into MFA / password-reconfirm / enroll-first buckets. Tier
+	// resolution: audience claim picks the matching mfa_factors
+	// collection; empty/unknown audience falls back to operator (today's
+	// canonical tier) so legacy single-aud tokens keep working.
+	operatorMFA := opBundle.mfaFactorRepo
+	clientMFA := clBundle.mfaFactorRepo
+	mfaEnrollmentLookup := func(ctx context.Context, audience, userUUID string) (bool, error) {
+		if userUUID == "" {
+			return false, nil
+		}
+		repo := operatorMFA
+		if audience == "client" {
+			repo = clientMFA
+		}
+		if repo == nil {
+			return false, nil
+		}
+		if totp, err := repo.FindByUserAndType(ctx, userUUID, models.MFAFactorTOTP); err == nil && totp != nil {
+			return true, nil
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return false, err
+		}
+		if wa, err := repo.FindByUserAndType(ctx, userUUID, models.MFAFactorWebAuthn); err == nil && wa != nil && len(wa.WebAuthnCredentials) > 0 {
+			return true, nil
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return false, err
+		}
+		return false, nil
+	}
+	deps.Services.Register(module.ServiceMFAEnrollmentLookup, authMiddleware.MFAEnrollmentLookup(mfaEnrollmentLookup))
+
 	// Register one PII producer per tier with the DSR registry. Each
 	// producer reports tier-correct collection names in the DSR audit
 	// row. The registry tolerates missing producers — a deployment
@@ -1192,4 +1238,3 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		m.deviceTrustHandler.RegisterRoutes(api, handlers.ClientMount)
 	})
 }
-

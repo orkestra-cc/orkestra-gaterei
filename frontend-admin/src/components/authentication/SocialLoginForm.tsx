@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Button, Form, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faGoogle,
-  faApple
-} from '@fortawesome/free-brands-svg-icons';
+import { faGoogle, faApple } from '@fortawesome/free-brands-svg-icons';
 import { initiateSocialLogin, SocialProvider } from 'utils/socialAuthUtils';
 
 interface SocialLoginFormProps {

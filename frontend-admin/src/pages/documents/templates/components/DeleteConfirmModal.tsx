@@ -1,6 +1,9 @@
 import { Modal, Button, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExclamationTriangle, faTimes } from '@fortawesome/free-solid-svg-icons';
+import {
+  faExclamationTriangle,
+  faTimes
+} from '@fortawesome/free-solid-svg-icons';
 
 interface DeleteConfirmModalProps {
   show: boolean;
@@ -23,18 +26,24 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   title,
   body,
   confirmText = 'Elimina',
-  confirmVariant = 'danger',
+  confirmVariant = 'danger'
 }) => {
   return (
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header>
-        <Modal.Title className={confirmVariant === 'danger' ? 'text-danger' : ''}>
+        <Modal.Title
+          className={confirmVariant === 'danger' ? 'text-danger' : ''}
+        >
           {confirmVariant === 'danger' && (
             <FontAwesomeIcon icon={faExclamationTriangle} className="me-2" />
           )}
           {title || 'Conferma eliminazione'}
         </Modal.Title>
-        <Button variant="link" className="p-0 text-decoration-none" onClick={onHide}>
+        <Button
+          variant="link"
+          className="p-0 text-decoration-none"
+          onClick={onHide}
+        >
           <FontAwesomeIcon icon={faTimes} />
         </Button>
       </Modal.Header>
@@ -45,7 +54,9 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             Sei sicuro di voler eliminare il template{' '}
             <strong>{templateName}</strong>?
             <br />
-            <span className="text-muted">Questa azione non può essere annullata.</span>
+            <span className="text-muted">
+              Questa azione non può essere annullata.
+            </span>
           </p>
         )}
       </Modal.Body>

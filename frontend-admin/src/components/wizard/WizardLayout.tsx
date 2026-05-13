@@ -20,8 +20,14 @@ interface WizardLayoutProps {
   progressBar?: boolean;
 }
 
-const WizardLayout = ({ variant, validation, progressBar }: WizardLayoutProps) => {
-  const { config: { isRTL } } = useAppContext();
+const WizardLayout = ({
+  variant,
+  validation,
+  progressBar
+}: WizardLayoutProps) => {
+  const {
+    config: { isRTL }
+  } = useAppContext();
   const { user, setUser, step, setStep } = useAuthWizardContext();
   const {
     register,
@@ -205,7 +211,13 @@ const NavItem = ({ index, step, handleNavs, icon, label }: NavItemProps) => {
   );
 };
 
-const NavItemPill = ({ index, step, handleNavs, icon, label }: NavItemProps) => {
+const NavItemPill = ({
+  index,
+  step,
+  handleNavs,
+  icon,
+  label
+}: NavItemProps) => {
   return (
     <Nav.Item>
       <Nav.Link

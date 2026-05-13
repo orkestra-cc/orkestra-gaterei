@@ -1,4 +1,3 @@
-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Button, OverlayTrigger, Tooltip, ButtonProps } from 'react-bootstrap';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
@@ -10,11 +9,11 @@ interface ActionButtonProps extends Omit<ButtonProps, 'title'> {
   icon: IconProp;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ 
-  placement = 'top', 
-  title, 
-  icon, 
-  ...rest 
+const ActionButton: React.FC<ActionButtonProps> = ({
+  placement = 'top',
+  title,
+  icon,
+  ...rest
 }) => {
   return (
     <OverlayTrigger

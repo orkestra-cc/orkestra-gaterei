@@ -13,22 +13,28 @@ interface Props {
 const outcomeColor: Record<AuditOutcome, BadgeColor> = {
   success: 'success',
   failure: 'danger',
-  denied: 'warning',
+  denied: 'warning'
 };
 
 const actorColor: Record<string, BadgeColor> = {
   user: 'info',
   system: 'secondary',
-  anonymous: 'light',
+  anonymous: 'light'
 };
 
-const AuditEventsTable: React.FC<Props> = ({ events, isLoading, error, onRowClick }) => {
+const AuditEventsTable: React.FC<Props> = ({
+  events,
+  isLoading,
+  error,
+  onRowClick
+}) => {
   if (error) {
     return (
       <Card>
         <Card.Body className="text-center text-danger py-5">
           Failed to load audit events. You need the{' '}
-          <code>system.compliance.audit.read</code> permission to view this page.
+          <code>system.compliance.audit.read</code> permission to view this
+          page.
         </Card.Body>
       </Card>
     );
@@ -55,7 +61,7 @@ const AuditEventsTable: React.FC<Props> = ({ events, isLoading, error, onRowClic
               </tr>
             </thead>
             <tbody>
-              {events.map((ev) => (
+              {events.map(ev => (
                 <tr
                   key={ev.uuid}
                   className="align-middle"
@@ -146,7 +152,7 @@ function formatTimestamp(iso: string): string {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
+    second: '2-digit'
   });
 }
 

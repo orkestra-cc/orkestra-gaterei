@@ -9,7 +9,9 @@ const SocialAuthCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    'loading'
+  );
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
@@ -22,7 +24,8 @@ const SocialAuthCallback = () => {
         const provider = searchParams.get('provider');
         const requiresMfa = searchParams.get('requiresMfa');
         const mfaToken = searchParams.get('mfaToken');
-        const webauthnAvailable = searchParams.get('webauthnAvailable') === 'true';
+        const webauthnAvailable =
+          searchParams.get('webauthnAvailable') === 'true';
 
         if (error) {
           throw new Error(`OAuth error: ${error}`);
@@ -36,7 +39,7 @@ const SocialAuthCallback = () => {
         if (requiresMfa === 'true' && mfaToken) {
           navigate('/mfa/verify', {
             replace: true,
-            state: { challengeId: mfaToken, webauthnAvailable, provider },
+            state: { challengeId: mfaToken, webauthnAvailable, provider }
           });
           return;
         }
@@ -45,10 +48,13 @@ const SocialAuthCallback = () => {
           throw new Error('Authentication failed');
         }
 
-        console.log(`${provider || 'Social'} login successful, invalidating auth cache...`, {
-          provider,
-          timestamp: new Date().toISOString()
-        });
+        console.log(
+          `${provider || 'Social'} login successful, invalidating auth cache...`,
+          {
+            provider,
+            timestamp: new Date().toISOString()
+          }
+        );
 
         // OAuth backend has already set the refresh token cookie
         // Just invalidate auth cache to trigger the auth hook to fetch session
@@ -62,10 +68,13 @@ const SocialAuthCallback = () => {
 
         // Clear URL parameters for security (remove tokens from browser history)
         setTimeout(() => {
-          window.history.replaceState({}, document.title, window.location.pathname);
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
           navigate('/dashboard/analytics');
         }, 1500);
-
       } catch (err) {
         console.error('Social OAuth callback error:', err);
         setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -89,7 +98,9 @@ const SocialAuthCallback = () => {
             <>
               <Spinner animation="border" variant="primary" className="mb-3" />
               <h5>Completamento autenticazione...</h5>
-              <p className="text-muted">Attendere mentre effettuiamo l'accesso.</p>
+              <p className="text-muted">
+                Attendere mentre effettuiamo l'accesso.
+              </p>
             </>
           )}
 
@@ -109,7 +120,9 @@ const SocialAuthCallback = () => {
                 <h6>Autenticazione fallita</h6>
                 <p className="mb-0">{error}</p>
               </Alert>
-              <p className="text-muted">Reindirizzamento alla pagina di accesso...</p>
+              <p className="text-muted">
+                Reindirizzamento alla pagina di accesso...
+              </p>
             </>
           )}
         </Card.Body>

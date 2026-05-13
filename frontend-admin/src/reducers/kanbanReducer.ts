@@ -23,7 +23,7 @@ export interface KanbanState {
 }
 
 export interface KanbanAction {
-  type: 
+  type:
     | 'OPEN_KANBAN_MODAL'
     | 'TOGGLE_KANBAN_MODAL'
     | 'ADD_KANBAN_COLUMN'
@@ -35,7 +35,10 @@ export interface KanbanAction {
   payload?: any;
 }
 
-export const kanbanReducer = (state: KanbanState, action: KanbanAction): KanbanState => {
+export const kanbanReducer = (
+  state: KanbanState,
+  action: KanbanAction
+): KanbanState => {
   const { type, payload } = action;
   switch (type) {
     case 'OPEN_KANBAN_MODAL':

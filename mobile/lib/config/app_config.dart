@@ -1,4 +1,4 @@
-import 'environment.dart';
+import 'package:orkestra_mobile/config/environment.dart';
 
 /// Global application configuration.
 ///

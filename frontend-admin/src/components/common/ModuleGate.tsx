@@ -20,15 +20,19 @@ interface ModuleGateProps {
  * the page-refresh race rationale.
  */
 export default function ModuleGate({ module, children }: ModuleGateProps) {
-  const hasAccessToken = useAppSelector((s) => !!s.auth.accessToken);
-  const { data: modules, isLoading, isError } = useGetModulesQuery(undefined, {
-    skip: !hasAccessToken,
+  const hasAccessToken = useAppSelector(s => !!s.auth.accessToken);
+  const {
+    data: modules,
+    isLoading,
+    isError
+  } = useGetModulesQuery(undefined, {
+    skip: !hasAccessToken
   });
 
   // While loading or on error (non-admin gets 403), allow through
   if (isLoading || isError) return <>{children}</>;
 
-  const moduleConfig = modules?.find((m) => m.moduleName === module);
+  const moduleConfig = modules?.find(m => m.moduleName === module);
   if (moduleConfig && !moduleConfig.enabled) {
     return <Navigate to="/errors/404" replace />;
   }

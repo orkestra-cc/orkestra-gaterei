@@ -25,9 +25,10 @@ const CreateDivisionModal: React.FC<Props> = ({
   parentId,
   parentName,
   show,
-  onHide,
+  onHide
 }) => {
-  const [createDivision, { isLoading }] = useCreateTenantDivisionAdminMutation();
+  const [createDivision, { isLoading }] =
+    useCreateTenantDivisionAdminMutation();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
@@ -45,13 +46,14 @@ const CreateDivisionModal: React.FC<Props> = ({
     if (!slugEdited) setSlug(slugify(value));
   };
 
-  const canSave = name.trim().length > 0 && slug.trim().length > 0 && !isLoading;
+  const canSave =
+    name.trim().length > 0 && slug.trim().length > 0 && !isLoading;
 
   const onSave = async () => {
     try {
       await createDivision({
         tenantId: parentId,
-        body: { name: name.trim(), slug: slug.trim() || undefined },
+        body: { name: name.trim(), slug: slug.trim() || undefined }
       }).unwrap();
       toast.success(`Division "${name.trim()}" created under ${parentName}`);
       onHide();
@@ -77,7 +79,7 @@ const CreateDivisionModal: React.FC<Props> = ({
               placeholder="e.g. Acme EU"
               value={name}
               maxLength={120}
-              onChange={(e) => onNameChange(e.target.value)}
+              onChange={e => onNameChange(e.target.value)}
               autoFocus
             />
           </Form.Group>
@@ -88,7 +90,7 @@ const CreateDivisionModal: React.FC<Props> = ({
               placeholder="acme-eu"
               value={slug}
               maxLength={80}
-              onChange={(e) => {
+              onChange={e => {
                 setSlug(slugify(e.target.value));
                 setSlugEdited(true);
               }}
@@ -106,7 +108,8 @@ const CreateDivisionModal: React.FC<Props> = ({
         <Button variant="primary" onClick={onSave} disabled={!canSave}>
           {isLoading ? (
             <>
-              <Spinner size="sm" animation="border" className="me-2" /> Creating…
+              <Spinner size="sm" animation="border" className="me-2" />{' '}
+              Creating…
             </>
           ) : (
             <>Create division</>

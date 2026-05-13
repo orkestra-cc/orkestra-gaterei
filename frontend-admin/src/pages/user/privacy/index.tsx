@@ -8,7 +8,7 @@ import { useAuth } from 'hooks/auth/useAuthRTK';
 import { logout as logoutAction } from 'store/slices/authSlice';
 import {
   useExportMyDataMutation,
-  useEraseMyDataMutation,
+  useEraseMyDataMutation
 } from 'store/api/complianceApi';
 import EraseAccountModal from './EraseAccountModal';
 
@@ -33,7 +33,7 @@ const UserPrivacyPage: React.FC = () => {
       const bundle = await exportData().unwrap();
       const filename = `orkestra-data-export-${userId}-${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-        type: 'application/json',
+        type: 'application/json'
       });
       const url = URL.createObjectURL(blob);
       // Trigger download via synthetic anchor — works without navigation.
@@ -45,11 +45,11 @@ const UserPrivacyPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success(
-        `Exported data from ${bundle.producers.length} module${bundle.producers.length === 1 ? '' : 's'}.`,
+        `Exported data from ${bundle.producers.length} module${bundle.producers.length === 1 ? '' : 's'}.`
       );
       if (bundle.errors && Object.keys(bundle.errors).length > 0) {
         toast.warn(
-          'Some modules failed to export. Open the file to review the errors section.',
+          'Some modules failed to export. Open the file to review the errors section.'
         );
       }
     } catch (err) {
@@ -62,7 +62,7 @@ const UserPrivacyPage: React.FC = () => {
     try {
       const result = await eraseData().unwrap();
       toast.success(
-        `Account erased. ${result.totalRows} row${result.totalRows === 1 ? '' : 's'} removed.`,
+        `Account erased. ${result.totalRows} row${result.totalRows === 1 ? '' : 's'} removed.`
       );
       // Wipe the client auth state so the 15-minute access token is not
       // reused by accident, then bounce to /login. The refresh-token path
@@ -83,7 +83,10 @@ const UserPrivacyPage: React.FC = () => {
           <Card className="shadow-none border">
             <Card.Body>
               <h5 className="mb-1">
-                <FontAwesomeIcon icon="user-shield" className="me-2 text-primary" />
+                <FontAwesomeIcon
+                  icon="user-shield"
+                  className="me-2 text-primary"
+                />
                 Privacy & your data
               </h5>
               <p className="fs-10 mb-0 text-body-secondary">
@@ -103,7 +106,10 @@ const UserPrivacyPage: React.FC = () => {
             <Card.Body className="d-flex flex-column">
               <div className="mb-3">
                 <h6 className="mb-1">
-                  <FontAwesomeIcon icon="file-download" className="me-2 text-info" />
+                  <FontAwesomeIcon
+                    icon="file-download"
+                    className="me-2 text-info"
+                  />
                   Export your data
                 </h6>
                 <p className="fs-10 mb-0 text-body-secondary">

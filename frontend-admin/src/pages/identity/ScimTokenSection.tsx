@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import SubtleBadge from 'components/common/SubtleBadge';
 import {
   useGetScimTokenStatusQuery,
-  useRotateScimTokenMutation,
+  useRotateScimTokenMutation
 } from 'store/api/identityApi';
 import type { ScimTokenRotated } from 'types/identity';
 
@@ -43,7 +43,10 @@ const ScimTokenSection: React.FC = () => {
       <Card.Header className="border-bottom border-200 px-4 py-3 d-flex align-items-center justify-content-between">
         <div>
           <h6 className="mb-1">
-            <FontAwesomeIcon icon="exchange-alt" className="me-2 text-primary" />
+            <FontAwesomeIcon
+              icon="exchange-alt"
+              className="me-2 text-primary"
+            />
             SCIM 2.0 bearer token
           </h6>
           <p className="fs-11 mb-0 text-body-tertiary">
@@ -100,17 +103,19 @@ const ScimTokenSection: React.FC = () => {
           >
             <strong>Copy this token now — it cannot be shown again.</strong>
             <div className="d-flex align-items-center gap-2 mt-2">
-              <code className="flex-grow-1 fs-11 text-break">{fresh.token}</code>
+              <code className="flex-grow-1 fs-11 text-break">
+                {fresh.token}
+              </code>
               <Button size="sm" variant="outline-dark" onClick={copyToken}>
                 <FontAwesomeIcon icon="copy" className="me-1" />
                 Copy
               </Button>
             </div>
             <div className="fs-11 text-body-tertiary mt-2">
-              Rotated at {new Date(fresh.createdAt).toLocaleString()}.
-              Store it in the IdP's SCIM configuration. Closing this alert
-              strips the value from the browser — another rotation is the
-              only recovery path.
+              Rotated at {new Date(fresh.createdAt).toLocaleString()}. Store it
+              in the IdP's SCIM configuration. Closing this alert strips the
+              value from the browser — another rotation is the only recovery
+              path.
             </div>
           </Alert>
         )}

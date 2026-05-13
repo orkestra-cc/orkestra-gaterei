@@ -3,7 +3,7 @@ import { Alert, Button, Card, Modal, Spinner, Table } from 'react-bootstrap';
 import {
   useListTrustedDevicesQuery,
   useRevokeAllTrustedDevicesMutation,
-  useRevokeTrustedDeviceMutation,
+  useRevokeTrustedDeviceMutation
 } from 'store/api/deviceTrustApi';
 
 // TrustedDevicesTab shows the "remember this device 30d" grants the
@@ -11,8 +11,10 @@ import {
 // listed device for 30 days; revoking forces MFA on the next login.
 const TrustedDevicesTab = () => {
   const { data, isLoading, isFetching } = useListTrustedDevicesQuery();
-  const [revokeOne, { isLoading: revokingOne }] = useRevokeTrustedDeviceMutation();
-  const [revokeAll, { isLoading: revokingAll }] = useRevokeAllTrustedDevicesMutation();
+  const [revokeOne, { isLoading: revokingOne }] =
+    useRevokeTrustedDeviceMutation();
+  const [revokeAll, { isLoading: revokingAll }] =
+    useRevokeAllTrustedDevicesMutation();
   const [showRevokeAll, setShowRevokeAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +87,7 @@ const TrustedDevicesTab = () => {
                 </tr>
               </thead>
               <tbody>
-                {devices.map((d) => (
+                {devices.map(d => (
                   <tr key={d.uuid}>
                     <td>{d.deviceName || d.deviceId}</td>
                     <td className="fs-10 text-muted">{d.platform || '—'}</td>
@@ -113,7 +115,11 @@ const TrustedDevicesTab = () => {
         </Card.Body>
       </Card>
 
-      <Modal show={showRevokeAll} onHide={() => setShowRevokeAll(false)} centered>
+      <Modal
+        show={showRevokeAll}
+        onHide={() => setShowRevokeAll(false)}
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>Revoke all trusted devices</Modal.Title>
         </Modal.Header>
@@ -124,7 +130,11 @@ const TrustedDevicesTab = () => {
           <Button variant="secondary" onClick={() => setShowRevokeAll(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirmRevokeAll} disabled={revokingAll}>
+          <Button
+            variant="danger"
+            onClick={onConfirmRevokeAll}
+            disabled={revokingAll}
+          >
             {revokingAll ? 'Revoking…' : 'Revoke all'}
           </Button>
         </Modal.Footer>

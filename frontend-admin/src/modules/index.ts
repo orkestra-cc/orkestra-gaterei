@@ -23,7 +23,7 @@ export const moduleCatalog: Record<string, ModuleManifest> = {
   subscriptions: subscriptionsManifest,
   payments: paymentsManifest,
   compliance: complianceManifest,
-  identity: identityManifest,
+  identity: identityManifest
 };
 
 export type { ModuleManifest } from './types';

@@ -20,7 +20,7 @@ const EraseAccountModal: React.FC<Props> = ({
   onHide,
   onConfirm,
   userEmail,
-  isProcessing,
+  isProcessing
 }) => {
   const [stage, setStage] = useState<Stage>('warn');
   const [typed, setTyped] = useState('');
@@ -32,7 +32,8 @@ const EraseAccountModal: React.FC<Props> = ({
     }
   }, [show]);
 
-  const emailMatches = typed.trim().toLowerCase() === userEmail.trim().toLowerCase();
+  const emailMatches =
+    typed.trim().toLowerCase() === userEmail.trim().toLowerCase();
 
   const handleClose = () => {
     if (isProcessing) return;
@@ -40,7 +41,12 @@ const EraseAccountModal: React.FC<Props> = ({
   };
 
   return (
-    <Modal show={show} onHide={handleClose} centered backdrop={isProcessing ? 'static' : true}>
+    <Modal
+      show={show}
+      onHide={handleClose}
+      centered
+      backdrop={isProcessing ? 'static' : true}
+    >
       <Modal.Header closeButton={!isProcessing} className="bg-danger-subtle">
         <Modal.Title className="fs-8 text-danger">
           <FontAwesomeIcon icon="trash" className="me-2" />
@@ -58,8 +64,13 @@ const EraseAccountModal: React.FC<Props> = ({
               hard-deletes the matching rows.
             </p>
             <ul className="mb-3">
-              <li>Your user profile, sessions, MFA factors, and OAuth bindings are wiped.</li>
-              <li>All refresh tokens are invalidated — you cannot sign back in.</li>
+              <li>
+                Your user profile, sessions, MFA factors, and OAuth bindings are
+                wiped.
+              </li>
+              <li>
+                All refresh tokens are invalidated — you cannot sign back in.
+              </li>
               <li>
                 Data you authored <em>about</em> other subjects (shared notes,
                 audit rows, workspace edits) is retained for regulatory and
@@ -96,7 +107,7 @@ const EraseAccountModal: React.FC<Props> = ({
               autoFocus
               type="email"
               value={typed}
-              onChange={(e) => setTyped(e.target.value)}
+              onChange={e => setTyped(e.target.value)}
               placeholder="you@example.com"
               isInvalid={typed.length > 0 && !emailMatches}
             />

@@ -1,8 +1,13 @@
 import { Card, Col, Row } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faChartLine, faUsers, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import {
+  faFileInvoiceDollar,
+  faChartLine,
+  faUsers,
+  faArrowLeft
+} from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 import Flex from 'components/common/Flex';
 import { useGetBillingStatsQuery } from 'store/api/billingApi';
 import CountUp from 'react-countup';
@@ -14,7 +19,7 @@ const STATS_FROM_DATE_ALL_TIME = '2000-01-01';
 
 const IssuedInvoiceGreetings = () => {
   const { data: stats } = useGetBillingStatsQuery({
-    fromDate: STATS_FROM_DATE_ALL_TIME,
+    fromDate: STATS_FROM_DATE_ALL_TIME
   });
 
   const statItems = [
@@ -22,31 +27,31 @@ const IssuedInvoiceGreetings = () => {
       title: 'Totale Emesse',
       value: stats?.issuedTotal || 0,
       color: 'primary',
-      icon: faFileInvoiceDollar,
+      icon: faFileInvoiceDollar
     },
     {
       title: 'In Bozza',
       value: stats?.issuedDraft || 0,
       color: 'warning',
-      icon: faFileInvoiceDollar,
+      icon: faFileInvoiceDollar
     },
     {
       title: 'Inviate',
       value: stats?.issuedSent || 0,
       color: 'info',
-      icon: faChartLine,
+      icon: faChartLine
     },
     {
       title: 'Consegnate',
       value: stats?.issuedDelivered || 0,
       color: 'success',
-      icon: faUsers,
-    },
+      icon: faUsers
+    }
   ];
 
   return (
     <Card>
-      <FalconCardHeader
+      <OrkestraCardHeader
         title={
           <Flex alignItems="center">
             <Link to="/billing/dashboard" className="text-body-tertiary me-2">
@@ -61,14 +66,17 @@ const IssuedInvoiceGreetings = () => {
         endEl={
           stats && (
             <span className="text-body-tertiary fs-10">
-              Volume: <span className="fw-medium text-primary">{formatCurrency(stats.issuedAmount)}</span>
+              Volume:{' '}
+              <span className="fw-medium text-primary">
+                {formatCurrency(stats.issuedAmount)}
+              </span>
             </span>
           )
         }
       />
       <Card.Body className="py-3">
         <Row className="g-3">
-          {statItems.map((item) => (
+          {statItems.map(item => (
             <Col key={item.title} sm={6} lg={3}>
               <Flex
                 alignItems="center"
@@ -81,7 +89,9 @@ const IssuedInvoiceGreetings = () => {
                   <FontAwesomeIcon icon={item.icon} />
                 </div>
                 <div>
-                  <h6 className="mb-0 fs-10 text-body-tertiary">{item.title}</h6>
+                  <h6 className="mb-0 fs-10 text-body-tertiary">
+                    {item.title}
+                  </h6>
                   <h4 className={`mb-0 text-${item.color}`}>
                     <CountUp end={item.value} duration={1} />
                   </h4>

@@ -5,5 +5,5 @@ export {
   isStaging,
   isProductionLike,
   getEnv,
-  type Environment,
+  type Environment
 } from './environment';

@@ -48,13 +48,13 @@ import type {
 } from 'types/billing';
 import { formatItalianDate, DOCUMENT_TYPE_LABELS } from 'types/billing';
 import PageHeader from 'components/common/PageHeader';
-import FalconCardHeader from 'components/common/FalconCardHeader';
+import OrkestraCardHeader from 'components/common/OrkestraCardHeader';
 
 // Forfettario (RF19) mandatory causale texts
 const FORFETTARIO_CAUSALE =
   "Operazione effettuata in regime forfettario ai sensi dell'articolo 1, commi da 54 a 89, della Legge n. 190/2014 e successive modificazioni";
 const PROFESSIONISTA_CAUSALE =
-  'Operazione non soggetta a ritenuta alla fonte a titolo di acconto ai sensi dell\'articolo 1, comma 67, Legge n. 190 del 2014 e successive modificazioni';
+  "Operazione non soggetta a ritenuta alla fonte a titolo di acconto ai sensi dell'articolo 1, comma 67, Legge n. 190 del 2014 e successive modificazioni";
 
 // Bollo threshold per DPR 642/1972
 const BOLLO_THRESHOLD = 77.47;
@@ -205,7 +205,13 @@ const NewIssuedInvoice: React.FC = () => {
 
   const activeTab = searchParams.get('tab') || 'document';
   const setActiveTab = (tab: string) => {
-    setSearchParams((prev) => { prev.set('tab', tab); return prev; }, { replace: true });
+    setSearchParams(
+      prev => {
+        prev.set('tab', tab);
+        return prev;
+      },
+      { replace: true }
+    );
   };
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
@@ -244,8 +250,9 @@ const NewIssuedInvoice: React.FC = () => {
   }, [isForfettario, isProfessional]);
 
   // Payment terms
-  const [paymentCondition, setPaymentCondition] =
-    useState<PaymentCondition | ''>('');
+  const [paymentCondition, setPaymentCondition] = useState<
+    PaymentCondition | ''
+  >('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
   const [paymentBeneficiario, setPaymentBeneficiario] = useState('');
   const [paymentIstituto, setPaymentIstituto] = useState('');
@@ -729,9 +736,7 @@ const NewIssuedInvoice: React.FC = () => {
     }
   };
 
-  const selectedTenant = tenantsData?.tenants?.find(
-    (t) => t.id === tenantUUID
-  );
+  const selectedTenant = tenantsData?.tenants?.find(t => t.id === tenantUUID);
 
   return (
     <>
@@ -745,7 +750,7 @@ const NewIssuedInvoice: React.FC = () => {
         className="mb-3"
       >
         <Button
-          variant="falcon-default"
+          variant="orkestra-default"
           size="sm"
           className="me-2"
           onClick={() => navigate('/billing/invoices/issued')}
@@ -789,14 +794,16 @@ const NewIssuedInvoice: React.FC = () => {
       )}
 
       <Card className="mb-3">
-        <FalconCardHeader
+        <OrkestraCardHeader
           title={isCreditNote ? 'Dati Nota di Credito' : 'Dati Fattura'}
           light={false}
         />
         <Card.Body>
           <Tab.Container
             activeKey={activeTab}
-            onSelect={k => { if (k) setActiveTab(k); }}
+            onSelect={k => {
+              if (k) setActiveTab(k);
+            }}
           >
             <Nav variant="tabs" className="mb-3">
               <Nav.Item>
@@ -912,27 +919,34 @@ const NewIssuedInvoice: React.FC = () => {
                       </Form.Label>
                       <Form.Select
                         value={tenantUUID}
-                        onChange={(e) => setTenantUUID(e.target.value)}
+                        onChange={e => setTenantUUID(e.target.value)}
                       >
                         <option value="">Seleziona cliente...</option>
-                        {tenantsData?.tenants?.map((tenant) => {
+                        {tenantsData?.tenants?.map(tenant => {
                           const fiscal =
                             tenant.vatNumber || tenant.fiscalCode || '—';
                           const label = tenant.legalName || tenant.name;
                           return (
                             <option key={tenant.id} value={tenant.id}>
                               {label} - {fiscal}
-                              {tenant.isItalianBillable ? '' : ' (no FatturaPA)'}
+                              {tenant.isItalianBillable
+                                ? ''
+                                : ' (no FatturaPA)'}
                             </option>
                           );
                         })}
                       </Form.Select>
                       <Form.Text className="text-muted">
                         Manca un cliente?{' '}
-                        <a href="/admin/clients" target="_blank" rel="noreferrer">
+                        <a
+                          href="/admin/clients"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           Apri Clienti
                         </a>{' '}
-                        per registrarlo o configurarne la fatturazione elettronica.
+                        per registrarlo o configurarne la fatturazione
+                        elettronica.
                       </Form.Text>
                     </Form.Group>
                   </Col>
@@ -1294,7 +1308,7 @@ const NewIssuedInvoice: React.FC = () => {
                       <tr>
                         <td colSpan={9}>
                           <Button
-                            variant="falcon-primary"
+                            variant="orkestra-primary"
                             size="sm"
                             onClick={handleAddLine}
                           >
@@ -1634,7 +1648,9 @@ const NewIssuedInvoice: React.FC = () => {
                   </Card.Header>
                   <Card.Body>
                     <Form.Group>
-                      <Form.Label>Seleziona azienda per precompilare</Form.Label>
+                      <Form.Label>
+                        Seleziona azienda per precompilare
+                      </Form.Label>
                       <Form.Select
                         value={selectedPaymentCompanyId}
                         onChange={e =>
@@ -1689,9 +1705,7 @@ const NewIssuedInvoice: React.FC = () => {
                       <Form.Select
                         value={paymentMethod}
                         onChange={e =>
-                          setPaymentMethod(
-                            e.target.value as PaymentMethod | ''
-                          )
+                          setPaymentMethod(e.target.value as PaymentMethod | '')
                         }
                       >
                         <option value="">Seleziona...</option>
@@ -1862,7 +1876,7 @@ const NewIssuedInvoice: React.FC = () => {
       <Card>
         <Card.Body className="d-flex justify-content-between">
           <Button
-            variant="falcon-default"
+            variant="orkestra-default"
             onClick={() => navigate('/billing/invoices/issued')}
             disabled={isLoading}
           >
@@ -1870,7 +1884,7 @@ const NewIssuedInvoice: React.FC = () => {
           </Button>
           <div>
             <Button
-              variant="falcon-primary"
+              variant="orkestra-primary"
               className="me-2"
               onClick={handleSaveDraft}
               disabled={isLoading}

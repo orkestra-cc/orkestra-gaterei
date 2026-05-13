@@ -3,14 +3,14 @@ import { Modal, Row, Col, Form, Button, Spinner } from 'react-bootstrap';
 import {
   useCreateAIModelMutation,
   useUpdateAIModelMutation,
-  useFetchAIProviderModelsMutation,
+  useFetchAIProviderModelsMutation
 } from '../../../store/api/aiModelsApi';
 import type {
   AIModelConfig,
   CreateAIModelRequest,
   UpdateAIModelRequest,
   Provider,
-  AvailableModel,
+  AvailableModel
 } from '../../../types/aiModels';
 
 interface ModelFormModalProps {
@@ -29,21 +29,21 @@ const emptyForm: CreateAIModelRequest = {
   apiKey: '',
   dimensions: 768,
   temperature: 0.1,
-  maxTokens: 2048,
+  maxTokens: 2048
 };
 
 const PROVIDER_HELP: Record<Provider, string> = {
   ollama: 'Leave empty to use global Ollama config',
   openai: 'For llama.cpp, vLLM, LocalAI, etc. Leave empty for OpenAI cloud.',
   anthropic: 'Leave empty to use Anthropic cloud API.',
-  gemini: 'Leave empty to use Google Gemini cloud API.',
+  gemini: 'Leave empty to use Google Gemini cloud API.'
 };
 
 const PROVIDER_PLACEHOLDER: Record<Provider, string> = {
   ollama: 'http://host:11434',
   openai: 'http://host:8080/v1',
   anthropic: 'https://api.anthropic.com',
-  gemini: 'https://generativelanguage.googleapis.com',
+  gemini: 'https://generativelanguage.googleapis.com'
 };
 
 const showBaseUrlField = (provider: Provider): boolean => {
@@ -54,14 +54,20 @@ const isCloudProvider = (provider: Provider): boolean => {
   return provider === 'anthropic' || provider === 'gemini';
 };
 
-const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingModel, defaultProvider }) => {
+const ModelFormModal: React.FC<ModelFormModalProps> = ({
+  show,
+  onHide,
+  editingModel,
+  defaultProvider
+}) => {
   const [form, setForm] = useState<CreateAIModelRequest>({ ...emptyForm });
   const [isActive, setIsActive] = useState(true);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
 
   const [createModel, { isLoading: creating }] = useCreateAIModelMutation();
   const [updateModel, { isLoading: updating }] = useUpdateAIModelMutation();
-  const [fetchProviderModels, { isLoading: fetching }] = useFetchAIProviderModelsMutation();
+  const [fetchProviderModels, { isLoading: fetching }] =
+    useFetchAIProviderModelsMutation();
 
   const isEditing = !!editingModel;
   const saving = creating || updating;
@@ -78,11 +84,14 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
         apiKey: '',
         dimensions: editingModel.dimensions || 768,
         temperature: editingModel.temperature || 0.1,
-        maxTokens: editingModel.maxTokens || 2048,
+        maxTokens: editingModel.maxTokens || 2048
       });
       setIsActive(editingModel.isActive);
     } else {
-      setForm({ ...emptyForm, provider: defaultProvider || emptyForm.provider });
+      setForm({
+        ...emptyForm,
+        provider: defaultProvider || emptyForm.provider
+      });
       setIsActive(true);
     }
     setAvailableModels([]);
@@ -92,26 +101,41 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const fetchModelsForProvider = useCallback(async (provider: string, baseUrl: string, apiKey: string, modelType: string) => {
-    try {
-      const result = await fetchProviderModels({
-        provider,
-        baseUrl,
-        apiKey: apiKey || undefined,
-        modelType,
-      }).unwrap();
-      setAvailableModels(result.models ?? []);
-      if (result.models?.length) {
-        setForm(prev => prev.modelName ? prev : { ...prev, modelName: result.models[0].id });
+  const fetchModelsForProvider = useCallback(
+    async (
+      provider: string,
+      baseUrl: string,
+      apiKey: string,
+      modelType: string
+    ) => {
+      try {
+        const result = await fetchProviderModels({
+          provider,
+          baseUrl,
+          apiKey: apiKey || undefined,
+          modelType
+        }).unwrap();
+        setAvailableModels(result.models ?? []);
+        if (result.models?.length) {
+          setForm(prev =>
+            prev.modelName ? prev : { ...prev, modelName: result.models[0].id }
+          );
+        }
+      } catch {
+        setAvailableModels([]);
       }
-    } catch {
-      setAvailableModels([]);
-    }
-  }, [fetchProviderModels]);
+    },
+    [fetchProviderModels]
+  );
 
   const handleProviderChange = (provider: Provider) => {
     setForm(prev => {
-      const updates: Partial<CreateAIModelRequest> = { provider, baseUrl: '', apiKey: '', modelName: '' };
+      const updates: Partial<CreateAIModelRequest> = {
+        provider,
+        baseUrl: '',
+        apiKey: '',
+        modelName: ''
+      };
       if (provider === 'anthropic' && prev.modelType === 'embedding') {
         updates.modelType = 'llm';
       }
@@ -124,19 +148,34 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
     // Cloud providers need an API key, local providers need a base URL
     if (isCloudProvider(form.provider) && !form.apiKey) return;
     if (!isCloudProvider(form.provider) && !form.baseUrl) return;
-    await fetchModelsForProvider(form.provider, form.baseUrl || '', form.apiKey || '', form.modelType);
-  }, [fetchModelsForProvider, form.provider, form.baseUrl, form.apiKey, form.modelType]);
+    await fetchModelsForProvider(
+      form.provider,
+      form.baseUrl || '',
+      form.apiKey || '',
+      form.modelType
+    );
+  }, [
+    fetchModelsForProvider,
+    form.provider,
+    form.baseUrl,
+    form.apiKey,
+    form.modelType
+  ]);
 
   const handleSave = useCallback(async () => {
     try {
       if (editingModel) {
         const body: UpdateAIModelRequest = {};
         if (form.name !== editingModel.name) body.name = form.name;
-        if (form.baseUrl !== (editingModel.baseUrl || '')) body.baseUrl = form.baseUrl;
+        if (form.baseUrl !== (editingModel.baseUrl || ''))
+          body.baseUrl = form.baseUrl;
         if (form.apiKey) body.apiKey = form.apiKey;
-        if (form.dimensions !== editingModel.dimensions) body.dimensions = form.dimensions;
-        if (form.temperature !== editingModel.temperature) body.temperature = form.temperature;
-        if (form.maxTokens !== editingModel.maxTokens) body.maxTokens = form.maxTokens;
+        if (form.dimensions !== editingModel.dimensions)
+          body.dimensions = form.dimensions;
+        if (form.temperature !== editingModel.temperature)
+          body.temperature = form.temperature;
+        if (form.maxTokens !== editingModel.maxTokens)
+          body.maxTokens = form.maxTokens;
         if (isActive !== editingModel.isActive) body.isActive = isActive;
         await updateModel({ uuid: editingModel.uuid, body }).unwrap();
       } else {
@@ -195,7 +234,10 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                 }}
                 disabled={isEditing}
               >
-                <option value="embedding" disabled={form.provider === 'anthropic'}>
+                <option
+                  value="embedding"
+                  disabled={form.provider === 'anthropic'}
+                >
                   Embedding
                 </option>
                 <option value="llm">LLM</option>
@@ -247,14 +289,16 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                       .filter(m => {
                         if (!m.capabilities) return true;
                         const caps = m.capabilities.split(',');
-                        if (form.modelType === 'embedding') return caps.includes('embedContent');
+                        if (form.modelType === 'embedding')
+                          return caps.includes('embedContent');
                         return caps.includes('generateContent');
                       })
                       .map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.id}{m.ownedBy ? ` (${m.ownedBy})` : ''}
-                      </option>
-                    ))}
+                        <option key={m.id} value={m.id}>
+                          {m.id}
+                          {m.ownedBy ? ` (${m.ownedBy})` : ''}
+                        </option>
+                      ))}
                   </Form.Select>
                   {!isEditing && isCloudProvider(form.provider) && (
                     <Button
@@ -278,7 +322,9 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                     placeholder={
                       showBaseUrlField(form.provider)
                         ? 'Enter model name or click Fetch Models'
-                        : fetching ? 'Loading models...' : 'Enter API key first, then Fetch Models'
+                        : fetching
+                          ? 'Loading models...'
+                          : 'Enter API key first, then Fetch Models'
                     }
                   />
                   {!isEditing && isCloudProvider(form.provider) && (
@@ -296,7 +342,8 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
               )}
               {showBaseUrlField(form.provider) && (
                 <Form.Text className="text-muted">
-                  Enter a base URL and click "Fetch Models" to see available models
+                  Enter a base URL and click "Fetch Models" to see available
+                  models
                 </Form.Text>
               )}
             </Form.Group>
@@ -310,7 +357,9 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                 type="password"
                 value={form.apiKey}
                 onChange={e => updateForm('apiKey', e.target.value)}
-                placeholder={isEditing ? '(unchanged)' : 'sk-... or leave empty for local'}
+                placeholder={
+                  isEditing ? '(unchanged)' : 'sk-... or leave empty for local'
+                }
               />
               <Form.Text className="text-muted">
                 {form.provider === 'ollama'
@@ -332,9 +381,13 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                   size="sm"
                   type="number"
                   value={form.dimensions}
-                  onChange={e => updateForm('dimensions', parseInt(e.target.value) || 0)}
+                  onChange={e =>
+                    updateForm('dimensions', parseInt(e.target.value) || 0)
+                  }
                 />
-                <Form.Text className="text-muted">Vector size output by the model</Form.Text>
+                <Form.Text className="text-muted">
+                  Vector size output by the model
+                </Form.Text>
               </Form.Group>
             </Col>
           )}
@@ -351,7 +404,9 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                     min="0"
                     max="2"
                     value={form.temperature}
-                    onChange={e => updateForm('temperature', parseFloat(e.target.value) || 0)}
+                    onChange={e =>
+                      updateForm('temperature', parseFloat(e.target.value) || 0)
+                    }
                   />
                 </Form.Group>
               </Col>
@@ -362,7 +417,9 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
                     size="sm"
                     type="number"
                     value={form.maxTokens}
-                    onChange={e => updateForm('maxTokens', parseInt(e.target.value) || 0)}
+                    onChange={e =>
+                      updateForm('maxTokens', parseInt(e.target.value) || 0)
+                    }
                   />
                 </Form.Group>
               </Col>
@@ -394,7 +451,13 @@ const ModelFormModal: React.FC<ModelFormModalProps> = ({ show, onHide, editingMo
           onClick={handleSave}
           disabled={saving || !form.name || (!isEditing && !form.modelName)}
         >
-          {saving ? <Spinner size="sm" /> : isEditing ? 'Save Changes' : 'Create'}
+          {saving ? (
+            <Spinner size="sm" />
+          ) : isEditing ? (
+            'Save Changes'
+          ) : (
+            'Create'
+          )}
         </Button>
       </Modal.Footer>
     </Modal>

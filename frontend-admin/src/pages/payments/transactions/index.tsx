@@ -5,7 +5,7 @@ import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
 import {
   useListPaymentTransactionsQuery,
-  useRefundPaymentTransactionMutation,
+  useRefundPaymentTransactionMutation
 } from 'store/api/paymentsApi';
 import type { PaymentTransaction, TransactionStatus } from 'types/payments';
 
@@ -15,15 +15,20 @@ const statusColor: Record<TransactionStatus, string> = {
   succeeded: 'success',
   failed: 'danger',
   refunded: 'info',
-  partially_refunded: 'info',
+  partially_refunded: 'info'
 };
 
 const formatMoney = (cents: number, currency = 'EUR') =>
-  new Intl.NumberFormat('it-IT', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
+  new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: currency.toUpperCase()
+  }).format(cents / 100);
 
 const TransactionsListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
-  const { data, isLoading, refetch } = useListPaymentTransactionsQuery({ status: statusFilter || undefined });
+  const { data, isLoading, refetch } = useListPaymentTransactionsQuery({
+    status: statusFilter || undefined
+  });
   const [refund] = useRefundPaymentTransactionMutation();
 
   const [showRefund, setShowRefund] = useState(false);
@@ -40,15 +45,26 @@ const TransactionsListPage: React.FC = () => {
 
   const submitRefund = async () => {
     if (!target) return;
-    await refund({ id: target.uuid, input: { amountCents: Number(refundCents) || 0, reason: refundReason } }).unwrap();
+    await refund({
+      id: target.uuid,
+      input: { amountCents: Number(refundCents) || 0, reason: refundReason }
+    }).unwrap();
     setShowRefund(false);
   };
 
   return (
     <>
-      <PageHeader title="Transazioni" description="Storico degli addebiti e rimborsi Stripe" className="mb-3">
+      <PageHeader
+        title="Transazioni"
+        description="Storico degli addebiti e rimborsi Stripe"
+        className="mb-3"
+      >
         <Flex className="gap-2 mt-3">
-          <IconButton icon="sync-alt" variant="falcon-default" onClick={() => refetch()}>
+          <IconButton
+            icon="sync-alt"
+            variant="orkestra-default"
+            onClick={() => refetch()}
+          >
             Aggiorna
           </IconButton>
         </Flex>
@@ -56,7 +72,11 @@ const TransactionsListPage: React.FC = () => {
 
       <Card className="mb-3">
         <Card.Body>
-          <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 260 }}>
+          <Form.Select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            style={{ maxWidth: 260 }}
+          >
             <option value="">Tutti gli stati</option>
             <option value="succeeded">Succeeded</option>
             <option value="failed">Failed</option>
@@ -72,7 +92,9 @@ const TransactionsListPage: React.FC = () => {
           {isLoading ? (
             <div className="p-4">Caricamento...</div>
           ) : !data?.items.length ? (
-            <div className="p-4 text-muted text-center">Nessuna transazione.</div>
+            <div className="p-4 text-muted text-center">
+              Nessuna transazione.
+            </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
@@ -87,32 +109,56 @@ const TransactionsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((tx) => (
+                {data.items.map(tx => (
                   <tr key={tx.uuid}>
-                    <td><Badge bg="dark">{tx.provider}</Badge></td>
-                    <td><code className="fs--2">{tx.providerTxID || '—'}</code></td>
+                    <td>
+                      <Badge bg="dark">{tx.provider}</Badge>
+                    </td>
+                    <td>
+                      <code className="fs--2">{tx.providerTxID || '—'}</code>
+                    </td>
                     <td>
                       {formatMoney(tx.amountCents, tx.currency)}
                       {tx.refundedCents ? (
-                        <div><small className="text-info">-{formatMoney(tx.refundedCents, tx.currency)} rimborsato</small></div>
+                        <div>
+                          <small className="text-info">
+                            -{formatMoney(tx.refundedCents, tx.currency)}{' '}
+                            rimborsato
+                          </small>
+                        </div>
                       ) : null}
                     </td>
                     <td>
                       <Badge bg={statusColor[tx.status]}>{tx.status}</Badge>
                       {tx.failureMsg && (
-                        <div><small className="text-danger">{tx.failureMsg}</small></div>
+                        <div>
+                          <small className="text-danger">{tx.failureMsg}</small>
+                        </div>
                       )}
                     </td>
                     <td>
-                      {tx.invoiceUUID ? <code className="fs--2">{tx.invoiceUUID.slice(0, 8)}</code> : '—'}
+                      {tx.invoiceUUID ? (
+                        <code className="fs--2">
+                          {tx.invoiceUUID.slice(0, 8)}
+                        </code>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>{new Date(tx.createdAt).toLocaleString('it-IT')}</td>
                     <td className="text-end">
-                      {(tx.status === 'succeeded' || tx.status === 'partially_refunded') && tx.providerTxID && (
-                        <Button size="sm" variant="link" className="text-warning" onClick={() => openRefund(tx)}>
-                          Rimborsa
-                        </Button>
-                      )}
+                      {(tx.status === 'succeeded' ||
+                        tx.status === 'partially_refunded') &&
+                        tx.providerTxID && (
+                          <Button
+                            size="sm"
+                            variant="link"
+                            className="text-warning"
+                            onClick={() => openRefund(tx)}
+                          >
+                            Rimborsa
+                          </Button>
+                        )}
                     </td>
                   </tr>
                 ))}
@@ -131,22 +177,26 @@ const TransactionsListPage: React.FC = () => {
             <>
               <p>
                 Transazione <code>{target.providerTxID}</code> — originale{' '}
-                <strong>{formatMoney(target.amountCents, target.currency)}</strong>
+                <strong>
+                  {formatMoney(target.amountCents, target.currency)}
+                </strong>
               </p>
               <Form>
                 <Form.Group className="mb-3">
-                  <Form.Label>Importo (centesimi — 0 per rimborso completo)</Form.Label>
+                  <Form.Label>
+                    Importo (centesimi — 0 per rimborso completo)
+                  </Form.Label>
                   <Form.Control
                     type="number"
                     value={refundCents}
-                    onChange={(e) => setRefundCents(e.target.value)}
+                    onChange={e => setRefundCents(e.target.value)}
                   />
                 </Form.Group>
                 <Form.Group>
                   <Form.Label>Motivo (facoltativo)</Form.Label>
                   <Form.Control
                     value={refundReason}
-                    onChange={(e) => setRefundReason(e.target.value)}
+                    onChange={e => setRefundReason(e.target.value)}
                   />
                 </Form.Group>
               </Form>

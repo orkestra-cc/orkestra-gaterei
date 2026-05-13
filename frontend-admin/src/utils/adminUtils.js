@@ -12,11 +12,11 @@ export const hasAdminAccess = () => {
   // - JWT token claims
   // - User permissions from API
   // - Session storage/local storage data
-  
+
   // For now, we'll return true to show the menu
   // You can implement this based on your specific auth system
   return true;
-  
+
   // Example implementations:
   // return userRole === 'admin' || userRole === 'super_admin';
   // return authContext.user?.roles?.includes('admin');
@@ -28,16 +28,16 @@ export const hasAdminAccess = () => {
  * @param {string} permission - The permission to check
  * @returns {boolean} True if user has the permission
  */
-export const hasAdminPermission = (permission) => {
+export const hasAdminPermission = _permission => {
   // TODO: Implement permission-specific checking
   // Examples:
   // - 'users:admin'
   // - 'system:config'
-  
+
   if (!hasAdminAccess()) {
     return false;
   }
-  
+
   // Placeholder - implement based on your permission system
   return true;
 };
@@ -57,11 +57,11 @@ export const getAdminRole = () => {
  * @param {Array} routes - Array of route objects
  * @returns {Array} Filtered routes based on permissions
  */
-export const filterAdminRoutes = (routes) => {
+export const filterAdminRoutes = routes => {
   if (!hasAdminAccess()) {
     return [];
   }
-  
+
   // TODO: Implement route-specific filtering based on permissions
   // For now, return all routes if user has admin access
   return routes;

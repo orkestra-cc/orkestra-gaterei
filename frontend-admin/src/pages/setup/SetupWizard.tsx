@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
-import FalconLoader from 'components/common/FalconLoader';
+import OrkestraLoader from 'components/common/OrkestraLoader';
 import { useGetSetupStatusQuery } from 'store/api/setupApi';
 import WelcomeStep from './steps/WelcomeStep';
 import AdminStep from './steps/AdminStep';
@@ -19,7 +19,7 @@ const STEPS: { icon: string; label: string }[] = [
   { icon: 'user-shield', label: 'Administrator' },
   { icon: 'building', label: 'Organization' },
   { icon: 'envelope', label: 'Email delivery' },
-  { icon: 'check', label: 'Done' },
+  { icon: 'check', label: 'Done' }
 ];
 
 const TOTAL = STEPS.length;
@@ -48,7 +48,7 @@ const SetupWizard = () => {
   }, [status]);
 
   if (isLoading) {
-    return <FalconLoader />;
+    return <OrkestraLoader />;
   }
 
   if (error && !status) {
@@ -75,8 +75,8 @@ const SetupWizard = () => {
     return <Navigate to="/dashboard/analytics" replace />;
   }
 
-  const handlePrev = () => setStep((s) => Math.max(1, s - 1));
-  const handleNext = () => setStep((s) => Math.min(TOTAL, s + 1));
+  const handlePrev = () => setStep(s => Math.max(1, s - 1));
+  const handleNext = () => setStep(s => Math.min(TOTAL, s + 1));
 
   const stepContent: ReactNode = (() => {
     switch (step) {
@@ -85,7 +85,7 @@ const SetupWizard = () => {
       case 2:
         return (
           <AdminStep
-            onNext={(fullName) => {
+            onNext={fullName => {
               setAdminFullName(fullName);
               handleNext();
             }}
@@ -95,7 +95,7 @@ const SetupWizard = () => {
         return (
           <OrgStep
             adminFullName={adminFullName}
-            onNext={(createdName) => {
+            onNext={createdName => {
               setOrgName(createdName);
               handleNext();
             }}
@@ -153,7 +153,7 @@ const SetupWizard = () => {
               iconAlign="left"
               transform="down-1 shrink-4"
               className={classNames('px-0 fw-semibold', {
-                'd-none': step === 1,
+                'd-none': step === 1
               })}
               onClick={handlePrev}
             >
@@ -182,12 +182,12 @@ const StepNavItem = ({ index, step, icon, label }: StepNavItemProps) => {
       <Nav.Link
         className={classNames('fw-semibold', {
           done: step > index,
-          active: step === index,
+          active: step === index
         })}
         // Clicks on step indicators are disabled for the setup wizard —
         // steps must be completed in order because each one depends on
         // the previous (the SMTP step needs the admin's access token).
-        onClick={(e) => e.preventDefault()}
+        onClick={e => e.preventDefault()}
       >
         <Flex alignItems="center" justifyContent="center">
           <FontAwesomeIcon icon={icon as IconProp} />

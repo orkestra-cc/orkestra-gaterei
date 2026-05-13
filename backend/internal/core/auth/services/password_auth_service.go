@@ -13,30 +13,37 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
 	notifModels "github.com/orkestra/backend/internal/core/notification/models"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 	sharederrors "github.com/orkestra/backend/internal/shared/errors"
 	"github.com/orkestra/backend/internal/shared/geoip"
-	"github.com/orkestra/backend/internal/shared/iface"
 )
 
 var (
-	ErrInvalidCredentials     = stderrors.New("invalid credentials")
-	ErrEmailNotVerified       = stderrors.New("email not verified")
-	ErrAccountLocked          = stderrors.New("account temporarily locked")
-	ErrUserInactive           = stderrors.New("user account is not active")
-	ErrPasswordReused         = stderrors.New("new password must differ from the current one")
-	ErrNotificationDown       = stderrors.New("notifications disabled — cannot send email")
-	ErrMFAEnrollmentRequired  = stderrors.New("mfa enrollment required — grace period expired")
-	ErrRegistrationDisabled   = stderrors.New("registration disabled for this surface")
-	ErrEmailDomainNotAllowed  = stderrors.New("email domain not allowed")
-	ErrLoginDisabled          = stderrors.New("login disabled for this surface")
+	ErrInvalidCredentials    = stderrors.New("invalid credentials")
+	ErrEmailNotVerified      = stderrors.New("email not verified")
+	ErrAccountLocked         = stderrors.New("account temporarily locked")
+	ErrUserInactive          = stderrors.New("user account is not active")
+	ErrPasswordReused        = stderrors.New("new password must differ from the current one")
+	ErrNotificationDown      = stderrors.New("notifications disabled — cannot send email")
+	ErrMFAEnrollmentRequired = stderrors.New("mfa enrollment required — grace period expired")
+	ErrRegistrationDisabled  = stderrors.New("registration disabled for this surface")
+	ErrEmailDomainNotAllowed = stderrors.New("email domain not allowed")
+	ErrLoginDisabled         = stderrors.New("login disabled for this surface")
 	// ErrCountryBlocked is returned when geoBlockCountries is configured
 	// and the request IP resolves to a blocked country. Translated to
 	// 403 country_blocked at the handler boundary.
 	ErrCountryBlocked = stderrors.New("country blocked by policy")
+	// ErrPasswordConfirmUnavailable is returned by ConfirmPassword when
+	// the user can't satisfy step-up via a password reconfirm — either
+	// they have no password (pure-OAuth account) or they have at least
+	// one MFA factor enrolled (and must use that stronger gate instead).
+	// Translated to 409 password_confirm_unavailable so the frontend can
+	// nudge the user to the MFA path or a fresh OAuth flow.
+	ErrPasswordConfirmUnavailable = stderrors.New("password reconfirm not available for this account")
 )
 
 // FirstAdminClaimer is the contract the password auth service uses to
@@ -58,12 +65,12 @@ type PasswordAuthConfig struct {
 	EmailTokenRepo           repository.EmailTokenRepository
 	RefreshTokenRepo         repository.RefreshTokenRepository
 	AuthSessionRepo          repository.AuthSessionRepository
-	MFAFactorRepo            repository.MFAFactorRepository  // required: decides partial vs full response
-	MFAChallengeService      MFAChallengeService             // required: mints login-continuation challenges
-	FirstAdminClaimer        FirstAdminClaimer               // required: atomic first-admin claim
-	RiskAssessment           RiskAssessmentService           // nil → session gets zero-score; mandatory in prod
-	DeviceTrust              DeviceTrustService              // nil → never skips MFA; Section C item #3
-	SuspiciousLoginNotifier  SuspiciousLoginNotifier         // nil → no email on high-risk login; Section C item #5
+	MFAFactorRepo            repository.MFAFactorRepository // required: decides partial vs full response
+	MFAChallengeService      MFAChallengeService            // required: mints login-continuation challenges
+	FirstAdminClaimer        FirstAdminClaimer              // required: atomic first-admin claim
+	RiskAssessment           RiskAssessmentService          // nil → session gets zero-score; mandatory in prod
+	DeviceTrust              DeviceTrustService             // nil → never skips MFA; Section C item #3
+	SuspiciousLoginNotifier  SuspiciousLoginNotifier        // nil → no email on high-risk login; Section C item #5
 	Notifier                 iface.NotificationSender
 	RateLimiter              *sharederrors.RateLimiter
 	FrontendURL              string
@@ -888,6 +895,114 @@ func (s *PasswordAuthService) ChangePassword(ctx context.Context, userUUID, curr
 		ResourceID:   user.UUID,
 	})
 	return nil
+}
+
+// ConfirmPasswordResult carries the stepped-up access token minted
+// after a successful password reconfirm. RefreshToken is intentionally
+// not rotated — the reconfirm only refreshes the bearer's MFA proof so
+// the in-flight destructive request can replay. Session + refresh-token
+// lineage stay untouched so the user keeps their other sessions.
+type ConfirmPasswordResult struct {
+	AccessToken string
+	TokenType   string
+	ExpiresIn   int64
+}
+
+// ConfirmPassword verifies the user's password and mints a stepped-up
+// access token carrying amr=(priorAMR ∪ {"reauth"}) and last_otp_at=now.
+// Used by RequireStepUp's fallback path for users who can't satisfy the
+// standard MFA gate because no factor is enrolled.
+//
+// Refuses with ErrPasswordConfirmUnavailable when:
+//   - the user has no password set (pure-OAuth account); the caller is
+//     expected to start a fresh OAuth flow to reauthenticate instead.
+//   - the user has any MFA factor (TOTP or WebAuthn) enrolled; a
+//     password reconfirm would defeat the stronger gate, so the caller
+//     must use the MFA path.
+//
+// A wrong password returns ErrInvalidCredentials so the handler can
+// emit 401 (and the IP/email failure counters tick the same way as a
+// failed login). The 5-minute freshness window is enforced downstream
+// by RequireStepUp comparing last_otp_at — this method always stamps now.
+func (s *PasswordAuthService) ConfirmPassword(ctx context.Context, userUUID, password string, priorAMR []string, ip string) (*ConfirmPasswordResult, error) {
+	if userUUID == "" || password == "" {
+		return nil, ErrInvalidCredentials
+	}
+	user, err := s.userService.GetUserByID(ctx, userUUID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrInvalidCredentials
+	}
+	if user.PasswordHash == "" {
+		return nil, ErrPasswordConfirmUnavailable
+	}
+	// Refuse when the user already has a stronger factor. The frontend
+	// should never reach this endpoint in that case (the middleware
+	// emits step_up_required, not password_confirm_required), but the
+	// check is defensive: a crafted direct call must not be able to
+	// bypass MFA.
+	if s.mfaFactorRepo != nil {
+		if totp, err := s.mfaFactorRepo.FindByUserAndType(ctx, userUUID, authModels.MFAFactorTOTP); err == nil && totp != nil {
+			return nil, ErrPasswordConfirmUnavailable
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return nil, err
+		}
+		if wa, err := s.mfaFactorRepo.FindByUserAndType(ctx, userUUID, authModels.MFAFactorWebAuthn); err == nil && wa != nil && len(wa.WebAuthnCredentials) > 0 {
+			return nil, ErrPasswordConfirmUnavailable
+		} else if err != nil && !stderrors.Is(err, repository.ErrMFAFactorNotFound) {
+			return nil, err
+		}
+	}
+	ok, err := s.passwordService.Verify(password, user.PasswordHash)
+	if err != nil || !ok {
+		s.recordFailed(ctx, ip, user.Email)
+		return nil, ErrInvalidCredentials
+	}
+	// Mint the stepped-up token. amr is priorAMR ∪ {"reauth"} so the
+	// authentication lineage stays inspectable (e.g. a token minted from
+	// an oauth login will carry ["oauth","reauth"], not just ["reauth"]).
+	amr := mergeAMRWithReauth(priorAMR)
+	token, err := s.jwtService.GenerateAccessTokenWithAMR(user, amr, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	s.emitAudit(ctx, iface.AuditEvent{
+		ActorUserID:  user.UUID,
+		ActorEmail:   user.Email,
+		ActorType:    "user",
+		Action:       "auth.password.reconfirmed",
+		Outcome:      "success",
+		ResourceType: "user",
+		ResourceID:   user.UUID,
+	})
+	return &ConfirmPasswordResult{
+		AccessToken: token,
+		TokenType:   "Bearer",
+		ExpiresIn:   15 * 60,
+	}, nil
+}
+
+// mergeAMRWithReauth returns priorAMR with "reauth" appended, deduplicated.
+// Falls back to ["pwd","reauth"] when priorAMR is empty so the token still
+// reflects that a password was just verified.
+func mergeAMRWithReauth(prior []string) []string {
+	out := make([]string, 0, len(prior)+1)
+	seenReauth := false
+	for _, v := range prior {
+		out = append(out, v)
+		if v == "reauth" {
+			seenReauth = true
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, "pwd")
+	}
+	if !seenReauth {
+		out = append(out, "reauth")
+	}
+	return out
 }
 
 // --- internal helpers ---

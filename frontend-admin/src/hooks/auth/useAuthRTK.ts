@@ -24,7 +24,6 @@ import { selectPermissions as selectTenantPermissions } from 'store/slices/tenan
 export const useAuth = () => {
   const dispatch = useAppDispatch();
 
-
   // Redux selectors for client-side auth state. Permissions now live on
   // the tenant slice (computed per-org by the authz module) rather than
   // on the auth slice, since they are org-scoped.
@@ -51,7 +50,7 @@ export const useAuth = () => {
     refetch: refetchAuthStatus
   } = useGetSessionQuery(undefined, {
     // Only skip during active logout operations
-    skip: skipSessionQuery,
+    skip: skipSessionQuery
     // No polling - session will be refreshed on demand when needed
   });
 
@@ -99,10 +98,12 @@ export const useAuth = () => {
 
         // Set access token from session response
         if (sessionData.accessToken) {
-          dispatch(setAccessToken({
-            accessToken: sessionData.accessToken,
-            expiresIn: sessionData.expiresIn
-          }));
+          dispatch(
+            setAccessToken({
+              accessToken: sessionData.accessToken,
+              expiresIn: sessionData.expiresIn
+            })
+          );
         }
       } else if (sessionData === null) {
         // Explicitly null means unauthenticated
@@ -112,39 +113,42 @@ export const useAuth = () => {
   }, [sessionData, isAuthLoading, dispatch]);
 
   // Login function
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    try {
-      const result = await loginMutation(credentials).unwrap();
+  const login = useCallback(
+    async (credentials: LoginCredentials) => {
+      try {
+        const result = await loginMutation(credentials).unwrap();
 
-      // MFA partial response: caller must route to /mfa/verify before we
-      // can hydrate session state. Return early so the useAuthRTK consumer
-      // can decide what to do (EmailPasswordForm handles the nav itself).
-      if (result.requiresMfa) {
-        return {
-          success: true,
-          requiresMfa: true,
-          mfaToken: result.mfaToken,
-          webauthnAvailable: result.webauthnAvailable ?? false,
-        };
+        // MFA partial response: caller must route to /mfa/verify before we
+        // can hydrate session state. Return early so the useAuthRTK consumer
+        // can decide what to do (EmailPasswordForm handles the nav itself).
+        if (result.requiresMfa) {
+          return {
+            success: true,
+            requiresMfa: true,
+            mfaToken: result.mfaToken,
+            webauthnAvailable: result.webauthnAvailable ?? false
+          };
+        }
+
+        // Sync successful login with Redux state
+        dispatch(setUserFromApiResponse(result.user ?? null));
+
+        toast.success('Login successful!', {
+          toastId: 'login-success',
+          autoClose: 3000
+        });
+
+        return { success: true, user: result.user };
+      } catch (error: any) {
+        toast.error(error?.data?.message || 'Login failed. Please try again.', {
+          toastId: 'login-error',
+          autoClose: 5000
+        });
+        throw error;
       }
-
-      // Sync successful login with Redux state
-      dispatch(setUserFromApiResponse(result.user ?? null));
-
-      toast.success('Login successful!', {
-        toastId: 'login-success',
-        autoClose: 3000,
-      });
-
-      return { success: true, user: result.user };
-    } catch (error: any) {
-      toast.error(error?.data?.message || 'Login failed. Please try again.', {
-        toastId: 'login-error',
-        autoClose: 5000,
-      });
-      throw error;
-    }
-  }, [loginMutation, dispatch]);
+    },
+    [loginMutation, dispatch]
+  );
 
   // Logout function
   const logout = useCallback(async () => {
@@ -157,7 +161,7 @@ export const useAuth = () => {
       // Redux state is cleared in the mutation's onQueryStarted
       toast.success('Logged out successfully', {
         toastId: 'logout-success',
-        autoClose: 3000,
+        autoClose: 3000
       });
 
       // Re-enable session queries after logout
@@ -175,7 +179,7 @@ export const useAuth = () => {
 
       toast.error('Logout failed. Please try again.', {
         toastId: 'logout-error',
-        autoClose: 5000,
+        autoClose: 5000
       });
 
       return { success: false, error };
@@ -186,22 +190,28 @@ export const useAuth = () => {
   const updateProfile = useCallback(async (_updates: any) => {
     toast.error('Profile update functionality has been removed', {
       toastId: 'profile-update-removed',
-      autoClose: 5000,
+      autoClose: 5000
     });
     throw new Error('Profile update functionality has been removed');
   }, []);
 
   // Permission helpers. The `*` wildcard grants all permissions and is
   // issued to users with the developer system role.
-  const hasPermission = useCallback((permission: string) => {
-    if (permissions.includes('*')) return true;
-    return permissions.includes(permission);
-  }, [permissions]);
+  const hasPermission = useCallback(
+    (permission: string) => {
+      if (permissions.includes('*')) return true;
+      return permissions.includes(permission);
+    },
+    [permissions]
+  );
 
-  const hasAnyPermission = useCallback((requiredPermissions: string[]) => {
-    if (permissions.includes('*')) return true;
-    return requiredPermissions.some(p => permissions.includes(p));
-  }, [permissions]);
+  const hasAnyPermission = useCallback(
+    (requiredPermissions: string[]) => {
+      if (permissions.includes('*')) return true;
+      return requiredPermissions.some(p => permissions.includes(p));
+    },
+    [permissions]
+  );
 
   // Current user with enhanced data from Redux state
   const enrichedUser = useCallback(() => {
@@ -220,7 +230,8 @@ export const useAuth = () => {
   }, [currentUser, permissions, preferences]);
 
   // Loading states
-  const isLoading = isAuthLoading || isProfileLoading || isLogging || isLoggingOut;
+  const isLoading =
+    isAuthLoading || isProfileLoading || isLogging || isLoggingOut;
 
   // Error handling
   const error = authError || profileError;
@@ -256,8 +267,9 @@ export const useAuth = () => {
     hasAnyPermission,
 
     // Legacy compatibility
-    setUserFromApiResponse: (data: BackendUser | null) => dispatch(setUserFromApiResponse(data)),
-    clearError: () => {}, // Handled by RTK Query automatically
+    setUserFromApiResponse: (data: BackendUser | null) =>
+      dispatch(setUserFromApiResponse(data)),
+    clearError: () => {} // Handled by RTK Query automatically
   };
 };
 
@@ -268,7 +280,7 @@ export const useCurrentUser = () => {
     user,
     isLoading,
     error,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user
   };
 };
 
@@ -278,7 +290,7 @@ export const useAuthStatus = () => {
     data: currentUser,
     isLoading: isAuthLoading,
     error: error,
-    refetch: refetchAuthStatus,
+    refetch: refetchAuthStatus
   };
 };
 
@@ -286,6 +298,6 @@ export const useLogout = () => {
   const { logout, isLoggingOut } = useAuth();
   return {
     mutate: logout,
-    isLoading: isLoggingOut,
+    isLoading: isLoggingOut
   };
 };

@@ -1,4 +1,3 @@
-
 import { useAppContext } from 'providers/AppProvider';
 import { LineChart } from 'echarts/charts';
 import {
@@ -34,7 +33,12 @@ interface LinePaymentChartProps {
   style?: CSSProperties;
 }
 
-const getOption = (getThemeColor: ThemeColorGetter, data: LinePaymentData, paymentStatus: string, isDark: boolean) => ({
+const getOption = (
+  getThemeColor: ThemeColorGetter,
+  data: LinePaymentData,
+  paymentStatus: string,
+  isDark: boolean
+) => ({
   tooltip: {
     trigger: 'axis',
     axisPointer: {
@@ -50,7 +54,8 @@ const getOption = (getThemeColor: ThemeColorGetter, data: LinePaymentData, payme
       fontSize: 12,
       color: getThemeColor('gray-1100')
     },
-    formatter: (params: TooltipParams[]) => `${params[0].axisValue} - ${params[0].value} USD`
+    formatter: (params: TooltipParams[]) =>
+      `${params[0].axisValue} - ${params[0].value} USD`
   },
   xAxis: {
     type: 'category',
@@ -158,24 +163,23 @@ const getOption = (getThemeColor: ThemeColorGetter, data: LinePaymentData, payme
   grid: { right: 15, left: 15, bottom: '15%', top: 0 }
 });
 
-const LinePaymentChart = forwardRef<ReactEChartsCore, LinePaymentChartProps>((
-  { data, paymentStatus, style },
-  ref
-) => {
-  const {
-    config: { isDark },
-    getThemeColor
-  } = useAppContext();
+const LinePaymentChart = forwardRef<ReactEChartsCore, LinePaymentChartProps>(
+  ({ data, paymentStatus, style }, ref) => {
+    const {
+      config: { isDark },
+      getThemeColor
+    } = useAppContext();
 
-  return (
-    <ReactEchart
-      echarts={echarts}
-      ref={ref}
-      option={getOption(getThemeColor, data, paymentStatus, isDark)}
-      style={style}
-    />
-  );
-});
+    return (
+      <ReactEchart
+        echarts={echarts}
+        ref={ref}
+        option={getOption(getThemeColor, data, paymentStatus, isDark)}
+        style={style}
+      />
+    );
+  }
+);
 
 LinePaymentChart.displayName = 'LinePaymentChart';
 

@@ -9,20 +9,23 @@ import {
   Modal,
   Nav,
   Spinner,
-  Table,
+  Table
 } from 'react-bootstrap';
-import { FalconCardHeader } from 'components/common';
-import type { ModuleConfig, EnvironmentConfigResponse } from 'store/api/moduleApi';
+import { OrkestraCardHeader } from 'components/common';
+import type {
+  ModuleConfig,
+  EnvironmentConfigResponse
+} from 'store/api/moduleApi';
 import {
   useGetModuleEnvironmentQuery,
-  useUpdateModuleEnvironmentMutation,
+  useUpdateModuleEnvironmentMutation
 } from 'store/api/moduleApi';
 import {
   useListAIModelsQuery,
   useDeleteAIModelMutation,
   useSetDefaultAIModelMutation,
   useTestAIModelMutation,
-  useUpdateAIModelMutation,
+  useUpdateAIModelMutation
 } from 'store/api/aiModelsApi';
 import type { AIModelConfig, Provider } from 'types/aiModels';
 import { PROVIDER_INFO } from 'types/aiModels';
@@ -40,34 +43,36 @@ const PROVIDER_CONFIG_KEYS: Record<Provider, string[]> = {
   ollama: ['ollamaBaseURL'],
   openai: ['openaiKey'],
   anthropic: ['anthropicKey'],
-  gemini: ['geminiKey'],
+  gemini: ['geminiKey']
 };
 
 const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
   module: mod,
-  selectedEnvironment,
+  selectedEnvironment
 }) => {
   // --- URL-synced tab ---
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as Provider) || 'ollama';
   const handleTabSelect = (key: string | null) => {
     if (!key) return;
-    setSearchParams((prev) => {
-      prev.set('tab', key);
-      return prev;
-    }, { replace: true });
+    setSearchParams(
+      prev => {
+        prev.set('tab', key);
+        return prev;
+      },
+      { replace: true }
+    );
   };
 
   // --- Module config (API keys / base URLs) ---
-  const {
-    data: envConfig,
-    isLoading: envLoading,
-  } = useGetModuleEnvironmentQuery(
-    { name: mod.moduleName, environment: selectedEnvironment },
-    { skip: !mod.availableEnvironments?.length }
-  );
+  const { data: envConfig, isLoading: envLoading } =
+    useGetModuleEnvironmentQuery(
+      { name: mod.moduleName, environment: selectedEnvironment },
+      { skip: !mod.availableEnvironments?.length }
+    );
 
-  const [updateEnv, { isLoading: saving }] = useUpdateModuleEnvironmentMutation();
+  const [updateEnv, { isLoading: saving }] =
+    useUpdateModuleEnvironmentMutation();
 
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
@@ -75,18 +80,21 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
   const [configError, setConfigError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState(false);
 
-  const resetForm = useCallback((data: EnvironmentConfigResponse | undefined) => {
-    if (data) {
-      setConfigValues({ ...(data.configValues ?? {}) });
-      setLoadedValues({ ...(data.configValues ?? {}) });
-    } else {
-      setConfigValues({ ...(mod.configValues ?? {}) });
-      setLoadedValues({ ...(mod.configValues ?? {}) });
-    }
-    setSecretValues({});
-    setConfigError(null);
-    setConfigSuccess(false);
-  }, [mod.configValues]);
+  const resetForm = useCallback(
+    (data: EnvironmentConfigResponse | undefined) => {
+      if (data) {
+        setConfigValues({ ...(data.configValues ?? {}) });
+        setLoadedValues({ ...(data.configValues ?? {}) });
+      } else {
+        setConfigValues({ ...(mod.configValues ?? {}) });
+        setLoadedValues({ ...(mod.configValues ?? {}) });
+      }
+      setSecretValues({});
+      setConfigError(null);
+      setConfigSuccess(false);
+    },
+    [mod.configValues]
+  );
 
   useEffect(() => {
     resetForm(envConfig);
@@ -96,11 +104,12 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
   const secretStatus = envConfig?.secretStatus ?? mod.secretStatus ?? {};
 
   const isDirty = useMemo(() => {
-    const hasSecrets = Object.values(secretValues).some((v) => v.trim() !== '');
+    const hasSecrets = Object.values(secretValues).some(v => v.trim() !== '');
     if (hasSecrets) return true;
     for (const field of schema) {
       if (field.type === 'secret') continue;
-      if ((configValues[field.key] || '') !== (loadedValues[field.key] || '')) return true;
+      if ((configValues[field.key] || '') !== (loadedValues[field.key] || ''))
+        return true;
     }
     return false;
   }, [configValues, loadedValues, secretValues, schema]);
@@ -112,7 +121,9 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
       const changedConfig: Record<string, string> = {};
       for (const field of schema) {
         if (field.type === 'secret') continue;
-        if ((configValues[field.key] || '') !== (loadedValues[field.key] || '')) {
+        if (
+          (configValues[field.key] || '') !== (loadedValues[field.key] || '')
+        ) {
           changedConfig[field.key] = configValues[field.key] || '';
         }
       }
@@ -120,13 +131,18 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
       for (const [key, value] of Object.entries(secretValues)) {
         if (value.trim()) newSecrets[key] = value;
       }
-      if (Object.keys(changedConfig).length === 0 && Object.keys(newSecrets).length === 0) return;
+      if (
+        Object.keys(changedConfig).length === 0 &&
+        Object.keys(newSecrets).length === 0
+      )
+        return;
 
       await updateEnv({
         name: mod.moduleName,
         environment: selectedEnvironment,
-        config: Object.keys(changedConfig).length > 0 ? changedConfig : undefined,
-        secrets: Object.keys(newSecrets).length > 0 ? newSecrets : undefined,
+        config:
+          Object.keys(changedConfig).length > 0 ? changedConfig : undefined,
+        secrets: Object.keys(newSecrets).length > 0 ? newSecrets : undefined
       }).unwrap();
 
       setConfigSuccess(true);
@@ -135,7 +151,10 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'data' in err
-          ? String((err as { data: { detail?: string } }).data?.detail || 'Update failed')
+          ? String(
+              (err as { data: { detail?: string } }).data?.detail ||
+                'Update failed'
+            )
           : 'Update failed';
       setConfigError(message);
     }
@@ -146,9 +165,9 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
   const blocker = useBlocker(isDirty);
 
   // --- Models for active provider ---
-  const { data: modelsData, isLoading: modelsLoading } = useListAIModelsQuery(
-    { provider: activeTab }
-  );
+  const { data: modelsData, isLoading: modelsLoading } = useListAIModelsQuery({
+    provider: activeTab
+  });
   const models = modelsData?.models ?? [];
 
   const [deleteModel] = useDeleteAIModelMutation();
@@ -156,44 +175,67 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
   const [testModel] = useTestAIModelMutation();
   const [updateModel] = useUpdateAIModelMutation();
 
-  const [testResults, setTestResults] = useState<Record<string, { status: string; message: string }>>({});
+  const [testResults, setTestResults] = useState<
+    Record<string, { status: string; message: string }>
+  >({});
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingModel, setEditingModel] = useState<AIModelConfig | null>(null);
 
-  const handleTest = useCallback(async (uuid: string) => {
-    setTestResults(prev => ({ ...prev, [uuid]: { status: 'testing', message: 'Testing...' } }));
-    try {
-      const result = await testModel(uuid).unwrap();
-      setTestResults(prev => ({ ...prev, [uuid]: result }));
-    } catch {
-      setTestResults(prev => ({ ...prev, [uuid]: { status: 'error', message: 'Test failed' } }));
-    }
-  }, [testModel]);
+  const handleTest = useCallback(
+    async (uuid: string) => {
+      setTestResults(prev => ({
+        ...prev,
+        [uuid]: { status: 'testing', message: 'Testing...' }
+      }));
+      try {
+        const result = await testModel(uuid).unwrap();
+        setTestResults(prev => ({ ...prev, [uuid]: result }));
+      } catch {
+        setTestResults(prev => ({
+          ...prev,
+          [uuid]: { status: 'error', message: 'Test failed' }
+        }));
+      }
+    },
+    [testModel]
+  );
 
-  const handleToggleActive = useCallback(async (model: AIModelConfig) => {
-    try {
-      await updateModel({ uuid: model.uuid, body: { isActive: !model.isActive } }).unwrap();
-    } catch {
-      // handled by RTK Query
-    }
-  }, [updateModel]);
+  const handleToggleActive = useCallback(
+    async (model: AIModelConfig) => {
+      try {
+        await updateModel({
+          uuid: model.uuid,
+          body: { isActive: !model.isActive }
+        }).unwrap();
+      } catch {
+        // handled by RTK Query
+      }
+    },
+    [updateModel]
+  );
 
-  const handleSetDefault = useCallback(async (uuid: string) => {
-    try {
-      await setDefaultModel(uuid).unwrap();
-    } catch {
-      // handled by RTK Query
-    }
-  }, [setDefaultModel]);
+  const handleSetDefault = useCallback(
+    async (uuid: string) => {
+      try {
+        await setDefaultModel(uuid).unwrap();
+      } catch {
+        // handled by RTK Query
+      }
+    },
+    [setDefaultModel]
+  );
 
-  const handleDelete = useCallback(async (uuid: string) => {
-    if (!confirm('Delete this model configuration?')) return;
-    try {
-      await deleteModel(uuid).unwrap();
-    } catch {
-      // handled by RTK Query
-    }
-  }, [deleteModel]);
+  const handleDelete = useCallback(
+    async (uuid: string) => {
+      if (!confirm('Delete this model configuration?')) return;
+      try {
+        await deleteModel(uuid).unwrap();
+      } catch {
+        // handled by RTK Query
+      }
+    },
+    [deleteModel]
+  );
 
   const openCreate = () => {
     setEditingModel(null);
@@ -216,7 +258,8 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
     }
     if (model.modelType === 'llm') {
       const parts: string[] = [];
-      if (model.temperature !== undefined) parts.push(`temp: ${model.temperature}`);
+      if (model.temperature !== undefined)
+        parts.push(`temp: ${model.temperature}`);
       if (model.maxTokens !== undefined) parts.push(`max: ${model.maxTokens}`);
       return parts.join(', ');
     }
@@ -227,7 +270,11 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
     const testResult = testResults[model.uuid];
     if (testResult) {
       if (testResult.status === 'testing') {
-        return <Badge bg="secondary"><Spinner size="sm" /></Badge>;
+        return (
+          <Badge bg="secondary">
+            <Spinner size="sm" />
+          </Badge>
+        );
       }
       return (
         <Badge bg={testResult.status === 'ok' ? 'success' : 'danger'}>
@@ -236,10 +283,18 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
       );
     }
     if (model.lastTestStatus === 'ok') {
-      return <Badge bg="success" className="bg-opacity-25 text-body">tested ok</Badge>;
+      return (
+        <Badge bg="success" className="bg-opacity-25 text-body">
+          tested ok
+        </Badge>
+      );
     }
     if (model.lastTestStatus === 'error') {
-      return <Badge bg="danger" className="bg-opacity-25 text-body">test failed</Badge>;
+      return (
+        <Badge bg="danger" className="bg-opacity-25 text-body">
+          test failed
+        </Badge>
+      );
     }
     return null;
   };
@@ -253,13 +308,22 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
             <Modal.Title className="fs-8">Unsaved Changes</Modal.Title>
           </Modal.Header>
           <Modal.Body className="fs-10">
-            You have unsaved configuration changes. Are you sure you want to leave?
+            You have unsaved configuration changes. Are you sure you want to
+            leave?
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" size="sm" onClick={() => blocker.reset()}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => blocker.reset()}
+            >
               Stay
             </Button>
-            <Button variant="danger" size="sm" onClick={() => blocker.proceed()}>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => blocker.proceed()}
+            >
               Leave
             </Button>
           </Modal.Footer>
@@ -267,10 +331,12 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
       )}
 
       <Card className="mb-3">
-        <FalconCardHeader
+        <OrkestraCardHeader
           title="AI Provider Configuration"
           light={false}
-          endEl={envLoading ? <Spinner animation="border" size="sm" /> : undefined}
+          endEl={
+            envLoading ? <Spinner animation="border" size="sm" /> : undefined
+          }
         />
         <Card.Body>
           {/* Provider tabs */}
@@ -280,7 +346,7 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
             onSelect={handleTabSelect}
             className="mb-3"
           >
-            {PROVIDERS.map((provider) => (
+            {PROVIDERS.map(provider => (
               <Nav.Item key={provider}>
                 <Nav.Link eventKey={provider}>
                   {PROVIDER_INFO[provider].label}
@@ -291,7 +357,12 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
 
           {/* Config alerts */}
           {configError && (
-            <Alert variant="danger" className="fs-10" dismissible onClose={() => setConfigError(null)}>
+            <Alert
+              variant="danger"
+              className="fs-10"
+              dismissible
+              onClose={() => setConfigError(null)}
+            >
               {configError}
             </Alert>
           )}
@@ -303,19 +374,29 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
 
           {/* Provider config fields */}
           <div className="mb-3">
-            <h6 className="fs-10 text-uppercase text-600 mb-2">Provider Settings</h6>
+            <h6 className="fs-10 text-uppercase text-600 mb-2">
+              Provider Settings
+            </h6>
             <ModuleConfigFields
               schema={schema}
               includeKeys={PROVIDER_CONFIG_KEYS[activeTab]}
               configValues={configValues}
               secretValues={secretValues}
               secretStatus={secretStatus}
-              onConfigChange={(key, value) => setConfigValues((prev) => ({ ...prev, [key]: value }))}
-              onSecretChange={(key, value) => setSecretValues((prev) => ({ ...prev, [key]: value }))}
+              onConfigChange={(key, value) =>
+                setConfigValues(prev => ({ ...prev, [key]: value }))
+              }
+              onSecretChange={(key, value) =>
+                setSecretValues(prev => ({ ...prev, [key]: value }))
+              }
             />
             <div className="d-flex justify-content-end gap-2">
               {isDirty && (
-                <Button variant="outline-secondary" size="sm" onClick={handleDiscardConfig}>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={handleDiscardConfig}
+                >
                   Discard
                 </Button>
               )}
@@ -325,7 +406,11 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
                 onClick={handleSaveConfig}
                 disabled={saving || !isDirty}
               >
-                {saving ? <Spinner animation="border" size="sm" /> : 'Save Changes'}
+                {saving ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  'Save Changes'
+                )}
               </Button>
             </div>
           </div>
@@ -340,10 +425,13 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
             </div>
 
             {modelsLoading ? (
-              <div className="text-center py-3"><Spinner size="sm" /></div>
+              <div className="text-center py-3">
+                <Spinner size="sm" />
+              </div>
             ) : models.length === 0 ? (
               <p className="text-muted fs-10 mb-0">
-                No models configured for {PROVIDER_INFO[activeTab].label}. Click "Add Model" to get started.
+                No models configured for {PROVIDER_INFO[activeTab].label}. Click
+                "Add Model" to get started.
               </p>
             ) : (
               <Table size="sm" hover responsive className="mb-0 fs-10">
@@ -358,16 +446,22 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {models.map((m) => (
+                  {models.map(m => (
                     <tr key={m.uuid}>
                       <td className="fw-semibold">
                         {m.name}
                         {m.isDefault && (
-                          <Badge bg="success" className="ms-1">Default</Badge>
+                          <Badge bg="success" className="ms-1">
+                            Default
+                          </Badge>
                         )}
                       </td>
-                      <td><code className="small">{m.modelName}</code></td>
-                      <td><Badge bg="secondary">{m.modelType}</Badge></td>
+                      <td>
+                        <code className="small">{m.modelName}</code>
+                      </td>
+                      <td>
+                        <Badge bg="secondary">{m.modelType}</Badge>
+                      </td>
                       <td className="text-muted">{getDetailsText(m)}</td>
                       <td>
                         {getStatusBadge(m) || (
@@ -383,18 +477,34 @@ const AIModelsConfigSection: React.FC<AIModelsConfigSectionProps> = ({
                       </td>
                       <td>
                         <div className="d-flex gap-1 flex-nowrap">
-                          <Button variant="outline-primary" size="sm" onClick={() => handleTest(m.uuid)}>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => handleTest(m.uuid)}
+                          >
                             Test
                           </Button>
-                          <Button variant="outline-secondary" size="sm" onClick={() => openEdit(m)}>
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            onClick={() => openEdit(m)}
+                          >
                             Edit
                           </Button>
                           {!m.isDefault && (
-                            <Button variant="outline-success" size="sm" onClick={() => handleSetDefault(m.uuid)}>
+                            <Button
+                              variant="outline-success"
+                              size="sm"
+                              onClick={() => handleSetDefault(m.uuid)}
+                            >
                               Default
                             </Button>
                           )}
-                          <Button variant="outline-danger" size="sm" onClick={() => handleDelete(m.uuid)}>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => handleDelete(m.uuid)}
+                          >
                             Delete
                           </Button>
                         </div>

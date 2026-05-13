@@ -1,4 +1,8 @@
 import paths, { rootPaths } from 'routes/paths';
+import type {
+  NavItem as ApiNavItem,
+  NavRealm
+} from 'store/api/navigationApi';
 
 export interface Badge {
   type: string;
@@ -1028,27 +1032,6 @@ export const modulesRoutes: RouteGroup = {
   ]
 };
 
-export const testRoutes: RouteGroup = {
-  label: 'TEST',
-  roles: ['developer'], // Only CEO can see test routes
-  children: [
-    {
-      name: 'Authentication Test',
-      icon: 'shield-alt',
-      to: paths.authTest,
-      active: true,
-      roles: ['developer']
-    },
-    {
-      name: 'Role Navigation Tester',
-      icon: 'users',
-      to: paths.roleNavigationTester,
-      active: true,
-      roles: ['developer']
-    }
-  ]
-};
-
 export const documentationRoutes: RouteGroup = {
   label: 'Documentation',
   roles: ['developer'],
@@ -1630,20 +1613,6 @@ export const referenceRoutes: RouteGroup = {
         { name: 'Changelog', to: paths.refDocChangelog, active: true },
         { name: 'Migration', to: paths.refDocMigration, active: true }
       ]
-    },
-    {
-      name: 'Test',
-      active: true,
-      icon: 'flask',
-      roles: ['developer'],
-      children: [
-        { name: 'Auth Test', to: paths.refTestAuth, active: true },
-        {
-          name: 'Role Navigation',
-          to: paths.refTestRoleNavigation,
-          active: true
-        }
-      ]
     }
   ]
 };
@@ -1848,3 +1817,24 @@ const routeGroups: RouteGroup[] = [
 ];
 
 export default routeGroups;
+
+// Developer realm — surfaced in the operator sidebar only in dev builds
+// (or when VITE_ENABLE_REFERENCE is set). Wraps the existing referenceRoutes
+// tree as a v2 NavRealm so NavbarVertical can render it through the same
+// realm → section → items path as backend-driven realms.
+//
+// This is the single hardcoded-nav exception in the frontend. Production
+// nav must come from the backend module's NavItems() — do not extend this
+// pattern to anything other than the dev-only Orkestra template pages.
+export const developerRealm: NavRealm = {
+  key: 'developer',
+  label: 'Developer',
+  sections: [
+    {
+      // Matches the realm label so NavbarVertical hides the section sub-label
+      // (see the `section.label !== realm.label` guard in NavbarVertical.tsx).
+      label: 'Developer',
+      children: referenceRoutes.children as ApiNavItem[]
+    }
+  ]
+};

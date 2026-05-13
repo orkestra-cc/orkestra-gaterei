@@ -1,4 +1,3 @@
-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import classNames from 'classnames';
 import BasicECharts from 'components/common/BasicEChart';
@@ -30,7 +29,10 @@ echarts.use([
   CanvasRenderer
 ]);
 
-const getOptions = (getThemeColor: (color: string) => string, data: number[]) => ({
+const getOptions = (
+  getThemeColor: (color: string) => string,
+  data: number[]
+) => ({
   tooltip: {
     trigger: 'axis',
     padding: [7, 10],
@@ -77,7 +79,11 @@ const getOptions = (getThemeColor: (color: string) => string, data: number[]) =>
   grid: { right: 5, left: 10, top: 0, bottom: 0 }
 });
 
-const WeeklySales: React.FC<WeeklySalesProps> = ({ data, width, amountClassName }) => {
+const WeeklySales: React.FC<WeeklySalesProps> = ({
+  data,
+  width,
+  amountClassName
+}) => {
   const { getThemeColor } = useAppContext();
   return (
     <Card className="h-md-100">
