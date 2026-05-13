@@ -103,16 +103,6 @@ internal/addons/identity/repository/idp_config_repo.go:137:FindOne
 internal/addons/identity/repository/idp_config_repo.go:152:FindOne
 internal/addons/identity/repository/scim_token_repo.go:43:UpdateMany
 internal/addons/identity/repository/scim_token_repo.go:69:FindOne
-internal/addons/payments/repository/payment_method_repository.go:42:FindOne
-internal/addons/payments/repository/payment_method_repository.go:57:Find
-internal/addons/payments/repository/payment_method_repository.go:70:DeleteOne
-internal/addons/payments/repository/transaction_repository.go:104:Find
-internal/addons/payments/repository/transaction_repository.go:122:Find
-internal/addons/payments/repository/transaction_repository.go:136:ReplaceOne
-internal/addons/payments/repository/transaction_repository.go:57:FindOne
-internal/addons/payments/repository/transaction_repository.go:69:FindOne
-internal/addons/payments/repository/webhook_event_repository.go:52:UpdateOne
-internal/addons/payments/repository/webhook_event_repository.go:65:Find
 internal/addons/rag/repository/document_repository.go:104:UpdateOne
 internal/addons/rag/repository/document_repository.go:110:UpdateOne
 internal/addons/rag/repository/document_repository.go:131:UpdateOne

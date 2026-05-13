@@ -67,6 +67,14 @@ replace github.com/orkestra-cc/orkestra-addon-sales => ./internal/addons/sales
 // extracted in their own phases.
 replace github.com/orkestra-cc/orkestra-addon-subscriptions => ./internal/addons/subscriptions
 
+// Phase 5g: the payments addon is its own Go module. Source lives
+// in-tree, mirrored to orkestra-cc/orkestra-addon-payments and
+// tagged from v0.1.0. Same testkit-replacement playbook as Phase 5f
+// — client_handler_test.go uses an inline `authedCtx` helper instead
+// of importing internal/testkit (testkit still serves compliance,
+// which extracts later).
+replace github.com/orkestra-cc/orkestra-addon-payments => ./internal/addons/payments
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -85,6 +93,7 @@ require (
 	github.com/orkestra-cc/orkestra-addon-company v0.1.1
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1
+	github.com/orkestra-cc/orkestra-addon-payments v0.1.0
 	github.com/orkestra-cc/orkestra-addon-sales v0.1.0
 	github.com/orkestra-cc/orkestra-addon-subscriptions v0.1.0
 	github.com/orkestra-cc/orkestra-openapi-auth v0.1.0
@@ -92,7 +101,6 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/sashabaranov/go-openai v1.41.2
-	github.com/stripe/stripe-go/v76 v76.25.0
 	github.com/vectorize-io/hindsight/hindsight-clients/go v0.0.0-20260323151157-26944e25bc03
 	github.com/yuin/goldmark v1.7.17
 	go.mongodb.org/mongo-driver v1.17.6
@@ -161,6 +169,7 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
+	github.com/stripe/stripe-go/v76 v76.25.0 // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
