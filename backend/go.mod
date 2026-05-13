@@ -93,6 +93,21 @@ replace github.com/orkestra-cc/orkestra-addon-billing => ./internal/addons/billi
 // instead of importing `shared/config.Config`.
 replace github.com/orkestra-cc/orkestra-addon-dev => ./internal/addons/dev
 
+// Phase 5j: the compliance addon is its own Go module. Source lives
+// in-tree, mirrored to orkestra-cc/orkestra-addon-compliance and
+// tagged from v0.1.0. Three small interfaces were lifted into the
+// SDK to unblock the extraction (`iface.AuditSinkSetter`,
+// `iface.KMSProviderSetter`, `iface.ClientSelfDeletionGate`); the
+// module's post-init wiring now probes `module.GetTyped[iface.*]`
+// instead of importing concrete-pointer types from auth/tenant/
+// identity. SOC2 evidence keeps two cross-module Mongo collection
+// names as inlined string constants (operator_users,
+// operator_mfa_factors) with a contract note in soc2.go. testkit
+// was the last serial consumer — `me_handler_test.go` switched to
+// an inline `authedCtx` helper (Phase 5f/5g playbook), leaving
+// internal/testkit backend-internal only.
+replace github.com/orkestra-cc/orkestra-addon-compliance => ./internal/addons/compliance
+
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/cedar-policy/cedar-go v1.6.0
@@ -110,6 +125,7 @@ require (
 	github.com/orkestra-cc/orkestra-addon-aimodels v0.1.0
 	github.com/orkestra-cc/orkestra-addon-billing v0.1.0
 	github.com/orkestra-cc/orkestra-addon-company v0.1.1
+	github.com/orkestra-cc/orkestra-addon-compliance v0.1.0
 	github.com/orkestra-cc/orkestra-addon-dev v0.1.0
 	github.com/orkestra-cc/orkestra-addon-documents v0.1.0
 	github.com/orkestra-cc/orkestra-addon-graph v0.1.1

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-addon-compliance/models"
+	"github.com/orkestra-cc/orkestra-addon-compliance/repository"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/compliance/models"
-	"github.com/orkestra/backend/internal/addons/compliance/repository"
 )
 
 // LocalKMS is the in-process KMS provider used in dev and simple prod

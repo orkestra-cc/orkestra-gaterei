@@ -16,17 +16,12 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
-	subscriptionServices "github.com/orkestra-cc/orkestra-addon-subscriptions/services"
+	"github.com/orkestra-cc/orkestra-addon-compliance/handlers"
+	"github.com/orkestra-cc/orkestra-addon-compliance/models"
+	"github.com/orkestra-cc/orkestra-addon-compliance/repository"
+	"github.com/orkestra-cc/orkestra-addon-compliance/services"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra-cc/orkestra-sdk/module"
-	"github.com/orkestra/backend/internal/addons/compliance/handlers"
-	"github.com/orkestra/backend/internal/addons/compliance/models"
-	"github.com/orkestra/backend/internal/addons/compliance/repository"
-	"github.com/orkestra/backend/internal/addons/compliance/services"
-	identityHandlers "github.com/orkestra/backend/internal/addons/identity/handlers"
-	identityServices "github.com/orkestra/backend/internal/addons/identity/services"
-	authServices "github.com/orkestra/backend/internal/core/auth/services"
-	tenantServices "github.com/orkestra/backend/internal/core/tenant/services"
 )
 
 // Module wires the audit sink, DSR pipeline, SOC2 evidence, and
@@ -38,7 +33,7 @@ type Module struct {
 	me         *handlers.MeHandler
 	soc2       *handlers.SOC2Handler
 	logger     *slog.Logger
-	authPolicy *authServices.AuthPolicyService // optional — Phase 8 self-service deletion gate
+	authPolicy iface.ClientSelfDeletionGate // optional — Phase 8 self-service deletion gate
 }
 
 // NewModule returns an unwired module; Init constructs the sink.
@@ -155,7 +150,7 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	kmsRepo := repository.NewKMSKeyRepo(deps.DB)
 	if kms, err := services.NewLocalKMS(kmsRepo); err == nil {
 		deps.Services.Register(module.ServiceKMSProvider, iface.KMSProvider(kms))
-		if ts, ok := module.GetTyped[*tenantServices.Service](deps.Services, module.ServiceTenantService); ok {
+		if ts, ok := module.GetTyped[iface.KMSProviderSetter](deps.Services, module.ServiceTenantService); ok {
 			ts.SetKMSProvider(kms)
 		}
 	} else {
@@ -187,33 +182,35 @@ func (m *Module) Init(deps *module.Dependencies) error {
 	// either audience land on the same compliance audit trail. The
 	// canonical ServicePasswordAuthService is operator-tier; the
 	// ServiceClientPasswordAuthService key is the client-tier instance.
-	if pa, ok := module.GetTyped[*authServices.PasswordAuthService](deps.Services, module.ServicePasswordAuthService); ok {
-		pa.SetAuditSink(sink)
+	// Push the audit sink into every registered AuditSinkSetter. The
+	// receivers (PasswordAuthService, AuthPolicyService — implicitly,
+	// via SetAuditSink, tenantServices.Service, identityServices.Service,
+	// identityHandlers.{AdminHandler,ScimAdminHandler},
+	// subscriptionServices.SubscriptionService) each expose
+	// SetAuditSink(iface.AuditSink), so the iface.AuditSinkSetter
+	// assertion succeeds without compliance needing to import their
+	// concrete types.
+	auditSinkKeys := []module.ServiceKey{
+		module.ServicePasswordAuthService,
+		module.ServiceClientPasswordAuthService,
+		module.ServiceTenantService,
+		module.ServiceIdentityOIDCService,
+		module.ServiceIdentityAdminHandler,
+		module.ServiceIdentityScimAdminHandler,
+		module.ServiceSubscriptionService,
 	}
-	if pa, ok := module.GetTyped[*authServices.PasswordAuthService](deps.Services, module.ServiceClientPasswordAuthService); ok {
-		pa.SetAuditSink(sink)
+	for _, key := range auditSinkKeys {
+		if s, ok := module.GetTyped[iface.AuditSinkSetter](deps.Services, key); ok {
+			s.SetAuditSink(sink)
+		}
 	}
+
 	// Phase 8: pull the auth policy so the client-side DSR erase route
 	// can gate on selfServiceAccountDeletionClient. Optional — when the
 	// policy isn't published the client erase route stays unmounted (no
 	// silent open path).
-	if p, ok := module.GetTyped[*authServices.AuthPolicyService](deps.Services, module.ServiceAuthPolicy); ok {
+	if p, ok := module.GetTyped[iface.ClientSelfDeletionGate](deps.Services, module.ServiceAuthPolicy); ok {
 		m.authPolicy = p
-	}
-	if ts, ok := module.GetTyped[*tenantServices.Service](deps.Services, module.ServiceTenantService); ok {
-		ts.SetAuditSink(sink)
-	}
-	if os, ok := module.GetTyped[*identityServices.Service](deps.Services, module.ServiceIdentityOIDCService); ok {
-		os.SetAuditSink(sink)
-	}
-	if ah, ok := module.GetTyped[*identityHandlers.AdminHandler](deps.Services, module.ServiceIdentityAdminHandler); ok {
-		ah.SetAuditSink(sink)
-	}
-	if sh, ok := module.GetTyped[*identityHandlers.ScimAdminHandler](deps.Services, module.ServiceIdentityScimAdminHandler); ok {
-		sh.SetAuditSink(sink)
-	}
-	if ss, ok := module.GetTyped[*subscriptionServices.SubscriptionService](deps.Services, module.ServiceSubscriptionService); ok {
-		ss.SetAuditSink(sink)
 	}
 
 	deps.Logger.Info("Compliance module initialized — audit sink ready")

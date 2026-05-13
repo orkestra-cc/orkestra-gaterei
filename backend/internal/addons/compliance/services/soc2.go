@@ -4,11 +4,23 @@ import (
 	"context"
 	"time"
 
-	complianceModels "github.com/orkestra/backend/internal/addons/compliance/models"
-	authModels "github.com/orkestra/backend/internal/core/auth/models"
-	userRepo "github.com/orkestra/backend/internal/core/user/repository"
+	complianceModels "github.com/orkestra-cc/orkestra-addon-compliance/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+)
+
+// Cross-module MongoDB collection names. Mirrored here as constants
+// because the SOC2 evidence service queries those collections by
+// name without importing the owner package's repository or models —
+// that's load-bearing for the addon extraction since auth/user can't
+// be imported from this module's path (Phase 5j). The contract is:
+// these names match the collection-spec Names declared in
+// core/auth/Module.Collections() and core/user/Module.Collections(),
+// and a future rename on either side must update this file in the
+// same commit.
+const (
+	operatorUsersCollection      = "operator_users"
+	operatorMFAFactorsCollection = "operator_mfa_factors"
 )
 
 // SOC2EvidenceService computes a point-in-time evidence snapshot for
@@ -107,7 +119,7 @@ func (s *SOC2EvidenceService) Generate(ctx context.Context) (*Evidence, error) {
 func (s *SOC2EvidenceService) privilegedUsers(ctx context.Context) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	users := s.db.Collection(userRepo.OperatorUsersCollection)
+	users := s.db.Collection(operatorUsersCollection)
 	roles := []string{"super_admin", "administrator", "developer"}
 	out := map[string]any{"byRole": map[string]int64{}}
 	var total int64
@@ -138,8 +150,8 @@ func (s *SOC2EvidenceService) mfaCoverage(ctx context.Context) (map[string]any, 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	users := s.db.Collection(userRepo.OperatorUsersCollection)
-	factors := s.db.Collection(authModels.OperatorMFAFactorsCollection)
+	users := s.db.Collection(operatorUsersCollection)
+	factors := s.db.Collection(operatorMFAFactorsCollection)
 
 	//tenantscope:allow platform-wide MFA coverage aggregate — privileged users span tenants
 	privUsers, err := users.Distinct(ctx, "uuid", bson.M{
