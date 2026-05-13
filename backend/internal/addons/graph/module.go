@@ -25,6 +25,20 @@ import (
 // louvain, etc.) — plain memgraph/memgraph would not be sufficient.
 const defaultMemgraphImage = "memgraph/memgraph-mage:latest"
 
+// Settings mirrors the graph ConfigSchema 1:1. Init() unmarshals into a
+// value of this type. Note: InfraContainers() deliberately reads "image"
+// live on every toggle (not from this struct) so admins can upgrade Memgraph
+// without restarting the backend — Image is still declared here for the
+// schema-mirror invariant, but its value is not threaded through Init.
+type Settings struct {
+	URI         string `module:"uri"`
+	Username    string `module:"username"`
+	Password    string `module:"password"`
+	Database    string `module:"database"`
+	MaxConnPool int    `module:"maxConnPool"`
+	Image       string `module:"image"`
+}
+
 type GraphModule struct {
 	module.BaseModule
 	handler   *handlers.GraphHandler
@@ -38,9 +52,11 @@ type GraphModule struct {
 
 func NewModule() *GraphModule { return &GraphModule{} }
 
-func (m *GraphModule) Name() string                   { return "graph" }
-func (m *GraphModule) DisplayName() string             { return "Graph Database" }
-func (m *GraphModule) Description() string             { return "Memgraph graph database for knowledge graphs and algorithms" }
+func (m *GraphModule) Name() string        { return "graph" }
+func (m *GraphModule) DisplayName() string { return "Graph Database" }
+func (m *GraphModule) Description() string {
+	return "Memgraph graph database for knowledge graphs and algorithms"
+}
 func (m *GraphModule) Category() module.ModuleCategory { return module.CategoryExternal }
 func (m *GraphModule) Enabled(cfg *config.Config) bool { return cfg.Graph.Enabled }
 
@@ -104,26 +120,31 @@ func (m *GraphModule) Capabilities() []capability.Capability {
 func (m *GraphModule) Init(deps *module.Dependencies) error {
 	m.deps = deps
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.MaxConnPool <= 0 {
+		settings.MaxConnPool = 50
+	}
+
 	graphDriver, err := database.NewGraphDriver(database.GraphDBConfig{
-		URI:         deps.GetConfig("graph", "uri"),
-		Username:    deps.GetConfig("graph", "username"),
-		Password:    deps.GetSecret("graph", "password"),
-		Database:    deps.GetConfig("graph", "database"),
-		MaxConnPool: deps.GetConfigInt("graph", "maxConnPool", 50),
+		URI:         settings.URI,
+		Username:    settings.Username,
+		Password:    settings.Password,
+		Database:    settings.Database,
+		MaxConnPool: settings.MaxConnPool,
 	})
 	if err != nil {
 		return err
 	}
 	m.driver = graphDriver
 
-	graphDatabase := deps.GetConfig("graph", "database")
-	graphURI := deps.GetConfig("graph", "uri")
-
-	m.graphRepo = repository.NewGraphRepository(graphDriver, graphDatabase)
+	m.graphRepo = repository.NewGraphRepository(graphDriver, settings.Database)
 	graphService := services.NewGraphService(m.graphRepo, deps.Logger)
 	algorithmService := services.NewAlgorithmService(m.graphRepo, deps.Logger)
 	vectorService := services.NewVectorService(m.graphRepo, deps.Logger)
-	m.handler = handlers.NewGraphHandler(graphService, algorithmService, vectorService, graphURI)
+	m.handler = handlers.NewGraphHandler(graphService, algorithmService, vectorService, settings.URI)
 
 	// Register GraphRepository for RAG module consumption. Safe to expose
 	// before Start because RAG consumers only run queries when they're
@@ -132,8 +153,8 @@ func (m *GraphModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServiceGraphRepo, m.graphRepo)
 
 	deps.Logger.Info("Graph database module initialized",
-		slog.String("uri", graphURI),
-		slog.String("database", graphDatabase),
+		slog.String("uri", settings.URI),
+		slog.String("database", settings.Database),
 	)
 	return nil
 }
@@ -162,7 +183,7 @@ func (m *GraphModule) Start(ctx context.Context) error {
 // Stop is a no-op. The driver is kept alive for the process lifetime so
 // that toggling the module off and on again reuses the same connection
 // pool. The pool reconnects transparently when the container comes back.
-func (m *GraphModule) Stop(_ context.Context) error      { return nil }
+func (m *GraphModule) Stop(_ context.Context) error        { return nil }
 func (m *GraphModule) HealthCheck(_ context.Context) error { return nil }
 
 // InfraContainers declares the Memgraph container the graph module owns.
@@ -198,4 +219,3 @@ func (m *GraphModule) InfraContainers() []module.InfraContainerSpec {
 		Labels:       map[string]string{"orkestra.managed": "true", "orkestra.module": "graph"},
 	}}
 }
-
