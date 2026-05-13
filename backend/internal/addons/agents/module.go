@@ -22,6 +22,16 @@ import (
 // "hindsightImage" module config field.
 const defaultHindsightImage = "ghcr.io/vectorize-io/hindsight:latest"
 
+// Settings mirrors the agents ConfigSchema 1:1. HindsightImage is declared
+// for schema completeness; InfraContainers() reads it live on every toggle
+// (so admins can upgrade Hindsight without restarting the backend) rather
+// than threading it through Init.
+type Settings struct {
+	HindsightURL       string `module:"hindsightURL"`
+	HindsightNamespace string `module:"hindsightNamespace"`
+	HindsightImage     string `module:"hindsightImage"`
+}
+
 type AgentsModule struct {
 	module.BaseModule
 	projectHandler       *handlers.ProjectHandler
@@ -36,7 +46,7 @@ type AgentsModule struct {
 
 func NewModule() *AgentsModule { return &AgentsModule{} }
 
-func (m *AgentsModule) Name() string                   { return "agents" }
+func (m *AgentsModule) Name() string                    { return "agents" }
 func (m *AgentsModule) DisplayName() string             { return "AI Agents" }
 func (m *AgentsModule) Description() string             { return "Hindsight-powered AI agents with RAG context" }
 func (m *AgentsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
@@ -102,34 +112,41 @@ func (m *AgentsModule) NavItems() []module.NavItemSpec {
 }
 
 func (m *AgentsModule) Init(deps *module.Dependencies) error {
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+
 	projectRepo := repository.NewProjectRepository(deps.DB)
 	conversationRepo := repository.NewConversationRepository(deps.DB)
 
-	hindsightURL := deps.GetConfig("agents", "hindsightURL")
-	hindsightNS := deps.GetConfig("agents", "hindsightNamespace")
-	hsClient := services.NewHindsightClient(hindsightURL, deps.Logger)
+	hsClient := services.NewHindsightClient(settings.HindsightURL, deps.Logger)
 
 	// Retain deps so Preflight() and InfraContainers() can resolve
 	// aimodels on every toggle.
 	m.deps = deps
 
-	// Create RAG bridge if RAG query service is available
+	// Create RAG bridge if RAG query service is available. DefaultTopK still
+	// flows from the shared/config global struct here — rag has no schema
+	// entry for it yet. PR-1a-9 (rag conversion) is the natural place to
+	// move the value into rag's ConfigSchema and consume it via either a
+	// service interface or deps.ConfigService.GetConfigInt("rag", ...).
 	var ragBridge services.RAGBridge
 	if ragQuery, ok := module.GetTyped[iface.RAGQueryProvider](deps.Services, module.ServiceRAGQuery); ok {
 		ragBridge = services.NewRAGBridge(ragQuery, deps.Config.RAG.DefaultTopK, deps.Logger)
 	}
 
-	projectService := services.NewProjectService(projectRepo, hsClient, hindsightNS, deps.Logger)
+	projectService := services.NewProjectService(projectRepo, hsClient, settings.HindsightNamespace, deps.Logger)
 	agentService := services.NewAgentService(projectRepo, conversationRepo, hsClient, ragBridge, deps.Logger)
 
 	m.projectHandler = handlers.NewProjectHandler(projectService)
 	m.agentHandler = handlers.NewAgentHandler(agentService)
 
-	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, hindsightNS, deps.Logger)
+	personalAgentService := services.NewPersonalAgentService(projectRepo, agentService, hsClient, settings.HindsightNamespace, deps.Logger)
 	m.personalAgentHandler = handlers.NewPersonalAgentHandler(personalAgentService)
 
 	deps.Logger.Info("Agents module initialized",
-		slog.String("hindsightURL", hindsightURL),
+		slog.String("hindsightURL", settings.HindsightURL),
 	)
 	return nil
 }
@@ -165,8 +182,8 @@ func (m *AgentsModule) RegisterRoutes(ri *module.RouteInfo) {
 	})
 }
 
-func (m *AgentsModule) Start(_ context.Context) error      { return nil }
-func (m *AgentsModule) Stop(_ context.Context) error       { return nil }
+func (m *AgentsModule) Start(_ context.Context) error       { return nil }
+func (m *AgentsModule) Stop(_ context.Context) error        { return nil }
 func (m *AgentsModule) HealthCheck(_ context.Context) error { return nil }
 
 // Preflight asserts that aimodels has a default LLM configured before the
