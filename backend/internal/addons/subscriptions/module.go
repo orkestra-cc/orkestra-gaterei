@@ -18,6 +18,16 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
+// Settings is the typed view of the subscriptions module's config schema.
+// Each field corresponds 1:1 to an entry in ConfigSchema() — keep them in
+// sync. UnmarshalModule decodes the active environment into a value of this
+// type so Init() consumes module config through a single, typed surface
+// instead of multiple deps.GetConfig*/deps.GetSecret calls.
+type Settings struct {
+	RenewalInterval time.Duration `module:"renewalInterval"`
+	DefaultVATRate  string        `module:"defaultVATRate"`
+}
+
 type SubscriptionsModule struct {
 	module.BaseModule
 
@@ -30,9 +40,11 @@ type SubscriptionsModule struct {
 
 func NewModule() *SubscriptionsModule { return &SubscriptionsModule{} }
 
-func (m *SubscriptionsModule) Name() string                    { return "subscriptions" }
-func (m *SubscriptionsModule) DisplayName() string             { return "Sottoscrizioni" }
-func (m *SubscriptionsModule) Description() string             { return "AI services catalog, recurring tenant subscriptions, and activity logs" }
+func (m *SubscriptionsModule) Name() string        { return "subscriptions" }
+func (m *SubscriptionsModule) DisplayName() string { return "Sottoscrizioni" }
+func (m *SubscriptionsModule) Description() string {
+	return "AI services catalog, recurring tenant subscriptions, and activity logs"
+}
 func (m *SubscriptionsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
 func (m *SubscriptionsModule) Enabled(_ *config.Config) bool   { return true }
 func (m *SubscriptionsModule) HotReloadConfig() bool           { return true }
@@ -122,6 +134,14 @@ func (m *SubscriptionsModule) Permissions() []iface.PermissionSpec {
 func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.RenewalInterval <= 0 {
+		settings.RenewalInterval = time.Hour
+	}
+
 	serviceRepo := repository.NewServiceRepository(deps.DB)
 	subRepo := repository.NewSubscriptionRepository(deps.DB)
 	invoiceRepo := repository.NewInvoiceRepository(deps.DB)
@@ -154,8 +174,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	m.serviceHandler = handlers.NewServiceHandler(serviceSvc)
 	m.subscriptionHandler = handlers.NewSubscriptionHandler(subscriptionSvc, renewalSvc, invoiceRepo, activitySvc, tenantProvider)
 
-	interval := deps.GetConfigDuration("subscriptions", "renewalInterval", time.Hour)
-	m.renewalJob = jobs.NewRenewalJob(renewalSvc, interval, deps.Logger)
+	m.renewalJob = jobs.NewRenewalJob(renewalSvc, settings.RenewalInterval, deps.Logger)
 
 	// Publish the reconciler so the payments module can call into us on webhooks.
 	deps.Services.Register(module.ServiceSubscriptionReconciler, reconciler)
@@ -179,7 +198,7 @@ func (m *SubscriptionsModule) Init(deps *module.Dependencies) error {
 	deps.Services.Register(module.ServiceSelfServiceCheckoutPlanner, iface.SelfServiceCheckoutPlanner(services.NewCheckoutPlanner(subRepo, serviceRepo, invoiceRepo)))
 
 	deps.Logger.Info("Subscriptions module initialized",
-		slog.Duration("renewalInterval", interval),
+		slog.Duration("renewalInterval", settings.RenewalInterval),
 	)
 	return nil
 }
