@@ -19,6 +19,15 @@ import (
 	"github.com/orkestra/backend/internal/shared/module"
 )
 
+// Settings mirrors the documents ConfigSchema 1:1 and is the typed surface
+// Init() consumes module configuration through. Keep field order/names in
+// sync with ConfigSchema() — UnmarshalModule maps via the `module:` tag.
+type Settings struct {
+	GotenbergURL  string        `module:"gotenbergURL"`
+	Timeout       time.Duration `module:"timeout"`
+	RetryAttempts int           `module:"retryAttempts"`
+}
+
 type DocumentsModule struct {
 	module.BaseModule
 	templateHandler *handlers.TemplateHandler
@@ -28,11 +37,15 @@ type DocumentsModule struct {
 
 func NewModule() *DocumentsModule { return &DocumentsModule{} }
 
-func (m *DocumentsModule) Name() string                   { return "documents" }
-func (m *DocumentsModule) DisplayName() string             { return "Document Templates" }
-func (m *DocumentsModule) Description() string             { return "PDF generation with Gotenberg and customizable HTML templates" }
+func (m *DocumentsModule) Name() string        { return "documents" }
+func (m *DocumentsModule) DisplayName() string { return "Document Templates" }
+func (m *DocumentsModule) Description() string {
+	return "PDF generation with Gotenberg and customizable HTML templates"
+}
 func (m *DocumentsModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *DocumentsModule) Enabled(cfg *sharedConfig.Config) bool { return cfg.Documents.GotenbergURL != "" }
+func (m *DocumentsModule) Enabled(cfg *sharedConfig.Config) bool {
+	return cfg.Documents.GotenbergURL != ""
+}
 
 func (m *DocumentsModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServicePDFService}
@@ -81,12 +94,23 @@ func (m *DocumentsModule) Capabilities() []capability.Capability {
 }
 
 func (m *DocumentsModule) Init(deps *module.Dependencies) error {
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.Timeout <= 0 {
+		settings.Timeout = 60 * time.Second
+	}
+	if settings.RetryAttempts <= 0 {
+		settings.RetryAttempts = 3
+	}
+
 	docsConfig := &config.Config{
-		GotenbergURL:  deps.GetConfig("documents", "gotenbergURL"),
-		Timeout:       deps.GetConfigDuration("documents", "timeout", 60*time.Second),
-		RetryAttempts: deps.GetConfigInt("documents", "retryAttempts", 3),
+		GotenbergURL:  settings.GotenbergURL,
+		Timeout:       settings.Timeout,
+		RetryAttempts: settings.RetryAttempts,
 		DefaultMargins: config.PDFMargins{
-			Top:    20, Bottom: 20, Left: 20, Right: 20,
+			Top: 20, Bottom: 20, Left: 20, Right: 20,
 		},
 	}
 
@@ -131,5 +155,5 @@ func (m *DocumentsModule) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *DocumentsModule) Stop(_ context.Context) error       { return nil }
+func (m *DocumentsModule) Stop(_ context.Context) error        { return nil }
 func (m *DocumentsModule) HealthCheck(_ context.Context) error { return nil }
