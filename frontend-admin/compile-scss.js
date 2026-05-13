@@ -6,6 +6,11 @@ import rtlcss from 'rtlcss';
 const compileSCSS = () => ({
   name: 'compile-scss',
   configureServer(server) {
+    // Vitest spins up an in-process Vite server purely to transform test
+    // modules; no test imports SCSS, so recompiling theme.scss on every
+    // run just pollutes stderr with hundreds of Bootstrap deprecations.
+    if (process.env.VITEST) return;
+
     const scssWatcher = server.watcher;
     const scssGlob = path.resolve(__dirname, 'src/assets/scss/**/*.scss');
     scssWatcher.add(scssGlob);
@@ -13,7 +18,10 @@ const compileSCSS = () => ({
     const scssFiles = [path.resolve(__dirname, 'src/assets/scss/theme.scss')];
 
     const compileSCSSToCSS = async file => {
-      const result = await sass.compileAsync(file, { style: 'expanded' });
+      const result = await sass.compileAsync(file, {
+        style: 'expanded',
+        quietDeps: true
+      });
       const fileName = path.basename(file, path.extname(file));
 
       // Path for LTR CSS
@@ -31,7 +39,6 @@ const compileSCSS = () => ({
     };
 
     scssWatcher.on('change', file => {
-
       if (file.endsWith('.scss')) {
         scssFiles.map(file => {
           compileSCSSToCSS(file);

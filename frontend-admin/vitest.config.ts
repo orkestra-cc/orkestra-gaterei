@@ -11,8 +11,8 @@ export default mergeConfig(
     // other. Force every import to land on the same react-router copy.
     resolve: {
       alias: {
-        'react-router-dom': path.resolve(__dirname, 'node_modules/react-router'),
-      },
+        'react-router-dom': path.resolve(__dirname, 'node_modules/react-router')
+      }
     },
     test: {
       globals: true,
@@ -29,8 +29,21 @@ export default mergeConfig(
         // text is the human summary that lands in the job log.
         reporter: ['text', 'lcov', 'json-summary'],
         include: ['src/**/*.{ts,tsx}'],
-        exclude: ['src/reference/**', 'src/modules/_template/**', 'src/test/**'],
-      },
-    },
+        exclude: [
+          'src/reference/**',
+          'src/modules/_template/**',
+          'src/test/**'
+        ],
+        // Floor set at current numbers (3.25 / 33.16 / 15.22 / 3.25) rounded
+        // down a hair so trivial fluctuation doesn't redden CI. Ratchet up
+        // when new test files land — never down. Drops force a conversation.
+        thresholds: {
+          statements: 3,
+          branches: 33,
+          functions: 15,
+          lines: 3
+        }
+      }
+    }
   })
 );

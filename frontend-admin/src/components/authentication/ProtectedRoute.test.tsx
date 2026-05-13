@@ -50,7 +50,14 @@ const renderProtected = (
   );
 
 describe('ProtectedRoute', () => {
-  beforeEach(() => mockedUseAuth.mockReset());
+  beforeEach(() => {
+    mockedUseAuth.mockReset();
+    // ProtectedRoute logs intentional debug lines on the deny / still-loading
+    // branches; this suite exercises both, so swallow them to keep test
+    // stderr readable. Restored automatically between tests by vitest.
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
 
   it('renders a loader while auth state is resolving', () => {
     setAuth({ isLoading: true });

@@ -18,20 +18,20 @@ export default [
       'coverage/**',
       'node_modules/**',
       'public/**',
-      'src/reference/**',
-    ],
+      'src/reference/**'
+    ]
   },
   js.configs.recommended,
   {
     ...react.configs.flat.recommended,
-    settings: { react: { version: 'detect' } },
+    settings: { react: { version: 'detect' } }
   },
   prettier,
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: { ecmaFeatures: { jsx: true } }
     },
     plugins: { '@typescript-eslint': tsPlugin },
     rules: {
@@ -42,8 +42,8 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/no-unused-expressions': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-    },
+      '@typescript-eslint/no-unused-vars': 'off'
+    }
   },
   {
     plugins: { 'react-hooks': reactHooks },
@@ -54,8 +54,8 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
-        process: true,
-      },
+        process: true
+      }
     },
     rules: {
       'react/no-unescaped-entities': 'off',
@@ -66,7 +66,7 @@ export default [
       'react-hooks/rules-of-hooks': 'error',
       'no-unused-vars': 'off',
       'no-useless-catch': 'off',
-      'prettier/prettier': ['error', { endOfLine: 'auto' }],
-    },
-  },
+      'prettier/prettier': ['error', { endOfLine: 'auto' }]
+    }
+  }
 ];
