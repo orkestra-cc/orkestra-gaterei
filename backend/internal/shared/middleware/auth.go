@@ -26,16 +26,13 @@ import (
 // file in the package starts using it.
 func slogString(key, value string) slog.Attr { return slog.String(key, value) }
 
-// Context keys used by the auth middleware to carry identity and the
-// resolved current-org context into downstream handlers. Kept as plain
-// string constants so existing handlers that read ctx.Value("userUUID")
-// directly keep working — they can migrate to the typed helpers below
-// incrementally.
 // Context keys for auth-internal values that did NOT move to pkg/sdk/ctxauth.
 // The values that DID move (userUUID/userEmail/systemRole/tenantID/tenantRoles/
 // clientIP/tenantKind/tenantImpersonated) are written using the exported
-// ctxauth.Key* constants below — search for "ctxauth.Key" to find the
-// stamping sites.
+// ctxauth.Key* constants. Search for "ctxauth.Key" to find the stamping
+// sites; legacy handlers that read ctx.Value("userUUID") directly still
+// work because the SDK key constants are untyped strings with the same
+// values.
 const (
 	ctxClaims            = "claims"
 	ctxTenantMemberships = "tenantMemberships"
