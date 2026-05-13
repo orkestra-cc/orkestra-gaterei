@@ -12,7 +12,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/subscriptions/models"
 	"github.com/orkestra/backend/internal/addons/subscriptions/repository"
 	"github.com/orkestra/backend/internal/addons/subscriptions/services"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -46,7 +45,7 @@ func (m *SubscriptionsModule) Description() string {
 	return "AI services catalog, recurring tenant subscriptions, and activity logs"
 }
 func (m *SubscriptionsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *SubscriptionsModule) Enabled(_ *config.Config) bool   { return true }
+func (m *SubscriptionsModule) Enabled() bool                   { return true }
 func (m *SubscriptionsModule) HotReloadConfig() bool           { return true }
 
 // Intentionally empty: the payments module is consumed via the

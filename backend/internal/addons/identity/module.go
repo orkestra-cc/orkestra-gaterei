@@ -28,7 +28,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/identity/scim"
 	"github.com/orkestra/backend/internal/addons/identity/services"
 	authServices "github.com/orkestra/backend/internal/core/auth/services"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/module"
 )
@@ -49,11 +48,13 @@ type Module struct {
 // NewModule constructs an empty module; Init wires collaborators.
 func NewModule() *Module { return &Module{} }
 
-func (m *Module) Name() string                    { return "identity" }
-func (m *Module) DisplayName() string             { return "Identity (BYO IdP + SCIM)" }
-func (m *Module) Description() string             { return "Per-tenant BYO OpenID Connect login and SCIM 2.0 provisioning stubs. Tenants configure their own IdP; users sign in against it and (future) are provisioned via SCIM." }
+func (m *Module) Name() string        { return "identity" }
+func (m *Module) DisplayName() string { return "Identity (BYO IdP + SCIM)" }
+func (m *Module) Description() string {
+	return "Per-tenant BYO OpenID Connect login and SCIM 2.0 provisioning stubs. Tenants configure their own IdP; users sign in against it and (future) are provisioned via SCIM."
+}
 func (m *Module) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *Module) Enabled(_ *config.Config) bool   { return true }
+func (m *Module) Enabled() bool                   { return true }
 
 // Dependencies: auth owns the token-issuance service we delegate to at
 // the end of callback; tenant owns slug/UUID resolution. Both are core

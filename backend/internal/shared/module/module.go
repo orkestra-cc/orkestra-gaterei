@@ -63,9 +63,16 @@ type Module interface {
 
 	// --- Activation ---
 
-	// Enabled returns whether this module should be initialized.
-	// During transition: checked by registry at boot. Will be replaced by DB-backed config.
-	Enabled(cfg *config.Config) bool
+	// Enabled returns the module's default activation state on first install.
+	// Consulted exactly once by buildInitialConfig() when seeding the
+	// module_configs collection; after first boot the persisted Enabled
+	// flag (admin-UI editable) is authoritative.
+	//
+	// Implementations should be self-contained — read env vars directly
+	// when their default depends on deployment configuration, do NOT
+	// reach into shared/config. Addons published outside the monorepo
+	// cannot import shared/config at all.
+	Enabled() bool
 
 	// --- Runtime capabilities ---
 
@@ -181,31 +188,56 @@ type ContainerManager interface {
 //	}
 type BaseModule struct{}
 
-func (BaseModule) DisplayName() string                 { return "" }
-func (BaseModule) Description() string                 { return "" }
-func (BaseModule) Category() ModuleCategory            { return CategoryCore }
-func (BaseModule) Enabled(_ *config.Config) bool       { return true }
-func (BaseModule) ConfigSchema() []ConfigField         { return nil }
-func (BaseModule) Collections() []CollectionSpec       { return nil }
-func (BaseModule) NavItems() []NavItemSpec             { return nil }
-func (BaseModule) Permissions() []iface.PermissionSpec { return nil }
+func (BaseModule) DisplayName() string                   { return "" }
+func (BaseModule) Description() string                   { return "" }
+func (BaseModule) Category() ModuleCategory              { return CategoryCore }
+func (BaseModule) Enabled() bool                         { return true }
+func (BaseModule) ConfigSchema() []ConfigField           { return nil }
+func (BaseModule) Collections() []CollectionSpec         { return nil }
+func (BaseModule) NavItems() []NavItemSpec               { return nil }
+func (BaseModule) Permissions() []iface.PermissionSpec   { return nil }
 func (BaseModule) Capabilities() []capability.Capability { return nil }
-func (BaseModule) Dependencies() []string              { return nil }
-func (BaseModule) ProvidedServices() []ServiceKey      { return nil }
-func (BaseModule) RequiredServices() []ServiceKey      { return nil }
-func (BaseModule) OptionalServices() []ServiceKey      { return nil }
-func (BaseModule) HotReloadConfig() bool                { return false }
-func (BaseModule) Start(_ context.Context) error       { return nil }
-func (BaseModule) Stop(_ context.Context) error        { return nil }
-func (BaseModule) HealthCheck(_ context.Context) error { return nil }
+func (BaseModule) Dependencies() []string                { return nil }
+func (BaseModule) ProvidedServices() []ServiceKey        { return nil }
+func (BaseModule) RequiredServices() []ServiceKey        { return nil }
+func (BaseModule) OptionalServices() []ServiceKey        { return nil }
+func (BaseModule) HotReloadConfig() bool                 { return false }
+func (BaseModule) Start(_ context.Context) error         { return nil }
+func (BaseModule) Stop(_ context.Context) error          { return nil }
+func (BaseModule) HealthCheck(_ context.Context) error   { return nil }
 func (BaseModule) InfraContainers() []InfraContainerSpec { return nil }
 func (BaseModule) Preflight(_ context.Context) error     { return nil }
 
+// PlatformInfo is the SDK-visible subset of the backend's app config that
+// addons may legitimately need: the runtime environment classification and
+// the public frontend origin (used by notification links). Addons should
+// reach into platform info through this interface and NOT through
+// *config.Config — the latter is a backend-internal struct that extracted
+// addons cannot import.
+//
+// *config.Config from internal/shared/config satisfies this interface; the
+// monolith and ai-service binaries inject *config.Config as Dependencies.Platform.
+type PlatformInfo interface {
+	IsProduction() bool
+	IsStaging() bool
+	IsDevelopment() bool
+	IsProductionLike() bool
+	GetEnvironment() string
+	FrontendURL() string
+}
+
 // Dependencies holds shared infrastructure injected into every module.
 type Dependencies struct {
-	DB            *mongo.Database
-	RedisAdapter  *database.RedisClientAdapter
+	DB           *mongo.Database
+	RedisAdapter *database.RedisClientAdapter
+	// Config is the legacy *config.Config handle. New code should use
+	// Platform for environment + frontend URL info and ConfigService /
+	// UnmarshalModule for per-module values. Auth core still reads from
+	// this field heavily and is retired in Phase 1c.
+	//
+	// Deprecated: use Platform + ConfigService instead.
 	Config        *config.Config
+	Platform      PlatformInfo
 	Logger        *slog.Logger
 	Services      *ServiceRegistry
 	ConfigService *ModuleConfigService // set by registry before InitAll

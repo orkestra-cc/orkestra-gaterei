@@ -3,6 +3,8 @@ package sales
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -53,7 +55,12 @@ func (m *SalesModule) Description() string {
 	return "AI-driven prospect analysis, scoring, and outreach"
 }
 func (m *SalesModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *SalesModule) Enabled(cfg *config.Config) bool { return cfg.Sales.Enabled }
+
+// Enabled gates first-boot activation on SALES_ENABLED.
+func (m *SalesModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("SALES_ENABLED"))
+	return v
+}
 
 // Dependencies orders aimodels before sales so its AIModelProvider is
 // registered by the time sales's Init runs. The provider is still read

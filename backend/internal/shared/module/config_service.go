@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
@@ -43,12 +42,11 @@ type ModuleConfigService struct {
 	logger      *slog.Logger
 	coreModules map[string]bool // precomputed set — never hits DB/Redis
 
-	// knownModules + cfg are captured during SeedFromModules so the service
-	// can lazy-rebuild the module_configs collection if it is emptied at
+	// knownModules is captured during SeedFromModules so the service can
+	// lazy-rebuild the module_configs collection if it is emptied at
 	// runtime (dev DB wipe, accidental drop, etc.) without requiring a
 	// backend restart. Populated once at boot and then read-only.
 	knownModules map[string]Module
-	cfg          *config.Config
 }
 
 const (
@@ -130,10 +128,7 @@ func (s *ModuleConfigService) IsEnabled(ctx context.Context, moduleName string) 
 // whose Enabled() returned false at first-boot seeding so GetConfig /
 // GetAllConfigs can lazy-seed and return them to the admin UI.
 // Entries already registered by SeedFromModules are preserved.
-func (s *ModuleConfigService) RegisterKnownModules(modules []Module, cfg *config.Config) {
-	if s.cfg == nil {
-		s.cfg = cfg
-	}
+func (s *ModuleConfigService) RegisterKnownModules(modules []Module) {
 	for _, m := range modules {
 		if _, exists := s.knownModules[m.Name()]; !exists {
 			s.knownModules[m.Name()] = m
@@ -144,13 +139,12 @@ func (s *ModuleConfigService) RegisterKnownModules(modules []Module, cfg *config
 // SeedFromModules populates the module_configs collection on first boot
 // using each module's ConfigSchema() and current env var values.
 // On subsequent boots, it only updates the schema (preserving admin-changed values).
-func (s *ModuleConfigService) SeedFromModules(ctx context.Context, modules []Module, cfg *config.Config) error {
+func (s *ModuleConfigService) SeedFromModules(ctx context.Context, modules []Module) error {
 	// Build core modules map as a side effect of seeding.
 	s.SetCoreModules(modules)
 
-	// Remember the registered modules + app config so GetConfig can lazy-seed
-	// missing docs later (e.g. after a live DB wipe in dev).
-	s.cfg = cfg
+	// Remember the registered modules so GetConfig can lazy-seed missing
+	// docs later (e.g. after a live DB wipe in dev).
 	for _, m := range modules {
 		s.knownModules[m.Name()] = m
 	}
@@ -192,7 +186,7 @@ func (s *ModuleConfigService) SeedFromModules(ctx context.Context, modules []Mod
 		}
 
 		// First boot for this module — create the config document with environments.
-		doc := s.buildInitialConfig(m, cfg, profileOverride)
+		doc := s.buildInitialConfig(m, profileOverride)
 		if err := s.repo.Upsert(ctx, &doc); err != nil {
 			s.logger.Error("SeedFromModules: failed to seed module config",
 				slog.String("module", m.Name()),
@@ -256,8 +250,8 @@ func (s *ModuleConfigService) computeProfileOverride(modules []Module) map[strin
 // buildInitialConfig constructs a ModuleConfig from a module's declarations
 // and current env vars. When profileOverride is non-nil, non-core, non-dev
 // addons take their enabled state from the override map (true if listed,
-// false otherwise) instead of m.Enabled(cfg).
-func (s *ModuleConfigService) buildInitialConfig(m Module, cfg *config.Config, profileOverride map[string]bool) ModuleConfig {
+// false otherwise) instead of m.Enabled().
+func (s *ModuleConfigService) buildInitialConfig(m Module, profileOverride map[string]bool) ModuleConfig {
 	configValues := make(map[string]string)
 	encryptedValues := make(map[string]string)
 
@@ -303,7 +297,7 @@ func (s *ModuleConfigService) buildInitialConfig(m Module, cfg *config.Config, p
 		},
 	}
 
-	enabled := m.Enabled(cfg)
+	enabled := m.Enabled()
 	if profileOverride != nil && m.Category() != CategoryCore && m.Name() != "dev" {
 		enabled = profileOverride[m.Name()]
 	}
@@ -425,7 +419,7 @@ func (s *ModuleConfigService) lazySeed(ctx context.Context, name string) (*Modul
 		moduleSlice = append(moduleSlice, mm)
 	}
 	profileOverride := s.computeProfileOverride(moduleSlice)
-	doc := s.buildInitialConfig(m, s.cfg, profileOverride)
+	doc := s.buildInitialConfig(m, profileOverride)
 	if err := s.repo.Upsert(ctx, &doc); err != nil {
 		s.logger.Error("lazySeed: failed to upsert module config",
 			slog.String("module", name),

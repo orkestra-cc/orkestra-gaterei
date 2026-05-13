@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/orkestra/backend/internal/shared/config"
-	"github.com/orkestra/backend/internal/shared/iface"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
+	"github.com/orkestra/backend/internal/shared/iface"
+	"github.com/orkestra/backend/internal/shared/module"
 )
 
 // DevTokenHandler handles development token generation endpoints.
@@ -23,7 +23,7 @@ import (
 type DevTokenHandler struct {
 	operatorJWT iface.JWTProvider
 	clientJWT   iface.JWTProvider
-	cfg         *config.Config
+	platform    module.PlatformInfo
 	logger      *slog.Logger
 }
 
@@ -31,11 +31,11 @@ type DevTokenHandler struct {
 // are required — the canonical (operator) key is the back-compat default
 // the handler picks when the request omits `audience`, and the client
 // provider serves the client-tier path.
-func NewDevTokenHandler(operatorJWT, clientJWT iface.JWTProvider, cfg *config.Config) *DevTokenHandler {
+func NewDevTokenHandler(operatorJWT, clientJWT iface.JWTProvider, platform module.PlatformInfo) *DevTokenHandler {
 	return &DevTokenHandler{
 		operatorJWT: operatorJWT,
 		clientJWT:   clientJWT,
-		cfg:         cfg,
+		platform:    platform,
 		logger:      slog.Default().With(slog.String("handler", "dev_token")),
 	}
 }
@@ -105,7 +105,7 @@ type GenerateTokenResponse struct {
 // GenerateToken generates a JWT token for a specified role (dev/staging only)
 func (h *DevTokenHandler) GenerateToken(ctx context.Context, req *GenerateTokenRequest) (*GenerateTokenResponse, error) {
 	// Defense in depth: double-check we're not in production
-	if h.cfg.IsProduction() {
+	if h.platform.IsProduction() {
 		h.logger.Error("Attempted to generate dev token in production")
 		return nil, fmt.Errorf("dev token generation is disabled in production")
 	}
@@ -160,7 +160,7 @@ func (h *DevTokenHandler) GenerateToken(ctx context.Context, req *GenerateTokenR
 	expiresAt := time.Now().Add(expiry)
 
 	// Log token generation in staging for audit
-	if h.cfg.IsStaging() {
+	if h.platform.IsStaging() {
 		h.logger.Info("Dev token generated in staging",
 			slog.String("role", req.Body.Role),
 			slog.String("audience", audience),
@@ -194,14 +194,14 @@ type ListRolesResponse struct {
 // ListRoles returns the available roles for token generation
 func (h *DevTokenHandler) ListRoles(ctx context.Context, req *ListRolesRequest) (*ListRolesResponse, error) {
 	// Defense in depth: double-check we're not in production
-	if h.cfg.IsProduction() {
+	if h.platform.IsProduction() {
 		h.logger.Error("Attempted to list dev roles in production")
 		return nil, fmt.Errorf("dev token generation is disabled in production")
 	}
 
 	resp := &ListRolesResponse{}
 	resp.Body.Roles = ValidRoles
-	resp.Body.Environment = h.cfg.GetEnvironment()
+	resp.Body.Environment = h.platform.GetEnvironment()
 
 	return resp, nil
 }
@@ -235,7 +235,7 @@ type listRolesHTTPResponse struct {
 // GenerateTokenHTTP is the HTTP handler for token generation (for direct chi registration)
 func (h *DevTokenHandler) GenerateTokenHTTP(w http.ResponseWriter, r *http.Request) {
 	// Defense in depth: double-check we're not in production
-	if h.cfg.IsProduction() {
+	if h.platform.IsProduction() {
 		h.logger.Error("Attempted to generate dev token in production")
 		http.Error(w, `{"error": "dev token generation is disabled in production"}`, http.StatusForbidden)
 		return
@@ -304,7 +304,7 @@ func (h *DevTokenHandler) GenerateTokenHTTP(w http.ResponseWriter, r *http.Reque
 	expiresAt := time.Now().Add(expiry)
 
 	// Log token generation in staging for audit
-	if h.cfg.IsStaging() {
+	if h.platform.IsStaging() {
 		h.logger.Info("Dev token generated in staging",
 			slog.String("role", req.Role),
 			slog.String("audience", audience),
@@ -329,7 +329,7 @@ func (h *DevTokenHandler) GenerateTokenHTTP(w http.ResponseWriter, r *http.Reque
 // ListRolesHTTP is the HTTP handler for listing roles (for direct chi registration)
 func (h *DevTokenHandler) ListRolesHTTP(w http.ResponseWriter, r *http.Request) {
 	// Defense in depth: double-check we're not in production
-	if h.cfg.IsProduction() {
+	if h.platform.IsProduction() {
 		h.logger.Error("Attempted to list dev roles in production")
 		http.Error(w, `{"error": "dev token generation is disabled in production"}`, http.StatusForbidden)
 		return
@@ -337,7 +337,7 @@ func (h *DevTokenHandler) ListRolesHTTP(w http.ResponseWriter, r *http.Request) 
 
 	resp := listRolesHTTPResponse{
 		Roles:       ValidRoles,
-		Environment: h.cfg.GetEnvironment(),
+		Environment: h.platform.GetEnvironment(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

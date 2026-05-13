@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,16 +19,16 @@ import (
 // Use Register() for ordered insertion, or RegisterAll() for automatic
 // dependency-based sorting via each module's Dependencies() declaration.
 type ModuleRegistry struct {
-	modules      []Module
-	initialized  []Module           // populated by InitAll — modules that passed Init
-	failed       map[string]error   // non-core modules that failed Init
-	started      map[string]bool    // modules that have had Start() called
-	moduleByName map[string]Module  // fast lookup by name
+	modules       []Module
+	initialized   []Module          // populated by InitAll — modules that passed Init
+	failed        map[string]error  // non-core modules that failed Init
+	started       map[string]bool   // modules that have had Start() called
+	moduleByName  map[string]Module // fast lookup by name
 	configService *ModuleConfigService
-	deps         *Dependencies      // stored during InitAll for RetryInit
-	containerMgr ContainerManager   // may be nil; Start/Stop skip infra-container handling when unset
-	logger       *slog.Logger
-	mu           sync.RWMutex       // protects started and failed maps for runtime changes
+	deps          *Dependencies    // stored during InitAll for RetryInit
+	containerMgr  ContainerManager // may be nil; Start/Stop skip infra-container handling when unset
+	logger        *slog.Logger
+	mu            sync.RWMutex // protects started and failed maps for runtime changes
 }
 
 // NewModuleRegistry creates a new registry.
@@ -141,7 +140,7 @@ func topoSort(modules []Module) ([]Module, error) {
 // InitAll initializes all modules in registration order.
 // Before initialization, it auto-creates MongoDB collections and seeds module configs.
 // Core modules that fail Init are fatal; non-core modules are skipped with a warning.
-func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
+func (r *ModuleRegistry) InitAll(deps *Dependencies) error {
 	// Store deps for RetryInit use later.
 	r.deps = deps
 
@@ -158,7 +157,7 @@ func (r *ModuleRegistry) InitAll(cfg *config.Config, deps *Dependencies) error {
 	// Phase 2.2: Seed module configs from ConfigSchema on first boot.
 	if r.configService != nil {
 		if err := r.configService.SeedFromModules(
-			context.Background(), r.modules, cfg,
+			context.Background(), r.modules,
 		); err != nil {
 			r.logger.Error("Failed to seed module configs (non-fatal)",
 				slog.String("error", err.Error()),

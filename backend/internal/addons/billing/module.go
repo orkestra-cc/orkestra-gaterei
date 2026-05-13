@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -13,7 +14,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/billing/repository"
 	"github.com/orkestra/backend/internal/addons/billing/services"
 	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -64,11 +64,15 @@ func (m *BillingModule) Name() string                    { return "billing" }
 func (m *BillingModule) DisplayName() string             { return "Fatturazione Elettronica" }
 func (m *BillingModule) Description() string             { return "Italian electronic invoicing via FatturaPA/SDI" }
 func (m *BillingModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *BillingModule) Enabled(cfg *config.Config) bool {
-	if cfg.Billing.OpenAPIBearerToken != "" {
+
+// Enabled gates first-boot activation on OpenAPI credentials being
+// present. Reads the env vars directly (same source the schema seeder
+// uses for these keys) so this method has no shared/config dependency.
+func (m *BillingModule) Enabled() bool {
+	if os.Getenv("OPENAPI_BILLING_BEARER_TOKEN") != "" {
 		return true
 	}
-	return cfg.Billing.OpenAPIAccountEmail != "" && cfg.Billing.OpenAPIAPIKey != ""
+	return os.Getenv("OPENAPI_BILLING_ACCOUNT_EMAIL") != "" && os.Getenv("OPENAPI_BILLING_API_KEY") != ""
 }
 func (m *BillingModule) Dependencies() []string { return []string{"documents"} }
 func (m *BillingModule) OptionalServices() []module.ServiceKey {

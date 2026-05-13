@@ -3,6 +3,7 @@ package company
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -11,7 +12,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/company/handlers"
 	"github.com/orkestra/backend/internal/addons/company/repository"
 	"github.com/orkestra/backend/internal/addons/company/services"
-	sharedConfig "github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -47,11 +47,15 @@ func (m *CompanyModule) Description() string {
 	return "Italian company data lookup by CF/P.IVA via OpenAPI"
 }
 func (m *CompanyModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *CompanyModule) Enabled(cfg *sharedConfig.Config) bool {
-	if cfg.Company.BearerToken != "" {
+
+// Enabled gates first-boot activation on OpenAPI Company credentials
+// being present. Reads env vars directly so this method has no
+// shared/config dependency.
+func (m *CompanyModule) Enabled() bool {
+	if os.Getenv("OPENAPI_COMPANY_BEARER_TOKEN") != "" {
 		return true
 	}
-	return cfg.Company.AccountEmail != "" && cfg.Company.APIKey != ""
+	return os.Getenv("OPENAPI_COMPANY_ACCOUNT_EMAIL") != "" && os.Getenv("OPENAPI_COMPANY_API_KEY") != ""
 }
 
 func (m *CompanyModule) ConfigSchema() []module.ConfigField {

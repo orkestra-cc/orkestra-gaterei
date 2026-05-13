@@ -161,7 +161,7 @@ func (m *NotificationModule) Init(deps *module.Dependencies) error {
 
 	emailSender := services.NewEmailService(loader, deps.Logger)
 
-	frontendURL := deps.Config.Server.FrontendURL
+	frontendURL := deps.Platform.FrontendURL()
 	urlBuilder := func(path string) string {
 		if len(path) > 0 && path[0] != '/' {
 			path = "/" + path
@@ -183,9 +183,9 @@ func (m *NotificationModule) Init(deps *module.Dependencies) error {
 		emailSender,
 		deps.Logger,
 		services.Options{
-			AppName:      appName,
-			SupportEmail: supportEmail,
-			URLBuilder:   urlBuilder,
+			AppName:       appName,
+			SupportEmail:  supportEmail,
+			URLBuilder:    urlBuilder,
 			DefaultLocale: "en",
 		},
 	)

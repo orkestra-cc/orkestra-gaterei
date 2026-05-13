@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -13,7 +14,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/documents/repository"
 	"github.com/orkestra/backend/internal/addons/documents/services"
 	"github.com/orkestra/backend/internal/shared/capability"
-	sharedConfig "github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -43,8 +43,11 @@ func (m *DocumentsModule) Description() string {
 	return "PDF generation with Gotenberg and customizable HTML templates"
 }
 func (m *DocumentsModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *DocumentsModule) Enabled(cfg *sharedConfig.Config) bool {
-	return cfg.Documents.GotenbergURL != ""
+
+// Enabled gates first-boot activation on a Gotenberg URL being configured.
+// Reads the env var directly to keep this method shared/config-free.
+func (m *DocumentsModule) Enabled() bool {
+	return os.Getenv("GOTENBERG_URL") != ""
 }
 
 func (m *DocumentsModule) ProvidedServices() []module.ServiceKey {

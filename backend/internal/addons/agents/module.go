@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -12,7 +14,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/agents/repository"
 	"github.com/orkestra/backend/internal/addons/agents/services"
 	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -50,7 +51,12 @@ func (m *AgentsModule) Name() string                    { return "agents" }
 func (m *AgentsModule) DisplayName() string             { return "AI Agents" }
 func (m *AgentsModule) Description() string             { return "Hindsight-powered AI agents with RAG context" }
 func (m *AgentsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *AgentsModule) Enabled(cfg *config.Config) bool { return cfg.Agents.Enabled }
+
+// Enabled gates first-boot activation on AGENTS_ENABLED.
+func (m *AgentsModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("AGENTS_ENABLED"))
+	return v
+}
 
 // Hard dependency on aimodels: the Hindsight container inherits its LLM
 // provider/model/API key from aimodels' default LLM, so aimodels must be
@@ -126,14 +132,15 @@ func (m *AgentsModule) Init(deps *module.Dependencies) error {
 	// aimodels on every toggle.
 	m.deps = deps
 
-	// Create RAG bridge if RAG query service is available. DefaultTopK still
-	// flows from the shared/config global struct here — rag has no schema
-	// entry for it yet. PR-1a-9 (rag conversion) is the natural place to
-	// move the value into rag's ConfigSchema and consume it via either a
-	// service interface or deps.ConfigService.GetConfigInt("rag", ...).
+	// Create RAG bridge if RAG query service is available. DefaultTopK is
+	// rag's config field (declared in rag's ConfigSchema since PR-1a-9);
+	// reading it via deps.ConfigService is a deliberate cross-addon
+	// coupling kept narrow — agents takes one knob from rag's schema
+	// rather than pulling in rag's package directly.
 	var ragBridge services.RAGBridge
 	if ragQuery, ok := module.GetTyped[iface.RAGQueryProvider](deps.Services, module.ServiceRAGQuery); ok {
-		ragBridge = services.NewRAGBridge(ragQuery, deps.Config.RAG.DefaultTopK, deps.Logger)
+		topK := deps.GetConfigInt("rag", "defaultTopK", 10)
+		ragBridge = services.NewRAGBridge(ragQuery, topK, deps.Logger)
 	}
 
 	projectService := services.NewProjectService(projectRepo, hsClient, settings.HindsightNamespace, deps.Logger)

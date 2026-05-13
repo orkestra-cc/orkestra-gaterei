@@ -3,6 +3,8 @@ package graph
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -12,7 +14,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/graph/repository"
 	"github.com/orkestra/backend/internal/addons/graph/services"
 	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
@@ -58,7 +59,12 @@ func (m *GraphModule) Description() string {
 	return "Memgraph graph database for knowledge graphs and algorithms"
 }
 func (m *GraphModule) Category() module.ModuleCategory { return module.CategoryExternal }
-func (m *GraphModule) Enabled(cfg *config.Config) bool { return cfg.Graph.Enabled }
+
+// Enabled gates first-boot activation on GRAPH_ENABLED.
+func (m *GraphModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("GRAPH_ENABLED"))
+	return v
+}
 
 func (m *GraphModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceGraphRepo}

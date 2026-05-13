@@ -3,6 +3,8 @@ package aimodels
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
@@ -10,7 +12,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/aimodels/repository"
 	"github.com/orkestra/backend/internal/addons/aimodels/services"
 	"github.com/orkestra/backend/internal/shared/capability"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -42,7 +43,12 @@ func (m *AIModelsModule) Description() string {
 	return "LLM and embedding model management (Ollama, OpenAI, Anthropic, Gemini)"
 }
 func (m *AIModelsModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *AIModelsModule) Enabled(cfg *config.Config) bool { return cfg.AIModels.Enabled }
+
+// Enabled gates first-boot activation on AIMODELS_ENABLED.
+func (m *AIModelsModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("AIMODELS_ENABLED"))
+	return v
+}
 
 func (m *AIModelsModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceAIModelProvider}

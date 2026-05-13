@@ -721,6 +721,14 @@ func (c *Config) GetEnvironment() string {
 	return c.Server.Environment
 }
 
+// FrontendURL returns the public origin of the SPA. Used by notification
+// templates and password-reset/verification links. Satisfies the
+// module.PlatformInfo SDK contract so addons can read this without
+// importing shared/config.
+func (c *Config) FrontendURL() string {
+	return c.Server.FrontendURL
+}
+
 // loadJWTKeys loads RSA keys from the file system
 func loadJWTKeys(jwt *JWTConfig) error {
 	if jwt.PrivateKeyPath == "" {

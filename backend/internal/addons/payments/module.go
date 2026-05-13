@@ -12,7 +12,6 @@ import (
 	"github.com/orkestra/backend/internal/addons/payments/repository"
 	"github.com/orkestra/backend/internal/addons/payments/services"
 	"github.com/orkestra/backend/internal/addons/payments/webhooks"
-	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/iface"
 	"github.com/orkestra/backend/internal/shared/middleware"
 	"github.com/orkestra/backend/internal/shared/module"
@@ -54,8 +53,8 @@ func (m *PaymentsModule) Category() module.ModuleCategory { return module.Catego
 // Enabled returns true whenever the module has been registered — it can be
 // toggled on via the admin UI and will start accepting webhooks as soon as
 // a Stripe API key is configured.
-func (m *PaymentsModule) Enabled(_ *config.Config) bool { return true }
-func (m *PaymentsModule) HotReloadConfig() bool         { return true }
+func (m *PaymentsModule) Enabled() bool         { return true }
+func (m *PaymentsModule) HotReloadConfig() bool { return true }
 
 // See subscriptions/module.go for the cycle-free wiring rationale — neither
 // module declares the other in Dependencies().

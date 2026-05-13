@@ -3,6 +3,8 @@ package rag
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
@@ -44,8 +46,16 @@ func (m *RAGModule) Description() string {
 	return "Document ingestion, embedding, and retrieval-augmented generation"
 }
 func (m *RAGModule) Category() module.ModuleCategory { return module.CategoryToggleable }
-func (m *RAGModule) Enabled(cfg *config.Config) bool { return cfg.RAG.Enabled }
-func (m *RAGModule) Dependencies() []string          { return []string{"graph", "aimodels"} }
+
+// Enabled gates first-boot activation on RAG_ENABLED — same semantic as
+// before, but sourced directly from the env var so this method has no
+// dependency on shared/config. After first boot the persisted enabled
+// flag in module_configs is authoritative.
+func (m *RAGModule) Enabled() bool {
+	v, _ := strconv.ParseBool(os.Getenv("RAG_ENABLED"))
+	return v
+}
+func (m *RAGModule) Dependencies() []string { return []string{"graph", "aimodels"} }
 
 func (m *RAGModule) ProvidedServices() []module.ServiceKey {
 	return []module.ServiceKey{module.ServiceRAGQuery}
@@ -159,10 +169,11 @@ func (m *RAGModule) Init(deps *module.Dependencies) error {
 		ragModelProvider = localModelService
 	}
 
-	// Text extractor uses Gotenberg from the documents module. Reads through
-	// the global config struct for now — cross-addon coupling cleanup is
-	// PR-1a-14 territory.
-	textExtractor := services.NewTextExtractor(deps.Config.Documents.GotenbergURL)
+	// Text extractor uses Gotenberg from the documents module. gotenbergURL
+	// is declared in documents' ConfigSchema (PR-1a-2) so reading it via
+	// deps.ConfigService is a narrow cross-addon coupling — rag asks for
+	// one knob without importing documents' package.
+	textExtractor := services.NewTextExtractor(deps.GetConfig("documents", "gotenbergURL"))
 
 	// Ingestion + query services require graph repository
 	if graphProvider, ok := module.GetTyped[iface.GraphProvider](deps.Services, module.ServiceGraphRepo); ok {

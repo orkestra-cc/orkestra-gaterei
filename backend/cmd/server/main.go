@@ -116,6 +116,7 @@ func main() {
 		DB:           db,
 		RedisAdapter: redisAdapter,
 		Config:       cfg,
+		Platform:     cfg,
 		Logger:       logger,
 		Services:     svcRegistry,
 	}
@@ -140,7 +141,7 @@ func main() {
 		log.Fatalf("Failed to resolve module dependencies: %v", err)
 	}
 
-	if err := modRegistry.InitAll(cfg, modDeps); err != nil {
+	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
 	}
 
