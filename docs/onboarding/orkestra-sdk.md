@@ -571,22 +571,23 @@ If you're going to spend serious time in the backend, in priority order:
 6. **[docs/plans/orkestra-sdk-split.md][1]** — full multi-phase plan for
    how the SDK reached its current shape and where it's going
 
-## Where the SDK is heading
+## Where the SDK is
 
-The current state is **Phase 3** of the SDK split (in-monorepo module
-boundary, bound by `go.work`). The remaining phase:
+The SDK is published at
+[`github.com/orkestra-cc/orkestra-sdk`](https://github.com/orkestra-cc/orkestra-sdk)
+since `v0.1.0` (Phase 4). The in-tree source at `backend/pkg/sdk/`
+remains the canonical home — `backend/go.mod` carries a `replace`
+directive pointing at it so monorepo development uses live source, and
+the same code is mirrored to the public repo via a tagged release.
+External addons (and Phase-5 addon extractions) `go get` the SDK from
+the module proxy and never see the in-tree path.
 
-- **Phase 4 — extract to its own repo.** The SDK gets published at
-  `github.com/orkestra-cc/orkestra-sdk` and tagged `v0.1.0`. The
-  backend's `replace` directive in `backend/go.mod` is dropped and the
-  module is fetched via `go get`. **No source changes anywhere** —
-  every import path already references the public path. Same goes for
-  later addon extractions: drop a single `replace`, point at the
-  published version, done.
-
-You can write code today against the SDK as if it were already
-published. The contract is the contract — only the source location
-moves.
+When the cross-cutting churn settles (no per-PR changes spanning both
+repos), the next refactor will drop the `replace` directive and the
+backend will fetch the SDK like any other public module. Until then,
+write code against the SDK as if it were already external — every
+import path is the public path, the contract is the contract, and
+the source location is a detail.
 
 ## Quick reference
 

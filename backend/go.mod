@@ -2,13 +2,13 @@ module github.com/orkestra/backend
 
 go 1.25.10
 
-// SDK split (Phase 3): the public SDK contract lives in pkg/sdk/ as its
-// own Go module so addons extracted to standalone repositories can
-// `go get` the same surface the monolith consumes. The replace directive
-// binds the in-tree path; the repo-root go.work file does the same for
-// any tooling that doesn't resolve replaces. Phase 4 publishes the SDK
-// to its own repo and tags a real version — this line drops to a
-// regular `require` then.
+// SDK split (Phase 4): the public SDK lives at
+// github.com/orkestra-cc/orkestra-sdk (released v0.1.0 from the
+// in-tree source at pkg/sdk/). The replace directive points at the
+// in-tree path so local development uses the live tree; CI and
+// external consumers without the replace resolve v0.1.0 through the
+// Go module proxy. The replace will drop once cross-cutting changes
+// no longer need round-trip through the SDK repo.
 replace github.com/orkestra-cc/orkestra-sdk => ./pkg/sdk
 
 require (
@@ -27,7 +27,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
-	github.com/orkestra-cc/orkestra-sdk v0.0.0-00010101000000-000000000000
+	github.com/orkestra-cc/orkestra-sdk v0.1.0
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/sashabaranov/go-openai v1.41.2
