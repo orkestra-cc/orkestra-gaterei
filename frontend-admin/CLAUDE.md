@@ -1,7 +1,7 @@
 # Frontend Admin — Operator Console (Tier-1)
 
-*Path: `/frontend-admin`*  
-*Parent: [../CLAUDE.md](../CLAUDE.md)*
+_Path: `/frontend-admin`_  
+_Parent: [../CLAUDE.md](../CLAUDE.md)_
 
 [← Root](../CLAUDE.md) | [☰ Module Map](../CLAUDE.md#module-map) | [🚀 Quick Start](../CLAUDE.md#quick-start) | [Tier-2 client SPA](../frontend-client/CLAUDE.md)
 
@@ -9,20 +9,20 @@ React 19 + Vite 7 + TypeScript 5.9 operator console for Orkestra — the **Tier-
 
 ## Tech stack
 
-| Layer | Choice |
-|---|---|
-| Framework | React 19.1, React Router 7.7 |
-| Build | Vite 7 (dev server + production bundle) |
-| Language | TypeScript 5.9 strict mode |
-| State | Redux Toolkit 2.9 + RTK Query (server state lives in RTK Query, not React Query) |
-| UI kit | React Bootstrap 2.10 + Bootstrap 5.3 + Orkestra SCSS theme |
-| Forms | React Hook Form + Yup |
-| Charts | ECharts (lazy-loaded chunks). Chart.js + D3 reference samples were removed — use `echarts-for-react` for any new chart work. |
-| Calendar | FullCalendar |
-| Maps | Google Maps + Leaflet |
-| Tables | TanStack Table v8 |
-| Drag & Drop | dnd-kit |
-| Auth | Cookie sessions + Bearer access tokens (RS256 JWT issued by backend) |
+| Layer       | Choice                                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Framework   | React 19.1, React Router 7.7                                                                                                 |
+| Build       | Vite 7 (dev server + production bundle)                                                                                      |
+| Language    | TypeScript 5.9 strict mode                                                                                                   |
+| State       | Redux Toolkit 2.9 + RTK Query (server state lives in RTK Query, not React Query)                                             |
+| UI kit      | React Bootstrap 2.10 + Bootstrap 5.3 + Orkestra SCSS theme                                                                   |
+| Forms       | React Hook Form + Yup                                                                                                        |
+| Charts      | ECharts (lazy-loaded chunks). Chart.js + D3 reference samples were removed — use `echarts-for-react` for any new chart work. |
+| Calendar    | FullCalendar                                                                                                                 |
+| Maps        | Google Maps + Leaflet                                                                                                        |
+| Tables      | TanStack Table v8                                                                                                            |
+| Drag & Drop | dnd-kit                                                                                                                      |
+| Auth        | Cookie sessions + Bearer access tokens (RS256 JWT issued by backend)                                                         |
 
 ## Directory layout
 
@@ -102,7 +102,7 @@ frontend-admin/
 The project uses **bare path aliases** (no `@/` prefix). They are declared in both `tsconfig.json` and `vite.config.js`:
 
 ```ts
-import Avatar from 'components/common/Avatar';     // not '@/components/common/Avatar'
+import Avatar from 'components/common/Avatar'; // not '@/components/common/Avatar'
 import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
 import BillingDashboard from 'pages/billing/dashboard';
 ```
@@ -197,14 +197,14 @@ Only build a new component if none of the above fits. New components used by exa
 
 ## State management
 
-| Concern | Where it lives |
-|---|---|
-| Server state (cached responses) | RTK Query (`src/store/api/`) |
-| Auth user + tokens | Redux slice (`src/store/slices/authSlice.ts`) |
-| Kanban board state | Redux slice (`src/store/slices/kanbanSlice.ts`) |
-| Theme, navbar config, RTL | `AppProvider` context |
-| Form local state | React Hook Form |
-| Component local state | `useState` |
+| Concern                         | Where it lives                                  |
+| ------------------------------- | ----------------------------------------------- |
+| Server state (cached responses) | RTK Query (`src/store/api/`)                    |
+| Auth user + tokens              | Redux slice (`src/store/slices/authSlice.ts`)   |
+| Kanban board state              | Redux slice (`src/store/slices/kanbanSlice.ts`) |
+| Theme, navbar config, RTL       | `AppProvider` context                           |
+| Form local state                | React Hook Form                                 |
+| Component local state           | `useState`                                      |
 
 Persisted state is opt-in via `redux-persist` — only user preferences are persisted, never tokens.
 
@@ -217,6 +217,7 @@ npm run build             # tsc + vite build (production)
 npm run build:staging     # Staging build
 npm run preview           # Serve built bundle locally
 npm run typecheck         # tsc --noEmit (CI-safe)
+npm run lint              # eslint src/ --max-warnings 0
 npm run test              # Vitest single-pass run
 npm run test:watch        # Vitest watch mode
 ```
@@ -227,14 +228,14 @@ The `tsc` step in `build` enforces strict mode — TypeScript errors fail the bu
 
 Vitest + React Testing Library + happy-dom + MSW. The infra lives in `src/test/`:
 
-| File | Purpose |
-|---|---|
-| `src/test/setup.ts` | Vitest global setup — jest-dom matchers, MSW lifecycle (`onUnhandledRequest: 'error'` so missing stubs fail loud), `resetCapturedRequests()` between tests |
-| `src/test/server.ts` | Single shared `setupServer(...defaultHandlers)` reused by every test file |
-| `src/test/handlers.ts` | Default MSW handlers + per-endpoint request capture (`capturedRequests.billingStatsParams` etc.) for tests that need to assert outbound params |
-| `src/test/render.tsx` | `renderWithProviders(ui, { preloadedState, store, routerEntries })` — wraps in a fresh non-persisted Redux store + `MemoryRouter`. Returns `{ store, ...renderResult }` |
+| File                   | Purpose                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/test/setup.ts`    | Vitest global setup — jest-dom matchers, MSW lifecycle (`onUnhandledRequest: 'error'` so missing stubs fail loud), `resetCapturedRequests()` between tests              |
+| `src/test/server.ts`   | Single shared `setupServer(...defaultHandlers)` reused by every test file                                                                                               |
+| `src/test/handlers.ts` | Default MSW handlers + per-endpoint request capture (`capturedRequests.billingStatsParams` etc.) for tests that need to assert outbound params                          |
+| `src/test/render.tsx`  | `renderWithProviders(ui, { preloadedState, store, routerEntries })` — wraps in a fresh non-persisted Redux store + `MemoryRouter`. Returns `{ store, ...renderResult }` |
 
-**Default pattern**: real component, real Redux store, real RTK Query, MSW for HTTP. Mock hooks (`vi.mock`) only when testing branching logic of a hook's *consumer* (e.g. `ProtectedRoute` mocking `useAuth`), not when testing data flow.
+**Default pattern**: real component, real Redux store, real RTK Query, MSW for HTTP. Mock hooks (`vi.mock`) only when testing branching logic of a hook's _consumer_ (e.g. `ProtectedRoute` mocking `useAuth`), not when testing data flow.
 
 ```tsx
 import { renderWithProviders } from 'test/render';
