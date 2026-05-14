@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useAppSelector } from '../store/hooks';
 import { selectAccessToken } from '../store/slices/authSlice';
 import type { SourceRef, QueryMeta, RagQueryRequest } from '../types/rag';
+import runtimeConfig from 'config/environment';
 
 interface SSESourcesEvent {
   sources: SourceRef[];
@@ -55,8 +56,7 @@ export function useRAGStream() {
       });
 
       try {
-        const baseUrl =
-          import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+        const baseUrl = runtimeConfig.apiUrl;
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };

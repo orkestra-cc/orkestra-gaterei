@@ -20,6 +20,10 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <main class="main" id="main"></main>
+    <!-- Runtime config: must load before the main bundle so
+         window.__ORKESTRA_CONFIG__ is populated synchronously. See
+         frontend-admin/public/config.js. -->
+    <script src="/config.js"></script>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

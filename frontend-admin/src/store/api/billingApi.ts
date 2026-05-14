@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi';
+import runtimeConfig from 'config/environment';
 import type {
   Supplier,
   SupplierListResponse,
@@ -317,8 +318,7 @@ export const billingApi = baseApi.injectEndpoints({
     >({
       queryFn: async ({ id, filename }, { getState }) => {
         try {
-          const baseUrl =
-            import.meta.env.VITE_BACKEND_URL || 'http://console.localhost:3000';
+          const baseUrl = runtimeConfig.apiUrl;
           const state = getState() as {
             auth?: { accessToken?: string; tokenExpiry?: string };
           };
@@ -438,7 +438,9 @@ export const billingApi = baseApi.injectEndpoints({
           ? buildQueryParams({ ...params, direction: 'received' })
           : 'direction=received';
         return {
-          url: `/v1/billing/received-invoices${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/received-invoices${
+            queryString ? `?${queryString}` : ''
+          }`,
           method: 'GET'
         };
       },
@@ -495,7 +497,9 @@ export const billingApi = baseApi.injectEndpoints({
       query: params => {
         const queryString = params ? buildQueryParams(params) : '';
         return {
-          url: `/v1/billing/notifications${queryString ? `?${queryString}` : ''}`,
+          url: `/v1/billing/notifications${
+            queryString ? `?${queryString}` : ''
+          }`,
           method: 'GET'
         };
       },
@@ -535,7 +539,9 @@ export const billingApi = baseApi.injectEndpoints({
     >({
       query: params => {
         const queryString = params ? buildQueryParams(params) : '';
-        return `/v1/billing/notifications/summary${queryString ? `?${queryString}` : ''}`;
+        return `/v1/billing/notifications/summary${
+          queryString ? `?${queryString}` : ''
+        }`;
       },
       providesTags: [{ type: 'Notification', id: 'SUMMARY' }]
     }),

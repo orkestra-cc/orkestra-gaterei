@@ -9,6 +9,10 @@
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
+    <!-- Runtime config: window.__ORKESTRA_CONFIG__ populated by
+         /docker-entrypoint.d/10-write-config.sh in prod, or public/config.js
+         in dev. See frontend-client/src/api/client.ts for the consumer. -->
+    <script src="/config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

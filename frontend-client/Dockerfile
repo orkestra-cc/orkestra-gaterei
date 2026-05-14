@@ -1,11 +1,11 @@
-# Tier-2 client demo SPA — production image. Two-stage build: Node builds
-# the static bundle, nginx serves it. Mirrors frontend/Dockerfile (operator
-# console) so deploy tooling can treat both apps uniformly.
+# Tier-2 client demo SPA — production image.
 #
-# The dev container in docker-compose.dev.yml does NOT use this Dockerfile —
-# it bind-mounts the source and runs `npm run dev` against the public
-# node:24-alpine image. This file builds the static bundle that ships to
-# staging and prod.
+# Runtime config: VITE_API_BASE / VITE_STRIPE_PUBLISHABLE_KEY are no longer
+# baked at build time. The SPA reads window.__ORKESTRA_CONFIG__ from /config.js,
+# which the nginx entrypoint regenerates from container env vars
+# (ORKESTRA_API_BASE, ORKESTRA_STRIPE_PUBLISHABLE_KEY) on container start.
+# One image works in staging and prod — set the ORKESTRA_* vars on the
+# container instead of rebuilding per environment.
 
 # ============================================
 # Stage 1: Build
@@ -13,15 +13,6 @@
 FROM node:24-alpine AS builder
 
 WORKDIR /app
-
-# Build-time configuration. Vite inlines anything prefixed VITE_ at build
-# time, so each environment (staging/prod) needs its own image — staging
-# at app.orkestra.cc, prod at app.orkestra.com.
-ARG VITE_API_BASE
-ARG VITE_STRIPE_PUBLISHABLE_KEY
-
-ENV VITE_API_BASE=${VITE_API_BASE}
-ENV VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}
 
 COPY package*.json ./
 RUN npm ci --ignore-scripts
@@ -34,13 +25,12 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine AS production
 
-RUN apk add --no-cache curl
+# curl for healthcheck; gettext for envsubst in the entrypoint.
+RUN apk add --no-cache curl gettext
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# SPA fallback — every unmatched path returns index.html so React Router
-# owns the routing tree client-side. /health stays a literal endpoint so
-# HAProxy / k8s liveness probes don't pull the SPA bundle.
+# SPA fallback + /health endpoint.
 RUN printf 'server {\n\
     listen 80;\n\
     server_name _;\n\
@@ -55,6 +45,20 @@ RUN printf 'server {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\
 }\n' > /etc/nginx/conf.d/default.conf
+
+# Runtime-config entrypoint: rewrites /usr/share/nginx/html/config.js from
+# container env vars before nginx forks. Slots into nginx:alpine's
+# /docker-entrypoint.d/ hook so we don't have to override ENTRYPOINT.
+RUN printf '#!/bin/sh\n\
+set -e\n\
+cat > /usr/share/nginx/html/config.js <<EOF\n\
+window.__ORKESTRA_CONFIG__ = {\n\
+  apiBase: "${ORKESTRA_API_BASE:-http://api.localhost:3000}",\n\
+  stripePublishableKey: "${ORKESTRA_STRIPE_PUBLISHABLE_KEY:-}"\n\
+};\n\
+EOF\n\
+' > /docker-entrypoint.d/10-write-config.sh \
+ && chmod +x /docker-entrypoint.d/10-write-config.sh
 
 EXPOSE 80
 

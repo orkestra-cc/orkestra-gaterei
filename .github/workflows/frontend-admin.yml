@@ -100,7 +100,7 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
             ghcr.io/${{ github.repository }}/frontend:latest
-          build-args: |
-            VITE_API_URL=https://api.orkestra.cc
-            VITE_BACKEND_URL=https://api.orkestra.cc
-            VITE_ENV=production
+          # No env-baking build-args here. window.__ORKESTRA_CONFIG__ is
+          # populated at container start from ORKESTRA_API_URL / ORKESTRA_WS_URL
+          # / ORKESTRA_ENV / ORKESTRA_DEBUG by the nginx entrypoint —
+          # see frontend-admin/Dockerfile and frontend-admin/public/config.js.

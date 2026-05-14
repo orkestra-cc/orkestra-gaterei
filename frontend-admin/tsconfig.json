@@ -42,6 +42,7 @@
       "store/*": ["src/store/*"],
       "stores/*": ["src/stores/*"],
       "config": ["src/config"],
+      "config/*": ["src/config/*"],
       "reference/*": ["src/reference/*"],
       "types/*": ["src/types/*"],
       "modules/*": ["src/modules/*"],

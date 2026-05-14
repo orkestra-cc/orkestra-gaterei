@@ -10,6 +10,7 @@ import type { RootState } from '../index';
 import { setAccessToken, clearAccessToken } from '../slices/authSlice';
 import { requestStepUp } from '../stepUp';
 import { requestPasswordConfirm } from '../passwordConfirm';
+import runtimeConfig from 'config/environment';
 
 // Navigation helper - will be set by the auth provider
 let navigateToLogin: ((location?: string) => void) | null = null;
@@ -117,7 +118,7 @@ function isTenantAgnostic(url: string): boolean {
 // can't resolve `*.localhost` fall back to the host-mux's dev
 // fallthrough by setting VITE_BACKEND_URL=http://localhost:3000.
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${import.meta.env.VITE_BACKEND_URL || 'http://console.localhost:3000'}`,
+  baseUrl: runtimeConfig.apiUrl,
   credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     headers.set('Content-Type', 'application/json');
@@ -267,9 +268,7 @@ const baseQueryWithRetry: BaseQueryFn<
     // the user stays signed in for as long as the refresh token is valid
     // instead of being kicked out every access-token window.
     if (!isAuthEndpoint(requestUrl) && !isSessionEndpoint) {
-      const refreshResult = await performRefresh(
-        import.meta.env.VITE_BACKEND_URL || 'http://console.localhost:3000'
-      );
+      const refreshResult = await performRefresh(runtimeConfig.apiUrl);
       if (refreshResult.ok) {
         api.dispatch(
           setAccessToken({

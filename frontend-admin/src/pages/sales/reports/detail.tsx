@@ -4,6 +4,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faDownload } from '@fortawesome/free-solid-svg-icons';
 import { useGetSalesReportQuery } from '../../../store/api/salesApi';
 
+import runtimeConfig from 'config/environment';
+
 const GRADE_COLORS: Record<string, string> = {
   A: 'success',
   B: 'primary',
@@ -16,8 +18,7 @@ const SalesReportDetail = () => {
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
   const { data: report, isLoading } = useGetSalesReportQuery(uuid || '');
-  const backendUrl =
-    import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+  const backendUrl = runtimeConfig.apiUrl;
 
   if (isLoading || !report) {
     return (

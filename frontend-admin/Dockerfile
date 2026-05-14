@@ -1,5 +1,11 @@
 # ORKESTRA Frontend Dockerfile
 # Multi-stage build for React/Vite application
+#
+# Runtime config: VITE_API_URL/VITE_BACKEND_URL/VITE_WS_URL are NOT baked
+# at build time. The SPA reads window.__ORKESTRA_CONFIG__ from /config.js,
+# which the nginx entrypoint regenerates from env vars on container start.
+# One image works in dev / staging / prod — set ORKESTRA_API_URL,
+# ORKESTRA_WS_URL, ORKESTRA_ENV, ORKESTRA_DEBUG on the container.
 
 # ============================================
 # Stage 1: Build
@@ -8,22 +14,13 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments for environment-specific configuration
-ARG VITE_API_URL
-ARG VITE_BACKEND_URL
-ARG VITE_WS_URL
+# Build-time toggles that don't depend on the deployment environment.
+# Anything env-specific belongs in window.__ORKESTRA_CONFIG__ — see the
+# entrypoint in stage 2.
 ARG VITE_PUBLIC_URL=/
-ARG VITE_ENV=production
-ARG VITE_DEBUG=false
 ARG VITE_SENTRY_DSN
 
-# Set environment variables for build
-ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
-ENV VITE_WS_URL=${VITE_WS_URL}
 ENV VITE_PUBLIC_URL=${VITE_PUBLIC_URL}
-ENV VITE_ENV=${VITE_ENV}
-ENV VITE_DEBUG=${VITE_DEBUG}
 ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 
 # Copy package files first for better caching
@@ -43,14 +40,14 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine AS production
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# curl for healthcheck; gettext for envsubst in the entrypoint.
+RUN apk add --no-cache curl gettext
 
 # Copy built files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration (will be mounted as volume in docker-compose)
-# Default nginx config as fallback
+# Default nginx config: SPA fallback + /health. Mountable override via
+# /etc/nginx/conf.d/default.conf is still supported.
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
@@ -66,6 +63,23 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
+# Runtime-config entrypoint: rewrites /usr/share/nginx/html/config.js
+# from ORKESTRA_* env vars before nginx forks. Drops into the
+# docker-entrypoint.d/ hook nginx:alpine already runs at start so we
+# don't have to override ENTRYPOINT.
+RUN printf '#!/bin/sh\n\
+set -e\n\
+cat > /usr/share/nginx/html/config.js <<EOF\n\
+window.__ORKESTRA_CONFIG__ = {\n\
+  apiUrl: "${ORKESTRA_API_URL:-http://console.localhost:3000}",\n\
+  wsUrl: "${ORKESTRA_WS_URL:-ws://console.localhost:3000/ws}",\n\
+  env: "${ORKESTRA_ENV:-production}",\n\
+  debug: ${ORKESTRA_DEBUG:-false}\n\
+};\n\
+EOF\n\
+' > /docker-entrypoint.d/10-write-config.sh \
+ && chmod +x /docker-entrypoint.d/10-write-config.sh
+
 # Expose port
 EXPOSE 80
 
@@ -73,5 +87,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:80/health || exit 1
 
-# Run nginx
+# Run nginx (inherits the default entrypoint that scans /docker-entrypoint.d/).
 CMD ["nginx", "-g", "daemon off;"]
