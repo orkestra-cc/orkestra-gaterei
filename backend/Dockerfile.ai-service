@@ -16,8 +16,10 @@
 FROM dhi.io/golang:1-dev AS base
 
 WORKDIR /app
+# Addon source (with each addon's own go.mod referenced by `replace`
+# directives in backend/go.mod) is copied in the builder stage — so
+# `go mod download` lives there too, not here.
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
 
 # ============================================
 # STAGE 2: Builder
@@ -25,6 +27,7 @@ RUN go mod download && go mod verify
 FROM base AS builder
 
 COPY . .
+RUN go mod download && go mod verify
 
 ARG VERSION=dev
 ARG BUILD_TIME
