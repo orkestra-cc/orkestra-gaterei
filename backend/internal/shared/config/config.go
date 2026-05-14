@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -257,8 +258,11 @@ type RateLimitConfig struct {
 }
 
 func Load() (*Config, error) {
+	// `.env` is a local-dev convenience. In containers the runtime
+	// injects env vars directly, so a missing file is the normal case —
+	// quiet debug log instead of stdout noise.
 	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
+		slog.Debug("no .env file found, using process environment", slog.String("error", err.Error()))
 	}
 
 	config := &Config{}

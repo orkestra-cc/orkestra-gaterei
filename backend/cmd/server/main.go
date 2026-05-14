@@ -429,7 +429,6 @@ func main() {
 	go func() {
 		logger.Info("Starting server",
 			slog.String("port", cfg.Server.Port),
-			slog.String("environment", cfg.Server.Environment),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Failed to start server", slog.String("error", err.Error()))
