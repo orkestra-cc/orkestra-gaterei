@@ -272,7 +272,7 @@ frontend-client-clean:
 
 .PHONY: install install-hooks fmt ci-help
 .PHONY: ci ci-all ci-backend ci-backend-matrix ci-frontend-admin ci-frontend-client ci-mobile
-.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint addon-compliance-lint addon-identity-lint addon-rag-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci addon-dev-test-ci addon-compliance-test-ci addon-identity-test-ci addon-rag-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise
+.PHONY: backend-lint sdk-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint addon-compliance-lint addon-identity-lint addon-rag-lint openapi-auth-lint backend-test-ci sdk-test-ci addon-documents-test-ci addon-aimodels-test-ci addon-company-test-ci addon-graph-test-ci addon-sales-test-ci addon-subscriptions-test-ci addon-payments-test-ci addon-billing-test-ci addon-dev-test-ci addon-compliance-test-ci addon-identity-test-ci addon-rag-test-ci openapi-auth-test-ci backend-tenantscope backend-policycoverage backend-vulncheck backend-build-enterprise backend-openapi-check
 .PHONY: admin-typecheck admin-lint admin-test admin-audit admin-build
 .PHONY: client-typecheck client-lint client-build
 .PHONY: mobile-analyze mobile-test
@@ -323,8 +323,16 @@ ci-all: ci-backend ci-frontend-admin ci-frontend-client ci-mobile
 
 # ---- Backend ----
 
-ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint addon-compliance-lint addon-identity-lint addon-rag-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise
+ci-backend: backend-lint sdk-lint openapi-auth-lint addon-documents-lint addon-aimodels-lint addon-company-lint addon-graph-lint addon-sales-lint addon-subscriptions-lint addon-payments-lint addon-billing-lint addon-dev-lint addon-compliance-lint addon-identity-lint addon-rag-lint backend-tenantscope backend-policycoverage backend-vulncheck backend-test-ci backend-build-enterprise backend-openapi-check
 	@echo "Backend CI: OK"
+
+# backend-openapi-check fails if the committed openapi/enterprise.json drifted
+# from the routes in the current source — same gate as policycoverage but for
+# the API surface that docs.orkestra.cc renders. Requires Mongo+Redis; CI gets
+# them as services on the backend job.
+.PHONY: backend-openapi-check
+backend-openapi-check:
+	@cd backend && $(MAKE) openapi-check
 
 ci-backend-matrix: ci-backend
 	@cd backend && $(MAKE) build-starter build-minimal build-billing build-ai build-saas build-enterprise

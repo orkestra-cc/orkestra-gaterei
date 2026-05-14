@@ -236,7 +236,7 @@ docker restart orkestra-backend-dev
 
 GitHub Actions workflows (`.github/workflows/`) run on PR and push to `dev`/`main`. **CI workflows invoke `make` targets from the repo root — local and CI cannot drift.** Run `make ci-help` for the full list.
 
-- `backend.yml` → `make ci-backend` (lint, tenantscope, policycoverage, vuln, tests, enterprise build) + a profile-build matrix
+- `backend.yml` → `make ci-backend` (lint, tenantscope, policycoverage, vuln, tests, enterprise build, openapi-check) + a profile-build matrix
 - `frontend-admin.yml` → `make ci-frontend-admin` (typecheck, eslint, tests, audit, build)
 - `frontend-client.yml` → `make ci-frontend-client` (typecheck, eslint, build) — no tests yet
 - `mobile.yml` → `make ci-mobile` (flutter analyze, test)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -345,6 +346,37 @@ func main() {
 	registerDocsEndpoints(operatorMux, operatorAPI)
 	registerHealthEndpoints(clientAPI, db, redisClient)
 	registerDocsEndpoints(clientMux, clientAPI)
+
+	// OPENAPI_DUMP mode (used by `make openapi-dump`): after every module
+	// has been wired and its routes registered, serialize the OpenAPI
+	// document to OPENAPI_DUMP_PATH and exit. We never bind a listener
+	// in this mode, so the dump cost is dominated by module Init
+	// (Mongo collection ensure, registry seed).
+	//
+	// Note: operatorAPI and clientAPI currently share a single in-memory
+	// OpenAPI document because they're constructed from the same apiConfig.
+	// The audience split lives at the mux/host level; both /openapi.json
+	// endpoints serve identical content. If the surfaces are ever wired
+	// with distinct huma.Config instances, this branch can dump per-
+	// audience files via separate env vars.
+	if os.Getenv("OPENAPI_DUMP") != "" {
+		path := os.Getenv("OPENAPI_DUMP_PATH")
+		if path == "" {
+			log.Fatal("OPENAPI_DUMP=1 set but OPENAPI_DUMP_PATH is empty")
+		}
+		b, err := json.MarshalIndent(operatorAPI.OpenAPI(), "", "  ")
+		if err != nil {
+			log.Fatalf("openapi marshal: %v", err)
+		}
+		b = append(b, '\n')
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			log.Fatalf("openapi write (%s): %v", path, err)
+		}
+		logger.Info("openapi dump",
+			slog.String("path", path),
+			slog.Int("bytes", len(b)))
+		os.Exit(0)
+	}
 
 	// Phase 5.3: Prometheus /metrics endpoint. Operator-only — Prometheus
 	// scrapes from inside the cluster against the operator host; exposing
