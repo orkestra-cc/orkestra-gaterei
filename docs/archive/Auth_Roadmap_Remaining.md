@@ -1,6 +1,8 @@
 # Auth roadmap — remaining work and verification checks
 
-Status snapshot at commit `68529ab` (2026-04-24). Sections A, B, C of the 2026-04-24 auth audit ([memory](../home/tore/.claude/projects/-mnt-c-Users-tore-orkestra/memory/project_auth_audit_2026_04_24.md)) are shipped. Sections D, E, F are open, plus a tail of deferred follow-ups from the completed sections. This document is the single source of truth for "what's left".
+> **ARCHIVED 2026-05-14.** This is a snapshot at commit `68529ab` (2026-04-24); many of the items in Sections D / E / F and the deferred Sections A–C tails have either shipped, been re-scoped, or rolled into the auth-policy admin tabs roadmap (Phases 0–10-A pushed by 2026-05-14). The original "memory" link below pointed at a WSL2-only path that is no longer reachable. This document is **no longer the source of truth for "what's left"** — for current auth work, see [`backend/internal/core/auth/CLAUDE.md`](../../backend/internal/core/auth/CLAUDE.md) and the per-feature plans under [`docs/plans/`](../plans/). Kept here as the 2026-04-24 audit snapshot.
+
+Status snapshot at commit `68529ab` (2026-04-24). Sections A, B, C of the 2026-04-24 auth audit (memory file `project_auth_audit_2026_04_24.md`, not in-repo) are shipped. Sections D, E, F are open, plus a tail of deferred follow-ups from the completed sections.
 
 ## Contents
 

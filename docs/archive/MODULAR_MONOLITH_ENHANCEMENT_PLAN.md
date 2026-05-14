@@ -1,6 +1,8 @@
 # Modular Monolith Enhancement Plan
 **ORKESTRA System - Microservices-Ready Architecture**
 
+> **ARCHIVED 2026-05-14.** This plan was never executed as written. It proposes a `/backend/internal/clients/` service-client layer (Kafka events, OpenTelemetry tracing, local/remote feature flags) that does not exist and was superseded by a different approach: the SDK-based `Module` interface, `ServiceRegistry`, `ConfigService`, and the AI sidecar HTTP split. References paths like `/internal/auth` and `/internal/user` that have since moved under `/internal/core/`. Kept for historical context only — for the current modular monolith design, see the root [`CLAUDE.md`](../../CLAUDE.md) and [`backend/pkg/sdk/CLAUDE.md`](../../backend/pkg/sdk/CLAUDE.md).
+
 ---
 
 ## Executive Summary

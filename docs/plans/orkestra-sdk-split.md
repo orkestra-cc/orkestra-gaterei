@@ -1,8 +1,8 @@
 # Orkestra SDK Split — Implementation Plan
 
-**Status:** Draft · branch `orkestra-sdk-dev` · 2026-05-13
+**Status:** ✅ Phases 0–5 complete (2026-05-14). SDK published as `github.com/orkestra-cc/orkestra-sdk` at v0.4.0. All thirteen targeted addons extracted to their own public repos (Phases 5a–5l): `documents`, `aimodels`, `openapiauth`, `company`, `graph`, `sales`, `subscriptions`, `payments`, `billing`, `dev`, `compliance`, `identity`, `rag`. Phase 6 candidates deferred (drop `replace` directives, externalize re-export shims, public-mirror CI). For developer onboarding to the SDK contract, see [`docs/onboarding/orkestra-sdk.md`](../onboarding/orkestra-sdk.md).
 **Owner:** Salvatore Balestrino
-**Tracking:** _will be linked once first PR opens_
+**Tracking:** _historical plan — execution complete_
 
 ## 1. Why this exists
 

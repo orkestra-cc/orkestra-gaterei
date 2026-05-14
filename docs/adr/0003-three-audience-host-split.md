@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Accepted (PR-A/B/C merged 2026-04-30; PR-D phases D-1..D-10 landed on `feat/adr-0003-prd-auth-path-split`, ready for review) |
-| **Date** | 2026-04-30 (proposed) / 2026-05-04 (PR-D feature-complete) |
+| **Status** | ✅ Accepted and shipped. PR-A/B/C merged 2026-04-30; PR-D merged on `dev` as `9fff65a` and promoted to `main` in the 2026-05-14 release (`1bdf97e chore(release): promote dev to main`). PR-E (client-facing AI runtime) deferred. |
+| **Date** | 2026-04-30 (proposed) / 2026-05-04 (PR-D feature-complete) / 2026-05-14 (promoted to main) |
 | **Authors** | @salvatore.balestrino |
 | **Supersedes** | — |
 | **Related** | [ADR-0001](0001-unified-tenant-model.md), [ADR-0002](0002-metrics-label-schema.md) |
@@ -12,17 +12,18 @@
 
 | PR | Commit / merge | Status |
 |---|---|---|
-| PR-A — `APISurface` / `RouteInfo` reshape | `ed7af67` (PR #1) | merged 2026-04-30 |
-| PR-C — host mux + audience MW + JWT `aud=operator` | merge `56ee4cd` | merged 2026-04-30 |
-| PR-B — split user/auth collections (B-1..B-5) | merge `57d1adc` | merged 2026-04-30 |
-| PR-D D-1..D-3 — tier-aware repos/services/JWT v2 cutover | `6f16163`, `837a700`, `9036fea` | landed on `feat/adr-0003-prd-auth-path-split` |
-| PR-D D-4..D-5 — per-tier auth paths | `4f0cb44`, `ddce086` | landed |
-| PR-D D-6 — OAuth state-encoded tier dispatch | `0716663` | landed |
-| PR-D D-7 — client-surface routes (onboarding/subscriptions/payments) | `3b4f2fe` | landed |
-| PR-D D-8 — hard cutover, drop legacy auth paths + `USER_TIER_SPLIT_ENABLED` (-1319 lines) | `ff4b089` | landed |
-| PR-D D-9 — frontend cookie-domain split (`OPERATOR_COOKIE_DOMAIN` / `CLIENT_COOKIE_DOMAIN`) | `966aae8` | landed |
-| PR-D D-10 — devtoken `--audience` + integration smoke | `76e10c5` | landed |
-| PR-E — client-facing AI runtime endpoints | — | deferred (post-merge) |
+| PR-A — `APISurface` / `RouteInfo` reshape | `ed7af67` (PR #1) | ✅ merged 2026-04-30 |
+| PR-C — host mux + audience MW + JWT `aud=operator` | merge `56ee4cd` | ✅ merged 2026-04-30 |
+| PR-B — split user/auth collections (B-1..B-5) | merge `57d1adc` | ✅ merged 2026-04-30 |
+| PR-D D-1..D-3 — tier-aware repos/services/JWT v2 cutover | `6f16163`, `837a700`, `9036fea` | ✅ merged to `dev` in `9fff65a` |
+| PR-D D-4..D-5 — per-tier auth paths | `4f0cb44`, `ddce086` | ✅ merged |
+| PR-D D-6 — OAuth state-encoded tier dispatch | `0716663` | ✅ merged |
+| PR-D D-7 — client-surface routes (onboarding/subscriptions/payments) | `3b4f2fe` | ✅ merged |
+| PR-D D-8 — hard cutover, drop legacy auth paths + `USER_TIER_SPLIT_ENABLED` (-1319 lines) | `ff4b089` | ✅ merged |
+| PR-D D-9 — frontend cookie-domain split (`OPERATOR_COOKIE_DOMAIN` / `CLIENT_COOKIE_DOMAIN`) | `966aae8` | ✅ merged |
+| PR-D D-10 — devtoken `--audience` + integration smoke | `76e10c5` | ✅ merged |
+| **`dev → main` promotion** | `1bdf97e` (2026-05-14) | ✅ released |
+| PR-E — client-facing AI runtime endpoints | — | deferred (post-release) |
 
 ## Context
 

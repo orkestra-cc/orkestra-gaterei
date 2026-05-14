@@ -1,5 +1,7 @@
 # Plan — User self-service security center (`/user/security`)
 
+**Status:** ✅ Shipped. Phases 0–6 in `dd4c733 feat(auth): self-service /user/security page with session control`; Phase 7 OAuth linking in `032ce33`. Follow-ups still open: client-tier mirror on `frontend-client/`, persistent `auth_security_events`, email-change with re-verification, WebAuthn key rename, login history endpoint.
+
 ## Context
 
 The admin counterpart shipped 2026-05-10 (commit `55d19ac`): operators can now inspect and manage another user's auth from `/admin/user/profile/:id`. The mirror surface — what an end user can do for **their own** account — is incomplete and partly broken on `frontend-admin`:
