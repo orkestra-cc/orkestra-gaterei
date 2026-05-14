@@ -96,10 +96,14 @@ services:
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     environment:
-      ORKESTRA_API_URL: ${ORKESTRA_API_URL:-http://localhost:3000}
-      ORKESTRA_WS_URL: ${ORKESTRA_WS_URL:-ws://localhost:3000/ws}
-      ORKESTRA_ENV: ${ORKESTRA_ENV:-${ENV:-production}}
-      ORKESTRA_DEBUG: ${ORKESTRA_DEBUG:-false}
+      # Chain: explicit override → VITE_* values the staging stack already
+      # uses → BACKEND_URL → localhost. Keeps the single-.env model: the
+      # same env vars that drive the full staging stack drive the SKU
+      # frontend without duplication.
+      ORKESTRA_API_URL: ${ORKESTRA_API_URL:-${VITE_API_URL:-${BACKEND_URL:-http://localhost:3000}}}
+      ORKESTRA_WS_URL: ${ORKESTRA_WS_URL:-${VITE_WS_URL:-ws://localhost:3000/ws}}
+      ORKESTRA_ENV: ${ORKESTRA_ENV:-${VITE_ENV:-${ENV:-production}}}
+      ORKESTRA_DEBUG: ${ORKESTRA_DEBUG:-${VITE_DEBUG:-false}}
     networks:
       - orkestra-network
     depends_on:
