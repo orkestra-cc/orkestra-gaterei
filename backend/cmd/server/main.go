@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -360,8 +361,8 @@ func main() {
 	// with distinct huma.Config instances, this branch can dump per-
 	// audience files via separate env vars.
 	if os.Getenv("OPENAPI_DUMP") != "" {
-		path := os.Getenv("OPENAPI_DUMP_PATH")
-		if path == "" {
+		path := filepath.Clean(os.Getenv("OPENAPI_DUMP_PATH"))
+		if path == "" || path == "." {
 			log.Fatal("OPENAPI_DUMP=1 set but OPENAPI_DUMP_PATH is empty")
 		}
 		b, err := json.MarshalIndent(operatorAPI.OpenAPI(), "", "  ")
@@ -369,8 +370,8 @@ func main() {
 			log.Fatalf("openapi marshal: %v", err)
 		}
 		b = append(b, '\n')
-		if err := os.WriteFile(path, b, 0o644); err != nil {
-			log.Fatalf("openapi write (%s): %v", path, err)
+		if err := os.WriteFile(path, b, 0o600); err != nil {
+			log.Fatalf("openapi write: %v", err)
 		}
 		logger.Info("openapi dump",
 			slog.String("path", path),
