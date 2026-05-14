@@ -863,6 +863,64 @@ type AuditSink interface {
 	Emit(ctx context.Context, event AuditEvent)
 }
 
+// LoginTokens is the shape an external authentication flow (OIDC,
+// SAML, etc.) needs back from the auth module after the user has
+// been verified. Consumed by the identity addon's OIDC service to
+// complete a federated login and return tokens to the caller.
+type LoginTokens struct {
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
+	ExpiresIn    int64
+	User         *UserManagementResponse
+}
+
+// LoginTokenIssuer mints a fresh Orkestra session for an already-
+// verified user. Implemented by core/auth's PasswordAuthService via
+// `IssueLoginTokensExternal`; consumed by extracted addons (today:
+// identity) that need to bridge an external authentication into a
+// platform session without importing concrete auth-service types.
+//
+// `amr` is the RFC 8176 authentication-methods reference list
+// describing how the user proved identity (e.g. `["oidc"]`).
+type LoginTokenIssuer interface {
+	IssueLoginTokensExternal(ctx context.Context, user *User, deviceID, platform, ip string, amr []string) (*LoginTokens, error)
+}
+
+// AuditSinkSetter is satisfied by any module-level service that
+// receives the platform AuditSink during compliance's post-init
+// wiring. The pattern lets compliance push its sink into the auth,
+// tenant, identity, and subscription services without those services
+// importing compliance — they only expose a SetAuditSink method.
+//
+// Compliance probes the kernel's ServiceRegistry with
+// `module.GetTyped[iface.AuditSinkSetter](svcs, key)` and calls
+// SetAuditSink when the assertion succeeds; missing or
+// non-matching services are silently skipped, which is the desired
+// behaviour because compliance is optional and the consumers register
+// independently.
+type AuditSinkSetter interface {
+	SetAuditSink(AuditSink)
+}
+
+// KMSProviderSetter is satisfied by services that opt into per-tenant
+// envelope encryption + crypto-shred on purge (currently:
+// core/tenant.Service). Compliance probes for it from its own Init
+// after constructing the KMS provider — the receiver caches the
+// provider and uses it during tenant purge.
+type KMSProviderSetter interface {
+	SetKMSProvider(KMSProvider)
+}
+
+// ClientSelfDeletionGate is the slice of core/auth.AuthPolicyService
+// compliance needs to gate the Tier-2 self-service DSR erasure flow.
+// When the policy is closed the client-tier erase route is not
+// mounted; when it's open every call re-checks live so admin toggles
+// take effect without a restart.
+type ClientSelfDeletionGate interface {
+	SelfServiceAccountDeletionClient(ctx context.Context) bool
+}
+
 // ---------------------------------------------------------------------------
 // PIIProducer — consumed by: the compliance module's DSR service.
 //

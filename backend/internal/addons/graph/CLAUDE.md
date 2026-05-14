@@ -2,6 +2,27 @@
 
 Manages all Memgraph graph database operations: Cypher execution, schema browsing, MAGE graph algorithms, and vector similarity search.
 
+## Module home
+
+This directory is a **separate Go module**
+(`github.com/orkestra-cc/orkestra-addon-graph`) since Phase 5d of the
+SDK split. Source lives in-tree at this path for monorepo
+development; the same tree is mirrored to
+[github.com/orkestra-cc/orkestra-addon-graph](https://github.com/orkestra-cc/orkestra-addon-graph)
+and tagged starting from `v0.1.0`. Backend's `go.mod` carries a
+`replace` directive pointing at this path so changes here take effect
+without a tag bump during cross-cutting work; CI and external
+consumers fetch the published version through the Go module proxy.
+
+The Bolt-driver helpers (`NewGraphDriver`, `VerifyGraphConnection`,
+`GraphDBConfig`, `DisconnectGraph`) used to live at
+`backend/internal/shared/database/graph.go`. They moved into this
+addon as part of the extraction — `module.go` was the only consumer
+in the entire backend, so the relocation was a single-caller refactor
+rather than a new public module. The other helpers in
+`internal/shared/database/` (Mongo + Redis) stay where they are
+because they're used by the kernel and every other addon.
+
 ## Architecture
 
 ```
@@ -36,7 +57,7 @@ The graph module owns the `orkestra-memgraph` container via `InfraContainers()`.
 
 ### Init vs Start split
 
-`Init()` creates the Bolt driver via `database.NewGraphDriver` **without** dialing (the neo4j-go driver is lazy). This keeps boot-time initialization safe even when the Memgraph container isn't running yet. `Start()` calls `database.VerifyGraphConnection` (with retry) after the registry has brought up the container. `Stop()` is a no-op — the driver is reused across toggles and only the container is stopped, so the connection pool reconnects transparently on re-enable.
+`Init()` creates the Bolt driver via `NewGraphDriver` (in `driver.go`, same `graph` package) **without** dialing (the neo4j-go driver is lazy). This keeps boot-time initialization safe even when the Memgraph container isn't running yet. `Start()` calls `VerifyGraphConnection` (with retry) after the registry has brought up the container. `Stop()` is a no-op — the driver is reused across toggles and only the container is stopped, so the connection pool reconnects transparently on re-enable.
 
 If the admin changes `GRAPH_URI`/`GRAPH_USERNAME`/`GRAPH_PASSWORD`/`GRAPH_DATABASE` through the admin UI while the module is running, the driver keeps the **old** values until the backend process restarts (the driver is built from config at Init time). `GRAPH_IMAGE` is different — it's read live on every toggle, so upgrading the Memgraph image only requires disable → re-enable.
 

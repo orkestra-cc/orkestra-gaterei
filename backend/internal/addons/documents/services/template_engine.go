@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orkestra/backend/internal/addons/documents/models"
+	"github.com/orkestra-cc/orkestra-addon-documents/models"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )

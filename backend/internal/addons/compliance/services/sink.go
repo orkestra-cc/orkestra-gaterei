@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-addon-compliance/models"
+	"github.com/orkestra-cc/orkestra-addon-compliance/repository"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/compliance/models"
-	"github.com/orkestra/backend/internal/addons/compliance/repository"
 )
 
 // AuditSink persists audit events through the repository. Emit is

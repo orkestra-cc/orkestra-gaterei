@@ -12,9 +12,11 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
 
+# Source — includes every extracted addon's go.mod that backend's replace
+# directives reference, so go mod download below can resolve them.
 COPY . .
+RUN go mod download
 
 ARG VERSION=minimal
 ARG BUILD_TIME

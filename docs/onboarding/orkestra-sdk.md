@@ -230,11 +230,10 @@ Three key invariants:
 ```go
 type Dependencies struct {
     DB            *mongo.Database
-    RedisAdapter  RedisClient        // SDK interface, satisfied by *database.RedisClientAdapter
-    Config        any                // legacy *config.Config handle — auth-only, type-assert
-    Platform      PlatformInfo       // IsProduction / IsStaging / FrontendURL / GetEnvironment
+    RedisAdapter  RedisClient           // SDK interface, satisfied by *database.RedisClientAdapter
+    Platform      PlatformInfo          // IsProduction / IsStaging / FrontendURL / GetEnvironment
     Logger        *slog.Logger
-    Services      *ServiceRegistry   // cross-module service handles
+    Services      *ServiceRegistry      // cross-module service handles
     ConfigService *ModuleConfigService  // module config, UnmarshalModule, etc.
 }
 ```
@@ -253,9 +252,14 @@ What to use what for:
   providers from here (see "Talking to other modules" below).
 - **`deps.ConfigService`** — read your own module's runtime config via
   `UnmarshalModule` (see next section).
-- **`deps.Config`** — only `auth` uses this today; it's typed `any` so
-  the SDK has no dependency on the backend's `*config.Config`. Phase 1c
-  retires it entirely.
+
+There's no `Dependencies.Config *config.Config` field. The auth core
+module is the only consumer of the backend's app-wide config, and it
+takes `cfg` via its own `NewModule(cfg *config.Config)` constructor —
+see `cmd/server/catalog.go` for how `main.go`'s cfg threads through
+the factory closure. Addons that need a piece of backend config they
+can't get from `Platform` should request a typed service via
+`deps.Services`.
 
 ## Module configuration
 
@@ -420,9 +424,11 @@ Full list of `ctxauth` getters: `GetUserUUID`, `GetUserEmail`,
 `WithTenantKind`, `WithClientIP` for tests.
 
 The claim-derived signals (`GetSessionID`, `GetAMR`, `IsMFAEnrolled`)
-stay in `internal/shared/middleware` for now — they depend on the auth
-module's claims type, which doesn't belong in the SDK. Phase 1c moves
-them behind an `iface.ClaimsAccessor` SDK contract.
+stay in `internal/shared/middleware` — they depend on the auth
+module's claims type, which doesn't belong in the SDK. A future
+refactor lifts them behind an `iface.ClaimsAccessor` contract if
+an extracted addon genuinely needs them; today the only consumers
+are backend-internal (middleware itself + authz).
 
 ## Repository pattern: tenant scoping is mandatory
 
@@ -579,15 +585,25 @@ since `v0.1.0` (Phase 4). The in-tree source at `backend/pkg/sdk/`
 remains the canonical home — `backend/go.mod` carries a `replace`
 directive pointing at it so monorepo development uses live source, and
 the same code is mirrored to the public repo via a tagged release.
-External addons (and Phase-5 addon extractions) `go get` the SDK from
-the module proxy and never see the in-tree path.
+External addons `go get` the SDK from the module proxy and never see
+the in-tree path.
+
+The same pattern applies to addons that have been extracted. Phase 5a
+moved [`documents`](https://github.com/orkestra-cc/orkestra-addon-documents)
+into its own Go module + repo (still rooted in-tree at
+`backend/internal/addons/documents/` for monorepo development); the
+medium-complexity addons (`aimodels`, `agents`, `company`, `graph`,
+`subscriptions`, `payments`, `sales`) are the next candidates,
+followed by `billing` and the harder ones (`compliance`, `rag`,
+`identity`) that need cross-package interfaces lifted to `iface`
+first.
 
 When the cross-cutting churn settles (no per-PR changes spanning both
-repos), the next refactor will drop the `replace` directive and the
-backend will fetch the SDK like any other public module. Until then,
-write code against the SDK as if it were already external — every
-import path is the public path, the contract is the contract, and
-the source location is a detail.
+repos), the next refactor will drop the `replace` directives and the
+backend will fetch the SDK + addons like any other public module.
+Until then, write code against the SDK as if it were already
+external — every import path is the public path, the contract is the
+contract, and the source location is a detail.
 
 ## Quick reference
 

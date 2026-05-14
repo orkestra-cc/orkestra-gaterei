@@ -3,6 +3,27 @@
 _Path: `/backend/internal/addons/payments`_
 _Parent: [../../../CLAUDE.md](../../../CLAUDE.md)_
 
+## Module home
+
+This directory is a **separate Go module**
+(`github.com/orkestra-cc/orkestra-addon-payments`) since Phase 5g of
+the SDK split. Source lives in-tree at this path for monorepo
+development; the same tree is mirrored to
+[github.com/orkestra-cc/orkestra-addon-payments](https://github.com/orkestra-cc/orkestra-addon-payments)
+and tagged starting from `v0.1.0`. Backend's `go.mod` carries a
+`replace` directive pointing at this path so changes here take effect
+without a tag bump during cross-cutting work; CI and external
+consumers fetch the published version through the Go module proxy.
+
+`handlers/client_handler_test.go` previously imported
+`backend/internal/testkit` for its `NewIdentity(...).ContextFor(...)`
+helper. Phase 5g replaced it with an inline `authedCtx` that stamps
+the SDK `ctxauth.Key*` constants directly — same playbook used for
+the subscriptions extraction (Phase 5f). Production handlers in this
+package don't read `JWTClaims` from context, so the slimmer helper
+is sufficient. `internal/testkit` stays in-tree until its last
+consumer (compliance) extracts.
+
 Gateway-agnostic payment processing. Implements `iface.PaymentProvider` so the `subscriptions` module can charge cards, issue refunds, and react to webhook events without importing any Stripe/PayPal code.
 
 ## v1 providers

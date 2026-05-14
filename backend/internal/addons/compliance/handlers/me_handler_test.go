@@ -8,10 +8,24 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/orkestra-cc/orkestra-addon-compliance/services"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/compliance/services"
-	"github.com/orkestra/backend/internal/testkit"
 )
+
+// authedCtx stamps the SDK ctxauth keys onto ctx the same way
+// AuthMiddleware would after a real JWT validation, minus the
+// JWTClaims-on-context payload that production handlers in this
+// package don't read. Replaces the cross-module testkit dependency
+// so this addon can sit in its own Go module (Phase 5j) — same
+// playbook used by the subscriptions / payments / dev extractions.
+func authedCtx(userUUID, email, systemRole string) context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, userUUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, email)
+	ctx = context.WithValue(ctx, ctxauth.KeySystemRole, systemRole)
+	return ctx
+}
 
 // stubProducer satisfies iface.PIIProducer just enough to walk the
 // Erase pipeline without touching any storage.
@@ -44,8 +58,7 @@ func (noopAuditSink) Emit(context.Context, iface.AuditEvent) {}
 // irreversible erase, so this test pins it explicitly.
 func TestEraseGated_PolicyOff_Returns403(t *testing.T) {
 	h := newGatedHandler(t)
-	identity := testkit.NewIdentity("u-1", "u@example.com", "operator")
-	ctx := identity.ContextFor(context.Background(), "-")
+	ctx := authedCtx("u-1", "u@example.com", "operator")
 
 	gate := SelfDeletionGate(func(_ context.Context) bool { return false })
 
@@ -64,8 +77,7 @@ func TestEraseGated_PolicyOff_Returns403(t *testing.T) {
 // and returns the producers' purge results.
 func TestEraseGated_PolicyOn_ProceedsToErase(t *testing.T) {
 	h := newGatedHandler(t)
-	identity := testkit.NewIdentity("u-2", "ok@example.com", "operator")
-	ctx := identity.ContextFor(context.Background(), "-")
+	ctx := authedCtx("u-2", "ok@example.com", "operator")
 
 	gate := SelfDeletionGate(func(_ context.Context) bool { return true })
 
@@ -84,8 +96,7 @@ func TestEraseGated_PolicyOn_ProceedsToErase(t *testing.T) {
 // when the policy is non-nil, so this is a defense-in-depth check.
 func TestEraseGated_NilGate_Permits(t *testing.T) {
 	h := newGatedHandler(t)
-	identity := testkit.NewIdentity("u-3", "nilgate@example.com", "operator")
-	ctx := identity.ContextFor(context.Background(), "-")
+	ctx := authedCtx("u-3", "nilgate@example.com", "operator")
 
 	out, err := h.EraseGated(ctx, nil, &struct{}{})
 	if err != nil {

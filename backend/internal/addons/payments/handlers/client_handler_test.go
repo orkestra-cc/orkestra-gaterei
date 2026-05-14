@@ -7,11 +7,25 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-addon-payments/models"
+	"github.com/orkestra-cc/orkestra-addon-payments/repository"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/payments/models"
-	"github.com/orkestra/backend/internal/addons/payments/repository"
-	"github.com/orkestra/backend/internal/testkit"
 )
+
+// authedCtx stamps the SDK ctxauth keys onto ctx the same way
+// AuthMiddleware would after a real JWT validation, minus the
+// JWTClaims-on-context payload that production handlers in this
+// package don't read. Replaces the cross-module testkit dependency
+// so this addon can sit in its own Go module (Phase 5g) —
+// same playbook as the subscriptions extraction.
+func authedCtx(userUUID, email, systemRole string) context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ctxauth.KeyUserUUID, userUUID)
+	ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, email)
+	ctx = context.WithValue(ctx, ctxauth.KeySystemRole, systemRole)
+	return ctx
+}
 
 // stubTxRepo is a minimal TransactionRepository — only List is exercised by
 // the self-service endpoints.
@@ -155,7 +169,7 @@ func TestMeListTransactions_FansOutAcrossPersonalAndOwnedTenant(t *testing.T) {
 	}
 	h := newClientHandlerForReads(tx, newStubPMRepo(), tp)
 
-	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	ctx := authedCtx("user-A", "a@example.com", "user")
 	resp, err := h.MeListTransactions(ctx, &MeListTransactionsRequest{})
 	if err != nil {
 		t.Fatalf("MeListTransactions: %v", err)
@@ -180,7 +194,7 @@ func TestMeListTransactions_FilterUnownedTenantReturnsEmpty(t *testing.T) {
 	}
 	h := newClientHandlerForReads(tx, newStubPMRepo(), tp)
 
-	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	ctx := authedCtx("user-A", "a@example.com", "user")
 	resp, err := h.MeListTransactions(ctx, &MeListTransactionsRequest{TenantUUID: "tenant-Z"})
 	if err != nil {
 		t.Fatalf("MeListTransactions: %v", err)
@@ -201,7 +215,7 @@ func TestMeListTransactions_TenantFilterReturnsScopedRows(t *testing.T) {
 	}
 	h := newClientHandlerForReads(tx, newStubPMRepo(), tp)
 
-	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	ctx := authedCtx("user-A", "a@example.com", "user")
 	resp, err := h.MeListTransactions(ctx, &MeListTransactionsRequest{TenantUUID: "tenant-X"})
 	if err != nil {
 		t.Fatalf("MeListTransactions: %v", err)
@@ -230,7 +244,7 @@ func TestMeListPaymentMethods_FansOutAcrossPersonalAndOwnedTenant(t *testing.T) 
 	}
 	h := newClientHandlerForReads(newStubTxRepo(), pm, tp)
 
-	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	ctx := authedCtx("user-A", "a@example.com", "user")
 	resp, err := h.MeListPaymentMethods(ctx, &MeListPaymentMethodsRequest{})
 	if err != nil {
 		t.Fatalf("MeListPaymentMethods: %v", err)
@@ -251,7 +265,7 @@ func TestMeListPaymentMethods_NilTenantProviderReturns503(t *testing.T) {
 	pm := newStubPMRepo(tenantPM("pm-p", "tenant-personal-A"))
 	h := newClientHandlerForReads(newStubTxRepo(), pm, nil)
 
-	ctx := testkit.NewIdentity("user-A", "a@example.com", "user").ContextFor(context.Background(), "-")
+	ctx := authedCtx("user-A", "a@example.com", "user")
 	_, err := h.MeListPaymentMethods(ctx, &MeListPaymentMethodsRequest{})
 	if err == nil {
 		t.Fatal("expected 503, got nil")

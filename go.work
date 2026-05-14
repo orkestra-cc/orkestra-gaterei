@@ -24,4 +24,17 @@ go 1.25.10
 use (
 	./backend
 	./backend/pkg/sdk
+	./backend/internal/shared/openapiauth
+	./backend/internal/addons/documents
+	./backend/internal/addons/aimodels
+	./backend/internal/addons/company
+	./backend/internal/addons/graph
+	./backend/internal/addons/sales
+	./backend/internal/addons/subscriptions
+	./backend/internal/addons/payments
+	./backend/internal/addons/billing
+	./backend/internal/addons/dev
+	./backend/internal/addons/compliance
+	./backend/internal/addons/identity
+	./backend/internal/addons/rag
 )

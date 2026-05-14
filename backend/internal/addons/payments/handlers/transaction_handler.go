@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-addon-payments/models"
+	"github.com/orkestra-cc/orkestra-addon-payments/repository"
+	"github.com/orkestra-cc/orkestra-addon-payments/services"
 	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
-	"github.com/orkestra/backend/internal/addons/payments/models"
-	"github.com/orkestra/backend/internal/addons/payments/repository"
-	"github.com/orkestra/backend/internal/addons/payments/services"
 )
 
 type TransactionHandler struct {

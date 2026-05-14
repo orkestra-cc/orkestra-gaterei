@@ -22,11 +22,10 @@ FROM dhi.io/golang:1-dev AS base
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
+# Copy go mod files. Addon source (with each addon's own go.mod referenced
+# by `replace` directives) is copied in the builder stage — so `go mod
+# download` lives there too, not here.
 COPY go.mod go.sum ./
-
-# Download dependencies (cached layer)
-RUN go mod download && go mod verify
 
 # ============================================
 # STAGE 2: Development (Hot Reload with AIR)
@@ -58,8 +57,12 @@ EXPOSE 3000
 # ============================================
 FROM base AS builder
 
-# Copy source code
+# Copy source code (includes every extracted addon's go.mod that backend's
+# replace directives point at).
 COPY . .
+
+# Resolve dependencies now that the replaced addon paths exist.
+RUN go mod download && go mod verify
 
 # Build arguments
 ARG VERSION=dev

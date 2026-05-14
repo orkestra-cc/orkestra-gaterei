@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/orkestra/backend/internal/addons/compliance/models"
+	"github.com/orkestra-cc/orkestra-addon-compliance/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

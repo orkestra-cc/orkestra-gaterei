@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/orkestra/backend/internal/addons/billing/models"
+	"github.com/orkestra-cc/orkestra-addon-billing/models"
 )
 
 // Validation errors

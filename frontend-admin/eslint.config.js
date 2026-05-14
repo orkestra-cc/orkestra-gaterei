@@ -6,10 +6,6 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import prettier from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 
-// Flat-config replacement for the legacy .eslintrc.js the project carried from
-// the Falcon template. ESLint 9 dropped the eslintrc format; the CI `Lint` job
-// fails to even load a config without this file. Rule set is intentionally a
-// straight port of the prior config — no new style enforcement.
 export default [
   {
     ignores: [
