@@ -38,8 +38,8 @@ jobs:
         image: redis/redis-stack-server:latest
         ports: ['6379:6379']
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
         with:
           install: false
           cache: true
@@ -55,13 +55,13 @@ jobs:
           awk -v p="$PCT" -v t="$COVERAGE_THRESHOLD" 'BEGIN { exit !(p+0 >= t+0) }' \
             || { echo "::error::Coverage ${PCT}% is below ${COVERAGE_THRESHOLD}% threshold"; exit 1; }
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-coverage
           path: backend/coverage.out
       - name: Upload policy coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: policy-coverage-report
           path: |
@@ -78,8 +78,8 @@ jobs:
       matrix:
         profile: [enterprise, starter, minimal, billing, ai, saas]
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
         with:
           install: false
           cache: true
@@ -97,22 +97,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
         with:
           install: false
           cache: true
       - name: Install backend toolchain only
         run: mise install go golangci-lint jq "go:golang.org/x/vuln/cmd/govulncheck"
       - name: Download coverage artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: backend-coverage
           path: backend/
       - name: Refresh badge SVG
         run: scripts/refresh-coverage-badge.sh backend
       - name: Commit refreshed badge
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(badges): refresh backend coverage [skip ci]"
           file_pattern: .github/badges/backend-coverage.svg
@@ -148,7 +148,7 @@ jobs:
             tags: "no_addons addon_subscriptions addon_payments addon_compliance addon_identity addon_dev"
             include_latest: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
