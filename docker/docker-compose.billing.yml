@@ -48,6 +48,13 @@ services:
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
       COOKIE_MAX_AGE: ${COOKIE_MAX_AGE:-86400000}
 
+      # Staging/production validators (see backend/internal/shared/config/config.go::Validate).
+      # OAuth Google creds are ConfigService-managed at runtime; the env-var validator is
+      # stale (see MEMORY: "Staging gotcha (post-PR-C)"). Placeholder fallbacks unblock boot.
+      ALLOW_LOCALHOST_REDIRECTS: ${ALLOW_LOCALHOST_REDIRECTS:-false}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-placeholder.apps.googleusercontent.com}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-placeholder}
+
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:3000}
       OPERATOR_FRONTEND_URL: ${OPERATOR_FRONTEND_URL:-}
