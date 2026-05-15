@@ -1,3 +1,9 @@
+---
+title: ADR-0002 — Prometheus metric label schema
+status: accepted
+public: true
+---
+
 # ADR-0002 — Prometheus metric label schema
 
 | Field | Value |
@@ -6,7 +12,7 @@
 | **Date** | 2026-04-20 |
 | **Authors** | @salvatore.balestrino |
 | **Supersedes** | — |
-| **Related** | [ADR-0001](0001-unified-tenant-model.md), Phase 5.3 of the [tenancy plan v2](../../../../../home/tore/.claude/projects/-mnt-c-Users-tore-orkestra/memory/project_tenancy_plan_v2.md) |
+| **Related** | [ADR-0001](0001-unified-tenant-model.md), Phase 5.3 of the internal tenancy plan v2 |
 
 ## Context
 

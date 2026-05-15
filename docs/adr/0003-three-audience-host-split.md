@@ -1,3 +1,9 @@
+---
+title: ADR-0003 — Three-audience API host split (operator / client / service)
+status: accepted
+public: true
+---
+
 # ADR-0003 — Three-audience API host split (`operator` / `client` / `service`)
 
 | Field | Value |
