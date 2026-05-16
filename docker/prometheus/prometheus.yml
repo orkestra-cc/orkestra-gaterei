@@ -11,12 +11,27 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  # OTel collector has two metric surfaces and we scrape both:
+  #   :8889 — the Prometheus exporter for OTLP-received customer metrics
+  #           (populated only when a sender sets OTEL_METRICS_ENABLED=true).
+  #   :8888 — the collector's own internal telemetry (`otelcol_receiver_*`,
+  #           `otelcol_exporter_*`, `otelcol_processor_dropped_*` etc.) used
+  #           by the Pipeline Health dashboard to detect drops/failures.
+  # Separate jobs so :8889 going empty doesn't pollute the self-telemetry
+  # series.
   - job_name: otel-collector
     metrics_path: /metrics
     static_configs:
       - targets: ["orkestra-otel:8889"]
         labels:
           service: otel-collector
+
+  - job_name: otel-collector-self
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["orkestra-otel:8888"]
+        labels:
+          service: otel-collector-self
 
   - job_name: orkestra-backend
     metrics_path: /metrics

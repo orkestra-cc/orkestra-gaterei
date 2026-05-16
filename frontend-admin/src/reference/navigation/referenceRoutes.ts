@@ -1,8 +1,5 @@
 import paths, { rootPaths } from 'routes/paths';
-import type {
-  NavItem as ApiNavItem,
-  NavRealm
-} from 'store/api/navigationApi';
+import type { NavItem as ApiNavItem, NavRealm } from 'store/api/navigationApi';
 
 export interface Badge {
   type: string;
@@ -49,29 +46,29 @@ export const dashboardRoutes: RouteGroup = {
         },
         {
           name: 'Analytics',
-          to: paths.analytics,
+          to: paths.refDashboardsAnalytics,
           active: true,
           roles: ['developer'] // Advanced analytics for administrators
         },
         {
           name: 'CRM',
-          to: paths.crm,
+          to: paths.refDashboardsCrm,
           active: true
         },
         {
           name: 'Management',
-          to: paths.projectManagement,
+          to: paths.refDashboardsProjectManagement,
           active: true,
           roles: ['developer'] // Project management for managers and above
         },
         {
           name: 'SaaS',
-          to: paths.saas,
+          to: paths.refDashboardsSaas,
           active: true
         },
         {
           name: 'Support Desk',
-          to: paths.supportDesk,
+          to: paths.refDashboardsSupportDesk,
           active: true
         }
       ]
@@ -85,13 +82,13 @@ export const appRoutes: RouteGroup = {
     {
       name: 'Calendar',
       icon: 'calendar-alt',
-      to: paths.calendar,
+      to: paths.refAppCalendar,
       active: true
     },
     {
       name: 'Chat',
       icon: 'comments',
-      to: paths.chat,
+      to: paths.refAppChat,
       active: true
     },
     {
@@ -101,17 +98,17 @@ export const appRoutes: RouteGroup = {
       children: [
         {
           name: 'Inbox',
-          to: paths.emailInbox,
+          to: paths.refAppEmailInbox,
           active: true
         },
         {
           name: 'Email Detail',
-          to: paths.emailDetail,
+          to: paths.refAppEmailDetail,
           active: true
         },
         {
           name: 'Compose',
-          to: paths.emailCompose,
+          to: paths.refAppEmailCompose,
           active: true
         }
       ]
@@ -123,17 +120,17 @@ export const appRoutes: RouteGroup = {
       children: [
         {
           name: 'Create Event',
-          to: paths.createEvent,
+          to: paths.refAppEventsCreate,
           active: true
         },
         {
           name: 'Event Detail',
-          to: paths.eventDetail,
+          to: paths.refAppEventsDetail,
           active: true
         },
         {
           name: 'Event List',
-          to: paths.eventList,
+          to: paths.refAppEventsList,
           active: true
         }
       ]
@@ -141,7 +138,7 @@ export const appRoutes: RouteGroup = {
     {
       name: 'Kanban',
       icon: ['fab', 'trello'],
-      to: paths.kanban,
+      to: paths.refAppKanban,
       active: true
     },
     {
@@ -151,22 +148,22 @@ export const appRoutes: RouteGroup = {
       children: [
         {
           name: 'Feed',
-          to: paths.feed,
+          to: paths.refAppSocialFeed,
           active: true
         },
         {
           name: 'Activity Log',
-          to: paths.activityLog,
+          to: paths.refAppSocialActivityLog,
           active: true
         },
         {
           name: 'Notifications',
-          to: paths.notifications,
+          to: paths.refAppSocialNotifications,
           active: true
         },
         {
           name: 'Followers',
-          to: paths.followers,
+          to: paths.refAppSocialFollowers,
           active: true
         }
       ]
@@ -178,37 +175,37 @@ export const appRoutes: RouteGroup = {
       children: [
         {
           name: 'Table View',
-          to: paths.ticketsTable,
+          to: paths.refAppSupportDeskTableView,
           active: true
         },
         {
           name: 'Card View',
-          to: paths.ticketsCard,
+          to: paths.refAppSupportDeskCardView,
           active: true
         },
         {
           name: 'Contacts',
-          to: paths.contacts,
+          to: paths.refAppSupportDeskContacts,
           active: true
         },
         {
           name: 'Contact Details',
-          to: paths.contactDetails,
+          to: paths.refAppSupportDeskContactDetails,
           active: true
         },
         {
           name: 'Ticket Preview',
-          to: paths.ticketsPreview,
+          to: paths.refAppSupportDeskTicketsPreview,
           active: true
         },
         {
           name: 'Quick Links',
-          to: paths.quickLinks,
+          to: paths.refAppSupportDeskQuickLinks,
           active: true
         },
         {
           name: 'Reports',
-          to: paths.reports,
+          to: paths.refAppSupportDeskReports,
           active: true
         }
       ]
@@ -223,13 +220,13 @@ export const pagesRoutes: RouteGroup = {
     {
       name: 'Starter',
       icon: 'flag',
-      to: paths.starter,
+      to: paths.refPagesStarter,
       active: true
     },
     {
       name: 'Landing',
       icon: 'globe',
-      to: paths.landing,
+      to: paths.refPagesLanding,
       active: true
     },
     {
@@ -271,12 +268,12 @@ export const pagesRoutes: RouteGroup = {
       children: [
         {
           name: 'Default Pricing',
-          to: paths.pricingDefault,
+          to: paths.refPagesPricingDefault,
           active: true
         },
         {
           name: 'Alternative Pricing',
-          to: paths.pricingAlt,
+          to: paths.refPagesPricingAlt,
           active: true
         }
       ]
@@ -288,17 +285,17 @@ export const pagesRoutes: RouteGroup = {
       children: [
         {
           name: 'Basic FAQ',
-          to: paths.faqBasic,
+          to: paths.refPagesFaqBasic,
           active: true
         },
         {
           name: 'Alternative FAQ',
-          to: paths.faqAlt,
+          to: paths.refPagesFaqAlt,
           active: true
         },
         {
           name: 'Accordion FAQ',
-          to: paths.faqAccordion,
+          to: paths.refPagesFaqAccordion,
           active: true
         }
       ]
@@ -327,17 +324,17 @@ export const pagesRoutes: RouteGroup = {
       children: [
         {
           name: 'Associations',
-          to: paths.associations,
+          to: paths.refPagesMiscAssociations,
           active: true
         },
         {
           name: 'Invite People',
-          to: paths.invitePeople,
+          to: paths.refPagesMiscInvitePeople,
           active: true
         },
         {
           name: 'Privacy Policy',
-          to: paths.privacyPolicy,
+          to: paths.refPagesMiscPrivacyPolicy,
           active: true
         }
       ]
@@ -353,25 +350,25 @@ export const pagesRoutes: RouteGroup = {
       children: [
         {
           name: 'Vertical Navbar',
-          to: paths.verticalNavLayout,
+          to: paths.refPagesLayoutVerticalNav,
           active: true,
           newtab: true
         },
         {
           name: 'Top Nav',
-          to: paths.topNavLayout,
+          to: paths.refPagesLayoutTopNav,
           active: true,
           newtab: true
         },
         {
           name: 'Double Top',
-          to: paths.doubleTopNavLayout,
+          to: paths.refPagesLayoutDoubleTop,
           active: true,
           newtab: true
         },
         {
           name: 'Combo Nav',
-          to: paths.comboNavLayout,
+          to: paths.refPagesLayoutComboNav,
           active: true,
           newtab: true
         }
@@ -395,32 +392,32 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Form control',
-              to: paths.formControl,
+              to: paths.refFormsFormControl,
               active: true
             },
             {
               name: 'Input group',
-              to: paths.inputGroup,
+              to: paths.refFormsInputGroup,
               active: true
             },
             {
               name: 'Select',
-              to: paths.select,
+              to: paths.refFormsSelect,
               active: true
             },
             {
               name: 'Checks',
-              to: paths.checks,
+              to: paths.refFormsChecks,
               active: true
             },
             {
               name: 'Range',
-              to: paths.range,
+              to: paths.refFormsRange,
               active: true
             },
             {
               name: 'Layout',
-              to: paths.formLayout,
+              to: paths.refFormsLayout,
               active: true
             }
           ]
@@ -431,59 +428,59 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Advance select',
-              to: paths.advanceSelect,
+              to: paths.refFormsAdvanceSelect,
               active: true
             },
             {
               name: 'Date picker',
-              to: paths.datePicker,
+              to: paths.refFormsDatePicker,
               active: true
             },
             {
               name: 'Editor',
-              to: paths.editor,
+              to: paths.refFormsEditor,
               active: true
             },
             {
               name: 'Emoji button',
-              to: paths.emojiButton,
+              to: paths.refFormsEmojiButton,
               active: true
             },
             {
               name: 'File uploader',
-              to: paths.fileUploader,
+              to: paths.refFormsFileUploader,
               active: true
             },
             {
               name: 'Input mask',
-              to: paths.inputMask,
+              to: paths.refFormsInputMask,
               active: true
             },
             {
               name: 'Range slider',
-              to: paths.rangeSlider,
+              to: paths.refFormsRangeSlider,
               active: true
             },
             {
               name: 'Rating',
-              to: paths.rating,
+              to: paths.refFormsRating,
               active: true
             }
           ]
         },
         {
           name: 'Floating labels',
-          to: paths.floatingLabels,
+          to: paths.refFormsFloatingLabels,
           active: true
         },
         {
           name: 'Wizard',
-          to: paths.wizard,
+          to: paths.refFormsWizard,
           active: true
         },
         {
           name: 'Validation',
-          to: paths.validation,
+          to: paths.refFormsValidation,
           active: true
         }
       ]
@@ -492,7 +489,7 @@ export const modulesRoutes: RouteGroup = {
       name: 'Tables',
       icon: 'table',
       active: true,
-      to: paths.tables
+      to: paths.refTables
     },
     {
       name: 'Charts',
@@ -505,47 +502,47 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'How to use',
-              to: paths.echartsHowToUse,
+              to: paths.refChartsEchartsHowToUse,
               active: true
             },
             {
               name: 'Line charts',
-              to: paths.lineCharts,
+              to: paths.refChartsEchartsLine,
               active: true
             },
             {
               name: 'Bar charts',
-              to: paths.barCharts,
+              to: paths.refChartsEchartsBar,
               active: true
             },
             {
               name: 'Candlestick charts',
-              to: paths.candlestickCharts,
+              to: paths.refChartsEchartsCandlestick,
               active: true
             },
             {
               name: 'Geo map',
-              to: paths.geoMap,
+              to: paths.refChartsEchartsGeoMap,
               active: true
             },
             {
               name: 'Scatter charts',
-              to: paths.scatterCharts,
+              to: paths.refChartsEchartsScatter,
               active: true
             },
             {
               name: 'Pie charts',
-              to: paths.pieCharts,
+              to: paths.refChartsEchartsPie,
               active: true
             },
             {
               name: 'Radar charts',
-              to: paths.radarCharts,
+              to: paths.refChartsEchartsRadar,
               active: true
             },
             {
               name: 'Heatmap charts',
-              to: paths.heatmapCharts,
+              to: paths.refChartsEchartsHeatmap,
               active: true
             }
           ]
@@ -559,12 +556,12 @@ export const modulesRoutes: RouteGroup = {
       children: [
         {
           name: 'Font awesome',
-          to: paths.fontAwesome,
+          to: paths.refIconsFontAwesome,
           active: true
         },
         {
           name: 'React icons',
-          to: paths.reactIcons,
+          to: paths.refIconsReactIcons,
           active: true
         }
       ]
@@ -576,12 +573,12 @@ export const modulesRoutes: RouteGroup = {
       children: [
         {
           name: 'Google map',
-          to: paths.googleMap,
+          to: paths.refMapsGoogle,
           active: true
         },
         {
           name: 'Leaflet map',
-          to: paths.leafletMap,
+          to: paths.refMapsLeaflet,
           active: true
         }
       ]
@@ -593,47 +590,47 @@ export const modulesRoutes: RouteGroup = {
       children: [
         {
           name: 'Alerts',
-          to: paths.alerts,
+          to: paths.refComponentsAlerts,
           active: true
         },
         {
           name: 'Accordion',
-          to: paths.accordion,
+          to: paths.refComponentsAccordion,
           active: true
         },
         {
           name: 'Animated icons',
-          to: paths.animatedIcons,
+          to: paths.refComponentsAnimatedIcons,
           active: true
         },
         {
           name: 'Backgrounds',
-          to: paths.background,
+          to: paths.refUtilitiesBackground,
           active: true
         },
         {
           name: 'Badges',
-          to: paths.badges,
+          to: paths.refComponentsBadges,
           active: true
         },
         {
           name: 'Breadcrumbs',
-          to: paths.breadcrumbs,
+          to: paths.refComponentsBreadcrumbs,
           active: true
         },
         {
           name: 'Buttons',
-          to: paths.buttons,
+          to: paths.refComponentsButtons,
           active: true
         },
         {
           name: 'Calendar',
-          to: paths.calendar,
+          to: paths.refAppCalendar,
           active: true
         },
         {
           name: 'Cards',
-          to: paths.cards,
+          to: paths.refComponentsCards,
           active: true
         },
         {
@@ -642,55 +639,55 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Bootstrap',
-              to: paths.bootstrapCarousel,
+              to: paths.refComponentsCarouselBootstrap,
               label: 'bootstrap-carousel',
               active: true
             },
             {
               name: 'Slick',
-              to: paths.slickCarousel,
+              to: paths.refComponentsCarouselSlick,
               active: true
             }
           ]
         },
         {
           name: 'Collapse',
-          to: paths.collapse,
+          to: paths.refComponentsCollapse,
           active: true
         },
         {
           name: 'Cookie notice',
-          to: paths.cookieNotice,
+          to: paths.refComponentsCookieNotice,
           active: true
         },
         {
           name: 'Countup',
-          to: paths.countup,
+          to: paths.refComponentsCountup,
           active: true
         },
         {
           name: 'Draggable',
-          to: paths.draggable,
+          to: paths.refComponentsDraggable,
           active: true
         },
         {
           name: 'Dropdowns',
-          to: paths.dropdowns,
+          to: paths.refComponentsDropdowns,
           active: true
         },
         {
           name: 'List group',
-          to: paths.listGroup,
+          to: paths.refComponentsListGroup,
           active: true
         },
         {
           name: 'Modals',
-          to: paths.modals,
+          to: paths.refComponentsModals,
           active: true
         },
         {
           name: 'Offcanvas',
-          to: paths.offcanvas,
+          to: paths.refComponentsOffcanvas,
           active: true
         },
         {
@@ -699,37 +696,37 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Navs',
-              to: paths.navs,
+              to: paths.refComponentsNavs,
               active: true
             },
             {
               name: 'Navbar',
-              to: paths.navbar,
+              to: paths.refComponentsNavbar,
               active: true
             },
             {
               name: 'Vertical navbar',
-              to: paths.verticalNavbar,
+              to: paths.refComponentsVerticalNavbar,
               active: true
             },
             {
               name: 'Top navbar',
-              to: paths.topNavbar,
+              to: paths.refComponentsTopNavbar,
               active: true
             },
             {
               name: 'Double Top',
-              to: paths.doubleTopNavbar,
+              to: paths.refComponentsDoubleTopNavbar,
               active: true
             },
             {
               name: 'Combo navbar',
-              to: paths.comboNavbar,
+              to: paths.refComponentsComboNavbar,
               active: true
             },
             {
               name: 'Tabs',
-              to: paths.tabs,
+              to: paths.refComponentsTabs,
               active: true
             }
           ]
@@ -740,89 +737,89 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Avatar',
-              to: paths.avatar,
+              to: paths.refComponentsAvatar,
               active: true
             },
             {
               name: 'Images',
-              to: paths.images,
+              to: paths.refComponentsImages,
               active: true
             },
             {
               name: 'Figures',
-              to: paths.figures,
+              to: paths.refComponentsFigures,
               active: true
             },
             {
               name: 'Hoverbox',
-              to: paths.hoverbox,
+              to: paths.refComponentsHoverbox,
               active: true
             },
             {
               name: 'Lightbox',
-              to: paths.lightbox,
+              to: paths.refComponentsLightbox,
               active: true
             }
           ]
         },
         {
           name: 'Progress Bar',
-          to: paths.progressBar,
+          to: paths.refComponentsProgressBar,
           active: true
         },
         {
           name: 'Pagination',
-          to: paths.pagination,
+          to: paths.refComponentsPagination,
           active: true
         },
         {
           name: 'Placeholder',
-          to: paths.placeholder,
+          to: paths.refComponentsPlaceholder,
           active: true
         },
         {
           name: 'Popovers',
-          to: paths.popovers,
+          to: paths.refComponentsPopovers,
           active: true
         },
         {
           name: 'Scrollspy',
-          to: paths.scrollspy,
+          to: paths.refComponentsScrollspy,
           active: true
         },
         {
           name: 'Search',
-          to: paths.search,
+          to: paths.refComponentsSearch,
           active: true
         },
         {
           name: 'Spinners',
-          to: paths.spinners,
+          to: paths.refComponentsSpinners,
           active: true
         },
         {
           name: 'Timeline',
-          to: paths.timeline,
+          to: paths.refComponentsTimeline,
           active: true
         },
         {
           name: 'Toasts',
-          to: paths.toasts,
+          to: paths.refComponentsToasts,
           active: true
         },
         {
           name: 'Tooltips',
-          to: paths.tooltips,
+          to: paths.refComponentsTooltips,
           active: true
         },
         {
           name: 'Treeview',
-          to: paths.treeview,
+          to: paths.refComponentsTreeview,
           active: true
         },
         {
           name: 'Typed text',
-          to: paths.typedText,
+          to: paths.refComponentsTypedText,
           active: true
         },
         {
@@ -831,12 +828,12 @@ export const modulesRoutes: RouteGroup = {
           children: [
             {
               name: 'Embed',
-              to: paths.embedVideo,
+              to: paths.refComponentsVideoEmbed,
               active: true
             },
             {
               name: 'React Player',
-              to: paths.reactPlayer,
+              to: paths.refComponentsVideoReactPlayer,
               active: true
             }
           ]
@@ -850,87 +847,87 @@ export const modulesRoutes: RouteGroup = {
       children: [
         {
           name: 'Background',
-          to: paths.backgroundColor,
+          to: paths.refUtilitiesBackground,
           active: true
         },
         {
           name: 'Borders',
-          to: paths.borders,
+          to: paths.refUtilitiesBorders,
           active: true
         },
         {
           name: 'Colors',
-          to: paths.colors,
+          to: paths.refUtilitiesColors,
           active: true
         },
         {
           name: 'Colored links',
-          to: paths.coloredLinks,
+          to: paths.refUtilitiesColoredLinks,
           active: true
         },
         {
           name: 'Display',
-          to: paths.display,
+          to: paths.refUtilitiesDisplay,
           active: true
         },
         {
           name: 'Flex',
-          to: paths.flex,
+          to: paths.refUtilitiesFlex,
           active: true
         },
         {
           name: 'Float',
-          to: paths.float,
+          to: paths.refUtilitiesFloat,
           active: true
         },
         {
           name: 'Grid',
-          to: paths.grid,
+          to: paths.refUtilitiesGrid,
           active: true
         },
         {
           name: 'Scroll Bar',
-          to: paths.scrollBar,
+          to: paths.refUtilitiesScrollBar,
           active: true
         },
         {
           name: 'Position',
-          to: paths.position,
+          to: paths.refUtilitiesPosition,
           active: true
         },
         {
           name: 'Spacing',
-          to: paths.spacing,
+          to: paths.refUtilitiesSpacing,
           active: true
         },
         {
           name: 'Sizing',
-          to: paths.sizing,
+          to: paths.refUtilitiesSizing,
           active: true
         },
         {
           name: 'Stretched link',
-          to: paths.stretchedLink,
+          to: paths.refUtilitiesStretchedLink,
           active: true
         },
         {
           name: 'Text truncation',
-          to: paths.textTruncation,
+          to: paths.refUtilitiesTextTruncation,
           active: true
         },
         {
           name: 'Typography',
-          to: paths.typography,
+          to: paths.refUtilitiesTypography,
           active: true
         },
         {
           name: 'Vertical align',
-          to: paths.verticalAlign,
+          to: paths.refUtilitiesVerticalAlign,
           active: true
         },
         {
           name: 'Visibility',
-          to: paths.visibility,
+          to: paths.refUtilitiesVisibility,
           active: true
         }
       ]
@@ -938,7 +935,7 @@ export const modulesRoutes: RouteGroup = {
     {
       name: 'Widgets',
       icon: 'poll',
-      to: paths.widgets,
+      to: paths.refWidgets,
       active: true
     },
     {
@@ -1039,7 +1036,7 @@ export const documentationRoutes: RouteGroup = {
     {
       name: 'Getting Started',
       icon: 'rocket',
-      to: paths.gettingStarted,
+      to: paths.refDocGettingStarted,
       active: true
     },
     {
@@ -1049,22 +1046,22 @@ export const documentationRoutes: RouteGroup = {
       children: [
         {
           name: 'Configuration',
-          to: paths.configuration,
+          to: paths.refDocConfiguration,
           active: true
         },
         {
           name: 'Styling',
-          to: paths.styling,
+          to: paths.refDocStyling,
           active: true
         },
         {
           name: 'Dark Mode',
-          to: paths.darkMode,
+          to: paths.refDocDarkMode,
           active: true
         },
         {
           name: 'Plugin',
-          to: paths.plugin,
+          to: paths.refDocPlugins,
           active: true
         }
       ]
@@ -1072,25 +1069,25 @@ export const documentationRoutes: RouteGroup = {
     {
       name: 'FAQ',
       icon: 'question-circle',
-      to: paths.faq,
+      to: paths.refDocFaq,
       active: true
     },
     {
       name: 'Design File',
       icon: 'palette',
-      to: paths.designFile,
+      to: paths.refDocDesignFile,
       active: true
     },
     {
       name: 'Changelog',
       icon: 'code-branch',
-      to: paths.changelog,
+      to: paths.refDocChangelog,
       active: true
     },
     {
       name: 'Migration',
       icon: 'sign-out-alt',
-      to: paths.migration,
+      to: paths.refDocMigration,
       active: true,
       badge: {
         type: 'success',

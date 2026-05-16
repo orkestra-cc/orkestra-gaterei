@@ -11,15 +11,23 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// lanOpsHandler serves /health and /ready as plain HTTP for LAN probes
-// (HAProxy, k8s liveness, ALB target health) that hit the pod by IP and
-// therefore can't satisfy the audience-scoped hostMux. Same Mongo+Redis
+// lanOpsHandler serves /health, /ready, and (when provided) /metrics as
+// plain HTTP for LAN probes (HAProxy, k8s liveness, ALB target health,
+// Prometheus scrape) that hit the pod by IP / service DNS and therefore
+// can't satisfy the audience-scoped hostMux. Same Mongo+Redis
 // reachability checks as the Huma /health, but emitted without the
 // audience-aware middleware stack so the response is identical on every
 // host that reaches the listener. Mounted as the hostMux opsHandler — only
 // the paths in opsPaths fall through here when no audience host matches.
-func lanOpsHandler(db *mongo.Database, redisClient *redis.Client) http.Handler {
+//
+// metricsHandler is the Prometheus collector handler (or nil when
+// METRICS_ENABLED=false). When non-nil it is mounted at /metrics so
+// Prometheus can scrape the pod without spoofing an operator Host header.
+func lanOpsHandler(db *mongo.Database, redisClient *redis.Client, metricsHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
+	if metricsHandler != nil {
+		mux.Handle("/metrics", metricsHandler)
+	}
 
 	writeJSON := func(w http.ResponseWriter, status int, body any) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")

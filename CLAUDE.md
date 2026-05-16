@@ -1,6 +1,6 @@
 # ORKESTRA
 
-**Orkestra is the SaaS plumbing every product rebuilds — users, auth, RBAC, multi-tenancy, billing — already done.** Six core modules (`user`, `auth`, `authz`, `tenant`, `notification`, `navigation`) supply the baseline on day one; a catalog of optional addons (invoicing/SDI, payments, subscriptions, RAG, AI agents, documents, identity, compliance, ...) sits on top and is toggled per internal tenant at `/admin/modules`. Orkestra manages *who* can consume those addons across a **two-tier tenancy model**.
+**Orkestra is the SaaS plumbing every product rebuilds — users, auth, RBAC, multi-tenancy, billing — already done.** Seven core modules (`user`, `auth`, `authz`, `tenant`, `notification`, `navigation`, `logging`) supply the baseline on day one; a catalog of optional addons (invoicing/SDI, payments, subscriptions, RAG, AI agents, documents, identity, compliance, ...) sits on top and is toggled per internal tenant at `/admin/modules`. Orkestra manages *who* can consume those addons across a **two-tier tenancy model**.
 
 ## Tenancy Model
 
@@ -37,7 +37,7 @@ The `subscriptions` and `payments` modules are **not ordinary feature addons** �
 
 | Layer              | Technology                                                         |
 | ------------------ | ------------------------------------------------------------------ |
-| **Backend**        | Go 1.25.1, Huma v2 (OpenAPI-first), 6 core + 13 optional self-contained modules |
+| **Backend**        | Go 1.25.1, Huma v2 (OpenAPI-first), 7 core + 13 optional self-contained modules |
 | **Frontend**       | React 19, TypeScript 5.9, Vite 7, Redux Toolkit, TanStack Table    |
 | **Mobile**         | Flutter 3.35+, Dart, Riverpod                                      |
 | **Database**       | MongoDB 8.0, Redis 8.2                                             |
@@ -46,7 +46,7 @@ The `subscriptions` and `payments` modules are **not ordinary feature addons** �
 
 ## Architecture
 
-**Plugin architecture**: 6 core modules (user, notification, tenant, authz, auth, navigation) always load. All other modules are **optional** — every optional module is instantiated and initialized at boot, and operators flip individual modules on/off at `/admin/modules` (state persisted in the `module_configs` MongoDB collection). The registry resolves initialization order automatically from each module's `Dependencies()` declaration.
+**Plugin architecture**: 7 core modules (user, notification, tenant, authz, auth, navigation, logging) always load. All other modules are **optional** — every optional module is instantiated and initialized at boot, and operators flip individual modules on/off at `/admin/modules` (state persisted in the `module_configs` MongoDB collection). The registry resolves initialization order automatically from each module's `Dependencies()` declaration.
 
 **Key components** (`backend/pkg/sdk/module/`):
 
@@ -137,8 +137,9 @@ docker compose -f docker-compose.ai-sidecar.yml --env-file .env up -d
 | **authz**        | Permissions, roles, Cedar policy engine                                                                           |
 | **auth**         | Email/password (argon2id) + OAuth 2.1, JWT, sessions, RBAC                                                        |
 | **navigation**   | Dynamic menu from module NavItems                                                                                 |
+| **logging**      | Runtime log-level admin (ADR-0005 Phase F): `log_levels` collection + `/admin/observability/log-levels` UI         |
 
-Load order (topologically sorted by `Dependencies()`): `user` → `notification` → `tenant` → `authz` → `auth` → `navigation`. Auth depends on notification (optional at runtime) so it can deliver verification and password-reset emails.
+Load order (topologically sorted by `Dependencies()`): `user` → `notification` → `tenant` → `authz` → `auth` → `navigation` → `logging`. Auth depends on notification (optional at runtime) so it can deliver verification and password-reset emails; `logging` has no declared dependencies.
 
 **Optional (toggled at `/admin/modules`; all instantiated at boot):**
 
@@ -169,26 +170,24 @@ Load order (topologically sorted by `Dependencies()`): `user` → `notification`
 
 ## Quick Start
 
-### Minimal profile (recommended for first boot)
+### SKU profile (recommended for first boot)
 
-Boots only the core modules — user, notification, auth, navigation, plus the `dev` token generator — with MongoDB and Redis. Four containers total, no Gotenberg/Memgraph/Hindsight/Ollama, uses only publicly available Docker images so it runs on any VM without registry authentication. Ports are non-standard (3050/8050/27050/6350) so it can run alongside the full dev stack or other Docker projects without conflicts.
-
-The notification module boots in `noop` mode by default — verification and password-reset emails are logged to the backend stdout rather than delivered. To send real mail, set `NOTIFICATION_EMAIL_PROVIDER=smtp` plus `SMTP_HOST/PORT/USERNAME/PASSWORD` and `NOTIFICATION_EMAIL_FROM` in the env file, or configure them at `/admin/modules` once you are logged in.
+Pull a pre-built image from GHCR and layer it on top of `docker-compose.infra.yml` (MongoDB + Redis). Five SKUs are published per push: `starter`, `billing`, `ai`, `saas`, `enterprise`. Start with `starter` for the smallest surface (core modules only), or `enterprise` for everything.
 
 ```bash
 cd docker
-docker network create orkestra-network   # first time only
-docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+docker network create orkestra-network                              # first time only
+docker compose -f docker-compose.infra.yml up -d                    # mongodb + redis
+docker compose -f docker-compose.starter.yml --env-file .env up -d  # or billing / ai / saas / enterprise
 
-# Frontend: http://localhost:8050
-# Backend API: http://localhost:3050
-# API Docs: http://localhost:3050/docs
+# Backend API: http://localhost:3000
+# API Docs:    http://localhost:3000/docs
 
 # Generate an administrator token for first login (run from project root):
-ORKESTRA_API_URL=http://localhost:3050 ./scripts/devtoken.sh administrator
+ORKESTRA_API_URL=http://localhost:3000 ./scripts/devtoken.sh administrator
 ```
 
-Every optional module is loaded on boot regardless of profile. To enable additional modules, log in and toggle them at `/admin/modules` — the registry hot-reloads without a restart and auto-resolves dependencies.
+Every optional module compiled into the SKU is instantiated and initialized at boot regardless of enabled state. To enable additional addons that were compiled in, log in and toggle them at `/admin/modules` — the registry hot-reloads without a restart and auto-resolves dependencies. The notification module boots in `noop` mode by default — verification and password-reset emails are logged to the backend stdout rather than delivered. To send real mail, configure SMTP at `/admin/modules` after first login.
 
 ### Full development stack
 
@@ -238,7 +237,7 @@ docker restart orkestra-backend-dev
 
 GitHub Actions workflows (`.github/workflows/`) run on PR and push to `dev`/`main`. **CI workflows invoke `make` targets from the repo root — local and CI cannot drift.** Run `make ci-help` for the full list.
 
-- `backend.yml` → `make ci-backend` (lint, tenantscope, policycoverage, vuln, tests, enterprise build) + a profile-build matrix
+- `backend.yml` → `make ci-backend` (lint, tenantscope, policycoverage, vuln, tests, enterprise build, openapi-check) + a profile-build matrix
 - `frontend-admin.yml` → `make ci-frontend-admin` (typecheck, eslint, tests, audit, build)
 - `frontend-client.yml` → `make ci-frontend-client` (typecheck, eslint, build) — no tests yet
 - `mobile.yml` → `make ci-mobile` (flutter analyze, test)

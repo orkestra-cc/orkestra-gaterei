@@ -1,11 +1,32 @@
 /**
- * Environment configuration for the frontend application.
+ * Runtime environment configuration for the operator console.
  *
- * This module provides type-safe access to environment variables and
- * utility functions to check the current environment.
+ * Values come from `window.__ORKESTRA_CONFIG__`, populated at container start
+ * by the nginx entrypoint (or in dev by `public/config.js`). Build-time
+ * `import.meta.env.VITE_*` is consulted only as a fallback for `npm run
+ * dev`/`vite build` invocations that bypass `public/config.js` (Vitest,
+ * SSR scratch builds, etc.).
+ *
+ * Use the exported `config` singleton everywhere — never reach for
+ * `import.meta.env.VITE_*` from new code. The point of moving to runtime
+ * config was to make a single published image work in dev / staging /
+ * prod without rebuilding.
  */
 
 export type Environment = 'development' | 'staging' | 'production';
+
+interface RuntimeConfig {
+  apiUrl?: string;
+  wsUrl?: string;
+  env?: Environment | string;
+  debug?: boolean;
+}
+
+declare global {
+  interface Window {
+    __ORKESTRA_CONFIG__?: RuntimeConfig;
+  }
+}
 
 interface EnvironmentConfig {
   /** Current environment name */
@@ -26,25 +47,50 @@ interface EnvironmentConfig {
   isProductionLike: boolean;
 }
 
-function getEnvironment(): Environment {
-  const env = import.meta.env.VITE_ENV;
-  if (env === 'staging' || env === 'production') {
-    return env;
-  }
+function readRuntime(): RuntimeConfig {
+  if (typeof window === 'undefined') return {};
+  return window.__ORKESTRA_CONFIG__ ?? {};
+}
+
+function pickEnv(value: unknown): Environment {
+  if (value === 'staging' || value === 'production') return value;
   return 'development';
 }
 
+function pickString(
+  ...candidates: Array<string | undefined>
+): string | undefined {
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.length > 0) return c;
+  }
+  return undefined;
+}
+
 function createConfig(): EnvironmentConfig {
-  const env = getEnvironment();
+  const runtime = readRuntime();
+  const env = pickEnv(runtime.env ?? import.meta.env.VITE_ENV);
+
+  const apiUrl =
+    pickString(
+      runtime.apiUrl,
+      import.meta.env.VITE_API_URL,
+      import.meta.env.VITE_BACKEND_URL
+    ) ?? 'http://console.localhost:3000';
+
+  const wsUrl =
+    pickString(runtime.wsUrl, import.meta.env.VITE_WS_URL) ??
+    'ws://console.localhost:3000/ws';
+
+  const debug =
+    typeof runtime.debug === 'boolean'
+      ? runtime.debug
+      : import.meta.env.VITE_DEBUG === 'true';
 
   return {
     env,
-    apiUrl:
-      import.meta.env.VITE_API_URL ||
-      import.meta.env.VITE_BACKEND_URL ||
-      'http://localhost:3000',
-    wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws',
-    debug: import.meta.env.VITE_DEBUG === 'true',
+    apiUrl,
+    wsUrl,
+    debug,
     isProduction: env === 'production',
     isStaging: env === 'staging',
     isDevelopment: env === 'development',
@@ -55,23 +101,17 @@ function createConfig(): EnvironmentConfig {
 /** Environment configuration singleton */
 export const config = createConfig();
 
-/**
- * Check if running in development environment.
- */
+/** Check if running in development environment. */
 export function isDevelopment(): boolean {
   return config.isDevelopment;
 }
 
-/**
- * Check if running in production environment.
- */
+/** Check if running in production environment. */
 export function isProduction(): boolean {
   return config.isProduction;
 }
 
-/**
- * Check if running in staging environment.
- */
+/** Check if running in staging environment. */
 export function isStaging(): boolean {
   return config.isStaging;
 }
@@ -84,9 +124,7 @@ export function isProductionLike(): boolean {
   return config.isProductionLike;
 }
 
-/**
- * Get the current environment name.
- */
+/** Get the current environment name. */
 export function getEnv(): Environment {
   return config.env;
 }

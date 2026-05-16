@@ -15,6 +15,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -76,7 +77,22 @@ func Init(serviceName, environment string, logger *slog.Logger) ShutdownFunc {
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		exp, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint(endpoint))
+		// The OTEL semantic-conventions OTEL_EXPORTER_OTLP_ENDPOINT
+		// env var is a full URL (with scheme). otlptracehttp's
+		// WithEndpoint, despite its name, expects bare host:port and
+		// double-prefixes "http://" when a scheme is already present
+		// — so a value like http://orkestra-otel:4318 becomes
+		// http://http://orkestra-otel:4318 at request time and every
+		// export silently fails. WithEndpointURL is the right option
+		// for full URLs; fall back to WithEndpoint for bare host:port
+		// strings so historical configs keep working.
+		var endpointOpt otlptracehttp.Option
+		if strings.Contains(endpoint, "://") {
+			endpointOpt = otlptracehttp.WithEndpointURL(endpoint)
+		} else {
+			endpointOpt = otlptracehttp.WithEndpoint(endpoint)
+		}
+		exp, err := otlptracehttp.New(ctx, endpointOpt)
 		if err != nil {
 			logger.Warn("telemetry: OTLP exporter init failed — falling back to no-op",
 				slog.String("endpoint", endpoint),

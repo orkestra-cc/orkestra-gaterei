@@ -27,7 +27,7 @@
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white&style=flat-square)](https://www.openapis.org)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
 
-[Quick Start](#quick-start-minimal-profile) · [SKU Profiles](#sku-profiles-pulled-from-ghcr) · [Architecture](CLAUDE.md) · [Backend](backend/CLAUDE.md) · [Frontend Admin](frontend-admin/CLAUDE.md) · [Frontend Client](frontend-client/CLAUDE.md) · [Docker](docker/CLAUDE.md)
+[Quick Start](#sku-profiles-pulled-from-ghcr) · [Architecture](CLAUDE.md) · [Backend](backend/CLAUDE.md) · [Frontend Admin](frontend-admin/CLAUDE.md) · [Frontend Client](frontend-client/CLAUDE.md) · [Docker](docker/CLAUDE.md)
 
 </div>
 
@@ -37,7 +37,7 @@
 
 Every SaaS reinvents the same wheel: users, roles, password resets, OAuth with five providers, MFA, sessions, audit logs, multi-tenant isolation, billing. Three months of plumbing before the first real feature.
 
-Orkestra is that plumbing, already done. Six core modules — `user`, `auth`, `authz`, `tenant`, `notification`, `navigation` — always load and give you email/password (argon2id) + OAuth 2.1 (Google, Apple, GitHub, Discord) + TOTP/WebAuthn MFA, RBAC with Cedar policies, orgs + memberships, and audited-everything on day one.
+Orkestra is that plumbing, already done. Seven core modules — `user`, `auth`, `authz`, `tenant`, `notification`, `navigation`, `logging` — always load and give you email/password (argon2id) + OAuth 2.1 (Google, Apple, GitHub, Discord) + TOTP/WebAuthn MFA, RBAC with Cedar policies, orgs + memberships, runtime log-level admin, and audited-everything on day one.
 
 Layered on top: 13 optional addon modules (invoicing, payments, subscriptions, RAG, AI agents, compliance, identity, ...) toggled per tenant at `/admin/modules`, hot-reloaded without a restart. Build your SaaS as the next addon, not as another from-scratch repo.
 
@@ -45,55 +45,14 @@ It runs on a **two-tier tenancy model**: Tier-1 operators manage staff and modul
 
 ## Architecture at a glance
 
-- **Backend.** Go 1.25, [Huma v2](https://huma.rocks) (OpenAPI-first), modular monolith. 6 core modules always load; 13 optional addons are toggled at `/admin/modules` (hot-reload, no restart). Each addon lives behind a `//go:build !no_addons || addon_<name>` tag, so profile builds (`make build-starter|minimal|billing|ai|saas|enterprise`) ship curated subsets. CI builds every profile on every PR. See [backend/CLAUDE.md](backend/CLAUDE.md).
+- **Backend.** Go 1.25, [Huma v2](https://huma.rocks) (OpenAPI-first), modular monolith. 7 core modules always load; 13 optional addons are toggled at `/admin/modules` (hot-reload, no restart). Each addon lives behind a `//go:build !no_addons || addon_<name>` tag, so profile builds (`make build-starter|minimal|billing|ai|saas|enterprise`) ship curated subsets. CI builds every profile on every PR. See [backend/CLAUDE.md](backend/CLAUDE.md).
 - **Frontend (admin).** React 19 + Vite 7 + TypeScript 5.9 strict. Navigation is fetched from `/v1/navigation` so the UI reflects whatever modules the backend has enabled. Cookie-based operator-audience auth. See [frontend-admin/CLAUDE.md](frontend-admin/CLAUDE.md).
 - **Frontend (client).** Tier-2 customer-facing SPA on the same React 19 + Vite 7 stack, separate cookie domain, separate audience JWT. See [frontend-client/CLAUDE.md](frontend-client/CLAUDE.md).
 - **Mobile.** Flutter 3.35 + Riverpod (early-stage).
 - **Data.** MongoDB 8 + Redis 8. Optional Memgraph knowledge graph for the RAG / graph modules.
 - **Auth.** Email + password (argon2id) and OAuth 2.1 (Google, Apple, GitHub, Discord), RS256 JWT, 6-role RBAC, optional TOTP + WebAuthn MFA, per-audience tier split for operator vs. client surfaces.
+- **Observability.** Structured JSON logs with `trace_id` / `tenant_id` / `user_id` on every line out of the box, OpenTelemetry traces with tenant baggage (ADR-0001), Prometheus HTTP latency histogram with `trace_id` exemplars (one-click jump from a slow bucket to the matching Tempo trace), audit log kept separate from operational log. Zero-config locally; one env var to ship to a self-hosted Tempo + Loki + Grafana stack; one env var to ship to Honeycomb / Datadog / Grafana Cloud / Axiom. See [ADR-0005](docs/adr/0005-observability-logging-tracing-metrics.md).
 - **AI sidecar (optional).** graph + aimodels + rag + agents can run as a separate `cmd/ai-service` binary; the monolith swaps in `RemoteAIModelProvider` / `RemoteRAGQueryProvider` HTTP clients via the `AI_SERVICE_URL` env var. Zero code changes in consumer modules. See `backend/cmd/ai-service/`.
-
-## Quick start, minimal profile
-
-The minimal profile boots Orkestra with just the core modules (user, notification, auth, navigation, dev-token generator) on any Docker host. Four containers, public base images only, ~500 MB of RAM. Ports are non-standard (3050/8050/27050/6350) so it runs alongside the full dev stack without colliding.
-
-```bash
-cd docker
-docker network create orkestra-network   # first time only
-docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
-```
-
-Wait ~30 seconds for the backend to come up, then:
-
-| Service | URL |
-| --- | --- |
-| Frontend | http://localhost:8050 |
-| Backend API | http://localhost:3050 |
-| OpenAPI docs | http://localhost:3050/docs |
-| Health check | http://localhost:3050/health |
-
-Generate an administrator token for first login:
-
-```bash
-ORKESTRA_API_URL=http://localhost:3050 ./scripts/devtoken.sh administrator
-```
-
-### Enabling more modules
-
-Edit `docker/.env.minimal` and add module names to `MODULES`. Dependencies are auto-included.
-
-```bash
-# Enable billing + documents (documents is a dependency, auto-included)
-MODULES=dev,billing
-```
-
-Then restart the backend:
-
-```bash
-docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d --force-recreate backend
-```
-
-Addons with external dependencies (Gotenberg for PDFs, Memgraph for graph, Hindsight for agents) need their infrastructure to be reachable. Either add those services to the compose file or point the module at a remote host via the admin API (`GET/PATCH /v1/admin/modules`).
 
 ## SKU profiles, pulled from GHCR
 
@@ -132,16 +91,11 @@ docker compose -f docker-compose.dev.yml up -d
 
 `orkestra.sh` at the project root is the single entry point for every stack operation. It replaces the old `deploy.sh` and `logs.sh`.
 
-**Interactive TUI.** `./orkestra.sh` launches a profile menu (minimal / SKU profile picker / full stack) followed by a per-profile operations menu with deploy, stop, reset, status, logs, and info.
+**Interactive TUI.** `./orkestra.sh` launches a profile menu (SKU profile picker / full stack) followed by a per-profile operations menu with deploy, stop, reset, status, logs, and info.
 
 **CLI mode.** Every operation also works as a non-interactive command for scripting:
 
 ```bash
-# Minimal, built locally from Dockerfile.minimal
-./orkestra.sh minimal deploy --build
-./orkestra.sh minimal logs backend -f
-./orkestra.sh minimal reset --yes
-
 # SKU profile, pulled from GHCR (starter | billing | ai | saas | enterprise)
 ./orkestra.sh profile billing deploy --pull
 ./orkestra.sh profile ai status
@@ -167,6 +121,7 @@ Run `./orkestra.sh --help` for the full command surface.
 | `authz` | Permission catalog, roles, role bindings, Cedar policy engine |
 | `auth` | Email/password + OAuth 2.1, JWT, sessions, RBAC, MFA |
 | `navigation` | Dynamic menu aggregated from every module's `NavItems()` |
+| `logging` | Runtime log-level admin (ADR-0005 Phase F): `log_levels` collection + `/admin/observability/log-levels` UI |
 
 ### Optional addons (toggled at `/admin/modules`)
 
@@ -185,6 +140,46 @@ Run `./orkestra.sh --help` for the full command surface.
 | `compliance` | Platform audit log; future GDPR DSR pipelines, SOC2 evidence |
 | `identity` | Per-tenant BYO OpenID Connect login + SCIM 2.0 stubs |
 | `dev` | Dev token generator (disabled in production) |
+
+## Observability, built in
+
+Logging, tracing, and metrics are core platform features — same footing as `auth` or `tenant`, not a side quest. The promise is **simple by default, pro on demand**: zero configuration must produce useful output; opting into a self-hosted Grafana stack or a managed OTLP backend must require only environment variables, not code changes. See [ADR-0005](docs/adr/0005-observability-logging-tracing-metrics.md) for the full design.
+
+### Multi-tenant log correlation, automatic
+
+Every operational log line is auto-stamped with `trace_id`, `span_id`, `tenant_id`, `tenant_kind`, `user_id`, `user_role`, `audience`, and `request_id`. In Loki, "show me everything client X did in the last hour, across every module" is a one-liner:
+
+```logql
+{service="orkestra-backend"} | json | tenant_id="<uuid>"
+```
+
+The same `trace_id` jumps to the matching Tempo trace and to Prometheus exemplars on the `orkestra_http_request_duration_seconds` histogram (labelled by `audience`, `method`, route template, and `status_class`). No setup beyond pointing the backend at a collector.
+
+### Three tiers, three env vars
+
+| Tier | What you get | What you set |
+|---|---|---|
+| **0 — Zero config** | Structured JSON logs to stdout with trace + tenant correlation, Chi request log replaced by a typed middleware (allowlist-only, never logs bodies or auth headers), OpenTelemetry tracer running no-op, `/metrics` live. | `LOG_LEVEL=info` (default) |
+| **1 — Self-hosted** | Adds Tempo (traces) + Prometheus (metrics) + Loki (logs) + Promtail (log shipper) + Grafana (datasources auto-provisioned with cross-jumping, "Tenant traces + logs" dashboard pre-loaded). Everything stays on operator hardware. | `./orkestra.sh observability up` (or option 3 in the TUI) |
+| **2 — OTLP-native** | Ships traces and logs to any OTLP-compatible vendor — Honeycomb, Datadog, Grafana Cloud, Axiom, New Relic. Stdout remains the source of truth; OTLP is an additive fanout so a collector outage never loses lines. | `OTEL_EXPORTER_OTLP_ENDPOINT=https://…` + `OTEL_TRACES_ENABLED=true` (traces) + `OTEL_LOGS_ENABLED=true` (logs) + `OTEL_EXPORTER_OTLP_HEADERS` for auth |
+
+### Audit log ≠ operational log
+
+The `compliance` module's audit sink (append-only `audit_events` in MongoDB) is **never** conflated with operational logs. Audit is forever, never sampled, drives SOC2/GDPR evidence. Operational is retention-bounded, lives in Loki or the vendor backend. Operators can drop the operational tier entirely (regulated air-gapped deployments) without losing audit fidelity.
+
+### Per-module debug, no global noise
+
+```bash
+LOG_LEVEL=info LOG_LEVEL_RAG=debug docker compose -f docker-compose.dev.yml up
+```
+
+RAG ingestion floods with detail; the rest of the backend stays readable. Every line emitted from a module is auto-stamped with `module=<name>` by the module registry (`pkg/sdk/module`), so the slog handler can gate on it without any code change in the module itself.
+
+ADR-0005 Phase F adds an admin page at `/admin/observability/log-levels` to flip the same levels at runtime without restarting — every module logger picks up the change instantly through a shared `atomic.Pointer` snapshot.
+
+### PII-safe by construction
+
+Request logging is **allowlist-only**: only the enumerated fields (`method`, `path`, `status`, `duration_ms`, `bytes`, `request_id`, `trace_id`, `span_id`, `tenant_id`, `tenant_kind`, `user_id`, `user_role`, `audience`, `remote`, `ua`, `slow`) ever reach stdout. No bodies, no `Authorization` headers, no raw query strings. New fields require an ADR amendment. This is what makes the logging surface GDPR-safe by design, not by ad-hoc denylist scrubbing.
 
 ## Adding a new module
 
@@ -210,12 +205,12 @@ orkestra/
 │   │   ├── server/          # Monolith binary
 │   │   └── ai-service/      # Optional AI sidecar
 │   ├── internal/
-│   │   ├── core/            # Always loaded: user, notification, tenant, authz, auth, navigation
+│   │   ├── core/            # Always loaded: user, notification, tenant, authz, auth, navigation, logging
 │   │   ├── addons/          # Optional: billing, documents, rag, agents, ...
 │   │   └── shared/          # Module interface, config, middleware, interfaces
 │   ├── tools/               # tenantscope + policycoverage CI gates
 │   ├── Dockerfile           # Chainguard hardened images (dev + prod)
-│   └── Dockerfile.minimal   # Public images for the minimal profile
+│   └── Dockerfile.ai-service # AI sidecar binary
 ├── frontend-admin/          # React 19 + Vite 7, operator console (Tier-1)
 ├── frontend-client/         # React 19 + Vite 7, external client SPA (Tier-2)
 ├── mobile/                  # Flutter 3.35

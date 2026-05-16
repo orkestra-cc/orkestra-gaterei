@@ -32,6 +32,10 @@ const SetupWizard = lazy(() => import('pages/setup/SetupWizard'));
 const UserManagement = lazy(() => import('pages/admin/users'));
 const ModuleManagement = lazy(() => import('pages/admin/modules'));
 const ModuleDetail = lazy(() => import('pages/admin/modules/detail'));
+// ADR-0005 Phase F — observability admin page (runtime log-level mutation).
+const LogLevelsPage = lazy(
+  () => import('pages/admin/observability/log-levels')
+);
 const RoleManagement = lazy(() => import('pages/admin/roles'));
 const InternalTenants = lazy(() => import('pages/admin/internal-tenants'));
 const InternalTenantDetail = lazy(
@@ -153,6 +157,24 @@ export function buildCoreRoutes(
                         fallback={<OrkestraLoader />}
                       >
                         <ModuleDetail />
+                      </Suspense>
+                    </ProtectedRoute>
+                  )
+                },
+                {
+                  // ADR-0005 Phase F — runtime log-level admin.
+                  // Administrator-only by NavItem MinRole; the
+                  // ProtectedRoute below is the second gate.
+                  path: 'observability/log-levels',
+                  element: (
+                    <ProtectedRoute
+                      requiredPermissions={[['super_admin', 'administrator']]}
+                    >
+                      <Suspense
+                        key="admin-observability-log-levels"
+                        fallback={<OrkestraLoader />}
+                      >
+                        <LogLevelsPage />
                       </Suspense>
                     </ProtectedRoute>
                   )

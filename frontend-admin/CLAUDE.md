@@ -158,6 +158,7 @@ src/store/api/
 ├── graphApi.ts         # addon
 ├── documentsApi.ts     # addon
 ├── moduleApi.ts        # admin: /v1/admin/modules
+├── observabilityApi.ts # admin: /v1/admin/observability/log-levels (ADR-0005 Phase F)
 ├── personalAgentApi.ts
 ├── managementApi.ts
 ├── communicationsApi.ts

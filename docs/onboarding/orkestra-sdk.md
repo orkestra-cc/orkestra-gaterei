@@ -1,7 +1,7 @@
 # Orkestra SDK — Developer Onboarding
 
 _Audience: backend developers writing or modifying Orkestra modules (core or addons)._
-_Last refresh: 2026-05-13, after Phase 3 of the SDK split._
+_Last refresh: 2026-05-14, after Phase 5 of the SDK split (all 13 addons extracted, SDK at v0.4.0+)._
 
 ## What the SDK is
 
@@ -15,11 +15,18 @@ module:
 module github.com/orkestra-cc/orkestra-sdk
 ```
 
-A repo-root `go.work` file binds it to the main backend module so both
-build together. The Phase-4 plan ([docs/plans/orkestra-sdk-split.md][1])
-publishes this same package to its own GitHub repo so addons can move
-out of the monolith without breaking; from your perspective as a
-contributor, the API is the same whether you're in-tree or extracted.
+The SDK is **published** to its own public GitHub repo at
+[`github.com/orkestra-cc/orkestra-sdk`](https://github.com/orkestra-cc/orkestra-sdk)
+and is consumed by the monolith via the workspace (`go.work`) for local
+development and via `go get` once tagged. Every optional addon
+(`documents`, `aimodels`, `openapiauth`, `company`, `graph`, `sales`,
+`subscriptions`, `payments`, `billing`, `dev`, `compliance`, `identity`,
+`rag`) is **also its own Go module** with its own `go.mod` — they're
+listed in the repo-root `go.work` file and each one is also published as
+a standalone repo (`orkestra-cc/orkestra-addon-<name>`). Phase 5 of
+[the split plan][1] completed this on 2026-05-14. Phase 6 candidates
+(drop `replace` directives, externalize re-export shims, public-mirror
+CI) are deferred.
 
 If you're writing a module — **anything that boots, registers routes,
 and owns config or data** — this document is the one to read.
@@ -37,13 +44,13 @@ Three problems the SDK solves:
    that every module imports and every provider satisfies via Go's
    structural typing.
 
-2. **A stable boundary so addons can be extracted.** Today every addon
-   lives under `backend/internal/addons/`. The SDK boundary is the
-   contract that lets us pull one out into its own repo (e.g.
-   `orkestra-cc/addon-billing`) and have it still compile against the
-   monolith via `go get`. Anything inside the SDK is **frozen public
-   API**; anything outside is backend-private and can change at any
-   time.
+2. **A stable boundary so addons can be extracted.** Every optional
+   addon under `backend/internal/addons/` is now its own Go module with
+   its own public GitHub repo (`orkestra-cc/orkestra-addon-<name>`),
+   consumed by the monolith via `go.work` for local development and
+   `go get` for releases. The SDK boundary is the frozen contract that
+   makes this work — anything inside the SDK is **frozen public API**;
+   anything outside is backend-private and can change at any time.
 
 3. **A minimum-viable module contract.** A module must implement only
    three methods (`Name`, `Category`, `Init`); every other capability —

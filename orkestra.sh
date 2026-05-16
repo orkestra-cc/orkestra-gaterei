@@ -5,12 +5,12 @@
 # ============================================================================
 #
 # Single entry point for managing the Orkestra stack. Combines the former
-# deploy.sh and logs.sh scripts and adds first-class minimal-profile support.
+# deploy.sh and logs.sh scripts with first-class SKU-profile support.
 #
 # Two modes:
 #
 #   Interactive TUI     ./orkestra.sh
-#                       Profile menu (minimal / full stack) then a per-profile
+#                       Profile menu (SKU profile / full stack) then a per-profile
 #                       operations menu.
 #
 #   Non-interactive CLI ./orkestra.sh <command> [args...]
@@ -134,38 +134,31 @@ PROJECT_ROOT="$SCRIPT_DIR"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
 ENV_FILE="$DOCKER_DIR/.env"
-MINIMAL_COMPOSE_FILE="$DOCKER_DIR/docker-compose.minimal.yml"
-MINIMAL_ENV_FILE="$DOCKER_DIR/.env.minimal"
-MINIMAL_BACKEND_URL="http://localhost:3050"
-MINIMAL_FRONTEND_URL="http://localhost:8050"
 
-# Profile state — "minimal", "fullstack", a SKU profile name, or "" (at profile menu)
+# ADR-0005 Phase D — self-hosted observability stack (Loki, Tempo,
+# Prometheus, Promtail, otel-collector, Grafana). Orthogonal to the
+# SKU profile / full-stack split: you typically run it alongside
+# whichever app stack is up.
+OBSERVABILITY_COMPOSE="$DOCKER_DIR/docker-compose.observability.yml"
+
+# Profile state — "fullstack", a SKU profile name, or "" (at profile menu)
 PROFILE=""
 
 # SKU profiles published to GHCR. Order matters: it drives the TUI picker.
 SKU_PROFILES=(starter billing ai saas enterprise)
 
 # Per-profile compose file, env file, backend URL, refresh mode, and infra
-# layering. The minimal profile builds from a local Dockerfile; the SKU
-# profiles pull a pre-built image from GHCR. Only minimal is self-contained;
-# every SKU profile expects docker-compose.infra.yml to be running first.
+# layering. SKU profiles pull a pre-built image from GHCR and expect
+# docker-compose.infra.yml to be running first.
 declare -A PROFILE_COMPOSE
 declare -A PROFILE_ENV
 declare -A PROFILE_BACKEND_URL
 declare -A PROFILE_FRONTEND_URL
-declare -A PROFILE_REFRESH_MODE      # "build" or "pull"
+declare -A PROFILE_REFRESH_MODE      # "pull"
 declare -A PROFILE_LAYER_INFRA       # "yes" or "no"
 declare -A PROFILE_DESCRIPTION
 
 init_profile_configs() {
-    PROFILE_COMPOSE[minimal]="$MINIMAL_COMPOSE_FILE"
-    PROFILE_ENV[minimal]="$MINIMAL_ENV_FILE"
-    PROFILE_BACKEND_URL[minimal]="$MINIMAL_BACKEND_URL"
-    PROFILE_FRONTEND_URL[minimal]="$MINIMAL_FRONTEND_URL"
-    PROFILE_REFRESH_MODE[minimal]="build"
-    PROFILE_LAYER_INFRA[minimal]="no"
-    PROFILE_DESCRIPTION[minimal]="Core only — built locally from Dockerfile.minimal"
-
     local p
     for p in "${SKU_PROFILES[@]}"; do
         PROFILE_COMPOSE[$p]="$DOCKER_DIR/docker-compose.$p.yml"
@@ -382,9 +375,6 @@ draw_status_line() {
 
     local profile_chip
     case "$PROFILE" in
-        minimal)
-            profile_chip="${c_accent}${ic_bullet} minimal${c_reset}"
-            ;;
         fullstack)
             local env_upper
             env_upper=$(echo "${ENV:-?}" | tr '[:lower:]' '[:upper:]')
@@ -567,20 +557,43 @@ get_services() {
 
 is_service_running() {
     local compose_file=$1 service=$2 count
+    # Fast path: query within the compose file's own project.
     count=$(docker compose -f "$compose_file" ps -q "$service" 2> /dev/null | wc -l)
-    [ "$count" -gt 0 ]
+    if [ "$count" -gt 0 ]; then
+        return 0
+    fi
+    # Fallback: a container with this compose-service label may be running
+    # under a different project (e.g. infra+SKU stacks are merged under one
+    # project name like "orkestra-enterprise", so the bare infra compose
+    # file's project lookup misses them). Match by label instead.
+    [ -n "$(docker ps -q \
+        --filter "label=com.docker.compose.service=$service" \
+        --filter "status=running" 2> /dev/null)" ]
+}
+
+# Resolve the actual running container for (compose_file, service), preferring
+# the compose file's project but falling back to any project hosting that
+# compose-service label. Echoes the container id, or empty if nothing matches.
+resolve_running_container() {
+    local compose_file=$1 service=$2 cid
+    cid=$(docker compose -f "$compose_file" ps -q "$service" 2> /dev/null | head -1)
+    if [ -n "$cid" ]; then
+        printf '%s\n' "$cid"
+        return 0
+    fi
+    docker ps -q \
+        --filter "label=com.docker.compose.service=$service" \
+        --filter "status=running" 2> /dev/null | head -1
 }
 
 # ---------------------------------------------------------------------------
 # Generic profile operations
 # ---------------------------------------------------------------------------
 #
-# A "profile" here is any entry in PROFILE_COMPOSE — currently minimal plus
-# the five SKU profiles (starter/billing/ai/saas/enterprise). minimal builds
-# from source, the SKUs pull pre-built images from GHCR; everything else is
-# the same operation surface (deploy/stop/reset/status/info/logs).
-#
-# minimal_* below are thin wrappers that delegate here with name="minimal".
+# A "profile" here is any entry in PROFILE_COMPOSE — the five SKU profiles
+# (starter/billing/ai/saas/enterprise). Each pulls a pre-built image from
+# GHCR; everything else is the same operation surface
+# (deploy/stop/reset/status/info/logs).
 
 # Echo the docker-compose -f / --env-file argument list for the named profile,
 # one token per line. Capture with: mapfile -t args < <(_profile_compose_args foo)
@@ -611,21 +624,13 @@ profile_check_prereqs() {
 
     local env_file="${PROFILE_ENV[$name]:-}"
     if [ -n "$env_file" ] && [ ! -f "$env_file" ]; then
-        if [ "$name" = "minimal" ]; then
-            p_err "$env_file not found"
-            p_muted "  The minimal env file is tracked in git — did you delete it?"
-            p_muted "  Recover with: git checkout docker/.env.minimal"
-            exit 1
-        else
-            p_warn "$env_file not found — required secrets must be exported in the shell"
-        fi
+        p_warn "$env_file not found — required secrets must be exported in the shell"
     fi
 
     ensure_network_exists
 }
 
-# Render the post-deploy access box, branching on whether the profile ships a
-# frontend (minimal) or is backend-only (SKU profiles).
+# Render the post-deploy access box. SKU profiles are backend-only (no frontend).
 _profile_show_access_box() {
     local name=$1
     local backend_url="${PROFILE_BACKEND_URL[$name]:-http://localhost:3000}"
@@ -657,7 +662,7 @@ _profile_show_access_box() {
 }
 
 # profile_deploy <name> [refresh=yes|no]
-# refresh=yes: build for minimal, pull for SKU profiles. refresh=no: cached.
+# refresh=yes: pull the SKU image from GHCR before bringing up. refresh=no: cached.
 profile_deploy() {
     local name=$1 refresh=${2:-no}
     PROFILE="$name"
@@ -812,14 +817,9 @@ profile_status() {
     fi
 }
 
-# Generic info screen for SKU profiles. Minimal has its own custom info screen
-# (minimal_info) because its message about MODULES + dev tokens is bespoke.
+# Generic info screen for SKU profiles.
 profile_info() {
     local name=$1
-    if [ "$name" = "minimal" ]; then
-        minimal_info
-        return
-    fi
     PROFILE="$name"
     local title
     title=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}
@@ -854,62 +854,6 @@ profile_info() {
     p_section "Toggle addons"
     p_muted "  Visit /admin/modules in the operator console to enable/disable addons."
     p_muted "  Build tags decide what is installable; runtime config decides what is on."
-}
-
-# ---------------------------------------------------------------------------
-# Minimal profile operations (thin wrappers over profile_*)
-# ---------------------------------------------------------------------------
-
-minimal_check_prereqs() {
-    profile_check_prereqs "minimal"
-}
-
-minimal_deploy() { profile_deploy "minimal" "${1:-no}"; }
-
-minimal_stop() { profile_stop "minimal"; }
-
-minimal_reset() { profile_reset "minimal" "${1:-ask}"; }
-
-minimal_status() { profile_status "minimal"; }
-
-minimal_info() {
-    PROFILE="minimal"
-    page_header "Minimal · Profile Info"
-
-    draw_box "Minimal profile" \
-        "" \
-        "  The minimal profile boots Orkestra with only core modules:" \
-        "" \
-        "    ${c_accent}auth${c_reset}         OAuth 2.1, JWT, sessions, RBAC" \
-        "    ${c_accent}user${c_reset}         User CRUD, roles" \
-        "    ${c_accent}navigation${c_reset}   Dynamic menu aggregator" \
-        "    ${c_accent}dev${c_reset}          Dev token generator (first login)" \
-        ""
-    echo
-
-    p_section "Access points"
-    printf '  Admin frontend %s%s%s\n' "$c_info" "$MINIMAL_FRONTEND_URL" "$c_reset"
-    printf '  Backend API    %s%s%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
-    printf '  API docs       %s%s/docs%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
-    printf '  OpenAPI JSON   %s%s/openapi.json%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
-    printf '  Health         %s%s/health%s\n' "$c_info" "$MINIMAL_BACKEND_URL" "$c_reset"
-    echo
-
-    p_section "Generate a dev token for first login"
-    printf '  %sORKESTRA_API_URL=%s ./scripts/devtoken.sh administrator%s\n' \
-        "$c_accent" "$MINIMAL_BACKEND_URL" "$c_reset"
-    echo
-
-    p_section "Enable more modules"
-    printf '  Edit %sMODULES=%s in %s%s%s, e.g.:\n' \
-        "$c_accent" "$c_reset" "$c_info" "$MINIMAL_ENV_FILE" "$c_reset"
-    printf '    %sMODULES=dev,billing,documents%s\n' "$c_accent" "$c_reset"
-    printf '  Dependencies are auto-included by the backend module registry.\n'
-    echo
-
-    p_muted "Ports are non-standard (3050/8050/27050/6350) so the minimal stack can"
-    p_muted "coexist with full dev/staging/prod stacks without port collisions."
-    p_muted "See docker/CLAUDE.md and backend/CLAUDE.md for details."
 }
 
 # ---------------------------------------------------------------------------
@@ -1375,7 +1319,128 @@ fullstack_status() {
 }
 
 # ---------------------------------------------------------------------------
-# Unified logs picker (minimal + full-stack aware)
+# Observability stack (ADR-0005 Phase D)
+# ---------------------------------------------------------------------------
+#
+# Orthogonal to the SKU/full-stack split. Operators run this alongside
+# their app stack to get Tempo (traces), Prometheus (metrics), Loki
+# (logs), Grafana (UI), Promtail (log shipper), otel-collector (OTLP
+# ingest). The compose file declares its own `name:` so its containers
+# live in their own project — they're not mixed into the app's
+# `docker compose ps` output and `docker compose down` on the app
+# stack never accidentally takes them down.
+
+observability_check_file() {
+    if [ ! -f "$OBSERVABILITY_COMPOSE" ]; then
+        die "Observability compose file not found at $OBSERVABILITY_COMPOSE"
+    fi
+}
+
+observability_up() {
+    page_header "Observability · Up"
+    check_docker_running
+    observability_check_file
+    echo
+    p_muted "Compose: $(basename "$OBSERVABILITY_COMPOSE")"
+    echo
+    with_spinner "Starting observability stack" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" up -d
+    echo
+    p_ok "Observability stack is up."
+    observability_info
+}
+
+observability_down() {
+    page_header "Observability · Down"
+    check_docker_running
+    observability_check_file
+    echo
+    with_spinner "Stopping observability stack" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" down
+    echo
+    p_ok "Observability stack stopped (volumes preserved)."
+}
+
+observability_reset() {
+    local confirm=${1:-ask}
+    page_header "Observability · Reset"
+    check_docker_running
+    observability_check_file
+    echo
+    draw_box "WARNING" "" \
+        "  ${c_error}This deletes Loki / Tempo / Prometheus / Grafana data volumes.${c_reset}" \
+        "  ${c_muted}Dashboards / datasources are re-provisioned on next boot.${c_reset}" \
+        ""
+    echo
+    if [ "$confirm" = "ask" ]; then
+        ask_yes_no "Proceed with reset?" "n" || { p_warn "Operation cancelled."; return; }
+    fi
+    with_spinner "Removing observability stack and volumes" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" down -v
+    p_ok "Observability state wiped."
+}
+
+observability_status() {
+    page_header "Observability · Status"
+    check_docker_running
+    observability_check_file
+    echo
+
+    p_section "Containers"
+    docker compose -f "$OBSERVABILITY_COMPOSE" ps
+    echo
+
+    p_section "Resource usage"
+    local container_ids
+    container_ids=$(docker compose -f "$OBSERVABILITY_COMPOSE" ps -q 2>/dev/null)
+    if [ -z "$container_ids" ]; then
+        p_muted "No running containers — start the stack with 'observability up'."
+        return
+    fi
+    # shellcheck disable=SC2086
+    docker stats --no-stream \
+        --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" \
+        $container_ids
+}
+
+observability_info() {
+    local grafana_port="${GRAFANA_PORT:-3010}"
+    local prometheus_port="${PROMETHEUS_PORT:-9090}"
+    local tempo_port="${TEMPO_HTTP_PORT:-3200}"
+    local loki_port="${LOKI_PORT:-3100}"
+    local otel_http="${OTEL_OTLP_HTTP_PORT:-4318}"
+
+    page_header "Observability · Info"
+    draw_box "URLs" \
+        "" \
+        "  ${c_bold}Grafana${c_reset}     http://localhost:${grafana_port}   ${c_muted}(admin/admin; anon viewer enabled)${c_reset}" \
+        "  ${c_bold}Prometheus${c_reset}  http://localhost:${prometheus_port}" \
+        "  ${c_bold}Tempo${c_reset}       http://localhost:${tempo_port}     ${c_muted}(query via Grafana — not for direct use)${c_reset}" \
+        "  ${c_bold}Loki${c_reset}        http://localhost:${loki_port}     ${c_muted}(query via Grafana — not for direct use)${c_reset}" \
+        ""
+    echo
+    draw_box "Wire the backend at the collector" \
+        "" \
+        "  Add to docker/.env:" \
+        "" \
+        "    ${c_accent}OTEL_EXPORTER_OTLP_ENDPOINT=http://orkestra-otel:${otel_http}${c_reset}" \
+        "    ${c_accent}OTEL_TRACES_ENABLED=true${c_reset}" \
+        "" \
+        "  Then restart the backend:" \
+        "" \
+        "    ${c_muted}docker compose -f docker-compose.dev.yml restart backend${c_reset}" \
+        ""
+    echo
+    draw_box "Dashboards" \
+        "" \
+        "  Open Grafana → ${c_bold}Orkestra${c_reset} folder → ${c_bold}Tenant traces + logs${c_reset}" \
+        "  Type a tenant UUID; trace, log, and metric panels are tenant-scoped." \
+        "  Click any trace_id in a log → jumps to Tempo. Click a span → jumps to logs." \
+        ""
+}
+
+# ---------------------------------------------------------------------------
+# Unified logs picker (SKU profiles + full-stack aware)
 # ---------------------------------------------------------------------------
 
 # Populates the global SERVICES array and SERVICE_FILE map.
@@ -1389,12 +1454,12 @@ list_all_services() {
 
     local -a files=()
     case "$profile" in
-        minimal)
-            files+=("$MINIMAL_COMPOSE_FILE")
-            ;;
         fullstack)
             files+=("$DOCKER_DIR/docker-compose.infra.yml")
             files+=("$COMPOSE_FILE")
+            ;;
+        observability)
+            files+=("$OBSERVABILITY_COMPOSE")
             ;;
         *)
             if is_sku_profile "$profile"; then
@@ -1497,14 +1562,42 @@ view_logs() {
         fi
     fi
 
-    local -a cmd=(docker compose -f "$compose_file" logs)
-    [ "$timestamps" = "true" ] && cmd+=(--timestamps)
-    if [ "$follow" = "true" ]; then
-        cmd+=(--follow)
-    else
-        cmd+=(--tail="$lines")
+    # If the compose-file's project has no matching container, but a
+    # container with this service label exists under another project (e.g.
+    # the SKU-profile merge case), tail that container directly via
+    # `docker logs` instead of `docker compose logs` (which would target an
+    # empty project and exit silently).
+    local cid_in_project cid_anywhere
+    cid_in_project=$(docker compose -f "$compose_file" ps -q "$service" 2> /dev/null | head -1)
+    if [ -z "$cid_in_project" ]; then
+        cid_anywhere=$(resolve_running_container "$compose_file" "$service")
     fi
-    cmd+=("$service")
+
+    local -a cmd
+    if [ -z "$cid_in_project" ] && [ -n "$cid_anywhere" ]; then
+        local owner_project
+        owner_project=$(docker inspect --format \
+            '{{ index .Config.Labels "com.docker.compose.project" }}' \
+            "$cid_anywhere" 2> /dev/null)
+        p_muted "  Service is running under a different compose project (${owner_project:-unknown}); tailing the container directly."
+        cmd=(docker logs)
+        [ "$timestamps" = "true" ] && cmd+=(--timestamps)
+        if [ "$follow" = "true" ]; then
+            cmd+=(--follow)
+        else
+            cmd+=(--tail "$lines")
+        fi
+        cmd+=("$cid_anywhere")
+    else
+        cmd=(docker compose -f "$compose_file" logs)
+        [ "$timestamps" = "true" ] && cmd+=(--timestamps)
+        if [ "$follow" = "true" ]; then
+            cmd+=(--follow)
+        else
+            cmd+=(--tail="$lines")
+        fi
+        cmd+=("$service")
+    fi
 
     echo
     # Build a space-joined command string; avoid ${cmd[*]} here because the
@@ -1567,14 +1660,14 @@ show_profile_menu() {
     echo
     draw_box "Orkestra Stack Manager" \
         "" \
-        "  ${c_accent}1${c_reset} ${c_bold}Minimal profile${c_reset}        ${c_muted}(build from source)${c_reset}" \
-        "     ${c_muted}core modules only, public images, modest VM${c_reset}" \
-        "" \
-        "  ${c_accent}2${c_reset} ${c_bold}Profile${c_reset}                 ${c_muted}(pull published image)${c_reset}" \
+        "  ${c_accent}1${c_reset} ${c_bold}Profile${c_reset}                 ${c_muted}(pull published image)${c_reset}" \
         "     ${c_muted}starter / billing / ai / saas / enterprise${c_reset}" \
         "" \
-        "  ${c_accent}3${c_reset} ${c_bold}Full stack${c_reset}              ${c_muted}(dev / staging / production)${c_reset}" \
+        "  ${c_accent}2${c_reset} ${c_bold}Full stack${c_reset}              ${c_muted}(dev / staging / production)${c_reset}" \
         "     ${c_muted}ENV autodetected from docker/.env${c_reset}" \
+        "" \
+        "  ${c_accent}3${c_reset} ${c_bold}Observability${c_reset}           ${c_muted}(Loki, Tempo, Prometheus, Grafana)${c_reset}" \
+        "     ${c_muted}ADR-0005 Phase D — runs alongside any app stack${c_reset}" \
         "" \
         "  ${c_accent}4${c_reset} ${c_bold}Quit${c_reset}" \
         ""
@@ -1654,20 +1747,6 @@ profile_ops_menu_loop() {
     done
 }
 
-show_minimal_menu() {
-    page_header "Minimal profile"
-    draw_box "Select operation" \
-        "" \
-        "  ${c_accent}1${c_reset}  Deploy / Update    ${c_muted}(up -d [--build])${c_reset}" \
-        "  ${c_accent}2${c_reset}  Stop               ${c_muted}(keeps volumes)${c_reset}" \
-        "  ${c_accent}3${c_reset}  Reset              ${c_muted}(wipes volumes — destructive)${c_reset}" \
-        "  ${c_accent}4${c_reset}  Status             ${c_muted}(ps + /health + stats)${c_reset}" \
-        "  ${c_accent}5${c_reset}  Logs               ${c_muted}(service picker)${c_reset}" \
-        "  ${c_accent}6${c_reset}  Info               ${c_muted}(URLs + dev-token recipe)${c_reset}" \
-        "  ${c_accent}7${c_reset}  Back to profile menu" \
-        ""
-}
-
 show_fullstack_menu() {
     page_header "Full stack"
     draw_box "Select operation" \
@@ -1680,25 +1759,33 @@ show_fullstack_menu() {
         ""
 }
 
-minimal_menu_loop() {
-    PROFILE="minimal"
+show_observability_menu() {
+    page_header "Observability stack"
+    draw_box "Select operation" \
+        "" \
+        "  ${c_accent}1${c_reset}  Up                 ${c_muted}(start the stack — Tempo, Prometheus, Loki, Grafana, …)${c_reset}" \
+        "  ${c_accent}2${c_reset}  Down               ${c_muted}(stop containers, keep volumes)${c_reset}" \
+        "  ${c_accent}3${c_reset}  Reset              ${c_muted}(wipe dashboards / metrics / logs — destructive)${c_reset}" \
+        "  ${c_accent}4${c_reset}  Status             ${c_muted}(ps + resource usage)${c_reset}" \
+        "  ${c_accent}5${c_reset}  Logs               ${c_muted}(service picker)${c_reset}" \
+        "  ${c_accent}6${c_reset}  Info               ${c_muted}(URLs + backend wiring recipe)${c_reset}" \
+        "  ${c_accent}7${c_reset}  Back to profile menu" \
+        ""
+}
+
+observability_menu_loop() {
     while true; do
-        show_minimal_menu
+        show_observability_menu
         printf '%s%s Select operation [1-7]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
         local choice
         read -r choice
         case "$choice" in
-            1)
-                local rebuild="no"
-                ask_yes_no "Rebuild images?" "n" && rebuild="yes"
-                minimal_deploy "$rebuild"
-                pause_for_return
-                ;;
-            2) minimal_stop; pause_for_return ;;
-            3) minimal_reset "ask"; pause_for_return ;;
-            4) minimal_status; pause_for_return ;;
-            5) logs_interactive "minimal"; pause_for_return ;;
-            6) minimal_info; pause_for_return ;;
+            1) observability_up; pause_for_return ;;
+            2) observability_down; pause_for_return ;;
+            3) observability_reset "ask"; pause_for_return ;;
+            4) observability_status; pause_for_return ;;
+            5) logs_interactive "observability"; pause_for_return ;;
+            6) observability_info; pause_for_return ;;
             7) PROFILE=""; return ;;
             *) p_warn "Invalid selection"; sleep 1 ;;
         esac
@@ -1741,14 +1828,6 @@ ${c_bold}USAGE${c_reset}
   ./orkestra.sh                    ${c_muted}# interactive TUI (profile menu)${c_reset}
   ./orkestra.sh <command> [args]   ${c_muted}# non-interactive CLI${c_reset}
 
-${c_bold}MINIMAL PROFILE${c_reset} ${c_muted}(builds locally from Dockerfile.minimal)${c_reset}
-  ${c_accent}minimal deploy${c_reset} [--build]          Start minimal stack (optionally rebuild)
-  ${c_accent}minimal stop${c_reset}                      Stop minimal stack (volumes kept)
-  ${c_accent}minimal reset${c_reset} [--yes]             Wipe volumes and redeploy
-  ${c_accent}minimal status${c_reset}                    Containers + /health + resources
-  ${c_accent}minimal info${c_reset}                      URLs, dev-token recipe, MODULES hint
-  ${c_accent}minimal logs${c_reset} <service> [flags]    View logs for a minimal-stack service
-
 ${c_bold}SKU PROFILE${c_reset} ${c_muted}(pulls published image from GHCR)${c_reset}
   ${c_accent}profile <name> deploy${c_reset} [--pull]    Start SKU stack (--pull refreshes the image)
   ${c_accent}profile <name> stop${c_reset}               Stop containers (volumes kept)
@@ -1768,6 +1847,14 @@ ${c_bold}FULL STACK${c_reset} ${c_muted}(uses ENV from docker/.env or ENV=... pr
   ${c_accent}status${c_reset}                            Containers + health + resources
   ${c_accent}logs${c_reset} <service> [flags]            View logs for a full-stack service
 
+${c_bold}OBSERVABILITY${c_reset} ${c_muted}(ADR-0005 Phase D — runs alongside any app stack)${c_reset}
+  ${c_accent}observability up${c_reset}                  Start Tempo + Prometheus + Loki + Promtail + Grafana
+  ${c_accent}observability down${c_reset}                Stop containers (volumes kept)
+  ${c_accent}observability reset${c_reset} [--yes]       Wipe volumes (dashboards/metrics/logs erased)
+  ${c_accent}observability status${c_reset}              Containers + resource usage
+  ${c_accent}observability info${c_reset}                URLs + backend wiring recipe
+  ${c_accent}observability logs${c_reset} <svc> [flags]  View logs for an observability service
+
 ${c_bold}LOG FLAGS${c_reset}
   ${c_accent}-f${c_reset}, ${c_accent}--follow${c_reset}           Follow log output (tail -f)
   ${c_accent}-n${c_reset}, ${c_accent}--lines${c_reset} N          Lines to show when not following (default 100)
@@ -1780,14 +1867,13 @@ ${c_bold}SHORTCUTS${c_reset}
 
 ${c_bold}EXAMPLES${c_reset}
   ./orkestra.sh
-  ./orkestra.sh minimal deploy --build
-  ./orkestra.sh minimal logs backend -f
-  ./orkestra.sh minimal reset --yes
   ./orkestra.sh profile billing deploy --pull
   ./orkestra.sh profile ai status
   ./orkestra.sh profile enterprise logs backend -f
   ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
   ./orkestra.sh logs orkestra-backend-dev -f
+  ./orkestra.sh observability up
+  ./orkestra.sh observability logs grafana -f
 
 ${c_bold}ENHANCEMENTS${c_reset}
   Install ${c_accent}gum${c_reset} (charm.sh) for prettier prompts, spinners, and choose menus.
@@ -1808,45 +1894,6 @@ cli_dispatch() {
         -v | --version | version)
             show_version
             exit 0
-            ;;
-
-        minimal)
-            PROFILE="minimal"
-            local subcmd=${1:-}
-            [ -n "$subcmd" ] && shift
-            case "$subcmd" in
-                deploy)
-                    local rebuild="no"
-                    while [ $# -gt 0 ]; do
-                        case "$1" in
-                            --build) rebuild="yes"; shift ;;
-                            *) die "Unknown flag: $1" ;;
-                        esac
-                    done
-                    minimal_deploy "$rebuild"
-                    ;;
-                stop) minimal_stop ;;
-                reset)
-                    local confirm="ask"
-                    while [ $# -gt 0 ]; do
-                        case "$1" in
-                            --yes | -y) confirm="yes"; shift ;;
-                            *) die "Unknown flag: $1" ;;
-                        esac
-                    done
-                    minimal_reset "$confirm"
-                    ;;
-                status) minimal_status ;;
-                info) minimal_info ;;
-                logs)
-                    local service=${1:-}
-                    [ -n "$service" ] && shift
-                    [ -z "$service" ] && die "Usage: ./orkestra.sh minimal logs <service> [-f] [-n N] [-t]"
-                    logs_cli "minimal" "$service" "$@"
-                    ;;
-                "") die "Missing minimal subcommand. Try --help." ;;
-                *) die "Unknown minimal subcommand: $subcmd" ;;
-            esac
             ;;
 
         profile)
@@ -1937,6 +1984,35 @@ cli_dispatch() {
             logs_cli "fullstack" "$service" "$@"
             ;;
 
+        observability)
+            local subcmd=${1:-}
+            [ -n "$subcmd" ] && shift
+            case "$subcmd" in
+                up) observability_up ;;
+                down) observability_down ;;
+                reset)
+                    local confirm="ask"
+                    while [ $# -gt 0 ]; do
+                        case "$1" in
+                            --yes | -y) confirm="yes"; shift ;;
+                            *) die "Unknown flag: $1" ;;
+                        esac
+                    done
+                    observability_reset "$confirm"
+                    ;;
+                status) observability_status ;;
+                info) observability_info ;;
+                logs)
+                    local service=${1:-}
+                    [ -n "$service" ] && shift
+                    [ -z "$service" ] && die "Usage: ./orkestra.sh observability logs <service> [-f] [-n N] [-t]"
+                    logs_cli "observability" "$service" "$@"
+                    ;;
+                "") die "Missing subcommand. Try --help." ;;
+                *) die "Unknown observability subcommand: $subcmd. Valid: up | down | reset | status | info | logs" ;;
+            esac
+            ;;
+
         *) die "Unknown command: $cmd. Try --help." ;;
     esac
 }
@@ -1958,21 +2034,23 @@ main() {
         exit 0
     fi
 
-    # Backward compat: if ENV is already set, jump straight to full-stack.
-    if [ -n "${ENV:-}" ]; then
-        fullstack_menu_loop
-        return
-    fi
-
+    # Always show the top-level menu. We used to auto-route into the
+    # full-stack loop when $ENV was set (from shell or docker/.env), but that
+    # silently hid the SKU-profile menu — so users who had deployed e.g.
+    # the `enterprise` profile would be shown the staging service list with
+    # everything marked "stopped" (since each compose file declares its own
+    # `name:`, the staging-project lookup misses orkestra-enterprise's
+    # containers). Force the menu so the user can pick the profile that
+    # matches their running stack.
     while true; do
         show_profile_menu
         printf '%s%s Select profile [1-4]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
         local choice
         read -r choice
         case "$choice" in
-            1) minimal_menu_loop ;;
-            2) profile_picker_loop ;;
-            3) fullstack_menu_loop ;;
+            1) profile_picker_loop ;;
+            2) fullstack_menu_loop ;;
+            3) observability_menu_loop ;;
             4)
                 echo
                 printf '%s%s Goodbye!%s\n' "$c_success" "$ic_ok" "$c_reset"

@@ -13,6 +13,14 @@
 //     successful entitlement grant/revoke landed, grouped by tenant tier.
 //     The Phase 2 plan calls for <2s propagation; this exposes it.
 //
+// ADR-0005 Phase B adds a fourth family:
+//
+//   - orkestra_http_request_duration_seconds — request latency histogram
+//     labelled by audience / method / route-template / status_class with
+//     trace_id attached as a Prometheus exemplar so Grafana can jump from
+//     a slow bucket straight to the matching Tempo span. Populated by the
+//     structured request logger middleware.
+//
 // ADR-0002 (docs/adr/0002-metrics-label-schema.md) freezes the label
 // schema. Adding labels requires a new ADR — Prometheus cardinality
 // explodes silently, and history breaks when labels change. The raw
@@ -51,6 +59,12 @@ type Collector struct {
 	entitlementLag *prometheus.GaugeVec
 	lastApplyMu    sync.RWMutex
 	lastApply      map[string]time.Time
+
+	// httpDuration is the ADR-0005 Phase B latency histogram. Cast to the
+	// ObserverVec interface for exemplar support — ObserveWithExemplar is
+	// only available on the *prometheus.HistogramVec receiver, but the
+	// type assertion isolates that detail so callers stay vanilla.
+	httpDuration *prometheus.HistogramVec
 
 	// registered tracks whether the collector has already been bound to
 	// the registry, so double-registration in tests is a no-op rather
@@ -120,6 +134,35 @@ func (c *Collector) buildMetrics() {
 		},
 		[]string{"tenant_kind"},
 	)
+
+	// httpDuration: HTTP request latency histogram. Labels are bounded:
+	//   audience      — "operator" | "client" | "service" (3 values).
+	//   method        — HTTP verb (~7 values).
+	//   route         — Chi RoutePattern() — the template (e.g.
+	//                   "/v1/users/{id}"), NEVER the raw path. ADR-0002
+	//                   forbids raw path labels; the template is bounded
+	//                   by the OpenAPI surface. Unmatched routes (404)
+	//                   collapse to "unknown" so a probe of random URLs
+	//                   can't blow out cardinality.
+	//   status_class  — "2xx" | "3xx" | "4xx" | "5xx" (4 values).
+	// Upper bound ≈ 3 × 7 × 200 × 4 = 16800 series. Real-world will
+	// stay much lower because most routes only see a handful of methods.
+	c.httpDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "orkestra",
+			Subsystem: "http",
+			Name:      "request_duration_seconds",
+			Help:      "HTTP request latency in seconds, labelled by audience / method / route-template / status_class. trace_id is attached as an exemplar so Grafana's Prometheus → Tempo jump works. See ADR-0005.",
+			Buckets:   prometheus.DefBuckets,
+			// NativeHistogramBucketFactor enables sparse native histograms
+			// when the scrape target advertises support; the classic
+			// buckets remain populated for backwards compatibility.
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
+		},
+		[]string{"audience", "method", "route", "status_class"},
+	)
 }
 
 // Register adds the collector's metrics to its internal registry. Safe to
@@ -129,7 +172,7 @@ func (c *Collector) Register() error {
 	if !atomic.CompareAndSwapUint32(&c.registered, 0, 1) {
 		return nil
 	}
-	for _, m := range []prometheus.Collector{c.cedarDivergence, c.cedarEnforced, c.capabilityDenied, c.entitlementLag} {
+	for _, m := range []prometheus.Collector{c.cedarDivergence, c.cedarEnforced, c.capabilityDenied, c.entitlementLag, c.httpDuration} {
 		if err := c.registry.Register(m); err != nil {
 			// rollback so the caller can retry with a fresh collector
 			atomic.StoreUint32(&c.registered, 0)
@@ -143,8 +186,18 @@ func (c *Collector) Register() error {
 // format. Mount it at /metrics on the public router; no authentication
 // (deployments that need per-network ACLs should front it with an IP
 // allowlist or a sidecar).
+//
+// EnableOpenMetrics negotiates the OpenMetrics format with clients that
+// advertise support via the Accept header (modern Prometheus scrapers
+// since 2.5). This is what carries exemplars on histograms — without
+// it the ADR-0005 Phase B trace_id exemplars never leave the process,
+// even though they are recorded. Scrapers that don't ask for
+// OpenMetrics keep getting the classic text format, so the upgrade is
+// backwards compatible.
 func (c *Collector) Handler() http.Handler {
-	return promhttp.HandlerFor(c.registry, promhttp.HandlerOpts{})
+	return promhttp.HandlerFor(c.registry, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	})
 }
 
 // RecordCedarDivergence increments the divergence counter. outcome is one
@@ -212,6 +265,76 @@ func (c *Collector) refreshLag() {
 	now := time.Now()
 	for kind, when := range c.lastApply {
 		c.entitlementLag.WithLabelValues(kind).Set(now.Sub(when).Seconds())
+	}
+}
+
+// RecordHTTPRequest observes a single HTTP request latency. Called from
+// the structured request logger middleware (ADR-0005 Phase B) after the
+// downstream handler has returned, so the route pattern is populated and
+// the final response status is known.
+//
+// audience is "operator" | "client" | "service" (or empty for surfaces
+// without an audience gate — the AI sidecar's internal mode). method is
+// the HTTP verb. route is the Chi RoutePattern() — the route template,
+// NEVER the raw path; an empty value is rewritten to "unknown" so 404s
+// on probe traffic don't blow out cardinality. status is the final HTTP
+// status code; values <100 or ≥600 are clamped to "unknown" status_class
+// to keep the label domain bounded.
+//
+// traceID, when non-empty, is attached as a Prometheus exemplar on the
+// observation so Grafana's Prometheus → Tempo "View trace" jump works
+// without external join tables. Pass the empty string when no span is
+// active; the observation still records but without an exemplar.
+//
+// Safe to call with a nil receiver — the no-op path lets call sites
+// pass metrics.Default() unconditionally without a nil guard.
+func (c *Collector) RecordHTTPRequest(audience, method, route string, status int, duration time.Duration, traceID string) {
+	if c == nil || c.httpDuration == nil {
+		return
+	}
+	if route == "" {
+		route = "unknown"
+	}
+	if audience == "" {
+		audience = "unknown"
+	}
+	observer := c.httpDuration.WithLabelValues(audience, method, route, statusClassForCode(status))
+	if traceID == "" {
+		observer.Observe(duration.Seconds())
+		return
+	}
+	// ObserveWithExemplar is only available on the *prometheus.Histogram
+	// receiver returned by GetMetricWith[LabelValues]. The type assertion
+	// is required because HistogramVec.WithLabelValues returns the
+	// generic prometheus.Observer interface.
+	if ex, ok := observer.(prometheus.ExemplarObserver); ok {
+		ex.ObserveWithExemplar(duration.Seconds(), prometheus.Labels{"trace_id": traceID})
+		return
+	}
+	observer.Observe(duration.Seconds())
+}
+
+// statusClassForCode collapses an integer HTTP status to a bounded label
+// per ADR-0002 ("prefer status_class over http_status"). Values outside
+// the standard 100–599 range fall into "unknown" rather than creating a
+// new series.
+func statusClassForCode(status int) string {
+	switch {
+	case status >= 100 && status < 200:
+		return "1xx"
+	case status >= 200 && status < 300:
+		return "2xx"
+	case status >= 300 && status < 400:
+		return "3xx"
+	case status >= 400 && status < 500:
+		return "4xx"
+	case status >= 500 && status < 600:
+		return "5xx"
+	default:
+		// Defensive: keep "unknown" rather than encoding the raw int
+		// so an off-by-one (e.g. status==0 from a hijacked connection)
+		// can't create one series per pathological value.
+		return "unknown"
 	}
 }
 

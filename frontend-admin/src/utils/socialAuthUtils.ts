@@ -1,5 +1,6 @@
 // Social OAuth utility functions for multiple providers
 
+import runtimeConfig from 'config/environment';
 interface SocialOAuthInitResponse {
   authUrl: string;
   state: string;
@@ -21,7 +22,7 @@ export type SocialProvider = 'google' | 'apple' | 'github' | 'discord';
 
 export const initiateSocialLogin = async (
   provider: SocialProvider,
-  backendUrl: string = import.meta.env.VITE_BACKEND_URL
+  backendUrl: string = runtimeConfig.apiUrl
 ): Promise<void> => {
   try {
     if (!backendUrl || backendUrl === 'undefined') {
@@ -66,7 +67,7 @@ export const initiateSocialLogin = async (
 export const handleSocialCallback = async (
   code: string,
   state: string,
-  backendUrl: string = import.meta.env.VITE_BACKEND_URL
+  backendUrl: string = runtimeConfig.apiUrl
 ): Promise<SocialOAuthCallbackResponse> => {
   try {
     const storedState = sessionStorage.getItem('oauth_state');
@@ -113,7 +114,7 @@ export const handleSocialCallback = async (
 };
 
 export const logoutSocial = async (
-  backendUrl: string = import.meta.env.VITE_BACKEND_URL,
+  backendUrl: string = runtimeConfig.apiUrl,
   allDevices: boolean = false
 ): Promise<void> => {
   try {

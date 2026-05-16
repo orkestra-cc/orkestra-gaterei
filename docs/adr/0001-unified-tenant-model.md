@@ -1,3 +1,9 @@
+---
+title: ADR-0001 — Unified Tenant model for two-tier multi-tenancy
+status: accepted
+public: true
+---
+
 # ADR-0001 — Unified `Tenant` model for two-tier multi-tenancy
 
 | Field | Value |
@@ -6,7 +12,7 @@
 | **Date** | 2026-04-18 |
 | **Authors** | @salvatore.balestrino |
 | **Supersedes** | — |
-| **Related** | Phase 0 of the [SOTA tenancy plan v2](../../../../../home/tore/.claude/projects/-mnt-c-Users-tore-orkestra/memory/project_tenancy_plan_v2.md) |
+| **Related** | Phase 0 of the internal SOTA tenancy plan v2 |
 
 ## Context
 

@@ -192,7 +192,7 @@ func (r *ModuleRegistry) InitAll(deps *Dependencies) error {
 	// Core modules: fatal on error. Non-core: attempt Init and track failures.
 	// All modules get routes registered (gated by ModuleGate middleware for non-core).
 	for _, m := range r.modules {
-		if err := m.Init(deps); err != nil {
+		if err := m.Init(r.depsFor(deps, m.Name())); err != nil {
 			if m.Category() == CategoryCore {
 				return fmt.Errorf("core module %s init: %w", m.Name(), err)
 			}
@@ -529,7 +529,7 @@ func (r *ModuleRegistry) RetryInit(name string) error {
 	r.deps.Services.SetReplaceMode(true)
 	defer r.deps.Services.SetReplaceMode(false)
 
-	if err := m.Init(r.deps); err != nil {
+	if err := m.Init(r.depsFor(r.deps, name)); err != nil {
 		r.mu.Lock()
 		r.failed[name] = err
 		r.mu.Unlock()
@@ -831,4 +831,24 @@ func stampChildren(children []NavItemSpec, moduleName string) {
 		children[i].ModuleName = moduleName
 		stampChildren(children[i].Children, moduleName)
 	}
+}
+
+// depsFor returns a shallow copy of deps with Logger pre-decorated with
+// slog.String("module", name). ADR-0005 §1.4 — every line emitted via
+// deps.Logger automatically carries the module attribute, which is
+// what backs the per-module level overrides (LOG_LEVEL_RAG=debug etc.)
+// and the {module="rag"} Loki filter without any module-side code
+// changes. Pointers (DB, RedisAdapter, Services, ConfigService) are
+// shared deliberately — only the logger differs per call. nil deps and
+// nil deps.Logger are tolerated so registry tests that pass partial
+// fixtures don't panic.
+func (r *ModuleRegistry) depsFor(deps *Dependencies, name string) *Dependencies {
+	if deps == nil {
+		return nil
+	}
+	scoped := *deps
+	if scoped.Logger != nil && name != "" {
+		scoped.Logger = scoped.Logger.With(slog.String("module", name))
+	}
+	return &scoped
 }

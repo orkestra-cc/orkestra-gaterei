@@ -3,6 +3,8 @@
  * Backend handles all OAuth flow, state management, and token exchange
  */
 
+import runtimeConfig from 'config/environment';
+
 type LoginType = 'login' | 'register';
 
 interface EveAuthResponse {
@@ -18,7 +20,7 @@ interface EveAuthResponse {
  * @returns Redirects to EVE Online SSO
  */
 export const initiateEveLogin = async (
-  backendUrl: string = import.meta.env.VITE_BACKEND_URL,
+  backendUrl: string = runtimeConfig.apiUrl,
   loginType: LoginType = 'login'
 ): Promise<void> => {
   const endpoint =

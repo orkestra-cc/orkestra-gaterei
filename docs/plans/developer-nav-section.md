@@ -1,6 +1,6 @@
 # Developer nav section — exposing Falcon demos in the sidebar
 
-**Status:** Plan only. Not yet implemented.
+**Status:** ✅ Shipped 2026-05-13 (commit `7d023df feat(frontend-admin): add Developer nav realm for Falcon demos`). Legacy nav exports retargeted at `paths.ref*` paths in `0ed1e7c` (2026-05-14).
 **Owner:** Salvatore
 **Drafted:** 2026-05-12
 **Scope:** `frontend-admin/` (Tier-1 operator console). No backend changes.

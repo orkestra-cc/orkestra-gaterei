@@ -1,12 +1,19 @@
+---
+title: ADR-0002 — Prometheus metric label schema
+status: accepted
+public: true
+---
+
 # ADR-0002 — Prometheus metric label schema
 
 | Field | Value |
 |---|---|
 | **Status** | Accepted |
 | **Date** | 2026-04-20 |
+| **Last amended** | 2026-05-16 — Phase B of [ADR-0005](0005-observability-logging-tracing-metrics.md) adds the `orkestra_http_request_duration_seconds` family. The amendment respects the "no raw path" rule by using the Chi route template, not the request URL. |
 | **Authors** | @salvatore.balestrino |
 | **Supersedes** | — |
-| **Related** | [ADR-0001](0001-unified-tenant-model.md), Phase 5.3 of the [tenancy plan v2](../../../../../home/tore/.claude/projects/-mnt-c-Users-tore-orkestra/memory/project_tenancy_plan_v2.md) |
+| **Related** | [ADR-0001](0001-unified-tenant-model.md), [ADR-0005](0005-observability-logging-tracing-metrics.md), Phase 5.3 of the internal tenancy plan v2 |
 
 ## Context
 
@@ -54,6 +61,22 @@ labels: {tenant_kind}
 
 - **tenant_kind**: `internal` | `external`. Fixed 2-value enumeration per ADR-0001.
 
+### `orkestra_http_request_duration_seconds` (added 2026-05-16, ADR-0005 Phase B)
+
+```
+type:   histogram (default Prometheus buckets, native histogram negotiated)
+labels: {audience, method, route, status_class}
+```
+
+- **audience**: `operator` | `client` | `service` | `unknown`. Fixed enumeration per [ADR-0003](0003-three-audience-host-split.md). The middleware injects `unknown` for surfaces that don't run behind an audience gate (the AI sidecar's single-surface mode falls into `service`).
+- **method**: HTTP verb. Bounded (~7 values).
+- **route**: **Chi route template** (e.g. `/v1/users/{id}`), NEVER the raw request path. Bounded by the OpenAPI surface (projected ceiling ~200 templates × 4 active methods each). Unmatched routes (404s on probe traffic) collapse to `unknown` so a hostile scanner can't blow out cardinality.
+- **status_class**: `1xx` | `2xx` | `3xx` | `4xx` | `5xx` | `unknown`. The "Forbidden labels" note below forbids `http_status` for this exact reason — `status_class` keeps the dimension bounded.
+
+The histogram observation carries `trace_id` as a Prometheus **exemplar** so Grafana's Prometheus → Tempo jump works without external join tables. Exemplars are only exposed on the OpenMetrics negotiation path (`Accept: application/openmetrics-text`) — the `/metrics` handler advertises both formats and Prometheus 2.5+ scrapes the right one automatically.
+
+Total cardinality upper bound: 4 audiences × ~7 methods × ~200 templates × 6 status classes ≈ 33k series in the worst case. Real-world will stay much lower because most templates only see a handful of methods.
+
 ### Forbidden labels
 
 The following labels are **explicitly banned** from Phase-5-and-later metrics without a superseding ADR:
@@ -87,4 +110,4 @@ The following labels are **explicitly banned** from Phase-5-and-later metrics wi
 
 1. **Use the OpenTelemetry metrics SDK instead of Prometheus client_golang.** Rejected for Phase 5 because OTEL metrics is still maturing and the Prometheus client's `promhttp` handler is the simplest shippable surface. A future ADR may flip this.
 2. **Salted HMAC hash of tenant.id as a label.** Rejected: still high cardinality (50k tenants ⇒ 50k series), still principal-identifying under correlation attacks. The cost is real; the benefit is marginal; Tempo covers the use case.
-3. **Per-route request counters as the first metric family.** Rejected for Phase 5.3 specifically — the cardinality trap is easy to walk into and the three chosen families deliver more tenancy-plan-relevant data. A future sub-phase can add request counters behind a route-template normalization.
+3. **Per-route request counters as the first metric family.** Rejected for Phase 5.3 specifically — the cardinality trap is easy to walk into and the three chosen families deliver more tenancy-plan-relevant data. A future sub-phase can add request counters behind a route-template normalization. **(Resolved 2026-05-16: ADR-0005 Phase B added `orkestra_http_request_duration_seconds` using the Chi route template, satisfying the "route-template normalization" requirement.)**

@@ -1,6 +1,6 @@
 # Backend — Go Modular Server
 
-Single Go binary. 6 core modules (always loaded) + 13 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
+Single Go binary. 7 core modules (always loaded) + 13 optional addons. Slim `cmd/server/main.go` (~240 lines) that wires infrastructure and delegates everything else to the module registry. Port 3000 inside the container.
 
 ## Stack
 
@@ -20,7 +20,7 @@ ProvidedServices, RequiredServices, OptionalServices
 Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 ```
 
-**Registration** (`cmd/server/catalog.go` + `catalog_<addon>.go`): core modules (user → notification → tenant → authz → auth → navigation) are always loaded — they live in `catalog.go`. Each optional addon lives in its own `cmd/server/catalog_<addon>.go` file, gated by `//go:build !no_addons || addon_<name>`, and registers itself into `optionalModules` via `init()`. The default build (no tags) compiles every addon — same behavior as before. Pass `-tags "no_addons"` for a core-only "starter" binary, or `-tags "no_addons addon_billing addon_documents"` for a curated subset. All optional modules that are compiled in are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
+**Registration** (`cmd/server/catalog.go` + `catalog_<addon>.go`): core modules (user → notification → tenant → authz → auth → navigation → logging) are always loaded — they live in `catalog.go`. Each optional addon lives in its own `cmd/server/catalog_<addon>.go` file, gated by `//go:build !no_addons || addon_<name>`, and registers itself into `optionalModules` via `init()`. The default build (no tags) compiles every addon — same behavior as before. Pass `-tags "no_addons"` for a core-only "starter" binary, or `-tags "no_addons addon_billing addon_documents"` for a curated subset. All optional modules that are compiled in are always instantiated, initialized, and routed at boot — only enabled ones have `Start()` called. The admin API can enable/disable modules at runtime via `StartModule()`/`StopModule()` without restart. The registry topologically sorts by `Dependencies()` so producers init before consumers, auto-creates MongoDB collections with their declared indexes, seeds configs, collects nav items, and gates routes for disabled modules via `ModuleGate` middleware.
 
 **Profile builds** (Makefile + Dockerfile `BUILD_TAGS` arg): the canonical addon SKUs are defined in `backend/Makefile`. Build-tag sets are closed under module dependencies (see the `Dependencies()` declarations) — picking a profile that omits a transitive dependency fails loudly at boot via the registry's topo sort, not silently at request time.
 
@@ -33,7 +33,7 @@ Enabled, Init, RegisterRoutes, Start, Stop, HealthCheck
 | saas         | `make build-saas`      | `no_addons addon_subscriptions addon_payments addon_compliance addon_identity addon_dev` |
 | enterprise   | `make build`           | (no tags — every addon)                                                                  |
 
-Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). `Dockerfile.minimal` defaults to `BUILD_TAGS="no_addons addon_dev"` so `docker-compose.minimal.yml` ships a true minimal binary. CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge. On push to `dev`/`main`, the same matrix publishes one image per profile to GHCR: `ghcr.io/<repo>/backend:<profile>` (rolling) and `:<profile>-<sha>` (pinned). `:latest` stays as an alias for `:enterprise` for backward compatibility.
+Container builds: `Dockerfile` accepts `--build-arg BUILD_TAGS="..."` (default empty = enterprise). CI builds every profile on each PR via the matrix in `.github/workflows/backend.yml` — that's how a missing tag in `catalog_<addon>.go` gets caught before merge. On push to `dev`/`main`, the same matrix publishes one image per profile to GHCR: `ghcr.io/<repo>/backend:<profile>` (rolling) and `:<profile>-<sha>` (pinned). `:latest` stays as an alias for `:enterprise` for backward compatibility.
 
 **Cross-module communication**: modules discover each other through the `ServiceRegistry` (typed key-value store). Consumer modules import interfaces from `pkg/sdk/iface/` — never import another module's `services/` or `repository/` package.
 
@@ -54,13 +54,14 @@ backend/
 │   └── ai-service/                 # AI sidecar binary (optional)
 │       └── main.go
 ├── internal/
-│   ├── core/                       # Always loaded (init order: user → notification → tenant → authz → auth → navigation)
+│   ├── core/                       # Always loaded (init order: user → notification → tenant → authz → auth → navigation → logging)
 │   │   ├── user/                   # User CRUD, roles, documents
 │   │   ├── notification/           # Email delivery, templates, preferences, unsubscribe
 │   │   ├── tenant/                 # Orgs + memberships (two-tier tenancy)
 │   │   ├── authz/                  # Permissions, roles, Cedar policy engine
 │   │   ├── auth/                   # Email/password + OAuth 2.1, JWT, sessions, RBAC
-│   │   └── navigation/             # Dynamic menu from module NavItems
+│   │   ├── navigation/             # Dynamic menu from module NavItems
+│   │   └── logging/                # Runtime log-level admin (ADR-0005 Phase F)
 │   ├── addons/                     # Optional — toggled at /admin/modules
 │   │   ├── billing/                # FatturaPA/SDI invoicing
 │   │   ├── documents/              # PDF generation via Gotenberg
@@ -91,8 +92,7 @@ backend/
 ├── tools/
 │   └── tenantscope/                # Static analyzer: enforces tenantrepo use in addons (CI gate)
 ├── Dockerfile                      # Multi-stage: dev (AIR) / production — Chainguard hardened base
-├── Dockerfile.minimal              # Public-image build (golang:1.25-alpine → alpine:3.20) used by the minimal compose profile
-├── Dockerfile.ai-service           # AI service build
+├── Dockerfile.ai-service           # AI service build (multi-stage, dhi.io hardened base)
 └── go.mod
 ```
 
@@ -122,6 +122,21 @@ Users enable the module via the admin UI at `/admin/modules` (takes effect immed
 
 OpenAPI specs are auto-generated by Huma v2 — add endpoints with `huma.Register()` and they appear in `/docs` after restart.
 
+### Canonical spec for docs.orkestra.cc
+
+`backend/openapi/enterprise.json` is the **canonical OpenAPI document** consumed by [docs.orkestra.cc](https://docs.orkestra.cc) (rendered under `/api` via `docusaurus-plugin-openapi-docs`). It is **committed**, **regenerated by `make openapi-dump`**, and **gated by `make openapi-check`** in `ci-backend`.
+
+When you change routes, regenerate before committing:
+
+```bash
+# from backend/
+(cd ../docker && docker compose -f docker-compose.infra.yml up -d)   # if not already running
+make openapi-dump                                                     # writes openapi/enterprise.json
+git add openapi/enterprise.json
+```
+
+The dump runs the full enterprise build (`cmd/server` with default tags) with `OPENAPI_DUMP=1` set, which serializes `huma.API.OpenAPI()` to disk and exits before binding any listener. Module Init runs against an isolated Mongo namespace (`orkestra_openapi_dump`) and Redis DB index `15`, so dev/staging data is never touched. Both `operatorAPI` and `clientAPI` share a single in-memory OpenAPI document (the audience split lives at the mux/host level today), so one file covers both surfaces.
+
 ## Dev Tokens (Dev/Staging Only)
 
 ```bash
@@ -149,14 +164,15 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose logs -f orkestra-backend-dev
 ```
 
-**Minimal stack (public images only, core modules only, no hot reload):**
+**SKU profile stack (pre-built image from GHCR, no source build, no hot reload):**
 ```bash
 cd docker
-docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
-docker compose -f docker-compose.minimal.yml logs -f backend
+docker compose -f docker-compose.infra.yml up -d                       # MongoDB + Redis
+docker compose -f docker-compose.starter.yml --env-file .env up -d     # or billing / ai / saas / enterprise
+docker compose -f docker-compose.starter.yml logs -f backend
 ```
 
-The minimal stack builds from `backend/Dockerfile.minimal` which uses `golang:1.25-alpine` → `alpine:3.20`. It's the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend with the core modules + dev token generator. Runs on host ports 3050/8050/27050/6350 to avoid colliding with the dev stack.
+The five SKU compose files (`starter`/`billing`/`ai`/`saas`/`enterprise`) pull `ghcr.io/orkestra-cc/orkestra/backend:<sku>` and layer on `docker-compose.infra.yml`. They're the recommended path when you don't have `dhi.io` registry access or just want a smoke-test-ready backend; the `starter` SKU is the leanest (core modules only, no addons), with `enterprise` covering every addon.
 
 **WSL2 caveat**: AIR doesn't detect file changes on Windows mounts. Rebuild manually:
 ```bash
@@ -165,6 +181,16 @@ docker restart orkestra-backend-dev
 ```
 
 **Log level**: controlled by `LOG_LEVEL` env var — `debug` (dev), `info` (staging), `warn` (prod).
+
+**Structured request logger** (ADR-0005 Phase A): every HTTP request produces one JSON line via `shared/middleware.RequestLogger` (mounted outermost on each audience mux after `RequestID` + `RealIP`). The payload is **allowlist-only** — never log bodies, headers, or raw query strings; module code uses `slog.InfoContext(ctx, "msg", slog.String(...))` so `trace_id` / `span_id` correlate to the same request automatically via `shared/utils.TraceContextHandler`. Tunables: `LOG_HTTP_SKIP_PATHS` (default `/health,/ready,/metrics,/openapi.json`), `LOG_HTTP_SLOW_THRESHOLD_MS` (default `1000`).
+
+**HTTP latency histogram** (ADR-0005 Phase B): the same middleware observes `orkestra_http_request_duration_seconds` on `metrics.Default()` after each request, labelled `{audience, method, route, status_class}` with the Chi route template (never raw path) and `trace_id` as a Prometheus exemplar. Streaming endpoints (paths ending `/stream`) are intentionally excluded so SSE lifetime doesn't pollute API p99. The histogram is wired by the `setupMiddleware` call sites — modules don't need to register anything.
+
+**Per-module log levels** (ADR-0005 Phase C): every line emitted via `deps.Logger` is auto-stamped with `module=<name>` by the module registry (`pkg/sdk/module/registry.go::depsFor`). Set `LOG_LEVEL_<MODULE>=debug` (e.g. `LOG_LEVEL_RAG=debug`) to widen one module's level without affecting the global `LOG_LEVEL` — the `shared/utils.PerModuleLevelHandler` reads these at boot and gates `Enabled` accordingly. Bare `slog.Info(...)` outside the module pipeline still uses the global threshold.
+
+**OTLP logs fanout** (ADR-0005 Phase E): set `OTEL_LOGS_ENABLED=true` + `OTEL_EXPORTER_OTLP_ENDPOINT=…` to fan every log record out to an OTLP backend (collector → Loki/Tempo, or a vendor like Honeycomb/Datadog/Grafana Cloud/Axiom). `telemetry.InitLogs` builds the exporter + `LoggerProvider`; `shared/utils.FanoutHandler` tees stdout + OTLP so stdout stays the source of truth. The AI sidecar mirrors the wiring so the split-binary deployment is consistent.
+
+**Runtime log-level admin** (ADR-0005 Phase F): the `logging` core module (`internal/core/logging/`) owns the `log_levels` Mongo collection and exposes `/v1/admin/observability/log-levels` for the global level + per-module overrides. The slog handler's `LevelResolver` is hot-swapped at boot from the env-driven static snapshot to the DB-backed live one — admin edits via the UI at `/admin/observability/log-levels` take effect instantly via the shared `resolverBox` atomic.Pointer that every existing module logger shares. Env vars (`LOG_LEVEL`, `LOG_LEVEL_<MODULE>`) still seed boot defaults; the DB doc overrides them once present.
 
 ## Rules
 

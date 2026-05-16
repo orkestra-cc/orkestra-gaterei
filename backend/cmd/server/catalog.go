@@ -6,6 +6,7 @@ import (
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/core/auth"
 	"github.com/orkestra/backend/internal/core/authz"
+	"github.com/orkestra/backend/internal/core/logging"
 	"github.com/orkestra/backend/internal/core/navigation"
 	"github.com/orkestra/backend/internal/core/notification"
 	"github.com/orkestra/backend/internal/core/tenant"
@@ -26,6 +27,9 @@ import (
 //     also the only core module that takes *config.Config at construction
 //     time, retired from Dependencies.Config in Phase 1c
 //   - navigation: menu aggregation (no deps; reads others' NavItems at runtime)
+//   - logging: ADR-0005 Phase F admin surface for runtime log-level mutation
+//     (no deps; its own service is read by main.go AFTER InitAll to hot-swap
+//     the slog handler's resolver).
 func coreModules(cfg *config.Config) []func() module.Module {
 	return []func() module.Module{
 		func() module.Module { return user.NewModule() },
@@ -34,6 +38,7 @@ func coreModules(cfg *config.Config) []func() module.Module {
 		func() module.Module { return authz.NewModule() },
 		func() module.Module { return auth.NewModule(cfg) },
 		func() module.Module { return navigation.NewModule() },
+		func() module.Module { return logging.NewModule() },
 	}
 }
 

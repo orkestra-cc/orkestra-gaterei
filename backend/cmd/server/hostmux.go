@@ -38,9 +38,17 @@ type hostMux struct {
 // opsPaths is the closed set of paths that escape the host-header gate
 // when no audience matches. Kept tight on purpose — adding a path here
 // exposes it on every Host the binary answers to.
+//
+// /metrics is included so Prometheus can scrape the pod by service DNS
+// (e.g. orkestra-backend:3000) without spoofing the operator Host header
+// — Prometheus has no per-scrape Host override. Same in-network exposure
+// model as /health and /ready: any pod on the docker/k8s network can
+// reach it, but the reverse proxy decides whether it's reachable from
+// outside the trust boundary. The lanOpsHandler is the canonical owner.
 var opsPaths = map[string]struct{}{
-	"/health": {},
-	"/ready":  {},
+	"/health":  {},
+	"/ready":   {},
+	"/metrics": {},
 }
 
 func newHostMux(routes map[string]http.Handler, devFallthrough, opsHandler http.Handler) *hostMux {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 )
 
 type RedisConfig struct {
@@ -38,6 +39,14 @@ func NewRedisConnection(ctx context.Context, config RedisConfig) (*redis.Client,
 	opts.ConnMaxLifetime = config.ConnMaxLifetime
 	opts.ReadTimeout = config.ReadTimeout
 	opts.WriteTimeout = config.WriteTimeout
+
+	// go-redis v9 feature-detects `CLIENT MAINT_NOTIFICATIONS` against the
+	// server on every handshake. Stock Redis (community edition) and
+	// Redis Stack 8.2 don't implement the subcommand yet, so the client
+	// logs a noisy "auto mode fallback" warning on every connection.
+	// Orkestra doesn't use Redis Enterprise / Cloud (where the feature
+	// applies), so disable it outright and reclaim the boot logs.
+	opts.MaintNotificationsConfig = &maintnotifications.Config{Mode: maintnotifications.ModeDisabled}
 
 	client := redis.NewClient(opts)
 

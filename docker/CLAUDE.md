@@ -86,12 +86,9 @@ ORKESTRA uses a three-stage DevOps workflow: **Development**, **Staging**, and *
 
 ```bash
 # Interactive TUI — single entry point for every stack operation
-./orkestra.sh                      # Profile menu: minimal / SKU profile / full stack
+./orkestra.sh                      # Profile menu: SKU profile / full stack
 
 # CLI mode (scriptable, same operations)
-./orkestra.sh minimal deploy --build
-./orkestra.sh minimal logs backend -f
-./orkestra.sh minimal reset --yes
 ./orkestra.sh profile billing deploy --pull
 ./orkestra.sh profile ai status
 ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
@@ -117,7 +114,7 @@ Keep this split when touching `.env*` or `docker-compose.*.yml`:
 | Encryption keys (`OAUTH_TOKEN_ENCRYPTION_KEY`, `ORKESTRA_KMS_MASTER_KEY`, optional `MFA_SECRET_ENCRYPTION_KEY`) | process — bootstraps ConfigService | ✅ yes |
 | Process-scoped auth tunables (`AUTH_REQUIRE_EMAIL_VERIFICATION`, `AUTH_RISK_STEP_UP_THRESHOLD`, `WEBAUTHN_RP_ID`, `AUTH_GEOIP_DB_PATH`, `TENANT_KIND_ENFORCEMENT`, `CEDAR_ENFORCE_ACTIONS`) | process | ✅ yes |
 | `CONTAINER_CONTROL_ENABLED`, `DOCKER_GID`, `AI_SERVICE_URL`, `AI_SERVICE_PORT` | process | ✅ yes |
-| `ORKESTRA_PROFILE` (starter / minimal / billing / ai / saas / enterprise) — pre-enables the SKU's addons on first boot only; subsequent boots use the `module_configs` document | process — first-boot seeder | ✅ yes |
+| `ORKESTRA_PROFILE` (starter / billing / ai / saas / enterprise) — pre-enables the SKU's addons on first boot only; subsequent boots use the `module_configs` document | process — first-boot seeder | ✅ yes |
 | `SALES_*`, `RAG_CHUNK_*` | process — runtime knobs not yet migrated to ConfigSchema | ✅ yes (transitional) |
 | OAuth provider credentials (`OAUTH_GOOGLE/APPLE/GITHUB/DISCORD_*`) | ConfigService (auth module) | ❌ admin UI |
 | OpenAPI billing / company credentials (`OPENAPI_BILLING_*`, `OPENAPI_COMPANY_*`, `OPENAPI_OAUTH_BASE_URL`, `OPENAPI_SANDBOX_MODE`, `BILLING_WEBHOOK_*`) — `accountEmail` + `apiKey` for the shared OAuth minter, or legacy static `bearerToken` | ConfigService (billing, company modules) | ❌ admin UI |
@@ -152,24 +149,21 @@ Vars **deleted as dead code** during the cleanup (do not re-add): `MODULES`, `BA
 
 ### Core Philosophy
 
-Separate infrastructure from applications across five compose files:
+Separate infrastructure from applications. One infra compose, three full-stack composes (dev/staging/prod), five SKU-pull composes:
 
-1. **`docker-compose.minimal.yml`** — Self-contained 4-container stack (mongo, redis, backend, frontend-admin) using only public images. Recommended for first boot on a modest VM or when you don't have `dhi.io` registry access.
-2. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
-3. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
-4. **`docker-compose.staging.yml`** - Application services in staging mode (staging-like env + AIR/Vite hot reload)
-5. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
-
-The minimal profile is **self-contained** — it does NOT layer on top of `docker-compose.infra.yml`. It brings its own mongo/redis containers (on non-standard ports to avoid colliding with the dev stack's infra containers) and only starts the core module chain.
+1. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
+2. **`docker-compose.dev.yml`** - Application services in development mode with hot reload
+3. **`docker-compose.staging.yml`** - Application services in staging mode (staging-like env + AIR/Vite hot reload)
+4. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
+5. **`docker-compose.{starter,billing,ai,saas,enterprise}.yml`** - SKU profiles pulling a pre-built backend image from GHCR (layer on `docker-compose.infra.yml`)
 
 ### File Organization
 
 ```
 /                              # Project root
-├── README.md                  # Leads with the minimal bootstrap path
+├── README.md
 ├── orkestra.sh                # Unified TUI + CLI for the whole stack (replaces deploy.sh and logs.sh)
 └── docker/
-    ├── docker-compose.minimal.yml # Minimal: self-contained 4-container stack
     ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
     ├── docker-compose.dev.yml     # Development: Backend, Frontend with hot reload
     ├── docker-compose.staging.yml # Staging: AIR/Vite hot reload + staging-like env
@@ -181,7 +175,6 @@ The minimal profile is **self-contained** — it does NOT layer on top of `docke
     ├── docker-compose.saas.yml       # Profile pull: subscriptions/payments/compliance/identity SKU
     ├── docker-compose.enterprise.yml # Profile pull: every addon (alias for :latest)
     ├── .env.example               # Template for environment files
-    ├── .env.minimal               # Tracked dev-only env for the minimal profile
     ├── .env                       # Active env (gitignored) - contains ENV=development|staging|production
     ├── keys/                      # JWT and OAuth keys (gitignored)
     └── mongo-init/                # MongoDB initialization scripts
@@ -189,7 +182,7 @@ The minimal profile is **self-contained** — it does NOT layer on top of `docke
 
 ### Environment Combinations
 
-- **Minimal**: `docker-compose.minimal.yml` + `.env.minimal` — one-command boot with core modules only, uses public images
+- **SKU profile (first-boot, lightest path)**: `docker-compose.infra.yml` + `docker-compose.<sku>.yml` + `.env` — pulls a pre-built backend image (`starter` for core only, up to `enterprise` for every addon)
 - **Development**: `docker-compose.infra.yml` + `docker-compose.dev.yml` + `.env` (with `ENV=development`)
 - **Staging**: `docker-compose.infra.yml` + `docker-compose.staging.yml` + `.env` (with `ENV=staging`)
 - **Production**: `docker-compose.infra.yml` + `docker-compose.prod.yml` + `.env` (with `ENV=production`)
@@ -214,32 +207,23 @@ cp .env.example .env.production
 
 ### Using orkestra.sh (Recommended)
 
-`orkestra.sh` is the single entry point for every stack operation. It works as both an interactive TUI and a scriptable CLI, and knows about three deployment shapes: **minimal** (build from source), **SKU profile** (pull a per-profile image from GHCR — `starter` / `billing` / `ai` / `saas` / `enterprise`), and **full stack** (dev / staging / prod, auto-detected from `docker/.env`).
+`orkestra.sh` is the single entry point for every stack operation. It works as both an interactive TUI and a scriptable CLI, and knows about two deployment shapes: **SKU profile** (pull a per-profile image from GHCR — `starter` / `billing` / `ai` / `saas` / `enterprise`), and **full stack** (dev / staging / prod, auto-detected from `docker/.env`).
 
 ```bash
 # Interactive TUI — profile menu appears, then a per-profile op menu
 ./orkestra.sh
 
 # The TUI flow:
-# 1. Pick profile: "Minimal" / "Profile" (SKU picker) / "Full stack"
-# 2. Minimal: Deploy / Stop / Reset (wipe volumes) / Status / Logs / Info / Back
-# 3. Profile: pick a SKU (starter / billing / ai / saas / enterprise) → ops menu
-#    (same shape as Minimal: Deploy [--pull] / Stop / Reset / Status / Logs / Info)
-# 4. Full stack: Deploy (with scope selection) / Stop / Status / Logs / Back
-# 5. ENV is autodetected from docker/.env for the full-stack path
+# 1. Pick profile: "Profile" (SKU picker) / "Full stack"
+# 2. Profile: pick a SKU (starter / billing / ai / saas / enterprise) → ops menu
+#    (Deploy [--pull] / Stop / Reset / Status / Logs / Info)
+# 3. Full stack: Deploy (with scope selection) / Stop / Status / Logs / Back
+# 4. ENV is autodetected from docker/.env for the full-stack path
 ```
 
 **CLI mode** — same operations, non-interactive, suitable for scripting and CI:
 
 ```bash
-# Minimal profile (built locally from Dockerfile.minimal)
-./orkestra.sh minimal deploy [--build]
-./orkestra.sh minimal stop
-./orkestra.sh minimal reset [--yes]
-./orkestra.sh minimal status
-./orkestra.sh minimal info
-./orkestra.sh minimal logs <service> [-f] [-n N] [-t]
-
 # SKU profile (pulled from GHCR; <name> = starter | billing | ai | saas | enterprise)
 ./orkestra.sh profile <name> deploy [--pull]
 ./orkestra.sh profile <name> stop
@@ -255,7 +239,7 @@ cp .env.example .env.production
 ./orkestra.sh logs <service> [-f] [-n N] [-t]
 ```
 
-**Backward-compat shortcut**: `ENV=development ./orkestra.sh` skips the profile menu and opens the full-stack TUI directly (same convention the old deploy.sh used). Any existing scripted usage along those lines keeps working.
+**Interactive TUI always shows the top-level profile menu** (SKU profile vs. full stack), even when `ENV` is set in the shell or in `docker/.env`. Auto-routing into the full-stack loop based on `$ENV` was removed because it hid the SKU-profile picker — e.g. with a running `enterprise` stack and `ENV=staging`, the staging-project log lookup would report every container "stopped" because each compose file declares its own `name:` and the running containers live under `orkestra-enterprise`. CLI usage like `ENV=development ./orkestra.sh deploy --scope backend` is unaffected — the CLI dispatch path never enters the interactive menu.
 
 ### Manual Docker Compose (Alternative)
 
@@ -274,32 +258,28 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 ## Service Architecture
 
-### Minimal Profile (`docker-compose.minimal.yml`)
+### SKU profiles (`docker-compose.{starter,billing,ai,saas,enterprise}.yml`)
 
-**Self-contained 4-container stack using only public images — recommended for first boot**
+**Pulls a pre-built backend image from GHCR; layers on `docker-compose.infra.yml`.** Recommended for first boot — no source build, no `dhi.io` registry access required.
 
-| Service      | Host port | Purpose       | Features                                                              |
-| ------------ | --------- | ------------- | --------------------------------------------------------------------- |
-| **mongodb**  | 27050     | Primary DB    | `mongo:8.0`, authenticated healthcheck                                |
-| **redis**    | 6350      | Cache         | `redis:8.2-alpine`                                                    |
-| **backend**  | 3050      | Go API server | Built from `backend/Dockerfile.minimal` (public `golang:1.25-alpine`) |
-| **frontend-admin** | 8050      | React web app | Built from `frontend-admin/Dockerfile` (`nginx:alpine` static serving)      |
+| SKU | Addons compiled in |
+| --- | --- |
+| `starter` | core only (no addons) |
+| `billing` | billing + documents + company |
+| `ai` | graph + aimodels + rag + agents + sales |
+| `saas` | subscriptions + payments + compliance + identity |
+| `enterprise` | every addon (alias of `:latest`) |
 
-The minimal profile:
-
-- Uses **only publicly available images** (no `dhi.io` Chainguard registry required)
-- Runs on **non-standard host ports** (3050/8050/27050/6350) so it coexists with the dev/staging/prod stacks without colliding
-- Boots **only the core modules** (auth, user, navigation) plus the `dev` token generator — no Gotenberg, Memgraph, Hindsight, Ollama, or AI sidecar
-- Has its own `.env.minimal` file (tracked in git, all values are dev placeholders)
-- Is a **self-contained compose file** — do NOT layer `docker-compose.infra.yml` on top of it
+Each compose file pulls `ghcr.io/orkestra-cc/orkestra/backend:<sku>` and starts the backend on host port 3000. Toggle additional compiled-in addons at runtime via `/admin/modules`.
 
 ```bash
 cd docker
-docker network create orkestra-network   # once, if it does not exist
-docker compose -f docker-compose.minimal.yml --env-file .env.minimal up -d
+docker network create orkestra-network                            # once, if it does not exist
+docker compose -f docker-compose.infra.yml up -d                  # MongoDB + Redis
+docker compose -f docker-compose.starter.yml --env-file .env up -d  # or billing / ai / saas / enterprise
 ```
 
-All optional modules (billing, rag, agents, etc.) are still instantiated when the minimal profile boots — they sit idle until you toggle them on at `/admin/modules`. The registry auto-resolves transitive dependencies on enable.
+All compiled-in addons are instantiated at boot regardless of enabled state — they sit idle until you toggle them on at `/admin/modules`. The registry auto-resolves transitive dependencies on enable.
 
 ### Infrastructure Services (`docker-compose.infra.yml`)
 
@@ -358,7 +338,7 @@ The dev/staging/prod compose files mount `/var/run/docker.sock` into the `orkest
 | Value | Effect |
 |-------|--------|
 | `true` (default in dev/staging/prod) | Backend uses the Docker SDK to manage declared containers |
-| `false` (default in minimal) | Container control is a no-op; operators manage infra externally (Kubernetes, systemd, etc.) |
+| `false` (default in SKU-profile composes) | Container control is a no-op; operators manage infra externally (Kubernetes, systemd, etc.) |
 
 **Security**: mounting docker.sock gives the backend container effective root on the host. Acceptable on dev workstations; for production or shared hosts, front the socket with `tecnativa/docker-socket-proxy` restricted to `/containers/...` endpoints and point `DOCKER_HOST` at the proxy instead of the raw socket.
 
@@ -465,11 +445,10 @@ curl -i -H 'Host: example.com' http://localhost:3000/health
 Host ports vary per profile so multiple stacks can coexist on the same machine. Container-internal ports stay standard.
 
 ```
-Minimal profile (docker-compose.minimal.yml):
-3050  → backend:3000      # API server
-8050  → frontend-admin:80       # Web application
-27050 → mongodb:27017     # Dedicated mongo for minimal
-6350  → redis:6379        # Dedicated redis for minimal
+SKU profile (docker-compose.infra.yml + docker-compose.<sku>.yml):
+3000  → backend:3000             # API server (image from GHCR)
+27027 → mongodb:27017            # Shared infra mongo
+6387  → redis:6379               # Shared infra redis
 
 Dev stack (docker-compose.infra.yml + docker-compose.dev.yml):
 3007  → backend:3000             # API server
@@ -614,16 +593,25 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 
 ### Self-hosted OTEL stack (docker-compose.observability.yml)
 
-Phase 5.2 of the tenancy plan ships a self-hosted observability profile that layers on top of the dev/staging/prod stacks. Four containers, all pinned public images:
+Phase 5.2 of the tenancy plan ships a self-hosted observability profile that layers on top of the dev/staging/prod stacks. After ADR-0005 Phase D, six containers, all pinned public images:
 
 | Service           | Image                                         | Host port | Purpose                                                                            |
 | ----------------- | --------------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
 | **otel-collector**| `otel/opentelemetry-collector-contrib:0.96.0` | 4318 / 4317 | OTLP receiver; fans traces to Tempo, exposes collected metrics for Prometheus     |
 | **tempo**         | `grafana/tempo:2.4.1`                         | 3200        | Trace backend (local storage, 72 h retention)                                      |
 | **prometheus**    | `prom/prometheus:v2.51.2`                     | 9090        | Metric scraper (15 d retention)                                                    |
-| **grafana**       | `grafana/grafana-oss:10.4.2`                  | 3010        | UI; Tempo + Prometheus datasources auto-provisioned; "Tenant traces" dashboard pre-loaded |
+| **loki**          | `grafana/loki:3.0.0`                          | 3100        | Log backend (filesystem store; 14 d info / 30 d warn+ via per-stream retention)   |
+| **promtail**      | `grafana/promtail:3.0.0`                      | —           | Log shipper; tails docker stdout, JSON-parses, ships to Loki                       |
+| **grafana**       | `grafana/grafana-oss:10.4.2`                  | 3010        | UI; Tempo + Prometheus + Loki datasources auto-provisioned with cross-jumping; six dashboards under `Orkestra/` pre-loaded |
 
-Boot it alongside the dev stack:
+Boot it alongside the dev stack. Easiest path via `orkestra.sh`:
+
+```bash
+./orkestra.sh observability up      # CLI
+./orkestra.sh                       # TUI → option 3 "Observability"
+```
+
+Or directly via docker compose:
 
 ```bash
 cd docker
@@ -632,6 +620,8 @@ docker compose -f docker-compose.infra.yml up -d
 docker compose -f docker-compose.dev.yml  up -d
 docker compose -f docker-compose.observability.yml up -d
 ```
+
+The orkestra.sh launcher also exposes `observability {down,reset,status,info,logs}`. The observability stack uses its own compose project name (`orkestra-observability`) so stopping the app stack never accidentally takes Grafana down.
 
 Point the backend at the collector by setting in `docker/.env`:
 
@@ -645,10 +635,35 @@ Restart the backend (`docker compose -f docker-compose.dev.yml restart backend`)
 - Grafana — http://localhost:3010 (admin / admin; anonymous Viewer access is enabled so shareable links work without login)
 - Prometheus — http://localhost:9090
 - Tempo — http://localhost:3200 (not meant for direct use; query via Grafana's Tempo datasource)
+- Loki — http://localhost:3100 (not meant for direct use; query via Grafana's Loki datasource or the Explore tab)
 
-The pre-provisioned "Tenant traces" dashboard (`Orkestra` folder in Grafana) takes a `tenant.id` and optional tier filter and shows every span where the `TenantBaggage` middleware stamped the matching attribute. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go` + `backend/internal/shared/middleware/baggage_coverage_test.go`.
+Six pre-provisioned dashboards ship under the `Orkestra/` folder in Grafana (`docker/grafana/provisioning/dashboards/*.json`):
 
-Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. Three metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
+| Dashboard | Purpose | Primary signal sources |
+| --- | --- | --- |
+| **Service Overview** | Operator landing page — request rate, error %, p95 latency, log volume by level, top routes, recent error tail | Prometheus (Phase B histogram) + Loki |
+| **HTTP RED** | Per-audience RED method with `audience`/`route` template variables; latency percentiles, status-class breakdown, top slow/heavy routes | Prometheus histogram |
+| **Logs Explorer** | Log volume by level + by module, application log feed (filter by `module`+`level`), HTTP request feed (filter by `audience`+`level`). Split into two feeds because `module` and `audience` labels are mutually exclusive per stream | Loki |
+| **Observability Pipeline Health** | Self-check for the trifecta: collector receiver/exporter rates, drops, failures, scrape target up/down, scrape duration | Prometheus (`otelcol_*` self-telemetry + `up`) |
+| **Module Health Matrix** | Per-module log volume + ERROR count, rate by module over time, ADR-0001 Cedar/capability/entitlement panels (populate when those code paths fire) | Loki + Prometheus |
+| **Tenant traces + logs** | Multi-tenant correlation surface. Takes a `tenant.id`, an optional tier filter, and an optional module name. The traces panel shows every span where the `TenantBaggage` middleware stamped the matching `tenant.id` attribute; the logs panels show every Loki entry where the structured JSON line carries the matching `tenant_id` or `module` field | Tempo + Loki |
+
+All six cross-link by `trace_id` — clicking a span jumps to filtered Loki logs, and clicking `trace_id` in any log line jumps back to Tempo. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go`, `backend/internal/shared/middleware/request_logger.go` (ADR-0005 Phase A), and `backend/internal/shared/utils/per_module_level_handler.go` (ADR-0005 Phase C).
+
+Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. The handler is mounted on both the operator mux (for in-product browsing under the audience host) AND on the `lanOpsHandler` so a scrape against `orkestra-backend:3000` works without spoofing a Host header — Prometheus has no per-scrape Host override. The hostMux `opsPaths` allowlist (`/health`, `/ready`, `/metrics`) is the single source of truth for paths that escape the audience gate; the client mux still does not mount `/metrics`, so a browser hitting `api.orkestra.com/metrics` continues to 404 through the reverse proxy. Four metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag, and (ADR-0005 Phase B) `orkestra_http_request_duration_seconds` — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
+
+Prometheus scrapes two endpoints on the OTel collector — `:8889` (the Prometheus exporter for OTLP-received customer metrics, populated only when a sender sets `OTEL_METRICS_ENABLED=true`) and `:8888` (the collector's own self-telemetry — `otelcol_receiver_*`, `otelcol_exporter_*`, `otelcol_processor_dropped_*`). The latter is what the Pipeline Health dashboard reads to surface drops, failures, and signal-throughput regressions.
+
+The HTTP latency histogram is labelled `{audience, method, route, status_class}` (Chi route template, never raw path) and carries `trace_id` as a Prometheus exemplar. With Prometheus's `--enable-feature=exemplar-storage` and Grafana's "Prometheus → Tempo" datasource link, clicking a slow bucket jumps straight to the matching trace — no external correlation table.
+
+[ADR-0005](../docs/adr/0005-observability-logging-tracing-metrics.md) (Phase C) adds per-module log levels. Set `LOG_LEVEL_<MODULE>=debug` for any module (e.g. `LOG_LEVEL_RAG=debug`, `LOG_LEVEL_BILLING=warn`) to override the global `LOG_LEVEL` for just that module — the registry auto-stamps `module=<name>` on every line emitted from a module's `deps.Logger`, and the slog handler gates by it. Unset overrides fall back to `LOG_LEVEL`.
+
+[ADR-0005](../docs/adr/0005-observability-logging-tracing-metrics.md) (Phase A) replaced Chi's unstructured request logger with a structured one that emits one JSON line per request with `trace_id`, `span_id`, `tenant_id`, `tenant_kind`, `user_id`, `user_role`, `audience`, `request_id`, `method`, `path`, `status`, `duration_ms`, `bytes`, `remote`, `ua` (and `slow=true` when over threshold). Two process-scoped tunables, both safe to leave at the default:
+
+- `LOG_HTTP_SKIP_PATHS` — comma list of exact paths to suppress (`/health,/ready,/metrics,/openapi.json` by default). When set, REPLACES the default list — include defaults explicitly to extend.
+- `LOG_HTTP_SLOW_THRESHOLD_MS` — integer milliseconds; default `1000`. Slower requests get `slow=true` stamped so `{slow=true}` is a one-liner in Loki.
+
+The request-log payload is **allowlist-only** by ADR contract — bodies, the `Authorization` header, and raw query strings never reach the log surface.
 
 ### Legacy: External monitoring integrations
 

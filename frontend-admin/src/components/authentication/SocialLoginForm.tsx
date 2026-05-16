@@ -4,13 +4,15 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGoogle, faApple } from '@fortawesome/free-brands-svg-icons';
 import { initiateSocialLogin, SocialProvider } from 'utils/socialAuthUtils';
 
+import runtimeConfig from 'config/environment';
+
 interface SocialLoginFormProps {
   backendUrl?: string;
   onError?: (error: Error) => void;
 }
 
 const SocialLoginForm = ({
-  backendUrl = import.meta.env.VITE_BACKEND_URL,
+  backendUrl = runtimeConfig.apiUrl,
   onError
 }: SocialLoginFormProps) => {
   const [loadingProvider, setLoadingProvider] = useState<SocialProvider | null>(

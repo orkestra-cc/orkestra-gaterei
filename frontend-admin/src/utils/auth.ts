@@ -1,5 +1,6 @@
 // Authentication utility functions
 
+import runtimeConfig from 'config/environment';
 interface Character {
   character_id: number;
   character_name: string;
@@ -30,7 +31,7 @@ interface AuthenticatedUser {
 
 export const checkAuthStatus = async (): Promise<AuthStatusResponse> => {
   try {
-    const backendUrl: string = import.meta.env.VITE_BACKEND_URL;
+    const backendUrl: string = runtimeConfig.apiUrl;
     const response = await fetch(`${backendUrl}/auth/status`, {
       method: 'GET',
       credentials: 'include', // Include HttpOnly cookies
@@ -79,7 +80,7 @@ export const isAuthenticated = (): boolean => {
 
 export const logout = async (): Promise<void> => {
   try {
-    const backendUrl: string = import.meta.env.VITE_BACKEND_URL;
+    const backendUrl: string = runtimeConfig.apiUrl;
     await fetch(`${backendUrl}/auth/logout`, {
       method: 'POST',
       credentials: 'include', // Include HttpOnly cookies

@@ -189,6 +189,23 @@ const (
 	// module for crypto-shred on purge and (in later phases) by any
 	// module that envelope-encrypts PII fields. Value: iface.KMSProvider.
 	ServiceKMSProvider ServiceKey = "compliance.kms_provider"
+
+	// ServiceLogLevelResolver is the DB-backed log-level resolver
+	// (ADR-0005 Phase F). Registered by the logging core module;
+	// main.go reads it after module init and calls
+	// utils.SwapLevelResolver so PerModuleLevelHandler hot-swaps from
+	// the boot env-driven snapshot to the live resolver. Value: any
+	// implementing utils.LevelResolver (the LogLevelService satisfies
+	// both interfaces structurally).
+	ServiceLogLevelResolver ServiceKey = "logging.level_resolver"
+
+	// ServiceLogLevelModuleNames is the []string of registered
+	// module names. main.go populates it AFTER RegisterAll runs (so
+	// every catalog factory has fired) and BEFORE InitAll runs (so
+	// the logging module's Init can read it). Consumed by the
+	// LogLevelService to render the admin view's "row per module"
+	// section. Value: []string.
+	ServiceLogLevelModuleNames ServiceKey = "logging.module_names"
 )
 
 // ServiceRegistry is a typed key-value store for cross-module service sharing.

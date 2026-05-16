@@ -1,5 +1,6 @@
 .PHONY: help run build test clean dev deps profiles
 .PHONY: build-starter build-minimal build-billing build-ai build-saas build-enterprise
+.PHONY: openapi-dump openapi-check
 
 # Build-tag sets per profile. Each profile is closed under module
 # dependencies — see catalog.go for the runtime topo sort that enforces
@@ -22,12 +23,16 @@ help:
 	@echo ""
 	@echo "Profile builds (smaller binaries — pick one):"
 	@echo "  make build-starter     - Core modules only"
-	@echo "  make build-minimal     - Core + dev (what docker-compose.minimal.yml expects)"
+	@echo "  make build-minimal     - Core + dev token generator"
 	@echo "  make build-billing     - Italian invoicing SKU (billing+documents+company)"
 	@echo "  make build-ai          - AI suite (graph+aimodels+rag+agents+sales)"
 	@echo "  make build-saas        - Tier-2 SaaS SKU (subscriptions+payments+compliance+identity)"
 	@echo "  make build-enterprise  - All addons (alias for 'make build')"
 	@echo "  make profiles          - Print resolved tag sets for each profile"
+	@echo ""
+	@echo "OpenAPI spec (for docs.orkestra.cc /api):"
+	@echo "  make openapi-dump      - Regenerate openapi/enterprise.json"
+	@echo "  make openapi-check     - Fail if committed spec is out of date with code (CI)"
 
 run:
 	go run ./cmd/server
@@ -89,3 +94,22 @@ docker-build:
 
 docker-run:
 	docker run -p 3000:3000 --env-file .env orkestra-backend:latest
+
+# Regenerate openapi/enterprise.json from the current source.
+# The dump runs the full enterprise build with OPENAPI_DUMP=1 set so cmd/server
+# serializes huma.API.OpenAPI() to disk and exits before binding a listener.
+# Requires MongoDB + Redis from docker/docker-compose.infra.yml to be running.
+openapi-dump:
+	@./scripts/openapi-dump.sh
+
+# CI gate — fails if a route change wasn't accompanied by a regenerated spec.
+openapi-check: openapi-dump
+	@if ! git diff --quiet -- openapi/; then \
+		echo ""; \
+		echo "✗ openapi/*.json is out of date with the current routes."; \
+		echo "  Run 'make openapi-dump' and commit the resulting changes."; \
+		echo ""; \
+		git --no-pager diff --stat -- openapi/; \
+		exit 1; \
+	fi
+	@echo "✓ openapi/*.json matches the current source."

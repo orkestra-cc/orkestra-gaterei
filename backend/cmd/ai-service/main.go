@@ -30,12 +30,14 @@ import (
 	"github.com/orkestra-cc/orkestra-addon-aimodels"
 	"github.com/orkestra-cc/orkestra-addon-graph"
 	"github.com/orkestra-cc/orkestra-addon-rag"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/agents"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/internal/shared/telemetry"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -46,6 +48,32 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// ADR-0005 — telemetry init mirrors the monolith. Both Init and
+	// InitLogs are no-ops when OTEL_EXPORTER_OTLP_ENDPOINT is unset, so
+	// local dev stays frictionless. OTLP logs are gated behind
+	// OTEL_LOGS_ENABLED=true so the sidecar's bytes don't double-bill
+	// at vendor backends that already capture stdout.
+	tracerShutdown := telemetry.Init("orkestra-ai-service", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := tracerShutdown(sctx); err != nil {
+			logger.Warn("telemetry shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	logResult := telemetry.InitLogs("orkestra-ai-service", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := logResult.Shutdown(sctx); err != nil {
+			logger.Warn("telemetry logs shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	if logResult.Handler != nil {
+		logger = utils.SetupLogger(logResult.Handler)
+		slog.SetDefault(logger)
 	}
 
 	// Connect MongoDB. 2-minute budget accommodates retry-with-backoff
@@ -123,7 +151,7 @@ func main() {
 
 	// Router + middleware
 	router := chi.NewRouter()
-	setupAIMiddleware(router, cfg)
+	setupAIMiddleware(router, cfg, logger)
 
 	// API config
 	apiConfig := huma.DefaultConfig("Orkestra AI Service", "1.0.0")
@@ -257,7 +285,17 @@ func (c *sidecarSessionRevocationChecker) IsRevoked(ctx context.Context, sid str
 }
 
 // setupAIMiddleware configures global middleware for the AI service.
-func setupAIMiddleware(router *chi.Mux, cfg *config.Config) {
+func setupAIMiddleware(router *chi.Mux, cfg *config.Config, logger *slog.Logger) {
+	// ADR-0005 §2 — structured request logger sits as outer as possible
+	// so CORS rejects and body-size rejects produce a log line.
+	// RequestID + RealIP must run first to populate request_id and IP.
+	router.Use(chiMiddleware.RequestID)
+	router.Use(chiMiddleware.RealIP)
+	logOpts := middleware.NewRequestLoggerOptions()
+	logOpts.Metrics = metrics.Default()
+	logOpts.Audience = "service"
+	router.Use(middleware.RequestLogger(logger, logOpts))
+
 	// Security headers
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -291,20 +329,6 @@ func setupAIMiddleware(router *chi.Mux, cfg *config.Config) {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-
-	router.Use(chiMiddleware.RequestID)
-	router.Use(chiMiddleware.RealIP)
-
-	// Logger (exclude /health)
-	router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/health" {
-				chiMiddleware.Logger(next).ServeHTTP(w, r)
-			} else {
-				next.ServeHTTP(w, r)
-			}
-		})
-	})
 
 	// Inject HTTP request into context for Huma handlers
 	router.Use(func(next http.Handler) http.Handler {

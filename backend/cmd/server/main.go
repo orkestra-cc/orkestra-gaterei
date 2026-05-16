@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -56,6 +58,25 @@ func main() {
 			logger.Warn("telemetry shutdown", slog.String("error", err.Error()))
 		}
 	}()
+
+	// ADR-0005 Phase E — optional OTLP logs fanout. Disabled by
+	// default (OTEL_LOGS_ENABLED=true to enable). When active, every
+	// slog.Logger built via deps.Logger or slog.Default fans out to
+	// both stdout AND the OTLP backend so vendor dashboards
+	// (Honeycomb, Datadog, Grafana Cloud, Axiom) see the same lines
+	// docker logs captures. Stdout remains the source of truth.
+	logResult := telemetry.InitLogs("orkestra-backend", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := logResult.Shutdown(sctx); err != nil {
+			logger.Warn("telemetry logs shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	if logResult.Handler != nil {
+		logger = utils.SetupLogger(logResult.Handler)
+		slog.SetDefault(logger)
+	}
 
 	// Connect infrastructure. 2-minute budget accommodates the
 	// retry-with-backoff loops in NewMongoConnection and NewRedisConnection
@@ -142,8 +163,34 @@ func main() {
 		log.Fatalf("Failed to resolve module dependencies: %v", err)
 	}
 
+	// ADR-0005 Phase F — publish the catalog of module names before
+	// InitAll so the logging core module can render a row per module
+	// in its admin view. Read inside logging.Init via
+	// module.ServiceLogLevelModuleNames.
+	{
+		all := modRegistry.AllModules()
+		names := make([]string, 0, len(all))
+		for _, m := range all {
+			names = append(names, m.Name())
+		}
+		svcRegistry.Register(module.ServiceLogLevelModuleNames, names)
+	}
+
 	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
+	}
+
+	// ADR-0005 Phase F — hot-swap the slog handler's resolver from
+	// the boot env-driven static snapshot to the DB-backed live
+	// resolver. Every existing module logger (clones produced by
+	// deps.Logger.With during InitAll) picks up the new resolver
+	// instantly via the shared resolverBox pointer; future records
+	// gate on the persisted snapshot. No-op when the logging module
+	// failed Init (would leave the env-driven resolver in place).
+	if r, ok := module.GetTyped[utils.LevelResolver](svcRegistry, module.ServiceLogLevelResolver); ok {
+		utils.SwapLevelResolver(r)
+		logger.Info("logging: live level resolver active",
+			slog.String("source", "logging core module"))
 	}
 
 	// AI service sidecar: register remote providers for AI modules
@@ -237,7 +284,7 @@ func main() {
 	}
 
 	operatorMux := chi.NewRouter()
-	setupMiddleware(operatorMux, cfg, errorManager, deviceMW, string(module.AudienceOperator), cfg.Server.Operator)
+	setupMiddleware(operatorMux, cfg, errorManager, deviceMW, string(module.AudienceOperator), cfg.Server.Operator, logger)
 	// Phase 7: admin-managed IP allow/block gate on the operator host
 	// only. Reads ipAllowlistAdmin / ipBlocklistAdmin live from
 	// AuthPolicyService on every request — admin edits take effect
@@ -255,7 +302,7 @@ func main() {
 	operatorProtected.Use(authMiddleware.TenantBaggage)
 
 	clientMux := chi.NewRouter()
-	setupMiddleware(clientMux, cfg, errorManager, deviceMW, string(module.AudienceClient), cfg.Server.Client)
+	setupMiddleware(clientMux, cfg, errorManager, deviceMW, string(module.AudienceClient), cfg.Server.Client, logger)
 	clientAPI := humachi.New(clientMux, apiConfig)
 	clientProtected := chi.NewRouter()
 	clientProtected.Use(authMW.RequireAuth)
@@ -346,13 +393,48 @@ func main() {
 	registerHealthEndpoints(clientAPI, db, redisClient)
 	registerDocsEndpoints(clientMux, clientAPI)
 
-	// Phase 5.3: Prometheus /metrics endpoint. Operator-only — Prometheus
-	// scrapes from inside the cluster against the operator host; exposing
-	// metrics on the client host would leak internal cardinality to any
-	// browser hitting api.orkestra.com/metrics. METRICS_ENABLED is
-	// respected but defaults to true because a scrape on a disabled
-	// handler just yields 404 — cheap enough to leave on in every
-	// environment.
+	// OPENAPI_DUMP mode (used by `make openapi-dump`): after every module
+	// has been wired and its routes registered, serialize the OpenAPI
+	// document to OPENAPI_DUMP_PATH and exit. We never bind a listener
+	// in this mode, so the dump cost is dominated by module Init
+	// (Mongo collection ensure, registry seed).
+	//
+	// Note: operatorAPI and clientAPI currently share a single in-memory
+	// OpenAPI document because they're constructed from the same apiConfig.
+	// The audience split lives at the mux/host level; both /openapi.json
+	// endpoints serve identical content. If the surfaces are ever wired
+	// with distinct huma.Config instances, this branch can dump per-
+	// audience files via separate env vars.
+	if os.Getenv("OPENAPI_DUMP") != "" {
+		path := filepath.Clean(os.Getenv("OPENAPI_DUMP_PATH"))
+		if path == "" || path == "." {
+			log.Fatal("OPENAPI_DUMP=1 set but OPENAPI_DUMP_PATH is empty")
+		}
+		b, err := json.MarshalIndent(operatorAPI.OpenAPI(), "", "  ")
+		if err != nil {
+			log.Fatalf("openapi marshal: %v", err)
+		}
+		b = append(b, '\n')
+		if err := os.WriteFile(path, b, 0o600); err != nil {
+			log.Fatalf("openapi write: %v", err)
+		}
+		logger.Info("openapi dump",
+			slog.String("path", path),
+			slog.Int("bytes", len(b)))
+		os.Exit(0)
+	}
+
+	// Phase 5.3: Prometheus /metrics endpoint. Mounted on the operator
+	// mux for in-product browsing AND on the LAN ops handler so a
+	// Prometheus scrape against orkestra-backend:3000/metrics works
+	// without spoofing the operator Host header (Prometheus has no
+	// per-scrape Host override). Kept off the client mux so a browser
+	// hitting api.orkestra.com/metrics still 404s — the reverse proxy +
+	// hostMux gate together preserve the "don't leak cardinality on the
+	// public client surface" intent. METRICS_ENABLED is respected but
+	// defaults to true because a scrape on a disabled handler just
+	// yields 404 — cheap enough to leave on in every environment.
+	var metricsHandler http.Handler
 	if os.Getenv("METRICS_ENABLED") != "false" {
 		mc := metrics.Default()
 		if err := mc.Register(); err != nil {
@@ -361,7 +443,8 @@ func main() {
 		}
 		stopLag := mc.Start(15 * time.Second)
 		defer stopLag()
-		operatorMux.Handle("/metrics", mc.Handler())
+		metricsHandler = mc.Handler()
+		operatorMux.Handle("/metrics", metricsHandler)
 	}
 
 	// Host mux dispatches by Host header. In dev (ENV=development) an
@@ -384,7 +467,7 @@ func main() {
 	// /health and /ready (only) so those probes can answer 200 without
 	// spoofing a Host header. Everything else on a non-matching host
 	// still gets 421 — the host-header smuggling guard stays intact.
-	root := newHostMux(hostRoutes, devFallthrough, lanOpsHandler(db, redisClient))
+	root := newHostMux(hostRoutes, devFallthrough, lanOpsHandler(db, redisClient, metricsHandler))
 
 	// HTTP server. The host mux is wrapped in otelhttp.NewHandler so every
 	// request spawns a span the tenant-baggage middleware can enrich
@@ -429,7 +512,6 @@ func main() {
 	go func() {
 		logger.Info("Starting server",
 			slog.String("port", cfg.Server.Port),
-			slog.String("environment", cfg.Server.Environment),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Failed to start server", slog.String("error", err.Error()))

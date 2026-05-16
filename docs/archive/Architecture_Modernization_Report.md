@@ -1,5 +1,7 @@
 # Orkestra — Architectural Assessment & Modernization Strategy
 
+> **ARCHIVED 2026-05-14.** This is the original modernization vision document written when `cmd/server/main.go` was 1,402 lines and CI/CD was a `deploy.sh` script. The plugin architecture, module registry, ServiceRegistry, ConfigService, SDK split, and GitHub Actions pipeline it advocated for have all shipped. `main.go` is now ~500 lines and the SDK lives in its own repo at v0.4.0+. Read this as history, not as current state. For current architecture, see the root [`CLAUDE.md`](../../CLAUDE.md) and [`docs/onboarding/orkestra-sdk.md`](../onboarding/orkestra-sdk.md).
+
 **Version**: 1.0  
 **Date**: April 2026  
 **Classification**: Internal — Technical Leadership

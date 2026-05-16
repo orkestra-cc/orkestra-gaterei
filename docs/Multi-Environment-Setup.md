@@ -2,19 +2,25 @@
 
 **Orkestra Professional Management System**
 
+> **Post-ADR-0003 update (2026-05-14).** Orkestra now serves three audiences from one backend binary, dispatched by `Host` header — operator (Tier-1 console), client (Tier-2 API/app), and service (internal AI sidecar). Each public audience has its own host, cookie domain, and OAuth callback. The single `orkestra.cc` host described in older revisions of this guide has been superseded by the per-audience hosts below. See [ADR-0003](adr/0003-three-audience-host-split.md) and [`docker/CLAUDE.md`](../docker/CLAUDE.md) for the canonical mapping.
+
 ## Overview
 
-This guide outlines the implementation of separate **development**, **staging**, and **production** environments for Orkestra with OAuth callback compatibility across all environments.
+This guide outlines the implementation of separate **development**, **staging**, and **production** environments for Orkestra with OAuth callback compatibility across all environments and across the three Host-based audiences.
 
 ---
 
 ## Environment Architecture
 
-| Environment | Domain | Purpose | OAuth Apps | Database |
-|------------|--------|---------|------------|----------|
-| **Development** | `localhost:3000/8080` | Local development | Shared dev credentials | Local Docker |
-| **Staging** | `staging.orkestra.cc` | QA testing | Shared dev credentials | Cloud/isolated |
-| **Production** | `orkestra.cc` | Live system | Separate prod credentials | Dedicated with HA |
+Per-audience host mapping (post-ADR-0003):
+
+| Environment | Operator console (Tier-1) | Client API (Tier-2) | Client app (Tier-2 SPA) | OAuth credentials | Database |
+|------------|---------------------------|---------------------|--------------------------|--------------------|----------|
+| **Development** | `console.localhost:3000` (backend) + `:8080` (Vite) | `api.localhost:3000` | `client.localhost:8081` | Shared dev creds (ConfigService) | Local Docker |
+| **Staging** | `staging-console.orkestra.cc` | `staging-api.orkestra.cc` | `app.orkestra.cc` (HMR target) | Shared dev creds | Cloud/isolated |
+| **Production** | `console.orkestra.com` | `api.orkestra.com` | `orkestra.cc` (marketing) / `app.orkestra.cc` (Tier-2 SPA) | **Separate prod credentials** | Dedicated with HA |
+
+OAuth credentials are managed at runtime via the auth module's ConfigService (`/admin/modules/auth`); the env vars listed below are seed-only fallbacks used on first boot of a fresh install. See [`backend/internal/core/auth/CLAUDE.md`](../backend/internal/core/auth/CLAUDE.md#oauth-provider-config) for the full schema.
 
 ---
 
@@ -40,7 +46,9 @@ For **Proxmox deployments with abundant resources** (>64GB RAM, >16 cores), the 
 │ Auto-start: No   │ Auto-start: Yes  │ Auto-start: Yes            │
 │ Backup: Weekly   │ Backup: Weekly   │ Backup: Daily + Offsite    │
 └──────────────────┴──────────────────┴────────────────────────────┘
-  dev.orkestra.local  staging.orkestra.cc  orkestra.cc
+  dev.orkestra.local  staging-console.orkestra.cc  console.orkestra.com
+                      staging-api.orkestra.cc      api.orkestra.com
+                      app.orkestra.cc              app.orkestra.cc
 ```
 
 **Total Resources:** 18 cores, 40GB RAM, 380GB disk
@@ -111,7 +119,7 @@ qm start 101
 ```
 
 **Purpose:** Pre-production testing and QA validation
-**Access:** Internal + optional public DNS (`staging.orkestra.cc`)
+**Access:** Internal + optional public DNS (`staging-console.orkestra.cc`, `staging-api.orkestra.cc`, `app.orkestra.cc`)
 **SSL:** Let's Encrypt certificate
 **Backups:** Weekly full backup + monthly archival
 
@@ -365,7 +373,7 @@ cp docker/.env.template docker/.env.prod
 mongorestore --uri="mongodb://localhost/orkestra_prod" /tmp/final-prod-backup/orkestra_prod
 docker compose -f docker/environments/prod/docker-compose.yml up -d
 
-# 5. Update DNS: orkestra.cc → new production IP
+# 5. Update DNS: console.orkestra.com, api.orkestra.com, app.orkestra.cc → new production IP
 # 6. Monitor for 24 hours
 # 7. Decommission old server
 ```
@@ -470,29 +478,34 @@ orkestra/
 
 ## OAuth Provider Setup
 
+> **About callback URLs.** OAuth callbacks land on the backend, not the frontend, and the backend dispatches by Host. The operator audience receives callbacks at `console.<env>` and the client audience at `api.<env>`. The OAuth state parameter encodes which tier initiated the flow, so a single OAuth app per provider can serve both audiences if you register both callback URLs.
+
 ### Google OAuth
 
 **Google Cloud Console:**
 1. Create OAuth 2.0 Client ID
-2. Add authorized redirect URIs:
-   - `http://localhost:3000/v1/auth/oauth/google/callback` (dev)
-   - `https://staging.orkestra.cc/v1/auth/oauth/google/callback` (staging)
-   - `https://orkestra.cc/v1/auth/oauth/google/callback` (prod)
+2. Add authorized redirect URIs (register all you intend to use):
+   - `http://console.localhost:3000/v1/auth/oauth/google/callback` (dev — operator)
+   - `http://api.localhost:3000/v1/auth/oauth/google/callback` (dev — client)
+   - `https://staging-console.orkestra.cc/v1/auth/oauth/google/callback` (staging — operator)
+   - `https://staging-api.orkestra.cc/v1/auth/oauth/google/callback` (staging — client)
+   - `https://console.orkestra.com/v1/auth/oauth/google/callback` (prod — operator)
+   - `https://api.orkestra.com/v1/auth/oauth/google/callback` (prod — client)
 
-**Configuration:**
+**Configuration:** seed via env on first boot, then edit in ConfigService at `/admin/modules/auth`.
 ```bash
-# .env.dev
+# .env.dev — seed values
 OAUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
-OAUTH_GOOGLE_REDIRECT_URL=http://localhost:3000/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=http://console.localhost:3000/v1/auth/oauth/google/callback
 
 # .env.staging
-OAUTH_GOOGLE_REDIRECT_URL=https://staging.orkestra.cc/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=https://staging-console.orkestra.cc/v1/auth/oauth/google/callback
 
 # .env.prod (separate OAuth app recommended)
 OAUTH_GOOGLE_CLIENT_ID=prod-client-id.apps.googleusercontent.com
 OAUTH_GOOGLE_CLIENT_SECRET=prod-secret
-OAUTH_GOOGLE_REDIRECT_URL=https://orkestra.cc/v1/auth/oauth/google/callback
+OAUTH_GOOGLE_REDIRECT_URL=https://console.orkestra.com/v1/auth/oauth/google/callback
 ```
 
 ### Apple Sign-In
@@ -509,7 +522,7 @@ OAUTH_APPLE_TEAM_ID=ABC123DEF4
 OAUTH_APPLE_CLIENT_ID=cc.orkestra.webapp.signin
 OAUTH_APPLE_KEY_ID=XYZ987WVU6
 OAUTH_APPLE_PRIVATE_KEY_PATH=/app/keys/AuthKey_XYZ987WVU6.p8
-OAUTH_APPLE_REDIRECT_URL=https://staging.orkestra.cc/v1/auth/oauth/apple/callback
+OAUTH_APPLE_REDIRECT_URL=https://staging-console.orkestra.cc/v1/auth/oauth/apple/callback
 ```
 
 ### Discord & GitHub
