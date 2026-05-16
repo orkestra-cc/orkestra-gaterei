@@ -49,7 +49,7 @@ Whether the service **holds** customer-relevant data (transcripts, workflows, ob
 Counter-examples (deliberately excluded):
 
 - **AI sidecar** is not an external service — same `go.mod`, same team, deployment split for resource isolation only.
-- **SaaS vendor APIs (Stripe, Mailgun, AssemblyAI cloud)** are managed by the vendor, not the operator. They are consumed via their public APIs from feature addons (`payments`, `notification`, etc.) and are out of scope for this framework.
+- **SaaS vendor APIs (Stripe, Mailgun, AssemblyAI cloud, Pexels/Unsplash stock-media)** are managed by the vendor, not the operator. They are consumed via their public APIs from feature addons (`payments`, `notification`, a future `media`, etc.) and are out of scope for this framework. See §11 for a worked brainstorm using Pexels as exemplar — recorded because the broker's pattern keeps tempting you to absorb anything HTTP-shaped.
 - **Hindsight** is consumed via `iface.AIModelProvider` and is part of the AI sidecar addon chain.
 
 ### 2. Broker module: `external_services`
@@ -363,6 +363,56 @@ Phase 2 — hard delete on `tenant.purged`, after grace period:
 **Restore from archived state**: while a workspace is `suspended` (before grace expiry), an operator can transition it back to `active` via `POST /v1/admin/external-services/workspaces/{uuid}/restore`. This emits `workspace.resumed` to push-mode products (re-enable API keys) or `docker compose start` for per-tenant (resume the existing stack). After `purged`, restore is impossible by definition.
 
 Data residency: each product declares its `DataRegion` in the catalog. Tenants with strict residency requirements only see products matching their region. Initial release: all products are `eu` (octo-stt on `ai-1`, n8n on the Orkestra host).
+
+### 11. Brainstorm — stock-media vendor APIs (Pexels et al.)
+
+**Status: brainstorm only — not part of v1.** Recorded here to make the boundary explicit and to capture which patterns survive when a future `media` addon lands.
+
+The Pexels API (free, attribution-required) and peers (Unsplash, Pixabay, Shutterstock, Getty) are an obvious recurring need across consumer modules:
+
+- `agents` composing marketing copy or social drafts needs imagery.
+- `documents` / PDF templates want hero photos in generated material.
+- `sales` outbound drafts may want illustrative attachments.
+- A future Tier-2 content-pack subscription (e.g. "AI content — 1000 generations + curated stock imagery") would expose search to clients as a sellable feature.
+
+The question is whether stock-media providers belong in the `external_services` broker. **They do not** — but walking through why is useful because the broker's pattern keeps tempting you to absorb anything HTTP-shaped, and Pexels is the cleanest negative example.
+
+#### Why the boundary test (§1) fails
+
+Pexels is a SaaS vendor API, not a fleet member:
+
+- The operator cannot deploy, upgrade, monitor, or decommission Pexels — fails the "self-hosted fleet" criterion outright.
+- There is no per-tenant workspace at Pexels. Every tenant calls the same global, read-only catalog with the same operator-issued API key (or per-tenant keys if the operator chooses, but the *catalog itself* is shared, public, and not managed by us).
+- Provisioning, key issuance against the *product*, SSO into a remote UI, and GDPR cascade across remote tenant data all become trivial or meaningless: the only customer-relevant artifact is the `(URL, attribution)` pair we embed in tenant-generated content, and that lives in Orkestra-side storage.
+- The four classification axes degenerate when projected onto Pexels: Topology would be `shared` with no remote workspace to materialize; DataResidency would be `passthrough` but with no operator-controlled processor to provision; Metering reduces to "count outbound calls", with no symmetric webhook contract to define.
+
+This is the same conclusion §1 already reaches for Stripe and Mailgun; stock-media APIs are another instance of the same class.
+
+#### What the integration *does* look like
+
+A new feature addon — call it `media` — mirrors the `payments`/`notification` pattern:
+
+- ConfigService-managed credentials per vendor (`PEXELS_API_KEY`, `UNSPLASH_ACCESS_KEY`, ...) with the existing sandbox/production environment switching.
+- A small `iface.MediaProvider` (search, by-id, attribution-string) implemented per vendor; the addon picks a primary and an ordered fallback chain so Pexels exhaustion falls through to Unsplash, then Pixabay.
+- Per-tenant rate-limit accounting in Redis. Pexels free tier is 200 req/h per key; if Tier-2 clients share one operator key, the addon must throttle per `tenantUUID` so one client cannot drain the global quota for everyone.
+- Attribution persisted alongside any image URL embedded in tenant-generated content (in `documents` output, in `agents` traces). Pexels and Unsplash both require photographer credit on display — failing to record attribution on first fetch makes compliance retroactively impossible.
+- Asset proxying / cache layer optional, decided per-vendor in the driver. Pexels CDN URLs are stable enough to embed directly; Pixabay rotates URLs within ~24h so embedding raw URLs in long-lived PDFs is unsafe and the addon must cache to its own object store (RustFS substrate, when available).
+
+#### Patterns worth reusing from this ADR (without joining the broker)
+
+Three patterns from `external_services` are independently useful for `media`:
+
+1. **Capability gating** — if stock-media access becomes a Tier-2 subscription feature, the `subscriptions` capability mechanism applies regardless of whether the provider is fleet-resident or vendor-hosted. Capability IDs are the gating primitive, not the broker.
+2. **Usage metering** — counter-based `mediaSearches` quota per tenant, fed by the addon's outbound HTTP middleware. The storage shape of `external_services_usage` is reusable; the broker plumbing around webhooks and idempotency keys is not.
+3. **Audit logging** — every search emitted to the `compliance` audit log with `(tenantUUID, vendor, query, resultCount)`. Defends license-compliance audits and "you let our brand name be searched for stock photos" claims.
+
+If a fourth or fifth vendor-API addon accumulates these same three needs (translation, weather, geocoding, sentiment APIs), extracting a shared `vendor_apis` SDK package — **distinct from `external_services`** — becomes worthwhile. v1 is too early; revisit when the second vendor-API integration is concrete.
+
+#### Decision (for this ADR)
+
+- Stock-media vendors are explicitly out of scope for the `external_services` broker.
+- A future `media` addon consumes them through standard ConfigService + per-vendor HTTP client patterns, not through the `ProductDriver` contract.
+- The three reusable patterns above (capability gating, metering shape, audit logging) cross the boundary at the SDK level if and when a second vendor-API addon justifies extracting them.
 
 ## Consequences
 
