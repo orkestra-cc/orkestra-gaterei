@@ -163,6 +163,127 @@ func TestCollector_CedarEnforcedLabels(t *testing.T) {
 	}
 }
 
+// TestStatusClassForCode freezes the status-class mapping. ADR-0002
+// "prefer status_class over http_status" — the bounded enumeration here
+// is what keeps cardinality predictable.
+func TestStatusClassForCode(t *testing.T) {
+	tests := []struct {
+		status int
+		want   string
+	}{
+		{100, "1xx"}, {199, "1xx"},
+		{200, "2xx"}, {204, "2xx"}, {299, "2xx"},
+		{300, "3xx"}, {399, "3xx"},
+		{400, "4xx"}, {404, "4xx"}, {499, "4xx"},
+		{500, "5xx"}, {503, "5xx"}, {599, "5xx"},
+		{0, "unknown"}, {99, "unknown"}, {600, "unknown"}, {-1, "unknown"},
+	}
+	for _, tc := range tests {
+		if got := statusClassForCode(tc.status); got != tc.want {
+			t.Errorf("statusClassForCode(%d) = %q, want %q", tc.status, got, tc.want)
+		}
+	}
+}
+
+// TestCollector_HTTPRequestLabels freezes the label schema for the
+// latency histogram (ADR-0002 amendment via ADR-0005 Phase B). Adding
+// or renaming a label requires a new ADR.
+func TestCollector_HTTPRequestLabels(t *testing.T) {
+	c := NewCollector()
+	if err := c.Register(); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	c.RecordHTTPRequest("operator", "GET", "/v1/users", 200, 12*time.Millisecond, "")
+	c.RecordHTTPRequest("operator", "GET", "/v1/users", 200, 18*time.Millisecond, "")
+	c.RecordHTTPRequest("client", "POST", "/v1/me/subscriptions", 402, 7*time.Millisecond, "")
+
+	// SampleCount on the histogram == number of observations recorded.
+	got := testutil.CollectAndCount(c.httpDuration)
+	if got != 2 {
+		t.Errorf("expected 2 unique label combinations, got %d", got)
+	}
+}
+
+// TestCollector_HTTPRequest_DefaultsForEmptyLabels confirms the
+// substitutions documented on RecordHTTPRequest — empty audience /
+// route get rewritten to "unknown" rather than creating an empty-label
+// series (which Prometheus accepts but which makes queries surprising).
+func TestCollector_HTTPRequest_DefaultsForEmptyLabels(t *testing.T) {
+	c := NewCollector()
+	if err := c.Register(); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	c.RecordHTTPRequest("", "GET", "", 404, time.Millisecond, "")
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	c.Handler().ServeHTTP(rec, req)
+	body, _ := io.ReadAll(rec.Body)
+	s := string(body)
+	if !strings.Contains(s, `audience="unknown"`) {
+		t.Errorf("expected audience=unknown in exposition, got:\n%s", s)
+	}
+	if !strings.Contains(s, `route="unknown"`) {
+		t.Errorf("expected route=unknown in exposition, got:\n%s", s)
+	}
+	if !strings.Contains(s, `status_class="4xx"`) {
+		t.Errorf("expected status_class=4xx in exposition, got:\n%s", s)
+	}
+}
+
+// TestCollector_HTTPRequest_ExemplarRecorded verifies that a non-empty
+// trace_id is attached to the observation as a Prometheus exemplar.
+// Exemplars only surface in the OpenMetrics exposition format
+// (Accept: application/openmetrics-text), so the test asks for that
+// content type explicitly.
+func TestCollector_HTTPRequest_ExemplarRecorded(t *testing.T) {
+	c := NewCollector()
+	if err := c.Register(); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	c.RecordHTTPRequest("operator", "GET", "/v1/users/{id}", 200, 5*time.Millisecond, "0123456789abcdef0123456789abcdef")
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Accept", "application/openmetrics-text;version=1.0.0;charset=utf-8")
+	rec := httptest.NewRecorder()
+	c.Handler().ServeHTTP(rec, req)
+
+	body, _ := io.ReadAll(rec.Body)
+	s := string(body)
+	if !strings.Contains(s, "trace_id=") {
+		t.Errorf("expected exemplar trace_id in OpenMetrics exposition, got:\n%s", s)
+	}
+}
+
+// TestCollector_HTTPRequest_NilSafe confirms the documented nil-safe
+// behavior so callers can pass metrics.Default() without guarding.
+func TestCollector_HTTPRequest_NilSafe(t *testing.T) {
+	var c *Collector
+	c.RecordHTTPRequest("operator", "GET", "/x", 200, time.Millisecond, "")
+	// No panic = success.
+}
+
+// TestCollector_HTTPRequestFamilyInExposition adds the new family name
+// to the exposed-families guard.
+func TestCollector_HTTPRequestFamilyInExposition(t *testing.T) {
+	c := NewCollector()
+	if err := c.Register(); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	c.RecordHTTPRequest("operator", "GET", "/v1/users", 200, time.Millisecond, "")
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	c.Handler().ServeHTTP(rec, req)
+	body, _ := io.ReadAll(rec.Body)
+	if !strings.Contains(string(body), "orkestra_http_request_duration_seconds") {
+		t.Errorf("expected http_request_duration_seconds family in exposition, body:\n%s", string(body))
+	}
+}
+
 // TestCollector_Start_StopsCleanly verifies the ticker background goroutine
 // exits when the stop callback is invoked.
 func TestCollector_Start_StopsCleanly(t *testing.T) {

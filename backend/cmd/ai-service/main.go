@@ -30,6 +30,7 @@ import (
 	"github.com/orkestra-cc/orkestra-addon-aimodels"
 	"github.com/orkestra-cc/orkestra-addon-graph"
 	"github.com/orkestra-cc/orkestra-addon-rag"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra/backend/internal/addons/agents"
 	"github.com/orkestra/backend/internal/shared/config"
@@ -263,7 +264,10 @@ func setupAIMiddleware(router *chi.Mux, cfg *config.Config, logger *slog.Logger)
 	// RequestID + RealIP must run first to populate request_id and IP.
 	router.Use(chiMiddleware.RequestID)
 	router.Use(chiMiddleware.RealIP)
-	router.Use(middleware.RequestLogger(logger, middleware.NewRequestLoggerOptions()))
+	logOpts := middleware.NewRequestLoggerOptions()
+	logOpts.Metrics = metrics.Default()
+	logOpts.Audience = "service"
+	router.Use(middleware.RequestLogger(logger, logOpts))
 
 	// Security headers
 	router.Use(func(next http.Handler) http.Handler {

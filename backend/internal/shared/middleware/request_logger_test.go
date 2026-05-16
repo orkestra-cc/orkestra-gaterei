@@ -318,6 +318,107 @@ func TestLevelForStatus(t *testing.T) {
 	}
 }
 
+// fakeMetricsRecorder captures RecordHTTPRequest calls for assertions
+// without pulling the SDK metrics package into the middleware test.
+type fakeMetricsRecorder struct {
+	calls []struct {
+		Audience, Method, Route, TraceID string
+		Status                           int
+		Duration                         time.Duration
+	}
+}
+
+func (f *fakeMetricsRecorder) RecordHTTPRequest(audience, method, route string, status int, duration time.Duration, traceID string) {
+	f.calls = append(f.calls, struct {
+		Audience, Method, Route, TraceID string
+		Status                           int
+		Duration                         time.Duration
+	}{audience, method, route, traceID, status, duration})
+}
+
+func TestRequestLogger_RecordsMetrics(t *testing.T) {
+	logger, _ := newCapturingLogger(t)
+	rec := &fakeMetricsRecorder{}
+	handler := RequestLogger(logger, RequestLoggerOptions{
+		Metrics:  rec,
+		Audience: "operator",
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/things", nil))
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("expected 1 metric call, got %d", len(rec.calls))
+	}
+	got := rec.calls[0]
+	if got.Audience != "operator" {
+		t.Errorf("audience = %q, want operator", got.Audience)
+	}
+	if got.Method != "POST" {
+		t.Errorf("method = %q, want POST", got.Method)
+	}
+	if got.Status != http.StatusCreated {
+		t.Errorf("status = %d, want 201", got.Status)
+	}
+	// Route is empty here because we mounted the handler bare — no chi
+	// router has matched a pattern. The recorder is responsible for
+	// rewriting "" to "unknown".
+	if got.Route != "" {
+		t.Errorf("route = %q, want empty (no chi pattern matched)", got.Route)
+	}
+}
+
+func TestRequestLogger_SkipsMetricsForStreaming(t *testing.T) {
+	logger, _ := newCapturingLogger(t)
+	rec := &fakeMetricsRecorder{}
+	handler := RequestLogger(logger, RequestLoggerOptions{
+		Metrics: rec,
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/rag/query/stream", nil))
+
+	if len(rec.calls) != 0 {
+		t.Errorf("streaming path should not be observed in the histogram, got %d calls", len(rec.calls))
+	}
+}
+
+func TestRequestLogger_NoMetricsRecorder_NoPanic(t *testing.T) {
+	logger, _ := newCapturingLogger(t)
+	handler := RequestLogger(logger, RequestLoggerOptions{
+		Metrics: nil, // explicit; the production wiring may legitimately leave it nil
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	// No panic = success; the log line still emits.
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/x", nil))
+}
+
+func TestRequestLogger_AudienceFallbackFromOptions(t *testing.T) {
+	logger, buf := newCapturingLogger(t)
+	rec := &fakeMetricsRecorder{}
+	handler := RequestLogger(logger, RequestLoggerOptions{
+		Metrics:  rec,
+		Audience: "client",
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Anonymous request — AudienceFromContext returns "" so the option
+	// fallback kicks in for both the log line and the metric.
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/y", nil))
+
+	line := parseLine(t, buf.Bytes())
+	if line["audience"] != "client" {
+		t.Errorf("expected audience=client from option fallback, got %v", line["audience"])
+	}
+	if len(rec.calls) != 1 || rec.calls[0].Audience != "client" {
+		t.Errorf("expected metric audience=client, got %+v", rec.calls)
+	}
+}
+
 func TestParseSkipPaths_TrimsAndDropsBlanks(t *testing.T) {
 	got := parseSkipPaths("  /a , ,/b,  /c  ")
 	for _, want := range []string{"/a", "/b", "/c"} {

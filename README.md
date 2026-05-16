@@ -51,7 +51,7 @@ It runs on a **two-tier tenancy model**: Tier-1 operators manage staff and modul
 - **Mobile.** Flutter 3.35 + Riverpod (early-stage).
 - **Data.** MongoDB 8 + Redis 8. Optional Memgraph knowledge graph for the RAG / graph modules.
 - **Auth.** Email + password (argon2id) and OAuth 2.1 (Google, Apple, GitHub, Discord), RS256 JWT, 6-role RBAC, optional TOTP + WebAuthn MFA, per-audience tier split for operator vs. client surfaces.
-- **Observability.** Structured JSON logs with `trace_id` / `tenant_id` / `user_id` on every line out of the box, OpenTelemetry traces with tenant baggage (ADR-0001), Prometheus metrics with exemplars, audit log kept separate from operational log. Zero-config locally; one env var to ship to a self-hosted Tempo + Loki + Grafana stack; one env var to ship to Honeycomb / Datadog / Grafana Cloud / Axiom. See [ADR-0005](docs/adr/0005-observability-logging-tracing-metrics.md).
+- **Observability.** Structured JSON logs with `trace_id` / `tenant_id` / `user_id` on every line out of the box, OpenTelemetry traces with tenant baggage (ADR-0001), Prometheus HTTP latency histogram with `trace_id` exemplars (one-click jump from a slow bucket to the matching Tempo trace), audit log kept separate from operational log. Zero-config locally; one env var to ship to a self-hosted Tempo + Loki + Grafana stack; one env var to ship to Honeycomb / Datadog / Grafana Cloud / Axiom. See [ADR-0005](docs/adr/0005-observability-logging-tracing-metrics.md).
 - **AI sidecar (optional).** graph + aimodels + rag + agents can run as a separate `cmd/ai-service` binary; the monolith swaps in `RemoteAIModelProvider` / `RemoteRAGQueryProvider` HTTP clients via the `AI_SERVICE_URL` env var. Zero code changes in consumer modules. See `backend/cmd/ai-service/`.
 
 ## SKU profiles, pulled from GHCR
@@ -152,7 +152,7 @@ Every operational log line is auto-stamped with `trace_id`, `span_id`, `tenant_i
 {service="orkestra-backend"} | json | tenant_id="<uuid>"
 ```
 
-The same `trace_id` jumps to the matching Tempo trace and to Prometheus exemplars on the latency histogram. No setup beyond pointing the backend at a collector.
+The same `trace_id` jumps to the matching Tempo trace and to Prometheus exemplars on the `orkestra_http_request_duration_seconds` histogram (labelled by `audience`, `method`, route template, and `status_class`). No setup beyond pointing the backend at a collector.
 
 ### Three tiers, three env vars
 

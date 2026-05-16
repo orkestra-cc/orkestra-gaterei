@@ -627,7 +627,9 @@ Restart the backend (`docker compose -f docker-compose.dev.yml restart backend`)
 
 The pre-provisioned "Tenant traces" dashboard (`Orkestra` folder in Grafana) takes a `tenant.id` and optional tier filter and shows every span where the `TenantBaggage` middleware stamped the matching attribute. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go` + `backend/internal/shared/middleware/baggage_coverage_test.go`.
 
-Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. Three metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
+Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. Four metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag, and (ADR-0005 Phase B) `orkestra_http_request_duration_seconds` — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
+
+The HTTP latency histogram is labelled `{audience, method, route, status_class}` (Chi route template, never raw path) and carries `trace_id` as a Prometheus exemplar. With Prometheus's `--enable-feature=exemplar-storage` and Grafana's "Prometheus → Tempo" datasource link, clicking a slow bucket jumps straight to the matching trace — no external correlation table.
 
 [ADR-0005](../docs/adr/0005-observability-logging-tracing-metrics.md) (Phase A) replaced Chi's unstructured request logger with a structured one that emits one JSON line per request with `trace_id`, `span_id`, `tenant_id`, `tenant_kind`, `user_id`, `user_role`, `audience`, `request_id`, `method`, `path`, `status`, `duration_ms`, `bytes`, `remote`, `ua` (and `slow=true` when over threshold). Two process-scoped tunables, both safe to leave at the default:
 

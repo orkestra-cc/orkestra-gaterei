@@ -8,9 +8,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// HTTPMetricsRecorder is the small interface the structured request
+// logger uses to report request latency. The concrete production
+// implementation is *metrics.Collector — kept behind an interface so
+// the middleware package doesn't have to import the SDK metrics package
+// transitively (tests can pass a fake; main.go wires metrics.Default()).
+//
+// ADR-0005 Phase B / ADR-0002 (labels: audience, method, route,
+// status_class). route MUST be the Chi route template, not the raw
+// path — the recorder rewrites empty values to "unknown" but does not
+// otherwise normalize.
+type HTTPMetricsRecorder interface {
+	RecordHTTPRequest(audience, method, route string, status int, duration time.Duration, traceID string)
+}
 
 // RequestLoggerOptions configures the structured HTTP request logger.
 //
@@ -18,12 +34,20 @@ import (
 //   - SkipPaths: /health, /ready, /metrics, /openapi.json
 //   - SlowThreshold: 1s
 //
-// Both can be overridden via env vars at construction time
-// (NewRequestLogger reads LOG_HTTP_SKIP_PATHS and
-// LOG_HTTP_SLOW_THRESHOLD_MS).
+// SkipPaths and SlowThreshold can be overridden via env vars at
+// construction time (NewRequestLoggerOptions reads LOG_HTTP_SKIP_PATHS
+// and LOG_HTTP_SLOW_THRESHOLD_MS).
+//
+// Metrics is the optional Prometheus recorder for ADR-0005 Phase B. nil
+// is fine — the middleware skips the metric observation but still emits
+// the log line. Audience identifies which mux this logger is mounted on
+// ("operator" | "client" | "service" | ""); it propagates into the
+// histogram's `audience` label.
 type RequestLoggerOptions struct {
 	SkipPaths     map[string]struct{}
 	SlowThreshold time.Duration
+	Metrics       HTTPMetricsRecorder
+	Audience      string
 }
 
 // defaultSkipPaths matches the ADR-0005 §2 default. Operators override
@@ -148,13 +172,47 @@ func RequestLogger(logger *slog.Logger, opts RequestLoggerOptions) func(http.Han
 			if v, ok := ctxauth.GetSystemRole(r.Context()); ok && v != "" {
 				attrs = append(attrs, slog.String("user_role", v))
 			}
-			if v := AudienceFromContext(r.Context()); v != "" {
-				attrs = append(attrs, slog.String("audience", v))
+			audience := AudienceFromContext(r.Context())
+			if audience == "" {
+				audience = opts.Audience
+			}
+			if audience != "" {
+				attrs = append(attrs, slog.String("audience", audience))
 			}
 
 			logger.LogAttrs(r.Context(), levelForStatus(ww.Status()), "http_request", attrs...)
+
+			// ADR-0005 Phase B — histogram observation. Reads the route
+			// template from chi AFTER next.ServeHTTP has returned so the
+			// pattern is populated. RoutePattern is empty for 404s and
+			// for paths that didn't reach a chi-routed handler; the
+			// recorder rewrites "" to "unknown". Streaming endpoints
+			// (paths ending in /stream) are excluded because the
+			// histogram measures user-facing latency, not long-lived SSE
+			// connection lifetime.
+			if opts.Metrics != nil && !strings.HasSuffix(r.URL.Path, "/stream") {
+				route := chiRoutePattern(r)
+				traceID := ""
+				if sc := trace.SpanContextFromContext(r.Context()); sc.IsValid() {
+					traceID = sc.TraceID().String()
+				}
+				opts.Metrics.RecordHTTPRequest(audience, r.Method, route, ww.Status(), duration, traceID)
+			}
 		})
 	}
+}
+
+// chiRoutePattern returns the matched chi route template for the
+// request, or "" when none matched (404s, requests served outside the
+// chi router, or requests that didn't reach a handler at all). The
+// caller is responsible for substituting an "unknown" placeholder
+// before using the value as a Prometheus label — keeping that
+// substitution in the recorder centralizes the cardinality discipline.
+func chiRoutePattern(r *http.Request) string {
+	if rc := chi.RouteContext(r.Context()); rc != nil {
+		return rc.RoutePattern()
+	}
+	return ""
 }
 
 // levelForStatus maps an HTTP status to a slog level per ADR-0005 §2:

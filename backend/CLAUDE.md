@@ -183,6 +183,8 @@ docker restart orkestra-backend-dev
 
 **Structured request logger** (ADR-0005 Phase A): every HTTP request produces one JSON line via `shared/middleware.RequestLogger` (mounted outermost on each audience mux after `RequestID` + `RealIP`). The payload is **allowlist-only** — never log bodies, headers, or raw query strings; module code uses `slog.InfoContext(ctx, "msg", slog.String(...))` so `trace_id` / `span_id` correlate to the same request automatically via `shared/utils.TraceContextHandler`. Tunables: `LOG_HTTP_SKIP_PATHS` (default `/health,/ready,/metrics,/openapi.json`), `LOG_HTTP_SLOW_THRESHOLD_MS` (default `1000`).
 
+**HTTP latency histogram** (ADR-0005 Phase B): the same middleware observes `orkestra_http_request_duration_seconds` on `metrics.Default()` after each request, labelled `{audience, method, route, status_class}` with the Chi route template (never raw path) and `trace_id` as a Prometheus exemplar. Streaming endpoints (paths ending `/stream`) are intentionally excluded so SSE lifetime doesn't pollute API p99. The histogram is wired by the `setupMiddleware` call sites — modules don't need to register anything.
+
 ## Rules
 
 - **Read the module's own CLAUDE.md** before modifying it — notification, billing, documents, graph, rag, agents, aimodels, company each have one

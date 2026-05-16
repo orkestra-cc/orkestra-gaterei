@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/orkestra-cc/orkestra-sdk/metrics"
 	"github.com/orkestra/backend/internal/shared/config"
 	"github.com/orkestra/backend/internal/shared/errors"
 	authMiddleware "github.com/orkestra/backend/internal/shared/middleware"
@@ -40,7 +41,10 @@ func setupMiddleware(
 	// logger has no way to learn them from r.
 	router.Use(chiMiddleware.RequestID)
 	router.Use(chiMiddleware.RealIP)
-	router.Use(authMiddleware.RequestLogger(logger, authMiddleware.NewRequestLoggerOptions()))
+	logOpts := authMiddleware.NewRequestLoggerOptions()
+	logOpts.Metrics = metrics.Default()
+	logOpts.Audience = audience
+	router.Use(authMiddleware.RequestLogger(logger, logOpts))
 
 	// Security headers
 	router.Use(func(next http.Handler) http.Handler {
