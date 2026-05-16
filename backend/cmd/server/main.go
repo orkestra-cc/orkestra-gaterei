@@ -59,6 +59,25 @@ func main() {
 		}
 	}()
 
+	// ADR-0005 Phase E — optional OTLP logs fanout. Disabled by
+	// default (OTEL_LOGS_ENABLED=true to enable). When active, every
+	// slog.Logger built via deps.Logger or slog.Default fans out to
+	// both stdout AND the OTLP backend so vendor dashboards
+	// (Honeycomb, Datadog, Grafana Cloud, Axiom) see the same lines
+	// docker logs captures. Stdout remains the source of truth.
+	logResult := telemetry.InitLogs("orkestra-backend", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := logResult.Shutdown(sctx); err != nil {
+			logger.Warn("telemetry logs shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	if logResult.Handler != nil {
+		logger = utils.SetupLogger(logResult.Handler)
+		slog.SetDefault(logger)
+	}
+
 	// Connect infrastructure. 2-minute budget accommodates the
 	// retry-with-backoff loops in NewMongoConnection and NewRedisConnection
 	// (up to 20 attempts each) that wait out first-boot auth init races.

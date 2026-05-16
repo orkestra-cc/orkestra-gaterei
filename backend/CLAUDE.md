@@ -187,6 +187,8 @@ docker restart orkestra-backend-dev
 
 **Per-module log levels** (ADR-0005 Phase C): every line emitted via `deps.Logger` is auto-stamped with `module=<name>` by the module registry (`pkg/sdk/module/registry.go::depsFor`). Set `LOG_LEVEL_<MODULE>=debug` (e.g. `LOG_LEVEL_RAG=debug`) to widen one module's level without affecting the global `LOG_LEVEL` — the `shared/utils.PerModuleLevelHandler` reads these at boot and gates `Enabled` accordingly. Bare `slog.Info(...)` outside the module pipeline still uses the global threshold.
 
+**OTLP logs fanout** (ADR-0005 Phase E): set `OTEL_LOGS_ENABLED=true` + `OTEL_EXPORTER_OTLP_ENDPOINT=…` to fan every log record out to an OTLP backend (collector → Loki/Tempo, or a vendor like Honeycomb/Datadog/Grafana Cloud/Axiom). `telemetry.InitLogs` builds the exporter + `LoggerProvider`; `shared/utils.FanoutHandler` tees stdout + OTLP so stdout stays the source of truth. The AI sidecar mirrors the wiring so the split-binary deployment is consistent.
+
 ## Rules
 
 - **Read the module's own CLAUDE.md** before modifying it — notification, billing, documents, graph, rag, agents, aimodels, company each have one

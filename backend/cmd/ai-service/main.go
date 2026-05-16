@@ -37,6 +37,7 @@ import (
 	"github.com/orkestra/backend/internal/shared/container"
 	"github.com/orkestra/backend/internal/shared/database"
 	"github.com/orkestra/backend/internal/shared/middleware"
+	"github.com/orkestra/backend/internal/shared/telemetry"
 	"github.com/orkestra/backend/internal/shared/utils"
 )
 
@@ -47,6 +48,32 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// ADR-0005 — telemetry init mirrors the monolith. Both Init and
+	// InitLogs are no-ops when OTEL_EXPORTER_OTLP_ENDPOINT is unset, so
+	// local dev stays frictionless. OTLP logs are gated behind
+	// OTEL_LOGS_ENABLED=true so the sidecar's bytes don't double-bill
+	// at vendor backends that already capture stdout.
+	tracerShutdown := telemetry.Init("orkestra-ai-service", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := tracerShutdown(sctx); err != nil {
+			logger.Warn("telemetry shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	logResult := telemetry.InitLogs("orkestra-ai-service", cfg.Server.Environment, logger)
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		if err := logResult.Shutdown(sctx); err != nil {
+			logger.Warn("telemetry logs shutdown", slog.String("error", err.Error()))
+		}
+	}()
+	if logResult.Handler != nil {
+		logger = utils.SetupLogger(logResult.Handler)
+		slog.SetDefault(logger)
 	}
 
 	// Connect MongoDB. 2-minute budget accommodates retry-with-backoff

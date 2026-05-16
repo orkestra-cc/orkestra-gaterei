@@ -12,7 +12,14 @@ import (
 // LOG_LEVEL_<MODULE> (e.g. LOG_LEVEL_RAG=debug) overrides the level for a
 // single module without changing the global threshold (ADR-0005 §1.4).
 // ENV controls format: JSON for production/staging, text for development.
-func SetupLogger() *slog.Logger {
+//
+// extras is the ADR-0005 Phase E hook: additional slog.Handler fanout
+// targets (today: the OTLP-bridge handler from telemetry.InitLogs).
+// Pass none for the stdout-only path used during early boot before
+// telemetry is initialized; pass the OTLP handler in a second call
+// after InitLogs to upgrade. Nil entries are filtered by
+// NewFanoutHandler, so callers don't have to guard.
+func SetupLogger(extras ...slog.Handler) *slog.Logger {
 	level := slog.LevelInfo
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
 		switch strings.ToLower(logLevel) {
@@ -37,13 +44,26 @@ func SetupLogger() *slog.Logger {
 		Level: slog.LevelDebug,
 	}
 
-	var handler slog.Handler
+	var stdoutHandler slog.Handler
 	env := os.Getenv("ENV")
 
 	if env == "production" || env == "staging" {
-		handler = slog.NewJSONHandler(os.Stdout, &opts)
+		stdoutHandler = slog.NewJSONHandler(os.Stdout, &opts)
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, &opts)
+		stdoutHandler = slog.NewTextHandler(os.Stdout, &opts)
+	}
+
+	// ADR-0005 Phase E — fan out to stdout + any extra handlers
+	// (today: OTLP-bridge from telemetry.InitLogs). When no extras
+	// are supplied the FanoutHandler is constructed with a single
+	// member — equivalent to just using stdoutHandler directly, at
+	// the cost of one extra Handle dispatch per record. Negligible.
+	var handler slog.Handler
+	if len(extras) > 0 {
+		all := append([]slog.Handler{stdoutHandler}, extras...)
+		handler = NewFanoutHandler(all...)
+	} else {
+		handler = stdoutHandler
 	}
 
 	// ADR-0005 §1.4 — per-module level overrides. Sits between the base

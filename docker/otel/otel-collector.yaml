@@ -1,8 +1,15 @@
 # OpenTelemetry Collector config for the Orkestra observability stack.
 #
 # Receives OTLP from the backend (HTTP on 4318, gRPC on 4317), forwards
-# traces to Tempo, and re-exports metrics as a Prometheus scrape target
-# so Prometheus can pull them over the shared docker network.
+# traces to Tempo, re-exports metrics as a Prometheus scrape target,
+# and (ADR-0005 Phase E) forwards logs to Loki when the backend sets
+# OTEL_LOGS_ENABLED=true.
+#
+# Logs path: the self-hosted Tier-1 stack normally captures stdout via
+# Promtail (no app-side OTLP needed). The collector's logs pipeline
+# here exists so operators who want to test the OTLP-logs path before
+# pointing at a vendor backend (Tier-2) can validate end-to-end against
+# their own Loki — flipping OTEL_LOGS_ENABLED on dev.
 
 receivers:
   otlp:
@@ -46,6 +53,18 @@ exporters:
     # type information.
     enable_open_metrics: true
 
+  # Logs → Loki via its push API. ADR-0005 Phase E. The collector-contrib
+  # `loki` exporter translates OTLP log records into Loki's line+labels
+  # format. Resource attributes (service.name, deployment.environment)
+  # become Loki labels automatically; per-record attributes ride along in
+  # the JSON body of each line so LogQL `| json | tenant_id="..."`
+  # queries work the same way they do for Promtail-shipped logs.
+  loki:
+    endpoint: http://orkestra-loki:3100/loki/api/v1/push
+    default_labels_enabled:
+      exporter: false  # collapse "exporter=otlp" — not useful
+      job: true
+
   # Debug logger — disabled by default. Flip on when a span silently
   # disappears and you want a tap before Tempo drops it.
   # debug:
@@ -66,3 +85,7 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [loki]
