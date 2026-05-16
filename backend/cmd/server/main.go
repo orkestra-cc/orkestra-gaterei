@@ -424,13 +424,17 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Phase 5.3: Prometheus /metrics endpoint. Operator-only — Prometheus
-	// scrapes from inside the cluster against the operator host; exposing
-	// metrics on the client host would leak internal cardinality to any
-	// browser hitting api.orkestra.com/metrics. METRICS_ENABLED is
-	// respected but defaults to true because a scrape on a disabled
-	// handler just yields 404 — cheap enough to leave on in every
-	// environment.
+	// Phase 5.3: Prometheus /metrics endpoint. Mounted on the operator
+	// mux for in-product browsing AND on the LAN ops handler so a
+	// Prometheus scrape against orkestra-backend:3000/metrics works
+	// without spoofing the operator Host header (Prometheus has no
+	// per-scrape Host override). Kept off the client mux so a browser
+	// hitting api.orkestra.com/metrics still 404s — the reverse proxy +
+	// hostMux gate together preserve the "don't leak cardinality on the
+	// public client surface" intent. METRICS_ENABLED is respected but
+	// defaults to true because a scrape on a disabled handler just
+	// yields 404 — cheap enough to leave on in every environment.
+	var metricsHandler http.Handler
 	if os.Getenv("METRICS_ENABLED") != "false" {
 		mc := metrics.Default()
 		if err := mc.Register(); err != nil {
@@ -439,7 +443,8 @@ func main() {
 		}
 		stopLag := mc.Start(15 * time.Second)
 		defer stopLag()
-		operatorMux.Handle("/metrics", mc.Handler())
+		metricsHandler = mc.Handler()
+		operatorMux.Handle("/metrics", metricsHandler)
 	}
 
 	// Host mux dispatches by Host header. In dev (ENV=development) an
@@ -462,7 +467,7 @@ func main() {
 	// /health and /ready (only) so those probes can answer 200 without
 	// spoofing a Host header. Everything else on a non-matching host
 	// still gets 421 — the host-header smuggling guard stays intact.
-	root := newHostMux(hostRoutes, devFallthrough, lanOpsHandler(db, redisClient))
+	root := newHostMux(hostRoutes, devFallthrough, lanOpsHandler(db, redisClient, metricsHandler))
 
 	// HTTP server. The host mux is wrapped in otelhttp.NewHandler so every
 	// request spawns a span the tenant-baggage middleware can enrich
