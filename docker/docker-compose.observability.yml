@@ -6,6 +6,11 @@ name: orkestra-observability
 # the backend and AI service can export spans to Tempo and metrics to
 # Prometheus with no code changes.
 #
+# ADR-0005 Phase D extends the stack with Loki + Promtail so logs are
+# searchable side-by-side with traces and the Grafana span ↔ log jump
+# works on both sides. The full self-hosted Tier-1 observability
+# package (logs + traces + metrics) is now a single `up -d` away.
+#
 # Boot order:
 #   docker compose -f docker-compose.infra.yml up -d
 #   docker compose -f docker-compose.dev.yml   up -d
@@ -13,7 +18,8 @@ name: orkestra-observability
 #
 # Then set OTEL_EXPORTER_OTLP_ENDPOINT=http://orkestra-otel:4318 on the
 # backend (docker-compose.dev.yml honors it via the .env file) and
-# Grafana auto-provisions a Tempo datasource + a tenant-traces dashboard.
+# Grafana auto-provisions Tempo + Prometheus + Loki datasources plus
+# the "Tenant traces + logs" dashboard.
 
 services:
   # OpenTelemetry Collector — receives OTLP from the backend, fans out to
@@ -91,10 +97,75 @@ services:
       timeout: 5s
       retries: 5
 
-  # Grafana — provisions the Tempo + Prometheus datasources at boot plus
-  # one Phase 5.2 dashboard (Tenant traces). The Phase 5.3 dashboards
-  # (capability denials, Cedar shadow divergence) land alongside the
-  # metrics they visualize.
+  # Grafana Loki — log backend (ADR-0005 Phase D). Single-binary mode,
+  # filesystem storage. 14 days for info; 30 days for warn+ via
+  # per-stream retention rules in loki.yaml. Production at scale would
+  # swap the filesystem store for S3/GCS without touching the rest of
+  # the compose.
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: orkestra-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - orkestra-loki-data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - orkestra-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana Promtail — log shipper (ADR-0005 Phase D). Tails Docker
+  # container stdout via the daemon's labels API, parses each JSON
+  # line, and pushes to Loki. The docker socket mount is read-only
+  # (Promtail never starts/stops containers; it only enumerates them
+  # and reads their log files). On shared/production hosts, front the
+  # socket with tecnativa/docker-socket-proxy restricted to the
+  # /containers/* read endpoints.
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: orkestra-promtail
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/promtail.yaml"]
+    volumes:
+      - ./promtail/promtail.yaml:/etc/promtail/promtail.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - orkestra-promtail-positions:/tmp
+    # Join the host Docker group so the mounted socket is usable —
+    # Promtail's default UID is 10001 and the socket is root:docker
+    # mode 660. Override DOCKER_GID in docker/.env if the host's
+    # docker group GID is not 1001. Mirrors the backend container's
+    # solution to the same problem.
+    group_add:
+      - "${DOCKER_GID:-1001}"
+    # Required when the Docker daemon runs with userns-remap (the
+    # default on rootless Docker). Without it, group_add maps to a
+    # remapped GID that doesn't match the host docker group, and
+    # Promtail's docker_sd_configs probe fails with "permission
+    # denied" against the socket.
+    userns_mode: "host"
+    networks:
+      - orkestra-network
+    depends_on:
+      - loki
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9080/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana — provisions the Tempo + Prometheus + Loki datasources at
+  # boot plus the "Tenant traces + logs" dashboard (ADR-0005 Phase D).
+  # The Tempo datasource is wired with tracesToLogsV2 so clicking a
+  # span jumps to filtered Loki logs by trace_id; the Loki datasource
+  # is wired with derivedFields so clicking trace_id in a log line
+  # jumps back to Tempo.
   grafana:
     image: grafana/grafana-oss:10.4.2
     container_name: orkestra-grafana
@@ -115,6 +186,7 @@ services:
     depends_on:
       - tempo
       - prometheus
+      - loki
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 10s
@@ -127,6 +199,10 @@ volumes:
   orkestra-prometheus-data:
     driver: local
   orkestra-grafana-data:
+    driver: local
+  orkestra-loki-data:
+    driver: local
+  orkestra-promtail-positions:
     driver: local
 
 networks:

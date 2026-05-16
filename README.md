@@ -159,7 +159,7 @@ The same `trace_id` jumps to the matching Tempo trace and to Prometheus exemplar
 | Tier | What you get | What you set |
 |---|---|---|
 | **0 — Zero config** | Structured JSON logs to stdout with trace + tenant correlation, Chi request log replaced by a typed middleware (allowlist-only, never logs bodies or auth headers), OpenTelemetry tracer running no-op, `/metrics` live. | `LOG_LEVEL=info` (default) |
-| **1 — Self-hosted** | Adds Tempo (traces) + Prometheus (metrics) + Loki (logs) + Grafana (datasources auto-provisioned, "Tenant traces + logs" dashboard pre-loaded). Everything stays on operator hardware. | `OBSERVABILITY_PROFILE=self-hosted` |
+| **1 — Self-hosted** | Adds Tempo (traces) + Prometheus (metrics) + Loki (logs) + Promtail (log shipper) + Grafana (datasources auto-provisioned with cross-jumping, "Tenant traces + logs" dashboard pre-loaded). Everything stays on operator hardware. | `./orkestra.sh observability up` (or option 3 in the TUI) |
 | **2 — OTLP-native** | Ships traces and logs to any OTLP-compatible vendor — Honeycomb, Datadog, Grafana Cloud, Axiom, New Relic. Stdout remains the source of truth; OTLP is an additive fanout so a collector outage never loses lines. | `OTEL_EXPORTER_OTLP_ENDPOINT=https://…` (+ `OTEL_EXPORTER_OTLP_HEADERS` for auth) |
 
 ### Audit log ≠ operational log

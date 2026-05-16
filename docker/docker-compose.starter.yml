@@ -73,6 +73,17 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PRETTY_LOGS: ${PRETTY_LOGS:-false}
 
+      # ADR-0005 — observability env passthrough. Setting
+      # OTEL_EXPORTER_OTLP_ENDPOINT activates trace export to the
+      # docker-compose.observability.yml stack's collector.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
+      LOG_HTTP_SKIP_PATHS: ${LOG_HTTP_SKIP_PATHS:-}
+      LOG_HTTP_SLOW_THRESHOLD_MS: ${LOG_HTTP_SLOW_THRESHOLD_MS:-1000}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+
       # Starter ships no addons — runtime container control is unused.
       CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-false}
     volumes:

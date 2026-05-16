@@ -593,16 +593,25 @@ AWS_SECRET_ACCESS_KEY=your_secret_key
 
 ### Self-hosted OTEL stack (docker-compose.observability.yml)
 
-Phase 5.2 of the tenancy plan ships a self-hosted observability profile that layers on top of the dev/staging/prod stacks. Four containers, all pinned public images:
+Phase 5.2 of the tenancy plan ships a self-hosted observability profile that layers on top of the dev/staging/prod stacks. After ADR-0005 Phase D, six containers, all pinned public images:
 
 | Service           | Image                                         | Host port | Purpose                                                                            |
 | ----------------- | --------------------------------------------- | --------- | ---------------------------------------------------------------------------------- |
 | **otel-collector**| `otel/opentelemetry-collector-contrib:0.96.0` | 4318 / 4317 | OTLP receiver; fans traces to Tempo, exposes collected metrics for Prometheus     |
 | **tempo**         | `grafana/tempo:2.4.1`                         | 3200        | Trace backend (local storage, 72 h retention)                                      |
 | **prometheus**    | `prom/prometheus:v2.51.2`                     | 9090        | Metric scraper (15 d retention)                                                    |
-| **grafana**       | `grafana/grafana-oss:10.4.2`                  | 3010        | UI; Tempo + Prometheus datasources auto-provisioned; "Tenant traces" dashboard pre-loaded |
+| **loki**          | `grafana/loki:3.0.0`                          | 3100        | Log backend (filesystem store; 14 d info / 30 d warn+ via per-stream retention)   |
+| **promtail**      | `grafana/promtail:3.0.0`                      | —           | Log shipper; tails docker stdout, JSON-parses, ships to Loki                       |
+| **grafana**       | `grafana/grafana-oss:10.4.2`                  | 3010        | UI; Tempo + Prometheus + Loki datasources auto-provisioned with cross-jumping; "Tenant traces + logs" dashboard pre-loaded |
 
-Boot it alongside the dev stack:
+Boot it alongside the dev stack. Easiest path via `orkestra.sh`:
+
+```bash
+./orkestra.sh observability up      # CLI
+./orkestra.sh                       # TUI → option 3 "Observability"
+```
+
+Or directly via docker compose:
 
 ```bash
 cd docker
@@ -611,6 +620,8 @@ docker compose -f docker-compose.infra.yml up -d
 docker compose -f docker-compose.dev.yml  up -d
 docker compose -f docker-compose.observability.yml up -d
 ```
+
+The orkestra.sh launcher also exposes `observability {down,reset,status,info,logs}`. The observability stack uses its own compose project name (`orkestra-observability`) so stopping the app stack never accidentally takes Grafana down.
 
 Point the backend at the collector by setting in `docker/.env`:
 
@@ -624,8 +635,9 @@ Restart the backend (`docker compose -f docker-compose.dev.yml restart backend`)
 - Grafana — http://localhost:3010 (admin / admin; anonymous Viewer access is enabled so shareable links work without login)
 - Prometheus — http://localhost:9090
 - Tempo — http://localhost:3200 (not meant for direct use; query via Grafana's Tempo datasource)
+- Loki — http://localhost:3100 (not meant for direct use; query via Grafana's Loki datasource or the Explore tab)
 
-The pre-provisioned "Tenant traces" dashboard (`Orkestra` folder in Grafana) takes a `tenant.id` and optional tier filter and shows every span where the `TenantBaggage` middleware stamped the matching attribute. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go` + `backend/internal/shared/middleware/baggage_coverage_test.go`.
+The pre-provisioned "Tenant traces + logs" dashboard (`Orkestra` folder in Grafana) takes a `tenant.id`, an optional tier filter, and an optional module name. The traces panel shows every span where the `TenantBaggage` middleware stamped the matching `tenant.id` attribute; the logs panels show every Loki entry where the structured JSON line carries the matching `tenant_id` or `module` field. Both sides cross-link by `trace_id` — clicking a span jumps to filtered Loki logs, and clicking `trace_id` in any log line jumps back to Tempo. Backing evidence: `backend/internal/shared/middleware/tenant_baggage.go`, `backend/internal/shared/middleware/request_logger.go` (ADR-0005 Phase A), and `backend/internal/shared/utils/per_module_level_handler.go` (ADR-0005 Phase C).
 
 Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), scraped automatically by Prometheus. Four metric families ship today — Cedar shadow divergence, capability denial, entitlement projection lag, and (ADR-0005 Phase B) `orkestra_http_request_duration_seconds` — with the label schema frozen in [ADR-0002](../docs/adr/0002-metrics-label-schema.md). Disable the endpoint by setting `METRICS_ENABLED=false`.
 

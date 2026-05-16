@@ -1,6 +1,16 @@
 # Grafana datasource provisioning — mounted read-only into the grafana
-# container so every boot starts with Tempo + Prometheus already wired.
-# Editing these in the UI is pointless; the file always wins.
+# container so every boot starts with Tempo + Prometheus + Loki already
+# wired. Editing these in the UI is pointless; the file always wins.
+#
+# ADR-0005 Phase D — the cross-datasource links are what make the
+# "trifecta" (logs ↔ traces ↔ metrics) feel like one product instead
+# of three:
+#   * Tempo.tracesToLogsV2 → click a span, get Loki logs filtered by
+#     trace_id + the span's service.
+#   * Loki.derivedFields → trace_id in a log line becomes a clickable
+#     link that opens Tempo.
+#   * Prometheus exemplars on the latency histogram (Phase B) already
+#     carry trace_id; Grafana auto-renders them as Tempo links.
 
 apiVersion: 1
 
@@ -16,8 +26,25 @@ datasources:
     editable: false
     jsonData:
       httpMethod: GET
-      tracesToLogs:
-        datasourceUid: ""
+      # ADR-0005 Phase D — span → log jump. tracesToLogsV2 reads the
+      # trace_id from the open span and runs the templated LogQL
+      # against Loki. The customQuery keeps the span_id filter
+      # optional (some span exporters drop the parent span_id on
+      # client-side spans).
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-2m"
+        spanEndTimeShift: "2m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{service="orkestra-backend"} |= "${__span.traceId}"'
+      # Tempo → Prometheus link for span-to-metric jumping (RED-style
+      # "show me the rate of this route" from inside a span).
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-2m"
+        spanEndTimeShift: "2m"
 
   - name: Prometheus
     type: prometheus
@@ -30,3 +57,32 @@ datasources:
     editable: false
     jsonData:
       httpMethod: POST
+      # Read exemplars from histograms — required so the Phase B
+      # latency histogram's trace_id exemplars surface as clickable
+      # links in Grafana's Prometheus → Tempo jump.
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Loki
+    type: loki
+    access: proxy
+    orgId: 1
+    url: http://orkestra-loki:3100
+    uid: loki
+    isDefault: false
+    version: 1
+    editable: false
+    jsonData:
+      # ADR-0005 Phase D — log → trace jump. Grafana scans each log
+      # line for the regex below; matched groups become clickable
+      # links that open Tempo with the captured trace_id.
+      derivedFields:
+        - name: trace_id
+          # Match either a Loki structured-metadata trace_id label or
+          # an in-payload "trace_id":"…" field. Promtail surfaces both
+          # so either path works.
+          matcherRegex: '"trace_id"\s*:\s*"([0-9a-fA-F]{32})"'
+          url: '${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: 'Trace'

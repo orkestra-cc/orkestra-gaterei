@@ -1,12 +1,12 @@
 {
-  "title": "Tenant traces",
+  "title": "Tenant traces + logs",
   "uid": "orkestra-tenant-traces",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "time": { "from": "now-1h", "to": "now" },
   "refresh": "30s",
-  "tags": ["orkestra", "tenancy", "phase-5.2"],
+  "tags": ["orkestra", "tenancy", "phase-5.2", "adr-0005"],
   "templating": {
     "list": [
       {
@@ -21,13 +21,22 @@
         "name": "tenant_kind",
         "label": "Tier",
         "type": "custom",
-        "query": "all,internal,external",
-        "current": { "text": "all", "value": "all" },
+        "query": ": ,internal,external",
+        "description": "Mapping 'all' to an empty value drops the tenant.kind filter from the TraceQL query — picking 'all' previously filtered for tenant.kind=\"all\" literal, which matched zero spans.",
+        "current": { "text": "all", "value": "" },
         "options": [
-          { "text": "all", "value": "all", "selected": true },
+          { "text": "all", "value": "", "selected": true },
           { "text": "internal", "value": "internal" },
           { "text": "external", "value": "external" }
         ],
+        "hide": 0
+      },
+      {
+        "name": "module",
+        "label": "Module",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" },
         "hide": 0
       }
     ]
@@ -37,9 +46,9 @@
       "id": 1,
       "type": "text",
       "title": "About",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 3 },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
-        "content": "Every request span carries `tenant.id`, `tenant.kind`, `user.id`, and `user.role` attributes (`backend/internal/shared/middleware/tenant_baggage.go`). Type a tenant UUID above and use the Tempo search panel below to open traces scoped to that tenant. Optionally filter by tier (internal operator vs external client)."
+        "content": "Multi-tenant correlation surface backed by ADR-0001 (tenant baggage) and ADR-0005 (structured logging). Type a tenant UUID above and Grafana scopes both the trace search and the log feed below to that tenant — across every Orkestra module the request touched. Optionally filter by tier (internal operator vs external client) or by a single module name (e.g. `rag`). Clicking a trace_id in any log line jumps to the matching Tempo trace; clicking a span jumps back to the filtered log feed."
       }
     },
     {
@@ -47,7 +56,7 @@
       "type": "traces",
       "title": "Traces matching filters",
       "datasource": { "type": "tempo", "uid": "tempo" },
-      "gridPos": { "x": 0, "y": 3, "w": 24, "h": 20 },
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 14 },
       "targets": [
         {
           "refId": "A",
@@ -71,6 +80,56 @@
               "valueType": "string"
             }
           ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Logs for tenant $tenant_id",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 16 },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=\"orkestra-backend\"} | json | tenant_id=`$tenant_id`",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "Logs for module $module (across all tenants)",
+      "description": "Use the Module template variable above (e.g. rag, billing, auth). Empty = no panel data.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 14 },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=\"orkestra-backend\", module=\"$module\"}",
+          "queryType": "range"
         }
       ]
     }

@@ -135,6 +135,12 @@ DOCKER_DIR="$PROJECT_ROOT/docker"
 
 ENV_FILE="$DOCKER_DIR/.env"
 
+# ADR-0005 Phase D — self-hosted observability stack (Loki, Tempo,
+# Prometheus, Promtail, otel-collector, Grafana). Orthogonal to the
+# SKU profile / full-stack split: you typically run it alongside
+# whichever app stack is up.
+OBSERVABILITY_COMPOSE="$DOCKER_DIR/docker-compose.observability.yml"
+
 # Profile state — "fullstack", a SKU profile name, or "" (at profile menu)
 PROFILE=""
 
@@ -1313,6 +1319,127 @@ fullstack_status() {
 }
 
 # ---------------------------------------------------------------------------
+# Observability stack (ADR-0005 Phase D)
+# ---------------------------------------------------------------------------
+#
+# Orthogonal to the SKU/full-stack split. Operators run this alongside
+# their app stack to get Tempo (traces), Prometheus (metrics), Loki
+# (logs), Grafana (UI), Promtail (log shipper), otel-collector (OTLP
+# ingest). The compose file declares its own `name:` so its containers
+# live in their own project — they're not mixed into the app's
+# `docker compose ps` output and `docker compose down` on the app
+# stack never accidentally takes them down.
+
+observability_check_file() {
+    if [ ! -f "$OBSERVABILITY_COMPOSE" ]; then
+        die "Observability compose file not found at $OBSERVABILITY_COMPOSE"
+    fi
+}
+
+observability_up() {
+    page_header "Observability · Up"
+    check_docker_running
+    observability_check_file
+    echo
+    p_muted "Compose: $(basename "$OBSERVABILITY_COMPOSE")"
+    echo
+    with_spinner "Starting observability stack" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" up -d
+    echo
+    p_ok "Observability stack is up."
+    observability_info
+}
+
+observability_down() {
+    page_header "Observability · Down"
+    check_docker_running
+    observability_check_file
+    echo
+    with_spinner "Stopping observability stack" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" down
+    echo
+    p_ok "Observability stack stopped (volumes preserved)."
+}
+
+observability_reset() {
+    local confirm=${1:-ask}
+    page_header "Observability · Reset"
+    check_docker_running
+    observability_check_file
+    echo
+    draw_box "WARNING" "" \
+        "  ${c_error}This deletes Loki / Tempo / Prometheus / Grafana data volumes.${c_reset}" \
+        "  ${c_muted}Dashboards / datasources are re-provisioned on next boot.${c_reset}" \
+        ""
+    echo
+    if [ "$confirm" = "ask" ]; then
+        ask_yes_no "Proceed with reset?" "n" || { p_warn "Operation cancelled."; return; }
+    fi
+    with_spinner "Removing observability stack and volumes" \
+        docker compose -f "$OBSERVABILITY_COMPOSE" down -v
+    p_ok "Observability state wiped."
+}
+
+observability_status() {
+    page_header "Observability · Status"
+    check_docker_running
+    observability_check_file
+    echo
+
+    p_section "Containers"
+    docker compose -f "$OBSERVABILITY_COMPOSE" ps
+    echo
+
+    p_section "Resource usage"
+    local container_ids
+    container_ids=$(docker compose -f "$OBSERVABILITY_COMPOSE" ps -q 2>/dev/null)
+    if [ -z "$container_ids" ]; then
+        p_muted "No running containers — start the stack with 'observability up'."
+        return
+    fi
+    # shellcheck disable=SC2086
+    docker stats --no-stream \
+        --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" \
+        $container_ids
+}
+
+observability_info() {
+    local grafana_port="${GRAFANA_PORT:-3010}"
+    local prometheus_port="${PROMETHEUS_PORT:-9090}"
+    local tempo_port="${TEMPO_HTTP_PORT:-3200}"
+    local loki_port="${LOKI_PORT:-3100}"
+    local otel_http="${OTEL_OTLP_HTTP_PORT:-4318}"
+
+    page_header "Observability · Info"
+    draw_box "URLs" \
+        "" \
+        "  ${c_bold}Grafana${c_reset}     http://localhost:${grafana_port}   ${c_muted}(admin/admin; anon viewer enabled)${c_reset}" \
+        "  ${c_bold}Prometheus${c_reset}  http://localhost:${prometheus_port}" \
+        "  ${c_bold}Tempo${c_reset}       http://localhost:${tempo_port}     ${c_muted}(query via Grafana — not for direct use)${c_reset}" \
+        "  ${c_bold}Loki${c_reset}        http://localhost:${loki_port}     ${c_muted}(query via Grafana — not for direct use)${c_reset}" \
+        ""
+    echo
+    draw_box "Wire the backend at the collector" \
+        "" \
+        "  Add to docker/.env:" \
+        "" \
+        "    ${c_accent}OTEL_EXPORTER_OTLP_ENDPOINT=http://orkestra-otel:${otel_http}${c_reset}" \
+        "    ${c_accent}OTEL_TRACES_ENABLED=true${c_reset}" \
+        "" \
+        "  Then restart the backend:" \
+        "" \
+        "    ${c_muted}docker compose -f docker-compose.dev.yml restart backend${c_reset}" \
+        ""
+    echo
+    draw_box "Dashboards" \
+        "" \
+        "  Open Grafana → ${c_bold}Orkestra${c_reset} folder → ${c_bold}Tenant traces + logs${c_reset}" \
+        "  Type a tenant UUID; trace, log, and metric panels are tenant-scoped." \
+        "  Click any trace_id in a log → jumps to Tempo. Click a span → jumps to logs." \
+        ""
+}
+
+# ---------------------------------------------------------------------------
 # Unified logs picker (SKU profiles + full-stack aware)
 # ---------------------------------------------------------------------------
 
@@ -1330,6 +1457,9 @@ list_all_services() {
         fullstack)
             files+=("$DOCKER_DIR/docker-compose.infra.yml")
             files+=("$COMPOSE_FILE")
+            ;;
+        observability)
+            files+=("$OBSERVABILITY_COMPOSE")
             ;;
         *)
             if is_sku_profile "$profile"; then
@@ -1536,7 +1666,10 @@ show_profile_menu() {
         "  ${c_accent}2${c_reset} ${c_bold}Full stack${c_reset}              ${c_muted}(dev / staging / production)${c_reset}" \
         "     ${c_muted}ENV autodetected from docker/.env${c_reset}" \
         "" \
-        "  ${c_accent}3${c_reset} ${c_bold}Quit${c_reset}" \
+        "  ${c_accent}3${c_reset} ${c_bold}Observability${c_reset}           ${c_muted}(Loki, Tempo, Prometheus, Grafana)${c_reset}" \
+        "     ${c_muted}ADR-0005 Phase D — runs alongside any app stack${c_reset}" \
+        "" \
+        "  ${c_accent}4${c_reset} ${c_bold}Quit${c_reset}" \
         ""
 }
 
@@ -1626,6 +1759,39 @@ show_fullstack_menu() {
         ""
 }
 
+show_observability_menu() {
+    page_header "Observability stack"
+    draw_box "Select operation" \
+        "" \
+        "  ${c_accent}1${c_reset}  Up                 ${c_muted}(start the stack — Tempo, Prometheus, Loki, Grafana, …)${c_reset}" \
+        "  ${c_accent}2${c_reset}  Down               ${c_muted}(stop containers, keep volumes)${c_reset}" \
+        "  ${c_accent}3${c_reset}  Reset              ${c_muted}(wipe dashboards / metrics / logs — destructive)${c_reset}" \
+        "  ${c_accent}4${c_reset}  Status             ${c_muted}(ps + resource usage)${c_reset}" \
+        "  ${c_accent}5${c_reset}  Logs               ${c_muted}(service picker)${c_reset}" \
+        "  ${c_accent}6${c_reset}  Info               ${c_muted}(URLs + backend wiring recipe)${c_reset}" \
+        "  ${c_accent}7${c_reset}  Back to profile menu" \
+        ""
+}
+
+observability_menu_loop() {
+    while true; do
+        show_observability_menu
+        printf '%s%s Select operation [1-7]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
+        local choice
+        read -r choice
+        case "$choice" in
+            1) observability_up; pause_for_return ;;
+            2) observability_down; pause_for_return ;;
+            3) observability_reset "ask"; pause_for_return ;;
+            4) observability_status; pause_for_return ;;
+            5) logs_interactive "observability"; pause_for_return ;;
+            6) observability_info; pause_for_return ;;
+            7) PROFILE=""; return ;;
+            *) p_warn "Invalid selection"; sleep 1 ;;
+        esac
+    done
+}
+
 fullstack_menu_loop() {
     fullstack_init_env
     while true; do
@@ -1681,6 +1847,14 @@ ${c_bold}FULL STACK${c_reset} ${c_muted}(uses ENV from docker/.env or ENV=... pr
   ${c_accent}status${c_reset}                            Containers + health + resources
   ${c_accent}logs${c_reset} <service> [flags]            View logs for a full-stack service
 
+${c_bold}OBSERVABILITY${c_reset} ${c_muted}(ADR-0005 Phase D — runs alongside any app stack)${c_reset}
+  ${c_accent}observability up${c_reset}                  Start Tempo + Prometheus + Loki + Promtail + Grafana
+  ${c_accent}observability down${c_reset}                Stop containers (volumes kept)
+  ${c_accent}observability reset${c_reset} [--yes]       Wipe volumes (dashboards/metrics/logs erased)
+  ${c_accent}observability status${c_reset}              Containers + resource usage
+  ${c_accent}observability info${c_reset}                URLs + backend wiring recipe
+  ${c_accent}observability logs${c_reset} <svc> [flags]  View logs for an observability service
+
 ${c_bold}LOG FLAGS${c_reset}
   ${c_accent}-f${c_reset}, ${c_accent}--follow${c_reset}           Follow log output (tail -f)
   ${c_accent}-n${c_reset}, ${c_accent}--lines${c_reset} N          Lines to show when not following (default 100)
@@ -1698,6 +1872,8 @@ ${c_bold}EXAMPLES${c_reset}
   ./orkestra.sh profile enterprise logs backend -f
   ENV=development ./orkestra.sh deploy --scope backend --rebuild --yes
   ./orkestra.sh logs orkestra-backend-dev -f
+  ./orkestra.sh observability up
+  ./orkestra.sh observability logs grafana -f
 
 ${c_bold}ENHANCEMENTS${c_reset}
   Install ${c_accent}gum${c_reset} (charm.sh) for prettier prompts, spinners, and choose menus.
@@ -1808,6 +1984,35 @@ cli_dispatch() {
             logs_cli "fullstack" "$service" "$@"
             ;;
 
+        observability)
+            local subcmd=${1:-}
+            [ -n "$subcmd" ] && shift
+            case "$subcmd" in
+                up) observability_up ;;
+                down) observability_down ;;
+                reset)
+                    local confirm="ask"
+                    while [ $# -gt 0 ]; do
+                        case "$1" in
+                            --yes | -y) confirm="yes"; shift ;;
+                            *) die "Unknown flag: $1" ;;
+                        esac
+                    done
+                    observability_reset "$confirm"
+                    ;;
+                status) observability_status ;;
+                info) observability_info ;;
+                logs)
+                    local service=${1:-}
+                    [ -n "$service" ] && shift
+                    [ -z "$service" ] && die "Usage: ./orkestra.sh observability logs <service> [-f] [-n N] [-t]"
+                    logs_cli "observability" "$service" "$@"
+                    ;;
+                "") die "Missing subcommand. Try --help." ;;
+                *) die "Unknown observability subcommand: $subcmd. Valid: up | down | reset | status | info | logs" ;;
+            esac
+            ;;
+
         *) die "Unknown command: $cmd. Try --help." ;;
     esac
 }
@@ -1839,13 +2044,14 @@ main() {
     # matches their running stack.
     while true; do
         show_profile_menu
-        printf '%s%s Select profile [1-3]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
+        printf '%s%s Select profile [1-4]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
         local choice
         read -r choice
         case "$choice" in
             1) profile_picker_loop ;;
             2) fullstack_menu_loop ;;
-            3)
+            3) observability_menu_loop ;;
+            4)
                 echo
                 printf '%s%s Goodbye!%s\n' "$c_success" "$ic_ok" "$c_reset"
                 exit 0

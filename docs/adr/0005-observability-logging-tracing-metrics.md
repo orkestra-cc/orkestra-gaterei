@@ -135,7 +135,7 @@ Net-additive — no breaking changes to any module's logging behavior.
 - **Phase A** ✅ shipped 2026-05-16 (commit `d55ee6e`): `TraceContextHandler` + structured request middleware + `LOG_HTTP_SKIP_PATHS` / `LOG_HTTP_SLOW_THRESHOLD_MS` env vars. Chi `middleware.Logger` removed.
 - **Phase B** ✅ shipped 2026-05-16 (commit `2545c7d`): `orkestra_http_request_duration_seconds` histogram with `trace_id` Prometheus exemplars. ADR-0002 amended in place.
 - **Phase C** ✅ shipped 2026-05-16: per-module log levels (§1.4). `PerModuleLevelHandler` in `shared/utils`; `ModuleRegistry.depsFor` auto-stamps `module=<name>` on every line emitted via `deps.Logger`; operators flip individual modules via `LOG_LEVEL_<MODULE>=debug` env vars.
-- **Phase D**: Loki + Promtail in `docker-compose.observability.yml`, "Tenant traces + logs" dashboard provisioning.
+- **Phase D** ✅ shipped 2026-05-16: Loki + Promtail in `docker-compose.observability.yml`. Grafana datasources auto-provision with cross-jumping (Tempo → Loki via `tracesToLogsV2`, Loki → Tempo via `derivedFields`, Prometheus exemplars → Tempo). Dashboard upgraded to "Tenant traces + logs" with per-tenant log panel and per-module log panel. 14d info / 30d warn+ retention via Loki `retention_stream` rules.
 - **Phase E**: OTLP logs exporter (Tier 2). Gated by `OTEL_LOGS_ENABLED=true` so operators who don't want it don't pay the exporter cost.
 - **Phase F** (deferred): `/admin/modules` UI for per-module log levels and on-the-fly Loki retention overrides.
 
