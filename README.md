@@ -172,7 +172,7 @@ The `compliance` module's audit sink (append-only `audit_events` in MongoDB) is 
 LOG_LEVEL=info LOG_LEVEL_RAG=debug docker compose -f docker-compose.dev.yml up
 ```
 
-RAG ingestion floods with detail; the rest of the backend stays readable.
+RAG ingestion floods with detail; the rest of the backend stays readable. Every line emitted from a module is auto-stamped with `module=<name>` by the module registry (`pkg/sdk/module`), so the slog handler can gate on it without any code change in the module itself.
 
 ### PII-safe by construction
 

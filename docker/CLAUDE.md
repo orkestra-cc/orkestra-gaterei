@@ -631,6 +631,8 @@ Phase 5.3 landed `/metrics` on the backend (`GET http://backend:3000/metrics`), 
 
 The HTTP latency histogram is labelled `{audience, method, route, status_class}` (Chi route template, never raw path) and carries `trace_id` as a Prometheus exemplar. With Prometheus's `--enable-feature=exemplar-storage` and Grafana's "Prometheus → Tempo" datasource link, clicking a slow bucket jumps straight to the matching trace — no external correlation table.
 
+[ADR-0005](../docs/adr/0005-observability-logging-tracing-metrics.md) (Phase C) adds per-module log levels. Set `LOG_LEVEL_<MODULE>=debug` for any module (e.g. `LOG_LEVEL_RAG=debug`, `LOG_LEVEL_BILLING=warn`) to override the global `LOG_LEVEL` for just that module — the registry auto-stamps `module=<name>` on every line emitted from a module's `deps.Logger`, and the slog handler gates by it. Unset overrides fall back to `LOG_LEVEL`.
+
 [ADR-0005](../docs/adr/0005-observability-logging-tracing-metrics.md) (Phase A) replaced Chi's unstructured request logger with a structured one that emits one JSON line per request with `trace_id`, `span_id`, `tenant_id`, `tenant_kind`, `user_id`, `user_role`, `audience`, `request_id`, `method`, `path`, `status`, `duration_ms`, `bytes`, `remote`, `ua` (and `slow=true` when over threshold). Two process-scoped tunables, both safe to leave at the default:
 
 - `LOG_HTTP_SKIP_PATHS` — comma list of exact paths to suppress (`/health,/ready,/metrics,/openapi.json` by default). When set, REPLACES the default list — include defaults explicitly to extend.

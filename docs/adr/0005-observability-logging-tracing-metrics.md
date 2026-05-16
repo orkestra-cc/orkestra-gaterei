@@ -132,14 +132,14 @@ This is the **pro-on-demand** half of the promise. Plug Orkestra into whatever t
 
 Net-additive — no breaking changes to any module's logging behavior.
 
-- **Phase A** (single PR): land §1.1 `TraceContextHandler` + §2 request middleware + `LOG_HTTP_SKIP_PATHS` / `LOG_HTTP_SLOW_THRESHOLD_MS` env vars. Remove Chi `middleware.Logger`. Old `slog.Info(...)` (no `ctx`) calls keep working — they just won't get `trace_id` until their hot paths are swept.
-- **Phase B**: add `orkestra_http_request_duration_seconds` histogram with exemplars. New SDK metric registration — operators get it automatically once they upgrade.
-- **Phase C**: per-module log levels (§1.4). Pure additive — env vars only.
+- **Phase A** ✅ shipped 2026-05-16 (commit `d55ee6e`): `TraceContextHandler` + structured request middleware + `LOG_HTTP_SKIP_PATHS` / `LOG_HTTP_SLOW_THRESHOLD_MS` env vars. Chi `middleware.Logger` removed.
+- **Phase B** ✅ shipped 2026-05-16 (commit `2545c7d`): `orkestra_http_request_duration_seconds` histogram with `trace_id` Prometheus exemplars. ADR-0002 amended in place.
+- **Phase C** ✅ shipped 2026-05-16: per-module log levels (§1.4). `PerModuleLevelHandler` in `shared/utils`; `ModuleRegistry.depsFor` auto-stamps `module=<name>` on every line emitted via `deps.Logger`; operators flip individual modules via `LOG_LEVEL_<MODULE>=debug` env vars.
 - **Phase D**: Loki + Promtail in `docker-compose.observability.yml`, "Tenant traces + logs" dashboard provisioning.
 - **Phase E**: OTLP logs exporter (Tier 2). Gated by `OTEL_LOGS_ENABLED=true` so operators who don't want it don't pay the exporter cost.
 - **Phase F** (deferred): `/admin/modules` UI for per-module log levels and on-the-fly Loki retention overrides.
 
-Each phase is independently shippable. A and B are the minimum to claim the selling-feature framing.
+Each phase is independently shippable. A and B were the minimum to claim the selling-feature framing; C makes per-module debugging part of the operator surface.
 
 ## Consequences
 

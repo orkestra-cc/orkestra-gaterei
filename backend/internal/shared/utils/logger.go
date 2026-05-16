@@ -9,6 +9,8 @@ import (
 
 // SetupLogger creates and configures the application logger based on environment variables.
 // LOG_LEVEL controls verbosity (debug, info, warn, error). Default: info.
+// LOG_LEVEL_<MODULE> (e.g. LOG_LEVEL_RAG=debug) overrides the level for a
+// single module without changing the global threshold (ADR-0005 §1.4).
 // ENV controls format: JSON for production/staging, text for development.
 func SetupLogger() *slog.Logger {
 	level := slog.LevelInfo
@@ -25,8 +27,14 @@ func SetupLogger() *slog.Logger {
 		}
 	}
 
+	// The base handler is forced to LevelDebug so it never gates a
+	// record on its own. The actual gating happens in
+	// PerModuleLevelHandler.Enabled, which has the module-aware
+	// thresholds. If the base handler kept its own Level filter, a
+	// per-module LOG_LEVEL_RAG=debug override would silently be lost
+	// at the JSON encoder when the global LOG_LEVEL is info.
 	opts := slog.HandlerOptions{
-		Level: level,
+		Level: slog.LevelDebug,
 	}
 
 	var handler slog.Handler
@@ -37,6 +45,12 @@ func SetupLogger() *slog.Logger {
 	} else {
 		handler = slog.NewTextHandler(os.Stdout, &opts)
 	}
+
+	// ADR-0005 §1.4 — per-module level overrides. Sits between the base
+	// formatter and the trace handler so it can intercept "module"
+	// attributes stamped by the module registry's per-module
+	// .With(...) before they reach the base.
+	handler = NewPerModuleLevelHandler(handler, level)
 
 	// ADR-0005 §1.1 — wrap with trace correlation so every log line
 	// stamped via *Context variants carries trace_id / span_id.

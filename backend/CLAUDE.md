@@ -185,6 +185,8 @@ docker restart orkestra-backend-dev
 
 **HTTP latency histogram** (ADR-0005 Phase B): the same middleware observes `orkestra_http_request_duration_seconds` on `metrics.Default()` after each request, labelled `{audience, method, route, status_class}` with the Chi route template (never raw path) and `trace_id` as a Prometheus exemplar. Streaming endpoints (paths ending `/stream`) are intentionally excluded so SSE lifetime doesn't pollute API p99. The histogram is wired by the `setupMiddleware` call sites — modules don't need to register anything.
 
+**Per-module log levels** (ADR-0005 Phase C): every line emitted via `deps.Logger` is auto-stamped with `module=<name>` by the module registry (`pkg/sdk/module/registry.go::depsFor`). Set `LOG_LEVEL_<MODULE>=debug` (e.g. `LOG_LEVEL_RAG=debug`) to widen one module's level without affecting the global `LOG_LEVEL` — the `shared/utils.PerModuleLevelHandler` reads these at boot and gates `Enabled` accordingly. Bare `slog.Info(...)` outside the module pipeline still uses the global threshold.
+
 ## Rules
 
 - **Read the module's own CLAUDE.md** before modifying it — notification, billing, documents, graph, rag, agents, aimodels, company each have one
