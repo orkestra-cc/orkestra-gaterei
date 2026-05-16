@@ -398,6 +398,26 @@
         ],
         "type": "object"
       },
+      "AdminModuleEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "effective": {
+            "type": "string"
+          },
+          "hasOverride": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "effective",
+          "hasOverride"
+        ],
+        "type": "object"
+      },
       "AdminSimpleResponseBody": {
         "additionalProperties": false,
         "properties": {
@@ -646,6 +666,45 @@
           "tenantUUID",
           "tenantName",
           "tenantKind"
+        ],
+        "type": "object"
+      },
+      "AdminView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/AdminView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "global": {
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/AdminModuleEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "global",
+          "modules",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -12565,6 +12624,31 @@
         ],
         "type": "object"
       },
+      "SetGlobalRequestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SetGlobalRequestBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "level": {
+            "description": "Global log level: debug | info | warn | error",
+            "examples": [
+              "info"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "type": "object"
+      },
       "SetItalianBillableInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -12584,6 +12668,28 @@
         },
         "required": [
           "enabled"
+        ],
+        "type": "object"
+      },
+      "SetModuleRequestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SetModuleRequestBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "level": {
+            "description": "Per-module log level override",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
         ],
         "type": "object"
       },
@@ -17414,6 +17520,237 @@
         "summary": "Update environment config",
         "tags": [
           "Admin - Modules"
+        ]
+      }
+    },
+    "/v1/admin/observability/log-levels": {
+      "get": {
+        "description": "Returns the global threshold + per-module overrides + the catalog of known modules. ADR-0005 Phase F.",
+        "operationId": "admin-observability-loglevels-get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [
+              "administrator"
+            ]
+          }
+        ],
+        "summary": "Get effective log levels",
+        "tags": [
+          "Observability"
+        ]
+      }
+    },
+    "/v1/admin/observability/log-levels/global": {
+      "put": {
+        "operationId": "admin-observability-loglevels-set-global",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetGlobalRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [
+              "administrator"
+            ]
+          }
+        ],
+        "summary": "Set the global log level",
+        "tags": [
+          "Observability"
+        ]
+      }
+    },
+    "/v1/admin/observability/log-levels/reset": {
+      "post": {
+        "operationId": "admin-observability-loglevels-reset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [
+              "administrator"
+            ]
+          }
+        ],
+        "summary": "Revert global + per-module to boot env defaults",
+        "tags": [
+          "Observability"
+        ]
+      }
+    },
+    "/v1/admin/observability/log-levels/{module}": {
+      "delete": {
+        "operationId": "admin-observability-loglevels-unset-module",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [
+              "administrator"
+            ]
+          }
+        ],
+        "summary": "Remove a per-module override (fall back to global)",
+        "tags": [
+          "Observability"
+        ]
+      },
+      "put": {
+        "operationId": "admin-observability-loglevels-set-module",
+        "parameters": [
+          {
+            "description": "Module name (lowercase, matches deps.Logger module attribute)",
+            "in": "path",
+            "name": "module",
+            "required": true,
+            "schema": {
+              "description": "Module name (lowercase, matches deps.Logger module attribute)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetModuleRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [
+              "administrator"
+            ]
+          }
+        ],
+        "summary": "Set a per-module log level override",
+        "tags": [
+          "Observability"
         ]
       }
     },
