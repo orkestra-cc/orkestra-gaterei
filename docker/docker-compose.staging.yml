@@ -118,9 +118,16 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PRETTY_LOGS: "false"
 
-      # Observability
+      # Observability — forward every ADR-0005 toggle from .env so the
+      # backend container actually sees them. Endpoint must include a
+      # scheme (http://) or the OTLP SDK defaults to HTTPS and exports
+      # silently fail against the plain-HTTP collector.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-true}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-orkestra-backend-staging}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-true}
+      OTEL_LOGS_ENABLED: ${OTEL_LOGS_ENABLED:-false}
+      OTEL_METRICS_ENABLED: ${OTEL_METRICS_ENABLED:-false}
 
       # Sales Intelligence — runtime knobs read directly by the sales
       # module (cfg.Sales.*). Not yet migrated to ConfigService.

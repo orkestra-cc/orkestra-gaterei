@@ -13,6 +13,7 @@ package telemetry
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -86,9 +87,27 @@ func InitLogs(serviceName, environment string, logger *slog.Logger) LogResult {
 	// bare host:port; WithEndpointURL expects a full URL with scheme.
 	// Operators may set either form per the OTEL semantic-conventions
 	// env-var spec, so accept both.
+	//
+	// Asymmetry with otlptracehttp: otlploghttp.WithEndpointURL preserves
+	// the URL path verbatim and does NOT default to /v1/logs when the
+	// path is empty — so an input like "http://collector:4318" makes the
+	// exporter POST to "/" and every batch 404s. Append the OTLP-standard
+	// path ourselves when the operator hasn't supplied one. (The sibling
+	// otlptracehttp package does auto-append /v1/traces, which is why
+	// tracer.go can hand WithEndpointURL the raw env var unchanged.)
 	var endpointOpt otlploghttp.Option
 	if strings.Contains(endpoint, "://") {
-		endpointOpt = otlploghttp.WithEndpointURL(endpoint)
+		u, parseErr := url.Parse(endpoint)
+		if parseErr != nil {
+			logger.Warn("telemetry: OTEL_EXPORTER_OTLP_ENDPOINT parse failed — OTLP logs disabled",
+				slog.String("endpoint", endpoint),
+				slog.String("error", parseErr.Error()))
+			return LogResult{Shutdown: noopShutdown}
+		}
+		if u.Path == "" || u.Path == "/" {
+			u.Path = "/v1/logs"
+		}
+		endpointOpt = otlploghttp.WithEndpointURL(u.String())
 	} else {
 		endpointOpt = otlploghttp.WithEndpoint(endpoint)
 	}
