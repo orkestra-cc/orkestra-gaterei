@@ -415,7 +415,9 @@ export const baseApi = createApi({
     'Soc2Evidence',
     // Identity module
     'IdentityIdP',
-    'IdentityScim'
+    'IdentityScim',
+    // Observability — ADR-0005 Phase F runtime log-level mutation
+    'LogLevels'
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,

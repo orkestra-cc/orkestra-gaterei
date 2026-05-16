@@ -5,7 +5,28 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 )
+
+// globalPerModule remembers the PerModuleLevelHandler instance built
+// by the most recent SetupLogger so SwapLevelResolver can hot-swap
+// its resolver from main.go after the logging core module wires up.
+// nil before first SetupLogger call. Atomic pointer so concurrent
+// SetupLogger + SwapLevelResolver calls (rare, but possible during
+// tests) are safe.
+var globalPerModule atomic.Pointer[PerModuleLevelHandler]
+
+// SwapLevelResolver replaces the resolver behind the most recently
+// constructed PerModuleLevelHandler. ADR-0005 Phase F — called from
+// main.go once the logging core module's LogLevelService is
+// available, replacing the boot-time StaticLevelResolver with the
+// DB-backed live resolver. Safe to call multiple times; no-op when
+// no handler has been built yet (e.g. tests that bypass SetupLogger).
+func SwapLevelResolver(r LevelResolver) {
+	if h := globalPerModule.Load(); h != nil && r != nil {
+		h.SetResolver(r)
+	}
+}
 
 // SetupLogger creates and configures the application logger based on environment variables.
 // LOG_LEVEL controls verbosity (debug, info, warn, error). Default: info.
@@ -70,7 +91,16 @@ func SetupLogger(extras ...slog.Handler) *slog.Logger {
 	// formatter and the trace handler so it can intercept "module"
 	// attributes stamped by the module registry's per-module
 	// .With(...) before they reach the base.
-	handler = NewPerModuleLevelHandler(handler, level)
+	//
+	// Boot uses StaticLevelResolver (env-driven snapshot); ADR-0005
+	// Phase F swaps in core/logging.LogLevelService at runtime via
+	// SwapResolver below so admin mutations take effect without a
+	// restart. The handler instance does not change — only the
+	// resolver behind it.
+	resolver := NewStaticLevelResolver(level, loadPerModuleLevels())
+	perModule := NewPerModuleLevelHandler(handler, resolver)
+	globalPerModule.Store(perModule)
+	handler = perModule
 
 	// ADR-0005 §1.1 — wrap with trace correlation so every log line
 	// stamped via *Context variants carries trace_id / span_id.

@@ -7,12 +7,12 @@ _Parent: [../../CLAUDE.md](../../CLAUDE.md)_
 
 ## What this is
 
-The six modules under `backend/internal/core/` are the always-loaded kernel of the Orkestra backend. Every deployment boots them — they provide identity, multi-tenancy, permissions, navigation, and outbound mail. Addons under `backend/internal/addons/` are opt-in (toggled at `/admin/modules`); core is not.
+The seven modules under `backend/internal/core/` are the always-loaded kernel of the Orkestra backend. Every deployment boots them — they provide identity, multi-tenancy, permissions, navigation, outbound mail, and runtime log-level admin. Addons under `backend/internal/addons/` are opt-in (toggled at `/admin/modules`); core is not.
 
 Load order is topologically sorted from each module's `Dependencies()` by `ModuleRegistry.InitAll` (`shared/module/registry.go:115-217`):
 
 ```
-user → notification → tenant → authz → auth → navigation
+user → notification → tenant → authz → auth → navigation → logging
 ```
 
 The registry walks this DAG, constructs each module, auto-creates its MongoDB collections, seeds its module_configs document, collects its nav items, wires its services into the registry, and registers its routes behind a gate (core routes are not gated — the gate only applies to optional addons).
@@ -27,6 +27,7 @@ The registry walks this DAG, constructs each module, auto-creates its MongoDB co
 | **authz** | Permission catalog, roles (system + custom), role bindings, evaluator with Redis cache | [authz/CLAUDE.md](authz/CLAUDE.md) |
 | **auth** | Email/password + OAuth 2.1, JWT issuance, sessions-per-device, refresh rotation | [auth/CLAUDE.md](auth/CLAUDE.md) |
 | **navigation** | Role-filtered sidebar menu aggregated from every module's `NavItems()` | [navigation/CLAUDE.md](navigation/CLAUDE.md) |
+| **logging** | Runtime log-level admin (ADR-0005 Phase F): atomic-snapshot `LevelResolver` swap behind `PerModuleLevelHandler` | [logging/CLAUDE.md](logging/CLAUDE.md) |
 
 ## Dependency graph
 
@@ -53,7 +54,13 @@ The registry walks this DAG, constructs each module, auto-creates its MongoDB co
                    ▼
               ┌────────────┐
               │ navigation │ ◄── reads all NavItems() from the registry
-              └────────────┘
+              └─────┬──────┘
+                    │
+                    ▼
+              ┌────────────┐
+              │  logging   │ ◄── owns `log_levels` collection;
+              └────────────┘     hot-swaps slog handler's LevelResolver
+                                 (ADR-0005 Phase F)
 ```
 
 Edges:
@@ -82,6 +89,8 @@ Constants live in `backend/pkg/sdk/module/services.go:13-32`. This is the table 
 | `ServiceOAuthProviderFactory` | auth | `*services.OAuthProviderFactory` | |
 | `ServiceOAuthStateService` | auth | `*services.OAuthStateService` | |
 | `ServiceOAuthProviderRepo` | auth | `*repository.OAuthProviderRepository` | |
+| `ServiceLogLevelModuleNames` | main.go (pre-`InitAll`) | `[]string` | catalog of registered module names; consumed by `logging` to render the admin view's per-module rows |
+| `ServiceLogLevelResolver` | logging | `*services.LogLevelService` (satisfies `utils.LevelResolver`) | DB-backed `LevelResolver`; main.go hot-swaps it onto `PerModuleLevelHandler` via `utils.SwapLevelResolver` after `InitAll` (ADR-0005 Phase F) |
 
 Type-safe accessors: `module.GetTyped[T]` for optional lookups, `module.MustGetTyped[T]` for required ones (panics if missing — only use after the dependent module has already initialized).
 

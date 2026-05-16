@@ -13,7 +13,7 @@ func newHandlerWithLevels(t *testing.T, levels map[string]slog.Level, global slo
 	t.Helper()
 	buf := &bytes.Buffer{}
 	base := slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
-	h := &PerModuleLevelHandler{base: base, levels: levels, global: global}
+	h := NewPerModuleLevelHandler(base, NewStaticLevelResolver(global, levels))
 	return slog.New(h), buf
 }
 
@@ -198,6 +198,65 @@ func TestParseSlogLevel(t *testing.T) {
 		if ok && got != tc.want {
 			t.Errorf("parseSlogLevel(%q) = %v, want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+// liveResolver is a test resolver whose answers can be mutated, used
+// to verify the atomic-snapshot resolverBox propagates updates to
+// clones produced by WithAttrs (the path module loggers take when
+// deps.Logger.With("module", "rag") clones the root handler).
+type liveResolver struct {
+	global slog.Level
+	perMod map[string]slog.Level
+}
+
+func (r *liveResolver) Global() slog.Level { return r.global }
+func (r *liveResolver) LevelFor(m string) (slog.Level, bool) {
+	l, ok := r.perMod[m]
+	return l, ok
+}
+
+func TestPerModuleLevelHandler_SetResolver_PropagatesToClones(t *testing.T) {
+	buf := &bytes.Buffer{}
+	base := slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+
+	// Boot resolver — rag at info.
+	boot := NewStaticLevelResolver(slog.LevelInfo, map[string]slog.Level{"rag": slog.LevelInfo})
+	root := NewPerModuleLevelHandler(base, boot)
+
+	// Clone for the rag module — this is what deps.Logger.With produces.
+	clone := root.WithAttrs([]slog.Attr{slog.String("module", "rag")})
+	cloneLogger := slog.New(clone)
+
+	// Debug-level emit while resolver says info — must be suppressed.
+	cloneLogger.Debug("dropped")
+	if buf.Len() != 0 {
+		t.Fatalf("debug emit should be suppressed under info resolver, got %q", buf.String())
+	}
+
+	// Swap resolver on the ROOT — clone must observe the new value
+	// via the shared resolverBox.
+	root.SetResolver(&liveResolver{
+		global: slog.LevelInfo,
+		perMod: map[string]slog.Level{"rag": slog.LevelDebug},
+	})
+
+	cloneLogger.Debug("kept")
+	if buf.Len() == 0 || !strings.Contains(buf.String(), "kept") {
+		t.Errorf("after SetResolver(rag=debug), clone should emit debug; got %q", buf.String())
+	}
+}
+
+func TestPerModuleLevelHandler_SetResolver_NilNoOp(t *testing.T) {
+	buf := &bytes.Buffer{}
+	base := slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	root := NewPerModuleLevelHandler(base, NewStaticLevelResolver(slog.LevelInfo, nil))
+
+	// Passing nil must not clear the resolver.
+	root.SetResolver(nil)
+	slog.New(root).Info("hi")
+	if buf.Len() == 0 {
+		t.Errorf("nil SetResolver must not break the handler; got empty buffer")
 	}
 }
 

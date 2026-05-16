@@ -163,8 +163,34 @@ func main() {
 		log.Fatalf("Failed to resolve module dependencies: %v", err)
 	}
 
+	// ADR-0005 Phase F — publish the catalog of module names before
+	// InitAll so the logging core module can render a row per module
+	// in its admin view. Read inside logging.Init via
+	// module.ServiceLogLevelModuleNames.
+	{
+		all := modRegistry.AllModules()
+		names := make([]string, 0, len(all))
+		for _, m := range all {
+			names = append(names, m.Name())
+		}
+		svcRegistry.Register(module.ServiceLogLevelModuleNames, names)
+	}
+
 	if err := modRegistry.InitAll(modDeps); err != nil {
 		log.Fatalf("Failed to initialize modules: %v", err)
+	}
+
+	// ADR-0005 Phase F — hot-swap the slog handler's resolver from
+	// the boot env-driven static snapshot to the DB-backed live
+	// resolver. Every existing module logger (clones produced by
+	// deps.Logger.With during InitAll) picks up the new resolver
+	// instantly via the shared resolverBox pointer; future records
+	// gate on the persisted snapshot. No-op when the logging module
+	// failed Init (would leave the env-driven resolver in place).
+	if r, ok := module.GetTyped[utils.LevelResolver](svcRegistry, module.ServiceLogLevelResolver); ok {
+		utils.SwapLevelResolver(r)
+		logger.Info("logging: live level resolver active",
+			slog.String("source", "logging core module"))
 	}
 
 	// AI service sidecar: register remote providers for AI modules
