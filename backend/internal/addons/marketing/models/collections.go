@@ -20,4 +20,5 @@ const (
 	MembershipsCollection        = "marketing_memberships"
 	TagsCollection               = "marketing_tags"
 	CustomFieldSchemasCollection = "marketing_custom_field_schemas"
+	ImportJobsCollection         = "marketing_import_jobs"
 )

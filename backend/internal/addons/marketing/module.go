@@ -17,6 +17,8 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra-cc/orkestra-addon-marketing/handlers"
+	"github.com/orkestra-cc/orkestra-addon-marketing/importers"
+	csvimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/csv"
 	"github.com/orkestra-cc/orkestra-addon-marketing/models"
 	"github.com/orkestra-cc/orkestra-addon-marketing/repository"
 	"github.com/orkestra-cc/orkestra-addon-marketing/services"
@@ -40,6 +42,12 @@ type MarketingModule struct {
 	membershipHandler  *handlers.MembershipHandler
 	tagHandler         *handlers.TagHandler
 	customFieldHandler *handlers.CustomFieldSchemaHandler
+	importsHandler     *handlers.ImportsHandler
+
+	// Importer registry — exposed via NewImportService when handlers are
+	// wired in Init. Phase 1 ships only the CSV adapter; future adapters
+	// (excel, odoo) append to the slice without changing the wiring shape.
+	importerAdapters []importers.Importer
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -194,6 +202,17 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "targetCollection", Direction: 1},
 			}, Unique: true},
 		}},
+		{Name: models.ImportJobsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "createdAt", Direction: -1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+		}},
 	}
 }
 
@@ -214,9 +233,10 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 //   - marketing.conflict.resolve (Phase 3, review queue)
 func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
-		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, and custom-field schemas"},
+		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, and import-job audit"},
 		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
 		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
+		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
 	}
 }
 
@@ -235,6 +255,7 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	mshipRepo := repository.NewMembershipRepository(deps.DB)
 	tagRepo := repository.NewTagRepository(deps.DB)
 	cfSchemaRepo := repository.NewCustomFieldSchemaRepository(deps.DB)
+	jobRepo := repository.NewImportJobRepository(deps.DB)
 
 	cfSvc := services.NewCustomFieldService(cfSchemaRepo)
 	orgSvc := services.NewOrganizationService(orgRepo, cfSvc, mshipRepo)
@@ -242,11 +263,15 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	mshipSvc := services.NewMembershipService(mshipRepo)
 	tagSvc := services.NewTagService(tagRepo)
 
+	m.importerAdapters = []importers.Importer{csvimp.New()}
+	importSvc := services.NewImportService(jobRepo, orgRepo, personRepo, mshipRepo, tagRepo, m.importerAdapters...)
+
 	m.orgHandler = handlers.NewOrganizationHandler(orgSvc)
 	m.personHandler = handlers.NewPersonHandler(personSvc)
 	m.membershipHandler = handlers.NewMembershipHandler(mshipSvc)
 	m.tagHandler = handlers.NewTagHandler(tagSvc)
 	m.customFieldHandler = handlers.NewCustomFieldSchemaHandler(cfSvc)
+	m.importsHandler = handlers.NewImportsHandler(importSvc)
 
 	m.logger.Info("Marketing module initialized")
 	return nil
@@ -274,7 +299,7 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
-		// READ bucket
+		// READ bucket — includes the import-job audit read surface.
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
 			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.contact.read"))
@@ -284,6 +309,19 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterMembershipReadRoutes(api, m.membershipHandler)
 			handlers.RegisterTagReadRoutes(api, m.tagHandler)
 			handlers.RegisterCustomFieldReadRoutes(api, m.customFieldHandler)
+			handlers.RegisterImportReadRoutes(api, m.importsHandler)
+		})
+
+		// IMPORT bucket — separate gate so import access can be
+		// granted independently of contact-write. Operators with
+		// the run grant can trigger a sync import; the underlying
+		// writes happen with service credentials, not the caller's
+		// permission, so the bucket does not also need write.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.import.run"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterImportRunRoutes(api, m.importsHandler)
 		})
 
 		// WRITE bucket
