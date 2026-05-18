@@ -218,7 +218,38 @@ services:
       - orkestra-network
     depends_on:
       - backend
-    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+    # Regenerate public/config.js from the VITE_* env vars BEFORE `npm run
+    # dev` starts. Vite serves files under public/ as-is, and the SPA reads
+    # `window.__ORKESTRA_CONFIG__` from /config.js at boot — so without
+    # this overwrite the staging container would happily serve the
+    # repo-committed dev-default config (apiUrl: http://console.localhost:3000),
+    # and the priority order in src/config/environment.ts puts runtime
+    # config ahead of import.meta.env.VITE_API_URL.
+    #
+    # This is the dev-image equivalent of the production nginx entrypoint
+    # at frontend-admin/Dockerfile:/docker-entrypoint.d/10-write-config.sh.
+    # The /app bind mount is what makes the rewrite leak back to the
+    # host's working tree — `git status` will report
+    # frontend-admin/public/config.js as modified for the duration of the
+    # staging stack. Restore the dev baseline with
+    # `git checkout -- frontend-admin/public/config.js` when switching
+    # back to the dev compose.
+    command:
+      - sh
+      - -c
+      - |
+        cat > /app/public/config.js <<EOF
+        // Generated at container start by docker-compose.staging.yml.
+        // Do not commit changes to this file — restore the dev baseline
+        // with: git checkout -- frontend-admin/public/config.js
+        window.__ORKESTRA_CONFIG__ = {
+          apiUrl: "$${VITE_API_URL}",
+          wsUrl: "$${VITE_WS_URL}",
+          env: "$${VITE_ENV}",
+          debug: $${VITE_DEBUG}
+        };
+        EOF
+        npm install && npm run dev -- --host 0.0.0.0
 
   # Tier-2 (external client) demo SPA — consumes the ADR-0003 client
   # API surface (staging-api.orkestra.cc, JWT aud=client). Sibling app
