@@ -157,7 +157,7 @@ Load order (topologically sorted by `Dependencies()`): `user` → `notification`
 | **payments**   | Stripe gateway — charges, refunds, webhooks — [docs](backend/internal/addons/payments/CLAUDE.md)                    | —                |
 | **compliance** | Platform audit log + (future) GDPR DSR pipelines and SOC2 evidence automation                                | —                |
 | **identity**   | Per-tenant BYO OpenID Connect login + SCIM 2.0 provisioning stubs                                            | tenant, authz    |
-| **marketing**  | Contact base, importer pipeline, scoring engine, card lifecycle (Phase 1 scaffold — full design at [docs/plans/marketing-addon/](docs/plans/marketing-addon/)) — [docs](backend/internal/addons/marketing/CLAUDE.md) | —                |
+| **marketing**  | Contact base (organizations, persons, memberships, tags, custom-field schemas) + CSV importer with email/VAT dedup — [docs](backend/internal/addons/marketing/CLAUDE.md). Phase 1 of the [Phase-1–5 roadmap](docs/plans/marketing-addon/) | —                |
 | **dev**        | Dev token generation (disabled in production)                                                                | auth             |
 
 ### Other Modules
