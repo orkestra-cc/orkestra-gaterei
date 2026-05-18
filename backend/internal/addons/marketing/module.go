@@ -216,6 +216,27 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 	}
 }
 
+// NavItems contributes the marketing surface to the operator sidebar.
+// The realm "business" lines up with sales/subscriptions/billing —
+// every operator running Tier-2 client revenue work sees these next
+// to the related selling surfaces. Tier "internal" hides the menu
+// from external (Tier-2) tenants.
+//
+// Paths line up with the React route declarations in
+// frontend-admin/src/modules/marketing.tsx (the routes' module manifest).
+func (m *MarketingModule) NavItems() []module.NavItemSpec {
+	return []module.NavItemSpec{{
+		Realm: "business", Tier: "internal",
+		Name: "Marketing", Icon: "users", Path: "/marketing/contacts", Active: true,
+		Children: []module.NavItemSpec{
+			{Name: "Contacts", Icon: "address-book", Path: "/marketing/contacts", Active: true},
+			{Name: "Tags", Icon: "tags", Path: "/marketing/tags", Active: true},
+			{Name: "Custom Fields", Icon: "list-check", Path: "/marketing/custom-fields", Active: true},
+			{Name: "Imports", Icon: "file-import", Path: "/marketing/imports", Active: true},
+		},
+	}}
+}
+
 // Permissions declares the Cedar permission catalog this module
 // publishes. Phase 1 ships three coarse-grained keys covering Person,
 // Organization, Membership, Tag, and Custom-Field-Schema operations —
