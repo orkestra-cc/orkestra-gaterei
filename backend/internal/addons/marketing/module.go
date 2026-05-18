@@ -3,9 +3,8 @@
 // importer pipeline, and (in future phases) immutable activity log,
 // multi-profile scoring engine, and card/membership lifecycle.
 //
-// Phase 1 (Fondazione anagrafica MVP) scaffolds only the module
-// shell; collections, models, handlers, services, and importers land
-// in subsequent PRs on feature/marketing-addon. The design lives at
+// Phase 1 (Fondazione anagrafica MVP) ships the data layer + (in
+// upcoming PRs) handlers and a CSV importer. The design lives at
 // docs/plans/marketing-addon/Orkestra_marketing_addon.md and the
 // per-phase implementation plan at
 // docs/plans/marketing-addon/IMPLEMENTATION_PLAN.md in the orkestra
@@ -15,6 +14,7 @@ package marketing
 import (
 	"log/slog"
 
+	"github.com/orkestra-cc/orkestra-addon-marketing/models"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 )
 
@@ -68,6 +68,120 @@ func (m *MarketingModule) Enabled() bool { return false }
 // (e.g. notification for campaign delivery) via ServiceRegistry
 // lookups rather than hard Dependencies entries.
 func (m *MarketingModule) Dependencies() []string { return nil }
+
+// Collections returns the MongoDB collections this module owns,
+// declaring the indexes the registry creates at boot. Index
+// declarations follow the schemas at
+// docs/plans/marketing-addon/schemas/ — adjust both together when
+// fields evolve.
+//
+// Limitation: the SDK's IndexSpec does not expose
+// PartialFilterExpression, so the schema's "unique partial" entries
+// on marketing_memberships (one Active=true per (person,org) pair,
+// one Active+Primary=true per person) cannot be enforced at the
+// index level today. Service-layer helpers in
+// repository/membership_repo.go (UnsetPrimaryForPerson, Close)
+// preserve the invariant under the typical mutation flows; widening
+// the SDK to support partial filters is tracked as a Phase-2+
+// follow-up.
+func (m *MarketingModule) Collections() []module.CollectionSpec {
+	return []module.CollectionSpec{
+		{Name: models.OrganizationsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "vat", Direction: 1},
+			}, Unique: true, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "taxCode", Direction: 1},
+			}, Unique: true, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "kind", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "tags", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "updatedAt", Direction: -1},
+			}},
+		}},
+		{Name: models.PersonsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			// Multikey unique sparse on emails.address — every email
+			// is unique per tenant regardless of which entry carries
+			// it. Sparse so persons without emails don't conflict.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "emails.address", Direction: 1},
+			}, Unique: true, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "tags", Direction: 1},
+			}},
+			// Index lands now even though Phase 4 populates the
+			// field — avoids a write-blocking index build later.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "activeCardUuids", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "updatedAt", Direction: -1},
+			}},
+		}},
+		{Name: models.MembershipsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "orgUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+				{Field: "orgUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+				{Field: "primary", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "active", Direction: 1},
+			}},
+		}},
+		{Name: models.TagsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "slug", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "parentUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "path", Direction: 1},
+			}},
+		}},
+		{Name: models.CustomFieldSchemasCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "targetCollection", Direction: 1},
+			}, Unique: true},
+		}},
+	}
+}
 
 // Init is the lifecycle hook the registry calls after all dependencies
 // have been initialized. Phase 1 keeps it minimal — the logger is
