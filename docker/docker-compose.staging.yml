@@ -221,27 +221,25 @@ services:
     # Regenerate public/config.js from the VITE_* env vars BEFORE `npm run
     # dev` starts. Vite serves files under public/ as-is, and the SPA reads
     # `window.__ORKESTRA_CONFIG__` from /config.js at boot — so without
-    # this overwrite the staging container would happily serve the
-    # repo-committed dev-default config (apiUrl: http://console.localhost:3000),
-    # and the priority order in src/config/environment.ts puts runtime
-    # config ahead of import.meta.env.VITE_API_URL.
+    # this overwrite the staging container would serve whatever it found
+    # bind-mounted from the host (or 404 on a clean checkout), and the
+    # priority order in src/config/environment.ts puts runtime config
+    # ahead of import.meta.env.VITE_API_URL.
     #
     # This is the dev-image equivalent of the production nginx entrypoint
     # at frontend-admin/Dockerfile:/docker-entrypoint.d/10-write-config.sh.
-    # The /app bind mount is what makes the rewrite leak back to the
-    # host's working tree — `git status` will report
-    # frontend-admin/public/config.js as modified for the duration of the
-    # staging stack. Restore the dev baseline with
-    # `git checkout -- frontend-admin/public/config.js` when switching
-    # back to the dev compose.
+    # public/config.js is gitignored (see frontend-admin/.gitignore), so
+    # the /app bind mount's leak back to the host no longer dirties
+    # `git status`. The dev-default template at public/config.example.js
+    # remains tracked as the fallback for hosts running `npm run dev`
+    # outside Docker.
     command:
       - sh
       - -c
       - |
         cat > /app/public/config.js <<EOF
         // Generated at container start by docker-compose.staging.yml.
-        // Do not commit changes to this file — restore the dev baseline
-        // with: git checkout -- frontend-admin/public/config.js
+        // public/config.js is gitignored — see frontend-admin/CLAUDE.md.
         window.__ORKESTRA_CONFIG__ = {
           apiUrl: "$${VITE_API_URL}",
           wsUrl: "$${VITE_WS_URL}",

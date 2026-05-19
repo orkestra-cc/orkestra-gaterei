@@ -160,7 +160,27 @@ services:
       - ../frontend-admin/.vite-cache:/app/.vite
     networks:
       - orkestra-network
-    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+    # Regenerate public/config.js from the VITE_* env vars BEFORE
+    # `npm run dev` starts. public/config.js is gitignored (see
+    # frontend-admin/.gitignore + frontend-admin/CLAUDE.md → "Runtime
+    # config"); each environment writes its own. The dev-default template
+    # at public/config.example.js is the fallback when this script can't
+    # run (e.g. `npm run dev` directly on the host).
+    command:
+      - sh
+      - -c
+      - |
+        cat > /app/public/config.js <<EOF
+        // Generated at container start by docker-compose.dev.yml.
+        // Gitignored — do not commit. See frontend-admin/CLAUDE.md.
+        window.__ORKESTRA_CONFIG__ = {
+          apiUrl: "$${VITE_API_URL}",
+          wsUrl: "$${VITE_WS_URL}",
+          env: "$${VITE_ENV}",
+          debug: $${VITE_DEBUG}
+        };
+        EOF
+        npm install && npm run dev -- --host 0.0.0.0
 
   # Tier-2 (external client) demo SPA — consumes the ADR-0003 client API
   # surface (api.localhost:3000, JWT aud=client). Sibling app to the

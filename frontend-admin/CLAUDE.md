@@ -254,6 +254,26 @@ expect(store.getState().auth.accessToken).toBe('...');
 - `vitest.config.ts` aliases `react-router-dom` → `react-router`. Without this, v7's dual-package layout creates separate `Router` context instances at test time and components mixing the two imports lose their context.
 - `environment: 'happy-dom'` (not jsdom) — jsdom + MSW v2 + Node fetch trip over `RequestInit: Expected signal to be an instance of AbortSignal`.
 
+## Runtime config
+
+The SPA reads `window.__ORKESTRA_CONFIG__` from `/config.js` (a classic `<script>` loaded before the main bundle in `index.html`). `src/config/environment.ts` consumes that object and falls back to `import.meta.env.VITE_*` only when a key is missing. One published image works in dev / staging / prod because the URLs live in `/config.js`, not in the compiled bundle.
+
+| Path                       | Tracked?          | Who writes it                                                                         |
+| -------------------------- | ----------------- | ------------------------------------------------------------------------------------- |
+| `public/config.example.js` | ✅ yes            | Source-controlled template with dev defaults. Don't edit per-environment values here. |
+| `public/config.js`         | ❌ **gitignored** | Each environment regenerates it at container start.                                   |
+
+Who writes `public/config.js` at runtime:
+
+| Environment                                    | Generator                                                                                                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dev / staging (bind-mounted `npm run dev`)     | `command:` step in `docker/docker-compose.dev.yml` / `docker-compose.staging.yml` — writes from `VITE_*` env vars before Vite boots.                                                       |
+| Prod / SKU profiles (nginx image)              | `/docker-entrypoint.d/10-write-config.sh` baked into `frontend-admin/Dockerfile` — writes from `ORKESTRA_*` env vars before nginx forks.                                                   |
+| `npm run dev` directly on the host (no Docker) | You. Run `cp public/config.example.js public/config.js` once; edit values if you need non-default URLs.                                                                                    |
+| CI `npm run build`                             | The Dockerfile's `RUN cp -n public/config.example.js public/config.js` seeds the build context so `dist/config.js` always exists. The runtime entrypoint overwrites it on container start. |
+
+Adding a new field: declare it on `RuntimeConfig` in `src/config/environment.ts`, read it via the `config` singleton, and add the env-var fallback in **all three** generators (dev compose, staging compose, nginx entrypoint). Never reach for `import.meta.env.VITE_*` from new code — those bake at build time and defeat the point.
+
 ## Conventions
 
 - **Cookie auth** — every fetch goes through RTK Query's `baseApi` which sets `credentials: 'include'`. Never call `fetch` directly with custom auth headers.
