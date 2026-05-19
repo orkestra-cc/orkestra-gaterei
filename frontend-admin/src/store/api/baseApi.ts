@@ -144,9 +144,10 @@ const baseQueryWithRetry: BaseQueryFn<
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
   // Inject X-Tenant-ID for every tenant-scoped request. Impersonation (set
-  // by AdminTenantSwitcher for system.tenants.admin holders) takes
-  // precedence over the user's own currentOrgId — the backend middleware
-  // honors the header only for admin callers and 403s everyone else.
+  // by NineDotMenu / ImpersonateButton for system.tenants.admin holders)
+  // takes precedence over the user's own currentOrgId — the backend
+  // middleware honors the header only for admin callers and 403s everyone
+  // else.
   const state = api.getState() as RootState;
   const effectiveTenantId =
     state.tenant?.impersonatedTenantId ?? state.tenant?.currentOrgId;

@@ -18,10 +18,10 @@ interface Props {
 
 /**
  * Per-tenant "Impersonate" affordance on /admin/clients/:tenantUUID. Same
- * gate + dispatch as AdminTenantSwitcher (system.tenants.admin holders
- * acting in an internal tenant), but contextual to the tenant the operator
- * is already looking at — saves the round-trip through the navbar
- * dropdown's search.
+ * gate + dispatch as the impersonation panel in NineDotMenu
+ * (system.tenants.admin holders acting in an internal tenant), but
+ * contextual to the tenant the operator is already looking at — saves the
+ * round-trip through the navbar dropdown's search.
  *
  * The backend's tryImpersonationBypass enforces the actual permission. If
  * the target is a personal tenant (IsCompany=false + signupChannel=

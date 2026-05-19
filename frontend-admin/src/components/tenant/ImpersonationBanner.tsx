@@ -8,9 +8,9 @@ import { baseApi, TENANT_SCOPED_TAGS } from 'store/api/baseApi';
 
 /**
  * Thin warning bar that renders only while an operator admin is
- * impersonating another tenant via AdminTenantSwitcher. Visible on every
- * authenticated page so the admin cannot forget they're acting inside
- * someone else's scope.
+ * impersonating another tenant via NineDotMenu / ImpersonateButton. Visible
+ * on every authenticated page so the admin cannot forget they're acting
+ * inside someone else's scope.
  */
 export default function ImpersonationBanner() {
   const dispatch = useAppDispatch();
