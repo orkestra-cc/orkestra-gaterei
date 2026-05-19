@@ -1,4 +1,4 @@
-import { useEffect, Fragment } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import classNames from 'classnames';
 import { Nav, Navbar, Row, Col, Placeholder } from 'react-bootstrap';
 import { navbarBreakPoint, topNavbarBreakpoint } from 'config';
@@ -12,6 +12,35 @@ import bgNavbar from 'assets/img/generic/bg-navbar.png';
 import { useAppContext } from 'providers/AppProvider';
 import { useRoleBasedNavigation } from 'hooks/useRoleBasedNavigation';
 import { developerRealm } from 'reference/navigation/referenceRoutes';
+
+// localStorage key holding a { [realmKey]: collapsed } map. Default = expanded
+// (entry missing or false). Survives reloads so operators don't re-collapse on
+// every visit.
+const REALM_COLLAPSED_STORAGE_KEY = 'orkestra.navbar.realm.collapsed';
+
+const readRealmCollapsedMap = (): Record<string, boolean> => {
+  try {
+    const raw = window.localStorage.getItem(REALM_COLLAPSED_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    return parsed as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+};
+
+const writeRealmCollapsedMap = (map: Record<string, boolean>) => {
+  try {
+    window.localStorage.setItem(
+      REALM_COLLAPSED_STORAGE_KEY,
+      JSON.stringify(map)
+    );
+  } catch {
+    // localStorage may be unavailable (private mode, quota). Fail silently —
+    // collapse state is a UX nicety, not load-bearing.
+  }
+};
 
 // Show the Developer realm whenever the reference routes are registered.
 // Mirrors the gate in `src/routes/referenceRoutes.tsx` so nav and routes
@@ -71,6 +100,18 @@ const NavbarVertical = () => {
   const { filteredNavigation, realms, isAuthenticated, isLoading, isError } =
     useRoleBasedNavigation();
 
+  const [realmCollapsedMap, setRealmCollapsedMap] = useState<
+    Record<string, boolean>
+  >(readRealmCollapsedMap);
+
+  const toggleRealmCollapsed = (key: string) => {
+    setRealmCollapsedMap(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      writeRealmCollapsedMap(next);
+      return next;
+    });
+  };
+
   const HTMLClassList = document.getElementsByTagName('html')[0].classList;
 
   useEffect(() => {
@@ -102,6 +143,45 @@ const NavbarVertical = () => {
     <Nav.Item as="li">
       <Row className="mt-3 mb-2 navbar-vertical-label-wrapper">
         <Col xs="auto" className="navbar-vertical-label navbar-vertical-label">
+          {label}
+        </Col>
+        <Col className="ps-0">
+          <hr className="mb-0 navbar-vertical-divider"></hr>
+        </Col>
+      </Row>
+    </Nav.Item>
+  );
+
+  // Collapsible realm header — same visual as NavbarLabel, but the label cell
+  // shows a chevron (via .dropdown-indicator, which rotates on aria-expanded)
+  // and the whole row is clickable / keyboard-toggleable.
+  const RealmHeader = ({
+    label,
+    collapsed,
+    onToggle
+  }: {
+    label: string;
+    collapsed: boolean;
+    onToggle: () => void;
+  }) => (
+    <Nav.Item as="li">
+      <Row
+        className="mt-3 mb-2 navbar-vertical-label-wrapper cursor-pointer"
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <Col
+          xs="auto"
+          className="navbar-vertical-label dropdown-indicator"
+          aria-expanded={!collapsed}
+        >
           {label}
         </Col>
         <Col className="ps-0">
@@ -172,22 +252,34 @@ const NavbarVertical = () => {
               <div className="navbar-vertical-content scrollbar">
                 <Nav className="flex-column" as="ul">
                   {renderedRealms.length > 0
-                    ? renderedRealms.map(realm => (
-                        <Fragment key={realm.key}>
-                          <NavbarLabel label={capitalize(realm.label)} />
-                          {realm.sections.map(section => (
-                            <Fragment key={`${realm.key}::${section.label}`}>
-                              {section.label &&
-                                section.label !== realm.label && (
-                                  <NavbarSectionLabel
-                                    label={capitalize(section.label)}
+                    ? renderedRealms.map(realm => {
+                        const collapsed = !!realmCollapsedMap[realm.key];
+                        return (
+                          <Fragment key={realm.key}>
+                            <RealmHeader
+                              label={capitalize(realm.label)}
+                              collapsed={collapsed}
+                              onToggle={() => toggleRealmCollapsed(realm.key)}
+                            />
+                            {!collapsed &&
+                              realm.sections.map(section => (
+                                <Fragment
+                                  key={`${realm.key}::${section.label}`}
+                                >
+                                  {section.label &&
+                                    section.label !== realm.label && (
+                                      <NavbarSectionLabel
+                                        label={capitalize(section.label)}
+                                      />
+                                    )}
+                                  <NavbarVerticalMenu
+                                    routes={section.children}
                                   />
-                                )}
-                              <NavbarVerticalMenu routes={section.children} />
-                            </Fragment>
-                          ))}
-                        </Fragment>
-                      ))
+                                </Fragment>
+                              ))}
+                          </Fragment>
+                        );
+                      })
                     : filteredNavigation.map(route => (
                         <Fragment key={route.label}>
                           {!route.labelDisable && (
