@@ -752,6 +752,101 @@
       "title": "Aziende Emittenti",
       "newCompany": "Nuova Azienda"
     },
+    "dashboard": {
+      "statCards": {
+        "loadError": "Impossibile caricare le statistiche",
+        "viewAll": "Vedi tutte",
+        "manage": "Gestisci",
+        "resolve": "Risolvi",
+        "issuedYtd": "Fatture Emesse (YTD)",
+        "receivedYtd": "Fatture Ricevute (YTD)",
+        "sdiNotifications": "Notifiche SDI",
+        "pendingActions": "Azioni Pendenti",
+        "draftsBadge_one": "{{count}} bozza",
+        "draftsBadge_other": "{{count}} bozze",
+        "toHandleBadge_one": "{{count}} da gestire",
+        "toHandleBadge_other": "{{count}} da gestire",
+        "toProcess": "Da processare",
+        "urgent": "Urgente",
+        "allOk": "Tutto ok"
+      },
+      "trendChart": {
+        "title": "Andamento Fatturazione",
+        "chartError": "Impossibile caricare il grafico",
+        "tooltipWeek": "Settimana {{week}} ({{month}})",
+        "tooltipNoInvoice": "Nessuna fattura",
+        "seriesIssued": "Fatture Emesse",
+        "seriesReceived": "Fatture Ricevute",
+        "footerIssued": "Emesse: ",
+        "footerReceived": "Ricevute: ",
+        "monthShort": {
+          "jan": "Gen",
+          "feb": "Feb",
+          "mar": "Mar",
+          "apr": "Apr",
+          "may": "Mag",
+          "jun": "Giu",
+          "jul": "Lug",
+          "aug": "Ago",
+          "sep": "Set",
+          "oct": "Ott",
+          "nov": "Nov",
+          "dec": "Dic"
+        }
+      },
+      "pendingActions": {
+        "title": "Azioni Richieste",
+        "empty": "Nessuna azione pendente",
+        "emptySubtitle": "Tutto in ordine!",
+        "priority": {
+          "high": "Urgente",
+          "medium": "Medio",
+          "low": "Basso"
+        },
+        "drafts": {
+          "title": "Fatture in Bozza",
+          "description_one": "{{count}} fattura da completare",
+          "description_other": "{{count}} fatture da completare"
+        },
+        "rejected": {
+          "title": "Fatture Rifiutate",
+          "description_one": "{{count}} fattura da correggere",
+          "description_other": "{{count}} fatture da correggere"
+        },
+        "receivedPending": {
+          "title": "Fatture da Registrare",
+          "description_one": "{{count}} fattura ricevuta da gestire",
+          "description_other": "{{count}} fatture ricevute da gestire"
+        },
+        "notifications": {
+          "title": "Notifiche SDI",
+          "description_one": "{{count}} notifica da processare",
+          "description_other": "{{count}} notifiche da processare"
+        }
+      },
+      "recentInvoices": {
+        "title": "Fatture Recenti",
+        "linkIssued": "Emesse",
+        "linkReceived": "Ricevute",
+        "empty": "Nessuna fattura presente",
+        "colType": "Tipo",
+        "colNumber": "Numero",
+        "colCustomer": "Cliente/Fornitore",
+        "colDate": "Data",
+        "colAmount": "Importo",
+        "colStatus": "Stato",
+        "typeIssued": "Emessa",
+        "typeReceived": "Ricevuta"
+      },
+      "sdiNotifications": {
+        "title": "Notifiche SDI",
+        "loadError": "Impossibile caricare",
+        "empty": "Nessuna notifica recente",
+        "viewAll": "Vedi tutte le notifiche",
+        "toHandleBadge_one": "{{count}} da gestire",
+        "toHandleBadge_other": "{{count}} da gestire"
+      }
+    },
     "importXml": {
       "title": "Importa Fattura XML",
       "tabs": {

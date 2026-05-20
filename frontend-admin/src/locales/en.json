@@ -752,6 +752,101 @@
       "title": "Issuing Companies",
       "newCompany": "New company"
     },
+    "dashboard": {
+      "statCards": {
+        "loadError": "Unable to load statistics",
+        "viewAll": "View all",
+        "manage": "Manage",
+        "resolve": "Resolve",
+        "issuedYtd": "Issued Invoices (YTD)",
+        "receivedYtd": "Received Invoices (YTD)",
+        "sdiNotifications": "SDI Notifications",
+        "pendingActions": "Pending Actions",
+        "draftsBadge_one": "{{count}} draft",
+        "draftsBadge_other": "{{count}} drafts",
+        "toHandleBadge_one": "{{count}} to handle",
+        "toHandleBadge_other": "{{count}} to handle",
+        "toProcess": "To process",
+        "urgent": "Urgent",
+        "allOk": "All good"
+      },
+      "trendChart": {
+        "title": "Invoicing Trend",
+        "chartError": "Unable to load the chart",
+        "tooltipWeek": "Week {{week}} ({{month}})",
+        "tooltipNoInvoice": "No invoices",
+        "seriesIssued": "Issued Invoices",
+        "seriesReceived": "Received Invoices",
+        "footerIssued": "Issued: ",
+        "footerReceived": "Received: ",
+        "monthShort": {
+          "jan": "Jan",
+          "feb": "Feb",
+          "mar": "Mar",
+          "apr": "Apr",
+          "may": "May",
+          "jun": "Jun",
+          "jul": "Jul",
+          "aug": "Aug",
+          "sep": "Sep",
+          "oct": "Oct",
+          "nov": "Nov",
+          "dec": "Dec"
+        }
+      },
+      "pendingActions": {
+        "title": "Required Actions",
+        "empty": "No pending actions",
+        "emptySubtitle": "All in order!",
+        "priority": {
+          "high": "Urgent",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "drafts": {
+          "title": "Draft Invoices",
+          "description_one": "{{count}} invoice to complete",
+          "description_other": "{{count}} invoices to complete"
+        },
+        "rejected": {
+          "title": "Rejected Invoices",
+          "description_one": "{{count}} invoice to fix",
+          "description_other": "{{count}} invoices to fix"
+        },
+        "receivedPending": {
+          "title": "Invoices to Register",
+          "description_one": "{{count}} received invoice to handle",
+          "description_other": "{{count}} received invoices to handle"
+        },
+        "notifications": {
+          "title": "SDI Notifications",
+          "description_one": "{{count}} notification to process",
+          "description_other": "{{count}} notifications to process"
+        }
+      },
+      "recentInvoices": {
+        "title": "Recent Invoices",
+        "linkIssued": "Issued",
+        "linkReceived": "Received",
+        "empty": "No invoices yet",
+        "colType": "Type",
+        "colNumber": "Number",
+        "colCustomer": "Customer/Supplier",
+        "colDate": "Date",
+        "colAmount": "Amount",
+        "colStatus": "Status",
+        "typeIssued": "Issued",
+        "typeReceived": "Received"
+      },
+      "sdiNotifications": {
+        "title": "SDI Notifications",
+        "loadError": "Unable to load",
+        "empty": "No recent notifications",
+        "viewAll": "See all notifications",
+        "toHandleBadge_one": "{{count}} to handle",
+        "toHandleBadge_other": "{{count}} to handle"
+      }
+    },
     "importXml": {
       "title": "Import XML Invoice",
       "tabs": {
