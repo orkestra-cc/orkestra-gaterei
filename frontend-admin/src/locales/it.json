@@ -1,5 +1,116 @@
 {
   "app": {
     "name": "Orkestra"
+  },
+  "nav": {
+    "toggleNavigation": "Mostra/nascondi navigazione",
+    "navigationUnavailable": "Navigazione non disponibile",
+    "search": {
+      "placeholder": "Cerca...",
+      "recentlyBrowsed": "Visti di recente",
+      "suggestedFilter": "Filtro suggerito",
+      "files": "File",
+      "members": "Membri",
+      "noResults": "Nessun risultato."
+    },
+    "notifications": {
+      "title": "Notifiche",
+      "empty": "Sei in pari."
+    },
+    "profile": {
+      "login": "Accedi",
+      "profileAndAccount": "Profilo e account",
+      "settings": "Impostazioni",
+      "security": "Sicurezza",
+      "logout": "Esci"
+    },
+    "theme": {
+      "light": "Chiaro",
+      "dark": "Scuro",
+      "auto": "Auto"
+    },
+    "nineDots": {
+      "workspacesTitle": "Spazi di lavoro",
+      "yourWorkspaces": "I tuoi spazi di lavoro",
+      "impersonateTenant": "Impersona tenant",
+      "impersonating": "Stai impersonando",
+      "impersonatingTenant": "Stai impersonando {{tenant}}",
+      "impersonatingFallback": "tenant",
+      "stop": "Termina",
+      "searchPlaceholder": "Cerca per nome, slug o id",
+      "tier": {
+        "all": "tutti",
+        "internal": "interni",
+        "external": "esterni"
+      },
+      "loading": "Caricamento…",
+      "noMatch": "Nessun tenant corrisponde.",
+      "refineSearch": "Mostrati i primi 200 di {{count}} — affina la ricerca."
+    }
+  },
+  "errors": {
+    "404": {
+      "title": "La pagina che stai cercando non esiste.",
+      "detail": "Verifica che l'indirizzo sia corretto e che la pagina non sia stata spostata. Se pensi sia un errore,",
+      "contactUs": "contattaci",
+      "goHome": "Vai alla home"
+    },
+    "500": {
+      "title": "Ops, qualcosa è andato storto!",
+      "detail": "Prova ad aggiornare la pagina o a tornare indietro e riprovare l'azione. Se il problema persiste,",
+      "contactUs": "contattaci"
+    },
+    "401": {
+      "insufficientPermissions": "Permessi insufficienti",
+      "accessDenied": "Accesso negato",
+      "message": "Non hai i permessi necessari per accedere a questa pagina.",
+      "currentRole": "Il tuo ruolo attuale:",
+      "requiredRoles": "Ruoli richiesti:",
+      "requiredRole": "Ruolo richiesto:",
+      "requestedPage": "Pagina richiesta:",
+      "goBack": "Indietro",
+      "goHome": "Vai alla home",
+      "logout": "Esci",
+      "contactAdmin": "Se pensi sia un errore, contatta l'amministratore di sistema.",
+      "roles": {
+        "super_admin": "Super amministratore",
+        "administrator": "Amministratore",
+        "developer": "Sviluppatore",
+        "manager": "Manager",
+        "operator": "Operatore",
+        "guest": "Ospite",
+        "unknown": "Sconosciuto"
+      }
+    }
+  },
+  "banner": {
+    "impersonation": {
+      "text": "Stai impersonando {{tenant}}",
+      "audit": "— tutte le azioni sono tracciate.",
+      "stop": "Termina impersonificazione",
+      "fallback": "tenant"
+    },
+    "mfa": {
+      "title": "Autenticazione a due fattori richiesta",
+      "expired": "Il periodo di tolleranza è scaduto. Al prossimo accesso non potrai entrare finché non avrai configurato l'MFA.",
+      "remaining": "Il tuo ruolo richiede l'MFA. {{remaining}} prima che l'accesso venga bloccato.",
+      "required": "Il tuo ruolo richiede l'MFA. Configuralo per evitare di restare bloccato fuori.",
+      "setUp": "Configura",
+      "daysLeft_one": "{{count}} giorno rimasto",
+      "daysLeft_other": "{{count}} giorni rimasti",
+      "hoursLeft_one": "{{count}} ora rimasta",
+      "hoursLeft_other": "{{count}} ore rimaste",
+      "minutesLeft_one": "{{count}} minuto rimasto",
+      "minutesLeft_other": "{{count}} minuti rimasti"
+    }
+  },
+  "table": {
+    "searchPlaceholder": "Cerca...",
+    "rowsPerPage": "Righe per pagina:",
+    "previous": "Precedente",
+    "next": "Successivo",
+    "viewAll": "Mostra tutto",
+    "viewLess": "Mostra meno",
+    "rowsCount": "{{from}}-{{to}} di {{total}}"
   }
 }

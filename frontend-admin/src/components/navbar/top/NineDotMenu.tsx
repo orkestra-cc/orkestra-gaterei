@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Card, Dropdown, Form } from 'react-bootstrap';
 import SimpleBar from 'simplebar-react';
+import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from 'store/hooks';
 import {
   selectCurrentMembership,
@@ -28,6 +29,7 @@ type TierFilter = 'all' | 'internal' | 'external';
  * here is a convenience layer over that permission check.
  */
 const NineDotMenu = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { hasPermission } = useAuth();
   const memberships = useAppSelector(selectMemberships);
@@ -49,14 +51,14 @@ const NineDotMenu = () => {
 
   const filtered = useMemo(() => {
     const rows = data?.tenants ?? [];
-    return rows.filter(t => {
-      if (tierFilter !== 'all' && t.kind !== tierFilter) return false;
+    return rows.filter(tenant => {
+      if (tierFilter !== 'all' && tenant.kind !== tierFilter) return false;
       if (!search) return true;
       const q = search.toLowerCase();
       return (
-        t.name.toLowerCase().includes(q) ||
-        t.slug.toLowerCase().includes(q) ||
-        t.id.toLowerCase().includes(q)
+        tenant.name.toLowerCase().includes(q) ||
+        tenant.slug.toLowerCase().includes(q) ||
+        tenant.id.toLowerCase().includes(q)
       );
     });
   }, [data, search, tierFilter]);
@@ -107,8 +109,12 @@ const NineDotMenu = () => {
         className="nav-link px-2 nine-dots"
         title={
           isImpersonating
-            ? `Impersonating ${impersonation.tenantName ?? 'tenant'}`
-            : 'Workspaces'
+            ? t('nav.nineDots.impersonatingTenant', {
+                tenant:
+                  impersonation.tenantName ??
+                  t('nav.nineDots.impersonatingFallback')
+              })
+            : t('nav.nineDots.workspacesTitle')
         }
       >
         <svg
@@ -139,7 +145,7 @@ const NineDotMenu = () => {
             <Card.Body className="p-0">
               <div className="px-3 pt-3 pb-2">
                 <h6 className="mb-2 text-uppercase text-700 fs-11 fw-bold">
-                  Your workspaces
+                  {t('nav.nineDots.yourWorkspaces')}
                 </h6>
                 {memberships.map(m => {
                   const active = m.tenantId === currentMembership?.tenantId;
@@ -177,13 +183,13 @@ const NineDotMenu = () => {
                   <hr className="my-0" />
                   <div className="px-3 pt-3 pb-3">
                     <h6 className="mb-2 text-uppercase text-700 fs-11 fw-bold">
-                      Impersonate tenant
+                      {t('nav.nineDots.impersonateTenant')}
                     </h6>
 
                     {isImpersonating && (
                       <div className="alert alert-warning py-2 px-3 mb-2 d-flex justify-content-between align-items-center">
                         <small className="text-truncate">
-                          Impersonating{' '}
+                          {t('nav.nineDots.impersonating')}{' '}
                           <strong>{impersonation.tenantName}</strong>
                         </small>
                         <button
@@ -191,7 +197,7 @@ const NineDotMenu = () => {
                           className="btn btn-sm btn-warning ms-2 flex-shrink-0"
                           onClick={onStopImpersonation}
                         >
-                          Stop
+                          {t('nav.nineDots.stop')}
                         </button>
                       </div>
                     )}
@@ -199,59 +205,65 @@ const NineDotMenu = () => {
                     <Form.Control
                       type="search"
                       size="sm"
-                      placeholder="Search by name, slug, or id"
+                      placeholder={t('nav.nineDots.searchPlaceholder')}
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                     />
                     <div className="d-flex gap-1 mt-2 mb-2">
                       {(['all', 'internal', 'external'] as TierFilter[]).map(
-                        t => (
+                        tier => (
                           <button
-                            key={t}
+                            key={tier}
                             type="button"
                             className={`btn btn-sm ${
-                              tierFilter === t
+                              tierFilter === tier
                                 ? 'btn-secondary'
                                 : 'btn-outline-secondary'
                             }`}
-                            onClick={() => setTierFilter(t)}
+                            onClick={() => setTierFilter(tier)}
                           >
-                            {t}
+                            {t(`nav.nineDots.tier.${tier}` as const)}
                           </button>
                         )
                       )}
                     </div>
 
                     {isLoading && (
-                      <p className="text-muted small mb-0">Loading…</p>
+                      <p className="text-muted small mb-0">
+                        {t('nav.nineDots.loading')}
+                      </p>
                     )}
                     {!isLoading && filtered.length === 0 && (
-                      <p className="text-muted small mb-0">No tenants match.</p>
+                      <p className="text-muted small mb-0">
+                        {t('nav.nineDots.noMatch')}
+                      </p>
                     )}
                     <div className="d-flex flex-column">
-                      {filtered.slice(0, 200).map(t => {
-                        const active = impersonation.tenantId === t.id;
+                      {filtered.slice(0, 200).map(tenant => {
+                        const active = impersonation.tenantId === tenant.id;
                         return (
                           <button
-                            key={t.id}
+                            key={tenant.id}
                             type="button"
                             className={`btn btn-sm text-start mb-1 ${
                               active
                                 ? 'btn-soft-warning'
                                 : 'btn-link text-decoration-none'
                             }`}
-                            onClick={() => onImpersonate(t.id, t.name)}
+                            onClick={() =>
+                              onImpersonate(tenant.id, tenant.name)
+                            }
                           >
                             <div className="d-flex justify-content-between align-items-center">
                               <span className="fw-semibold text-truncate">
-                                {t.name}
+                                {tenant.name}
                               </span>
                               <small className="text-muted ms-2 flex-shrink-0">
-                                {t.kind ?? '—'}
+                                {tenant.kind ?? '—'}
                               </small>
                             </div>
                             <small className="text-muted d-block text-truncate">
-                              {t.slug} · {t.plan}
+                              {tenant.slug} · {tenant.plan}
                             </small>
                           </button>
                         );
@@ -259,8 +271,9 @@ const NineDotMenu = () => {
                     </div>
                     {filtered.length > 200 && (
                       <p className="text-muted small mb-0">
-                        Showing first 200 of {filtered.length} — refine the
-                        search.
+                        {t('nav.nineDots.refineSearch', {
+                          count: filtered.length
+                        })}
                       </p>
                     )}
                   </div>

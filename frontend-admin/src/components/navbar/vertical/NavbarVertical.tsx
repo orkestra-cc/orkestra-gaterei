@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import classNames from 'classnames';
 import { Nav, Navbar, Row, Col, Placeholder } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { navbarBreakPoint, topNavbarBreakpoint } from 'config';
 import Flex from 'components/common/Flex';
 import Logo from 'components/common/Logo';
@@ -87,6 +88,7 @@ const NavbarSkeleton = () => (
 );
 
 const NavbarVertical = () => {
+  const { t } = useTranslation();
   const {
     config: {
       navbarPosition,
@@ -235,7 +237,9 @@ const NavbarVertical = () => {
         {/* Error state - show minimal message */}
         {isError && !isLoading && (
           <div className="navbar-vertical-content scrollbar text-center py-4">
-            <small className="text-muted">Navigation unavailable</small>
+            <small className="text-muted">
+              {t('nav.navigationUnavailable')}
+            </small>
           </div>
         )}
 

@@ -1,5 +1,116 @@
 {
   "app": {
     "name": "Orkestra"
+  },
+  "nav": {
+    "toggleNavigation": "Toggle Navigation",
+    "navigationUnavailable": "Navigation unavailable",
+    "search": {
+      "placeholder": "Search...",
+      "recentlyBrowsed": "Recently Browsed",
+      "suggestedFilter": "Suggested Filter",
+      "files": "Files",
+      "members": "Members",
+      "noResults": "No Result Found."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "empty": "You're all caught up."
+    },
+    "profile": {
+      "login": "Login",
+      "profileAndAccount": "Profile & account",
+      "settings": "Settings",
+      "security": "Security",
+      "logout": "Logout"
+    },
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "auto": "Auto"
+    },
+    "nineDots": {
+      "workspacesTitle": "Workspaces",
+      "yourWorkspaces": "Your workspaces",
+      "impersonateTenant": "Impersonate tenant",
+      "impersonating": "Impersonating",
+      "impersonatingTenant": "Impersonating {{tenant}}",
+      "impersonatingFallback": "tenant",
+      "stop": "Stop",
+      "searchPlaceholder": "Search by name, slug, or id",
+      "tier": {
+        "all": "all",
+        "internal": "internal",
+        "external": "external"
+      },
+      "loading": "Loading…",
+      "noMatch": "No tenants match.",
+      "refineSearch": "Showing first 200 of {{count}} — refine the search."
+    }
+  },
+  "errors": {
+    "404": {
+      "title": "The page you are looking for is not found.",
+      "detail": "Make sure the address is correct and the page hasn't moved. If you think this is a mistake,",
+      "contactUs": "contact us",
+      "goHome": "Go to home"
+    },
+    "500": {
+      "title": "Whoops, something went wrong!",
+      "detail": "Try refreshing the page, or go back and attempt the action again. If the problem persists,",
+      "contactUs": "contact us"
+    },
+    "401": {
+      "insufficientPermissions": "Insufficient Permissions",
+      "accessDenied": "Access Denied",
+      "message": "You do not have the necessary permissions to access this page.",
+      "currentRole": "Your current role:",
+      "requiredRoles": "Required roles:",
+      "requiredRole": "Required role:",
+      "requestedPage": "Requested page:",
+      "goBack": "Go Back",
+      "goHome": "Go to Home",
+      "logout": "Logout",
+      "contactAdmin": "If you think this is an error, please contact the system administrator.",
+      "roles": {
+        "super_admin": "Super Admin",
+        "administrator": "Administrator",
+        "developer": "Developer",
+        "manager": "Manager",
+        "operator": "Operator",
+        "guest": "Guest",
+        "unknown": "Unknown"
+      }
+    }
+  },
+  "banner": {
+    "impersonation": {
+      "text": "Impersonating {{tenant}}",
+      "audit": "— all actions are audited.",
+      "stop": "Stop impersonating",
+      "fallback": "tenant"
+    },
+    "mfa": {
+      "title": "Two-factor authentication required",
+      "expired": "Your grace window has expired. You will be locked out on next sign-in until you enroll.",
+      "remaining": "Your role requires MFA. {{remaining}} to enroll before sign-in is blocked.",
+      "required": "Your role requires MFA. Set it up to avoid being locked out of sign-in.",
+      "setUp": "Set up",
+      "daysLeft_one": "{{count}} day left",
+      "daysLeft_other": "{{count}} days left",
+      "hoursLeft_one": "{{count}} hour left",
+      "hoursLeft_other": "{{count}} hours left",
+      "minutesLeft_one": "{{count}} minute left",
+      "minutesLeft_other": "{{count}} minutes left"
+    }
+  },
+  "table": {
+    "searchPlaceholder": "Search...",
+    "rowsPerPage": "Rows per page:",
+    "previous": "Previous",
+    "next": "Next",
+    "viewAll": "View all",
+    "viewLess": "View less",
+    "rowsCount": "{{from}} to {{to}} of {{total}}"
   }
 }
