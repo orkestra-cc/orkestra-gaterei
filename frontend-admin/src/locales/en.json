@@ -323,6 +323,148 @@
       "manage": "Manage security"
     }
   },
+  "billing": {
+    "common": {
+      "backToDashboard": "Back to billing dashboard",
+      "volumeLabel": "Volume:",
+      "manageKicker": "Manage",
+      "discoverKicker": "Discover",
+      "searchKicker": "Search"
+    },
+    "notifications": {
+      "title": "SDI Notifications",
+      "unprocessedBadge_one": "{{count}} to handle",
+      "unprocessedBadge_other": "{{count}} to handle",
+      "stats": {
+        "total": "Total",
+        "unprocessed": "To process",
+        "positive": "Positive (RC)",
+        "negative": "Negative (NS)"
+      },
+      "tableTitle": "SDI Notification list",
+      "searchPlaceholder": "Search by SDI ID or progressive",
+      "filters": {
+        "all": "All",
+        "unprocessed": "To process",
+        "RC": "Delivery receipt (RC)",
+        "NS": "Reject notice (NS)",
+        "MC": "Failed delivery (MC)",
+        "NE": "Outcome notice (NE)",
+        "DT": "Deadline expiry (DT)",
+        "AT": "Attestation (AT)"
+      },
+      "bulkActions": "Bulk actions",
+      "bulkMarkProcessed": "Mark as processed",
+      "apply": "Apply",
+      "export": "Export",
+      "viewAll": "View all",
+      "markAllRead": "Mark all as read",
+      "syncWithSdi": "Sync with SDI"
+    },
+    "issued": {
+      "title": "Issued Invoices",
+      "stats": {
+        "total": "Total issued",
+        "draft": "Draft",
+        "sent": "Sent",
+        "delivered": "Delivered"
+      },
+      "tableTitle": "Issued invoice list",
+      "searchPlaceholder": "Search by number or customer",
+      "filters": {
+        "all": "All",
+        "draft": "Draft",
+        "pending": "Pending",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "rejected": "Rejected",
+        "accepted": "Accepted",
+        "paid": "Paid"
+      },
+      "bulkActions": "Bulk actions",
+      "bulkSend": "Send to SDI",
+      "bulkDelete": "Delete",
+      "apply": "Apply",
+      "newInvoice": "New invoice",
+      "export": "Export",
+      "viewAll": "View all",
+      "exportXml": "Export XML",
+      "importFromXml": "Import from XML",
+      "syncWithSdi": "Sync with SDI",
+      "deleteSelected": "Delete selected",
+      "syncSuccess": "Sync completed",
+      "syncError": "Error during sync"
+    },
+    "received": {
+      "title": "Received Invoices",
+      "stats": {
+        "total": "Total received",
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "rejected": "Rejected"
+      },
+      "tableTitle": "Received invoice list",
+      "searchPlaceholder": "Search by number or supplier",
+      "filters": {
+        "all": "All",
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "rejected": "Rejected",
+        "paid": "Paid"
+      },
+      "bulkActions": "Bulk actions",
+      "bulkAccept": "Accept",
+      "bulkReject": "Reject",
+      "apply": "Apply",
+      "export": "Export",
+      "viewAll": "View all",
+      "exportXml": "Export XML",
+      "importXml": "Import XML"
+    },
+    "suppliers": {
+      "title": "Supplier",
+      "titleAccent": " Registry",
+      "tableTitle": "Supplier Management",
+      "searchPlaceholder": "Search by name or VAT",
+      "filters": {
+        "all": "All",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "bulkActions": "Bulk actions",
+      "bulkActivate": "Activate",
+      "bulkDeactivate": "Deactivate",
+      "bulkDelete": "Delete",
+      "apply": "Apply",
+      "newSupplier": "New supplier",
+      "export": "Export",
+      "import": "Import",
+      "viewAll": "View all",
+      "deleteAll": "Delete all"
+    },
+    "companies": {
+      "title": "Issuing Companies",
+      "newCompany": "New company"
+    }
+  },
+  "company": {
+    "lookup": {
+      "kicker": "Lookup",
+      "title": "Companies",
+      "titleAccent": " searched",
+      "tableTitle": "Companies searched",
+      "searchTitle": "Search company by Fiscal Code or VAT Number",
+      "searchPlaceholder": "Search by name, VAT or fiscal code"
+    },
+    "search": {
+      "kicker": "Discover",
+      "title": "Search",
+      "titleAccent": " Italian Companies",
+      "filtersTitle": "Search filters",
+      "resultsTitle": "Results",
+      "searching": "Searching..."
+    }
+  },
   "adminTenants": {
     "totalTitle": "Total tenants",
     "active": "Active",

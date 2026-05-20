@@ -323,6 +323,148 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "billing": {
+    "common": {
+      "backToDashboard": "Torna alla dashboard fatturazione",
+      "volumeLabel": "Volume:",
+      "manageKicker": "Gestione",
+      "discoverKicker": "Scopri",
+      "searchKicker": "Ricerca"
+    },
+    "notifications": {
+      "title": "Notifiche SDI",
+      "unprocessedBadge_one": "{{count}} da gestire",
+      "unprocessedBadge_other": "{{count}} da gestire",
+      "stats": {
+        "total": "Totale",
+        "unprocessed": "Da Processare",
+        "positive": "Positive (RC)",
+        "negative": "Negative (NS)"
+      },
+      "tableTitle": "Elenco Notifiche SDI",
+      "searchPlaceholder": "Cerca per ID SDI o progressivo",
+      "filters": {
+        "all": "Tutti",
+        "unprocessed": "Da Processare",
+        "RC": "Ricevuta Consegna (RC)",
+        "NS": "Notifica Scarto (NS)",
+        "MC": "Mancata Consegna (MC)",
+        "NE": "Notifica Esito (NE)",
+        "DT": "Decorrenza Termini (DT)",
+        "AT": "Attestazione (AT)"
+      },
+      "bulkActions": "Azioni di massa",
+      "bulkMarkProcessed": "Marca come processato",
+      "apply": "Applica",
+      "export": "Esporta",
+      "viewAll": "Visualizza Tutti",
+      "markAllRead": "Marca tutte come lette",
+      "syncWithSdi": "Sincronizza con SDI"
+    },
+    "issued": {
+      "title": "Fatture Emesse",
+      "stats": {
+        "total": "Totale Emesse",
+        "draft": "In Bozza",
+        "sent": "Inviate",
+        "delivered": "Consegnate"
+      },
+      "tableTitle": "Elenco Fatture Emesse",
+      "searchPlaceholder": "Cerca per numero o cliente",
+      "filters": {
+        "all": "Tutti",
+        "draft": "Bozza",
+        "pending": "In Attesa",
+        "sent": "Inviata",
+        "delivered": "Consegnata",
+        "rejected": "Rifiutata",
+        "accepted": "Accettata",
+        "paid": "Pagata"
+      },
+      "bulkActions": "Azioni di massa",
+      "bulkSend": "Invia a SDI",
+      "bulkDelete": "Elimina",
+      "apply": "Applica",
+      "newInvoice": "Nuova Fattura",
+      "export": "Esporta",
+      "viewAll": "Visualizza Tutti",
+      "exportXml": "Esporta XML",
+      "importFromXml": "Importa da XML",
+      "syncWithSdi": "Sincronizza con SDI",
+      "deleteSelected": "Elimina Selezionate",
+      "syncSuccess": "Sincronizzazione completata",
+      "syncError": "Errore durante la sincronizzazione"
+    },
+    "received": {
+      "title": "Fatture Ricevute",
+      "stats": {
+        "total": "Totale Ricevute",
+        "pending": "In Attesa",
+        "accepted": "Accettate",
+        "rejected": "Rifiutate"
+      },
+      "tableTitle": "Elenco Fatture Ricevute",
+      "searchPlaceholder": "Cerca per numero o fornitore",
+      "filters": {
+        "all": "Tutti",
+        "pending": "In Attesa",
+        "accepted": "Accettata",
+        "rejected": "Rifiutata",
+        "paid": "Pagata"
+      },
+      "bulkActions": "Azioni di massa",
+      "bulkAccept": "Accetta",
+      "bulkReject": "Rifiuta",
+      "apply": "Applica",
+      "export": "Esporta",
+      "viewAll": "Visualizza Tutti",
+      "exportXml": "Esporta XML",
+      "importXml": "Importa XML"
+    },
+    "suppliers": {
+      "title": "Anagrafica",
+      "titleAccent": " Fornitori",
+      "tableTitle": "Gestione Fornitori",
+      "searchPlaceholder": "Cerca per nome o P.IVA",
+      "filters": {
+        "all": "Tutti",
+        "active": "Attivi",
+        "inactive": "Inattivi"
+      },
+      "bulkActions": "Azioni di massa",
+      "bulkActivate": "Attiva",
+      "bulkDeactivate": "Disattiva",
+      "bulkDelete": "Elimina",
+      "apply": "Applica",
+      "newSupplier": "Nuovo Fornitore",
+      "export": "Esporta",
+      "import": "Importa",
+      "viewAll": "Visualizza Tutti",
+      "deleteAll": "Elimina Tutti"
+    },
+    "companies": {
+      "title": "Aziende Emittenti",
+      "newCompany": "Nuova Azienda"
+    }
+  },
+  "company": {
+    "lookup": {
+      "kicker": "Ricerca",
+      "title": "Aziende",
+      "titleAccent": " Cercate",
+      "tableTitle": "Aziende Cercate",
+      "searchTitle": "Cerca Azienda per Codice Fiscale o Partita IVA",
+      "searchPlaceholder": "Cerca per nome, P.IVA o codice fiscale"
+    },
+    "search": {
+      "kicker": "Scopri",
+      "title": "Cerca",
+      "titleAccent": " Aziende Italiane",
+      "filtersTitle": "Filtri di Ricerca",
+      "resultsTitle": "Risultati",
+      "searching": "Ricerca..."
+    }
+  },
   "adminTenants": {
     "totalTitle": "Tenant totali",
     "active": "Attivi",
