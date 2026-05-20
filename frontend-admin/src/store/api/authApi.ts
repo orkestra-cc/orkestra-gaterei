@@ -38,6 +38,10 @@ export interface BackendUser {
   lastLogin?: string; // ISO date string
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+  // BCP-47 language tag. Backend backfills 'en' for accounts that
+  // predate the field; useLanguageSync drives i18n.changeLanguage off
+  // this on login.
+  language?: string;
 }
 
 export interface LogoutResponse {
