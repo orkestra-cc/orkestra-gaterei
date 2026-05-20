@@ -323,6 +323,79 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "adminModules": {
+    "pageTitle": "Gestione moduli",
+    "modulesCount_one": "{{count}} modulo",
+    "modulesCount_other": "{{count}} moduli",
+    "tabs": {
+      "core": "Moduli core",
+      "addons": "Addon"
+    },
+    "status": {
+      "running": "attivi",
+      "failed": "in errore",
+      "disabled": "disabilitati",
+      "stopped": "fermi"
+    },
+    "filters": {
+      "searchPlaceholder": "Cerca moduli...",
+      "allStatuses": "Tutti gli stati",
+      "statusRunning": "Attivi",
+      "statusFailed": "In errore",
+      "statusDisabled": "Disabilitati",
+      "statusStopped": "Fermi",
+      "allCategories": "Tutte le categorie",
+      "categoryCore": "Core",
+      "categoryToggleable": "Attivabili",
+      "categoryExternal": "Esterni"
+    },
+    "columns": {
+      "module": "Modulo",
+      "name": "Nome",
+      "category": "Categoria",
+      "status": "Stato",
+      "environment": "Ambiente",
+      "dependencies": "Dipendenze",
+      "updated": "Aggiornato",
+      "actions": "Azioni"
+    },
+    "noMatch": "Nessun modulo corrisponde ai filtri attuali.",
+    "toggleTitles": {
+      "coreLocked": "I moduli core non possono essere disabilitati",
+      "disable": "Disabilita modulo",
+      "enable": "Abilita modulo"
+    },
+    "actions": {
+      "configure": "Configura",
+      "enable": "Abilita",
+      "disable": "Disabilita",
+      "restart": "Riavvia",
+      "viewDetail": "Vedi dettaglio"
+    },
+    "detail": {
+      "back": "Torna ai moduli",
+      "initErrorLabel": "Errore di inizializzazione:",
+      "managedInfra": "Infrastruttura gestita:",
+      "infraError": "errore: {{message}}",
+      "infraRunning": "attivo",
+      "infraStopped": "fermo",
+      "enabled": "Abilitato",
+      "disabledLabel": "Disabilitato",
+      "dependencies": "Dipendenze",
+      "noDependencies": "Nessuna dipendenza dichiarata.",
+      "environment": "Ambiente",
+      "activeEnvironment": "Ambiente attivo",
+      "sandbox": "Sandbox",
+      "production": "Produzione",
+      "switchEnvironment": "Cambia ambiente",
+      "saveConfig": "Salva configurazione",
+      "saving": "Salvataggio…",
+      "savedFlash": "Configurazione salvata.",
+      "saveFailed": "Impossibile salvare la configurazione. Riprova.",
+      "config": "Configurazione",
+      "noConfig": "Questo modulo non ha campi configurabili."
+    }
+  },
   "table": {
     "searchPlaceholder": "Cerca...",
     "rowsPerPage": "Righe per pagina:",

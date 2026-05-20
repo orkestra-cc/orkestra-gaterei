@@ -323,6 +323,79 @@
       "manage": "Manage security"
     }
   },
+  "adminModules": {
+    "pageTitle": "Module Management",
+    "modulesCount_one": "{{count}} module",
+    "modulesCount_other": "{{count}} modules",
+    "tabs": {
+      "core": "Core Modules",
+      "addons": "Addons"
+    },
+    "status": {
+      "running": "running",
+      "failed": "failed",
+      "disabled": "disabled",
+      "stopped": "stopped"
+    },
+    "filters": {
+      "searchPlaceholder": "Search modules...",
+      "allStatuses": "All Statuses",
+      "statusRunning": "Running",
+      "statusFailed": "Failed",
+      "statusDisabled": "Disabled",
+      "statusStopped": "Stopped",
+      "allCategories": "All Categories",
+      "categoryCore": "Core",
+      "categoryToggleable": "Toggleable",
+      "categoryExternal": "External"
+    },
+    "columns": {
+      "module": "Module",
+      "name": "Name",
+      "category": "Category",
+      "status": "Status",
+      "environment": "Environment",
+      "dependencies": "Dependencies",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "noMatch": "No modules match the current filters.",
+    "toggleTitles": {
+      "coreLocked": "Core modules cannot be disabled",
+      "disable": "Disable module",
+      "enable": "Enable module"
+    },
+    "actions": {
+      "configure": "Configure",
+      "enable": "Enable",
+      "disable": "Disable",
+      "restart": "Restart",
+      "viewDetail": "View detail"
+    },
+    "detail": {
+      "back": "Back to Modules",
+      "initErrorLabel": "Init Error:",
+      "managedInfra": "Managed infrastructure:",
+      "infraError": "error: {{message}}",
+      "infraRunning": "running",
+      "infraStopped": "stopped",
+      "enabled": "Enabled",
+      "disabledLabel": "Disabled",
+      "dependencies": "Dependencies",
+      "noDependencies": "No dependencies declared.",
+      "environment": "Environment",
+      "activeEnvironment": "Active environment",
+      "sandbox": "Sandbox",
+      "production": "Production",
+      "switchEnvironment": "Switch environment",
+      "saveConfig": "Save configuration",
+      "saving": "Saving…",
+      "savedFlash": "Configuration saved.",
+      "saveFailed": "Could not save configuration. Try again.",
+      "config": "Configuration",
+      "noConfig": "This module has no configurable fields."
+    }
+  },
   "table": {
     "searchPlaceholder": "Search...",
     "rowsPerPage": "Rows per page:",
