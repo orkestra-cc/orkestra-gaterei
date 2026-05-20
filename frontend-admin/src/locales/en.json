@@ -342,7 +342,29 @@
       "passkeyRemoving": "Removing…",
       "passkeyAdded": "Added {{date}}",
       "passkeyLastUsed": "Last used {{date}}",
-      "passkeyNeverUsed": "Never used"
+      "passkeyNeverUsed": "Never used",
+      "totp": {
+        "cardTitle": "Authenticator app",
+        "enabledBadge": "Enabled",
+        "enabledStatus": "TOTP · {{count}} backup codes remaining",
+        "enabledDescription": "A one-time code from your authenticator is required each time you sign in.",
+        "pendingBadge": "Enrollment in progress",
+        "pendingDescription": "Your authenticator is registered but never confirmed. Complete or restart enrollment below.",
+        "resumeButton": "Resume enrollment",
+        "notEnrolledDescription": "Add a code from an authenticator app such as Google Authenticator, Authy, or 1Password.",
+        "setupButton": "Set up"
+      },
+      "passkeys": {
+        "cardTitle": "Passkeys",
+        "unsupported": "This browser does not support passkeys. Try Chrome, Safari, or Firefox over HTTPS to use this feature.",
+        "introEmpty": "Passkeys let you sign in with a fingerprint, Face ID, or a hardware key — no codes to type. They can be used as a second factor alongside the authenticator app, or on their own.",
+        "addedAt": "Added {{date}}",
+        "lastUsedSuffix": " · Last used {{date}}",
+        "cloneWarningSuffix": " · ⚠ clone warning",
+        "removeButton": "Remove",
+        "addButton": "Add passkey",
+        "removeConfirm": "Remove this passkey? You will need to register it again to use it."
+      }
     },
     "enrollWizard": {
       "title": "Enroll a second factor",
@@ -363,7 +385,22 @@
       "errors": {
         "incorrectCode": "Incorrect code. Please try again.",
         "generic": "Could not enroll. Try again."
-      }
+      },
+      "modalTitle": "Set up two-factor authentication",
+      "qrIntro": "Scan this code with your authenticator app (Google Authenticator, Authy, 1Password…).",
+      "qrManualHint": "Can't scan? Enter this secret manually:",
+      "qrContinue": "I've added it — continue",
+      "confirmIntro": "Enter the 6-digit code your authenticator is showing right now.",
+      "confirmEmptyError": "Enter the 6-digit code shown in your authenticator.",
+      "confirmIncorrectError": "Incorrect code. Double-check the digits and try again.",
+      "confirmGenericError": "Could not confirm the code. Please try again.",
+      "confirmConfirmButton": "Verify and enable",
+      "beginError": "Could not start enrollment. Please try again.",
+      "backupHeading": "Save these backup codes now.",
+      "backupBody": "They are the only way to sign in if you lose access to your authenticator. Each code works once.",
+      "backupCopyButton": "Copy codes",
+      "backupDownloadButton": "Download",
+      "backupAckLabel": "I have saved these backup codes somewhere safe."
     }
   },
   "settings": {

@@ -342,7 +342,29 @@
       "passkeyRemoving": "Rimozione…",
       "passkeyAdded": "Aggiunto il {{date}}",
       "passkeyLastUsed": "Ultimo utilizzo {{date}}",
-      "passkeyNeverUsed": "Mai utilizzato"
+      "passkeyNeverUsed": "Mai utilizzato",
+      "totp": {
+        "cardTitle": "App autenticatore",
+        "enabledBadge": "Abilitato",
+        "enabledStatus": "TOTP · {{count}} codici di backup rimanenti",
+        "enabledDescription": "Ad ogni accesso ti verrà richiesto un codice monouso dal tuo autenticatore.",
+        "pendingBadge": "Configurazione in corso",
+        "pendingDescription": "Il tuo autenticatore è registrato ma mai confermato. Completa o riavvia la configurazione qui sotto.",
+        "resumeButton": "Riprendi configurazione",
+        "notEnrolledDescription": "Aggiungi un codice da un'app autenticatore come Google Authenticator, Authy o 1Password.",
+        "setupButton": "Configura"
+      },
+      "passkeys": {
+        "cardTitle": "Passkey",
+        "unsupported": "Questo browser non supporta le passkey. Prova Chrome, Safari o Firefox su HTTPS per usare questa funzione.",
+        "introEmpty": "Le passkey ti permettono di accedere con impronta digitale, Face ID o una chiave hardware — senza codici da digitare. Possono essere usate come secondo fattore insieme all'app autenticatore, o da sole.",
+        "addedAt": "Aggiunto il {{date}}",
+        "lastUsedSuffix": " · Ultimo utilizzo {{date}}",
+        "cloneWarningSuffix": " · ⚠ avviso clone",
+        "removeButton": "Rimuovi",
+        "addButton": "Aggiungi passkey",
+        "removeConfirm": "Rimuovere questa passkey? Dovrai registrarla di nuovo per usarla."
+      }
     },
     "enrollWizard": {
       "title": "Configura un secondo fattore",
@@ -363,7 +385,22 @@
       "errors": {
         "incorrectCode": "Codice errato. Riprova.",
         "generic": "Impossibile configurare. Riprova."
-      }
+      },
+      "modalTitle": "Configura l'autenticazione a due fattori",
+      "qrIntro": "Scansiona questo codice con la tua app autenticatore (Google Authenticator, Authy, 1Password…).",
+      "qrManualHint": "Non riesci a scansionare? Inserisci questo segreto manualmente:",
+      "qrContinue": "L'ho aggiunto — continua",
+      "confirmIntro": "Inserisci il codice a 6 cifre che il tuo autenticatore mostra ora.",
+      "confirmEmptyError": "Inserisci il codice a 6 cifre mostrato nella tua app autenticatore.",
+      "confirmIncorrectError": "Codice errato. Ricontrolla le cifre e riprova.",
+      "confirmGenericError": "Impossibile confermare il codice. Riprova.",
+      "confirmConfirmButton": "Verifica e abilita",
+      "beginError": "Impossibile avviare la configurazione. Riprova.",
+      "backupHeading": "Salva ora questi codici di backup.",
+      "backupBody": "Sono l'unico modo per accedere se perdi l'accesso al tuo autenticatore. Ogni codice funziona una sola volta.",
+      "backupCopyButton": "Copia codici",
+      "backupDownloadButton": "Scarica",
+      "backupAckLabel": "Ho salvato questi codici di backup in un posto sicuro."
     }
   },
   "settings": {
