@@ -6,6 +6,7 @@ import {
   faRocket,
   faBolt
 } from '@fortawesome/free-solid-svg-icons';
+import { useTranslation } from 'react-i18next';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
 import {
@@ -14,6 +15,7 @@ import {
 } from '../../../store/api/salesApi';
 
 function ProspectGreetings() {
+  const { t } = useTranslation();
   return (
     <Card className="bg-body-tertiary dark__bg-opacity-50 shadow-none h-100">
       <Background image={greetingsBg} className="bg-card d-none d-sm-block" />
@@ -26,9 +28,12 @@ function ProspectGreetings() {
           />
         </div>
         <div className="ms-3">
-          <h6 className="mb-1 text-primary">Sales Intelligence</h6>
+          <h6 className="mb-1 text-primary">{t('sales.kicker')}</h6>
           <h4 className="mb-0 text-primary fw-bold">
-            Prospect<span className="text-info fw-medium"> Analysis</span>
+            {t('sales.prospect.title')}
+            <span className="text-info fw-medium">
+              {t('sales.prospect.titleAccent')}
+            </span>
           </h4>
         </div>
       </Card.Header>
@@ -37,6 +42,7 @@ function ProspectGreetings() {
 }
 
 const ProspectPage = () => {
+  const { t } = useTranslation();
   const [url, setUrl] = useState('');
   const [locale, setLocale] = useState('it');
   const [result, setResult] = useState<any>(null);
@@ -81,7 +87,7 @@ const ProspectPage = () => {
         <Col lg={12}>
           <Card>
             <Card.Header>
-              <h5 className="mb-0">Analyze a Company</h5>
+              <h5 className="mb-0">{t('sales.prospect.analyzeTitle')}</h5>
             </Card.Header>
             <Card.Body>
               <Form
@@ -153,7 +159,7 @@ const ProspectPage = () => {
           <Col lg={12}>
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Result</h5>
+                <h5 className="mb-0">{t('sales.prospect.resultTitle')}</h5>
                 <div className="d-flex gap-2">
                   {result.score !== undefined && (
                     <Badge

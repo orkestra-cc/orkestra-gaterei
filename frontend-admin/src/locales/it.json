@@ -323,6 +323,17 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "audit": {
+    "title": "Eventi audit",
+    "description": "Trail append-only delle azioni rilevanti per la sicurezza in ogni tenant. Retention: 2 anni (TTL forzato su MongoDB).",
+    "totalMatches": "Corrispondenze totali",
+    "filtersActive_one": "{{count}} filtro attivo",
+    "filtersActive_other": "{{count}} filtri attivi",
+    "noEvents": "Nessun evento",
+    "showingRange": "Mostro {{from}}–{{to}} di {{total}}",
+    "previous": "Precedente",
+    "next": "Successivo"
+  },
   "compliance": {
     "soc2": {
       "title": "Evidenze SOC2",
@@ -369,10 +380,16 @@
     }
   },
   "sales": {
+    "kicker": "Sales Intelligence",
     "jobs": {
-      "titleCount": "Job ({{count}})"
+      "title": "Prospect",
+      "titleAccent": " Job",
+      "titleCount": "Job ({{count}})",
+      "runningBadge": "{{count}} in esecuzione"
     },
     "prospect": {
+      "title": "Analisi",
+      "titleAccent": " Prospect",
       "analyzeTitle": "Analizza un'azienda",
       "resultTitle": "Risultato"
     },
@@ -382,7 +399,6 @@
       "templateVariables": "Variabili Template",
       "llmConfiguration": "Configurazione LLM",
       "activeConfiguration": "Configurazione Attiva",
-      "kicker": "Sales Intelligence",
       "title": "Impostazioni"
     }
   },

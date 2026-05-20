@@ -26,6 +26,7 @@ import {
   faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Background from 'components/common/Background';
 import greetingsBg from 'assets/img/illustrations/ticket-greetings-bg.png';
 import {
@@ -476,6 +477,7 @@ export function JobDetailPage() {
 // ─── Jobs List Page (URL: /sales/jobs) ───
 
 const JobsPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data, isLoading, refetch } = useListSalesJobsQuery(
     { pageSize: 50 },
@@ -505,12 +507,15 @@ const JobsPage = () => {
                 />
               </div>
               <div className="ms-3">
-                <h6 className="mb-1 text-primary">Sales Intelligence</h6>
+                <h6 className="mb-1 text-primary">{t('sales.kicker')}</h6>
                 <h4 className="mb-0 text-primary fw-bold">
-                  Prospect<span className="text-info fw-medium"> Jobs</span>
+                  {t('sales.jobs.title')}
+                  <span className="text-info fw-medium">
+                    {t('sales.jobs.titleAccent')}
+                  </span>
                   {runningCount > 0 && (
                     <Badge bg="primary" className="ms-2 fs-6">
-                      {runningCount} running
+                      {t('sales.jobs.runningBadge', { count: runningCount })}
                     </Badge>
                   )}
                 </h4>
@@ -524,7 +529,9 @@ const JobsPage = () => {
         <Col lg={12}>
           <Card>
             <Card.Header className="d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Jobs ({jobs.length})</h5>
+              <h5 className="mb-0">
+                {t('sales.jobs.titleCount', { count: jobs.length })}
+              </h5>
               <Button
                 variant="outline-primary"
                 size="sm"
