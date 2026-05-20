@@ -285,6 +285,44 @@
       "privacyLink": "l'informativa sulla privacy"
     }
   },
+  "settings": {
+    "account": {
+      "title": "Impostazioni account",
+      "whoSeeProfile": "Chi può vedere il tuo profilo?",
+      "whoSeeProfileTooltip": "Solo il gruppo di persone selezionate può vedere il tuo profilo",
+      "whoCanTag": "Chi può taggarti?",
+      "whoCanTagTooltip": "Solo il gruppo di persone selezionate può taggarti",
+      "everyone": "Tutti",
+      "myFollowers": "I miei follower",
+      "onlyMe": "Solo io",
+      "groupMembers": "Membri del gruppo",
+      "showFollowers": "Consenti agli utenti di vedere i tuoi follower",
+      "showEmail": "Consenti agli utenti di vedere la tua email",
+      "showExperience": "Consenti agli utenti di vedere le tue esperienze",
+      "showPhone": "Rendi visibile il tuo numero di telefono",
+      "allowFollow": "Consenti agli utenti di seguirti"
+    },
+    "billing": {
+      "title": "Impostazioni fatturazione",
+      "plan": "Piano",
+      "developerPlan": "<strong>Developer</strong> - Repository privati illimitati",
+      "updatePlan": "Aggiorna piano",
+      "payment": "Pagamento",
+      "noPayment": "Non hai aggiunto alcun metodo di pagamento.",
+      "addPayment": "Aggiungi pagamento"
+    },
+    "danger": {
+      "title": "Zona di pericolo",
+      "privacyHeading": "Privacy e i tuoi dati",
+      "privacyDescription": "Scarica una copia dei dati personali che conserviamo per il tuo account, o esercita il tuo diritto GDPR alla cancellazione.",
+      "managePrivacy": "Gestisci la privacy"
+    },
+    "security": {
+      "title": "Sicurezza dell'account",
+      "description": "Password, autenticazione a due fattori, sessioni e dispositivi affidabili sono ora nella loro pagina dedicata.",
+      "manage": "Gestisci la sicurezza"
+    }
+  },
   "table": {
     "searchPlaceholder": "Cerca...",
     "rowsPerPage": "Righe per pagina:",

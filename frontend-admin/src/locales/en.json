@@ -285,6 +285,44 @@
       "privacyLink": "privacy policy"
     }
   },
+  "settings": {
+    "account": {
+      "title": "Account Settings",
+      "whoSeeProfile": "Who can see your profile?",
+      "whoSeeProfileTooltip": "Only the group of selected people can see your profile",
+      "whoCanTag": "Who can tag you?",
+      "whoCanTagTooltip": "Only the group of selected people can tag you",
+      "everyone": "Everyone",
+      "myFollowers": "My Followers",
+      "onlyMe": "Only Me",
+      "groupMembers": "Group Members",
+      "showFollowers": "Allow users to show your followers",
+      "showEmail": "Allow users to show your email",
+      "showExperience": "Allow users to show your experiences",
+      "showPhone": "Make your phone number visible",
+      "allowFollow": "Allow users to follow you"
+    },
+    "billing": {
+      "title": "Billing Setting",
+      "plan": "Plan",
+      "developerPlan": "<strong>Developer</strong> - Unlimited private repositories",
+      "updatePlan": "Update Plan",
+      "payment": "Payment",
+      "noPayment": "You have not added any payment.",
+      "addPayment": "Add Payment"
+    },
+    "danger": {
+      "title": "Danger Zone",
+      "privacyHeading": "Privacy & your data",
+      "privacyDescription": "Download a copy of the personal data we hold for your account, or exercise your GDPR right to erasure.",
+      "managePrivacy": "Manage privacy"
+    },
+    "security": {
+      "title": "Account security",
+      "description": "Password, two-factor, sessions, and trusted devices live on their own page now.",
+      "manage": "Manage security"
+    }
+  },
   "table": {
     "searchPlaceholder": "Search...",
     "rowsPerPage": "Rows per page:",
