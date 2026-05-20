@@ -752,6 +752,158 @@
       "title": "Aziende Emittenti",
       "newCompany": "Nuova Azienda"
     },
+    "newIssued": {
+      "header": {
+        "titleInvoice": "Nuova Fattura",
+        "titleCreditNote": "Nuova Nota di Credito",
+        "descriptionInvoice": "Crea una nuova fattura elettronica",
+        "descriptionCreditNote": "{{type}} - da fattura n. {{number}}",
+        "descriptionCreditNoteEmpty": "{{type}} - da fattura n. ...",
+        "backToList": "Torna alla lista"
+      },
+      "banners": {
+        "creditNote": "Stai creando una <strong>Nota di Credito (TD04)</strong> per la fattura n. <strong>{{number}}</strong> del {{date}}. Il tipo documento è impostato su TD04 e il riferimento alla fattura originale verrà incluso automaticamente.",
+        "forfettario": "<strong>Regime forfettario (RF19)</strong> — Le righe sono impostate automaticamente a IVA 0% con natura N2.2. La causale normativa è inserita automaticamente.",
+        "forfettarioProfessional": " Il soggetto è un professionista: causale ritenuta e cassa previdenziale pre-compilate."
+      },
+      "cardTitle": {
+        "invoice": "Dati Fattura",
+        "creditNote": "Dati Nota di Credito"
+      },
+      "tabs": {
+        "document": "Documento",
+        "lines": "Righe ({{count}})",
+        "ritenute": "Ritenute e Contributi",
+        "payment": "Pagamento",
+        "options": "Opzioni"
+      },
+      "documentTab": {
+        "issuerLabel": "Azienda Emittente",
+        "issuerPlaceholder": "Seleziona azienda...",
+        "issuerDefaultSuffix": " (Default)",
+        "issuerHelp": "L'azienda selezionata verrà utilizzata come cedente/prestatore nella fattura",
+        "documentTypeLabel": "Tipo Documento",
+        "creditNoteFixedHelp": "Tipo documento fissato a TD04 per la nota di credito",
+        "numberLabel": "Numero Fattura",
+        "numberPlaceholder": "es. 2026/001",
+        "dateLabel": "Data",
+        "customerLabel": "Cliente",
+        "customerPlaceholder": "Seleziona cliente...",
+        "customerNoFatturaPa": " (no FatturaPA)",
+        "customerMissingPrefix": "Manca un cliente?",
+        "customerMissingLink": "Apri Clienti",
+        "customerMissingSuffix": " per registrarlo o configurarne la fatturazione elettronica.",
+        "tenantSdi": "SDI:",
+        "tenantVatCf": "P.IVA / CF:",
+        "tenantNotAvailable": "N/A",
+        "tenantWarning": "Attenzione:",
+        "tenantWarningText": "profilo FatturaPA non attivo per questo cliente.",
+        "causaleLabel": "Causale / Descrizione",
+        "causalePlaceholder": "es. Consulenza informatica mese di gennaio 2026",
+        "addCausale": "Aggiungi riga causale"
+      },
+      "linesTab": {
+        "colDescription": "Descrizione *",
+        "colCode": "Codice",
+        "colQuantity": "Qtà *",
+        "colUnit": "U.M.",
+        "colUnitPrice": "Prezzo Unit.",
+        "colVat": "IVA %",
+        "colNature": "Natura",
+        "colTotal": "Totale",
+        "descrPlaceholder": "Descrizione",
+        "codePlaceholder": "Codice",
+        "selectNature": "Seleziona...",
+        "addLine": "Aggiungi Riga",
+        "altriDati": "Altri Dati Gestionali",
+        "altriDatiAdd": "Aggiungi",
+        "altriDatiTipoPlaceholder": "Tipo Dato*",
+        "altriDatiRifTesto": "Rif. Testo",
+        "altriDatiRifNumero": "Rif. Numero"
+      },
+      "totals": {
+        "taxable": "Imponibile",
+        "vat": "IVA",
+        "bollo": "Bollo virtuale",
+        "bolloLaw": "DPR 642/1972",
+        "total": "Totale"
+      },
+      "ritenute": {
+        "ritenutaSwitch": "Ritenuta d'Acconto",
+        "ritenutaTipo": "Tipo Ritenuta",
+        "ritenutaAliquota": "Aliquota %",
+        "ritenutaImporto": "Importo €",
+        "ritenutaCausale": "Causale",
+        "ritenutaCausalePlaceholder": "A",
+        "bolloSwitch": "Bollo Virtuale",
+        "bolloHelp": "Obbligatorio per fatture esenti/escluse IVA superiori a €77,47",
+        "bolloImporto": "Importo Bollo €",
+        "cassaSwitch": "Cassa Previdenziale",
+        "cassaHelp": "Contributo cassa previdenza per professionisti",
+        "cassaTipo": "Tipo Cassa",
+        "cassaAliquota": "Aliquota %",
+        "cassaImporto": "Importo €",
+        "cassaAliquotaIva": "Aliquota IVA %",
+        "cassaNatura": "Natura IVA"
+      },
+      "paymentTab": {
+        "prefillTitle": "Precompila dati bancari",
+        "prefillSelectLabel": "Seleziona azienda per precompilare",
+        "prefillPlaceholder": "-- Seleziona per precompilare i dati --",
+        "prefillNoBank": "(Dati bancari non configurati)",
+        "prefillHelp": "I campi sottostanti verranno compilati automaticamente.",
+        "conditionLabel": "Condizione di Pagamento",
+        "conditionPlaceholder": "Seleziona...",
+        "methodLabel": "Metodo di Pagamento",
+        "methodPlaceholder": "Seleziona...",
+        "beneficiarioLabel": "Beneficiario",
+        "beneficiarioPlaceholder": "Nome del beneficiario del pagamento",
+        "istitutoLabel": "Istituto Finanziario",
+        "istitutoPlaceholder": "Nome della banca",
+        "ibanLabel": "IBAN",
+        "ibanPlaceholder": "es. IT60X0542811101000000123456",
+        "bicLabel": "BIC/SWIFT",
+        "bicPlaceholder": "es. UNCRITM1XXX",
+        "abiLabel": "ABI",
+        "abiPlaceholder": "12345",
+        "abiHelp": "Codice banca (5 cifre)",
+        "cabLabel": "CAB",
+        "cabPlaceholder": "67890",
+        "cabHelp": "Codice filiale (5 cifre)",
+        "dueDateLabel": "Scadenza Pagamento"
+      },
+      "optionsTab": {
+        "signatureLabel": "Applica Firma Digitale",
+        "signatureHelp": "La fattura verrà firmata digitalmente prima dell'invio al SDI",
+        "storageLabel": "Conservazione Sostitutiva",
+        "storageHelp": "La fattura verrà conservata a norma di legge per 10 anni",
+        "internalNotesLabel": "Note Interne",
+        "internalNotesPlaceholder": "Note visibili solo internamente (non inviate al SDI)"
+      },
+      "actions": {
+        "cancel": "Annulla",
+        "saveDraft": "Salva Bozza",
+        "saving": "Salvataggio...",
+        "saveAndSend": "Salva e Invia al SDI",
+        "sending": "Invio..."
+      },
+      "validation": {
+        "issuerRequired": "Selezionare un'azienda emittente",
+        "numberRequired": "Il numero fattura è obbligatorio",
+        "customerRequired": "Selezionare un cliente",
+        "atLeastOneLine": "Aggiungere almeno una riga",
+        "lineDescription": "Riga {{index}}: la descrizione è obbligatoria",
+        "lineQuantity": "Riga {{index}}: la quantità deve essere maggiore di zero",
+        "lineNature": "Riga {{index}}: selezionare la natura IVA per aliquota 0%"
+      },
+      "toasts": {
+        "draftSuccess": "Fattura salvata come bozza",
+        "draftError": "Errore durante il salvataggio della fattura",
+        "sentSuccess": "Fattura creata e inviata al SDI",
+        "sentError": "Errore durante la creazione/invio della fattura"
+      },
+      "creditNoteCausale": "Nota di credito rif. fattura n. {{number}} del {{date}}"
+    },
     "issuedDetail": {
       "loading": "Caricamento...",
       "loadError": "Errore durante il caricamento della fattura. Riprova più tardi.",

@@ -752,6 +752,158 @@
       "title": "Issuing Companies",
       "newCompany": "New company"
     },
+    "newIssued": {
+      "header": {
+        "titleInvoice": "New Invoice",
+        "titleCreditNote": "New Credit Note",
+        "descriptionInvoice": "Create a new electronic invoice",
+        "descriptionCreditNote": "{{type}} - from invoice n. {{number}}",
+        "descriptionCreditNoteEmpty": "{{type}} - from invoice n. ...",
+        "backToList": "Back to list"
+      },
+      "banners": {
+        "creditNote": "You are creating a <strong>Credit Note (TD04)</strong> for invoice n. <strong>{{number}}</strong> dated {{date}}. Document type is set to TD04 and the reference to the original invoice will be included automatically.",
+        "forfettario": "<strong>Forfettario regime (RF19)</strong> — Lines are automatically set to VAT 0% with nature N2.2. The legal description is inserted automatically.",
+        "forfettarioProfessional": " The subject is a professional: withholding reason and social security fund are pre-filled."
+      },
+      "cardTitle": {
+        "invoice": "Invoice Data",
+        "creditNote": "Credit Note Data"
+      },
+      "tabs": {
+        "document": "Document",
+        "lines": "Lines ({{count}})",
+        "ritenute": "Withholdings & Contributions",
+        "payment": "Payment",
+        "options": "Options"
+      },
+      "documentTab": {
+        "issuerLabel": "Issuing Company",
+        "issuerPlaceholder": "Select company…",
+        "issuerDefaultSuffix": " (Default)",
+        "issuerHelp": "The selected company will be used as the cedente/prestatore on the invoice",
+        "documentTypeLabel": "Document Type",
+        "creditNoteFixedHelp": "Document type fixed to TD04 for the credit note",
+        "numberLabel": "Invoice Number",
+        "numberPlaceholder": "e.g. 2026/001",
+        "dateLabel": "Date",
+        "customerLabel": "Customer",
+        "customerPlaceholder": "Select customer…",
+        "customerNoFatturaPa": " (no FatturaPA)",
+        "customerMissingPrefix": "Missing a customer?",
+        "customerMissingLink": "Open Clients",
+        "customerMissingSuffix": " to register them or configure their electronic invoicing.",
+        "tenantSdi": "SDI:",
+        "tenantVatCf": "VAT / TIN:",
+        "tenantNotAvailable": "N/A",
+        "tenantWarning": "Warning:",
+        "tenantWarningText": "FatturaPA profile not active for this customer.",
+        "causaleLabel": "Description / Reason",
+        "causalePlaceholder": "e.g. IT consulting for January 2026",
+        "addCausale": "Add description line"
+      },
+      "linesTab": {
+        "colDescription": "Description *",
+        "colCode": "Code",
+        "colQuantity": "Qty *",
+        "colUnit": "U.M.",
+        "colUnitPrice": "Unit Price",
+        "colVat": "VAT %",
+        "colNature": "Nature",
+        "colTotal": "Total",
+        "descrPlaceholder": "Description",
+        "codePlaceholder": "Code",
+        "selectNature": "Select…",
+        "addLine": "Add Line",
+        "altriDati": "Other Management Data",
+        "altriDatiAdd": "Add",
+        "altriDatiTipoPlaceholder": "Data Type*",
+        "altriDatiRifTesto": "Text Ref.",
+        "altriDatiRifNumero": "Number Ref."
+      },
+      "totals": {
+        "taxable": "Taxable",
+        "vat": "VAT",
+        "bollo": "Virtual stamp",
+        "bolloLaw": "DPR 642/1972",
+        "total": "Total"
+      },
+      "ritenute": {
+        "ritenutaSwitch": "Withholding Tax",
+        "ritenutaTipo": "Withholding Type",
+        "ritenutaAliquota": "Rate %",
+        "ritenutaImporto": "Amount €",
+        "ritenutaCausale": "Reason",
+        "ritenutaCausalePlaceholder": "A",
+        "bolloSwitch": "Virtual Stamp",
+        "bolloHelp": "Required for VAT-exempt/excluded invoices over €77.47",
+        "bolloImporto": "Stamp Amount €",
+        "cassaSwitch": "Social Security Fund",
+        "cassaHelp": "Social security contribution for professionals",
+        "cassaTipo": "Fund Type",
+        "cassaAliquota": "Rate %",
+        "cassaImporto": "Amount €",
+        "cassaAliquotaIva": "VAT Rate %",
+        "cassaNatura": "VAT Nature"
+      },
+      "paymentTab": {
+        "prefillTitle": "Prefill bank details",
+        "prefillSelectLabel": "Select a company to prefill",
+        "prefillPlaceholder": "-- Select to prefill the fields --",
+        "prefillNoBank": "(Bank details not configured)",
+        "prefillHelp": "The fields below will be filled automatically.",
+        "conditionLabel": "Payment Condition",
+        "conditionPlaceholder": "Select…",
+        "methodLabel": "Payment Method",
+        "methodPlaceholder": "Select…",
+        "beneficiarioLabel": "Beneficiary",
+        "beneficiarioPlaceholder": "Payment beneficiary name",
+        "istitutoLabel": "Financial Institution",
+        "istitutoPlaceholder": "Bank name",
+        "ibanLabel": "IBAN",
+        "ibanPlaceholder": "e.g. IT60X0542811101000000123456",
+        "bicLabel": "BIC/SWIFT",
+        "bicPlaceholder": "e.g. UNCRITM1XXX",
+        "abiLabel": "ABI",
+        "abiPlaceholder": "12345",
+        "abiHelp": "Bank code (5 digits)",
+        "cabLabel": "CAB",
+        "cabPlaceholder": "67890",
+        "cabHelp": "Branch code (5 digits)",
+        "dueDateLabel": "Due Date"
+      },
+      "optionsTab": {
+        "signatureLabel": "Apply Digital Signature",
+        "signatureHelp": "The invoice will be digitally signed before being sent to SDI",
+        "storageLabel": "Legal Storage",
+        "storageHelp": "The invoice will be stored according to law for 10 years",
+        "internalNotesLabel": "Internal Notes",
+        "internalNotesPlaceholder": "Notes visible only internally (not sent to SDI)"
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "saveDraft": "Save Draft",
+        "saving": "Saving…",
+        "saveAndSend": "Save and Send to SDI",
+        "sending": "Sending…"
+      },
+      "validation": {
+        "issuerRequired": "Select an issuing company",
+        "numberRequired": "Invoice number is required",
+        "customerRequired": "Select a customer",
+        "atLeastOneLine": "Add at least one line",
+        "lineDescription": "Line {{index}}: description is required",
+        "lineQuantity": "Line {{index}}: quantity must be greater than zero",
+        "lineNature": "Line {{index}}: select VAT nature for 0% rate"
+      },
+      "toasts": {
+        "draftSuccess": "Invoice saved as draft",
+        "draftError": "Error while saving the invoice",
+        "sentSuccess": "Invoice created and sent to SDI",
+        "sentError": "Error while creating/sending the invoice"
+      },
+      "creditNoteCausale": "Credit note ref. invoice n. {{number}} dated {{date}}"
+    },
     "issuedDetail": {
       "loading": "Loading…",
       "loadError": "Error loading the invoice. Please try again later.",
