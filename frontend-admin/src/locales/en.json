@@ -285,6 +285,87 @@
       "privacyLink": "privacy policy"
     }
   },
+  "userMfa": {
+    "remove": {
+      "title": "Remove two-factor authentication",
+      "warning": "Removing your second factor leaves only your password protecting the account. If your role requires MFA, you will be prompted to enroll again on your next sign-in.",
+      "authenticatorCode": "Authenticator code",
+      "backupCode": "Backup code",
+      "authenticatorPlaceholder": "123 456",
+      "backupPlaceholder": "XXXX-XXXX",
+      "useBackup": "Use a backup code instead",
+      "useAuthenticator": "Use authenticator app instead",
+      "cancel": "Cancel",
+      "remove": "Remove factor",
+      "removing": "Removing…",
+      "errors": {
+        "missingCode": "Enter the code from your authenticator (or a backup code).",
+        "incorrectCode": "Incorrect code. Please try again.",
+        "generic": "Could not remove the factor. Please try again."
+      }
+    },
+    "webauthn": {
+      "enroll": {
+        "title": "Add a passkey",
+        "intro": "A passkey replaces the authenticator-app code with a tap or biometric prompt. You can use a built-in fingerprint reader, Face ID, or a hardware security key.",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Yubikey 5C, iPhone Touch ID",
+        "nameHint": "A label so you can recognise this passkey later in the settings list.",
+        "register": "Register passkey",
+        "registering": "Waiting for authenticator…",
+        "cancel": "Cancel",
+        "errors": {
+          "unsupported": "This browser does not support passkeys. Try Chrome, Safari, or Firefox over HTTPS.",
+          "cancelled": "Enrollment was cancelled. Try again when you are ready.",
+          "cancelledOrTimedOut": "The enrollment was cancelled or timed out. Try again.",
+          "alreadyRegistered": "This authenticator is already registered on your account.",
+          "attestationFailed": "Could not verify the attestation. Please try again.",
+          "generic": "Could not register the passkey."
+        }
+      }
+    },
+    "settings": {
+      "title": "Two-factor authentication",
+      "status": "Status",
+      "enrolled": "Enrolled",
+      "notEnrolled": "Not enrolled",
+      "graceRemaining": "Grace window remaining: {{remaining}}",
+      "graceExpired": "Grace window expired — sign-in is now blocked until you enroll.",
+      "addPasskey": "Add a passkey",
+      "removeFactor": "Remove factor",
+      "regenerateBackup": "Regenerate backup codes",
+      "regenerating": "Regenerating…",
+      "regenerateSuccess": "New backup codes generated. Save them somewhere safe — the old codes no longer work.",
+      "regenerateError": "Could not regenerate backup codes. Try again.",
+      "passkeyList": "Enrolled passkeys",
+      "passkeyRemove": "Remove",
+      "passkeyRemoving": "Removing…",
+      "passkeyAdded": "Added {{date}}",
+      "passkeyLastUsed": "Last used {{date}}",
+      "passkeyNeverUsed": "Never used"
+    },
+    "enrollWizard": {
+      "title": "Enroll a second factor",
+      "step1Title": "1. Scan the QR code",
+      "step1Body": "Open your authenticator app and scan the QR code below. The shared secret is also shown for manual entry if the app cannot scan.",
+      "secretLabel": "Secret",
+      "step2Title": "2. Verify a code",
+      "step2Body": "Type the 6-digit code your app is showing now.",
+      "codeLabel": "Authenticator code",
+      "codePlaceholder": "123 456",
+      "verify": "Verify and enroll",
+      "verifying": "Verifying…",
+      "step3Title": "3. Save your backup codes",
+      "step3Body": "These codes will let you sign in if you lose access to the authenticator. Each one works only once. Save them somewhere safe — they will not be shown again.",
+      "done": "Done",
+      "back": "Back",
+      "cancel": "Cancel",
+      "errors": {
+        "incorrectCode": "Incorrect code. Please try again.",
+        "generic": "Could not enroll. Try again."
+      }
+    }
+  },
   "settings": {
     "account": {
       "title": "Account Settings",

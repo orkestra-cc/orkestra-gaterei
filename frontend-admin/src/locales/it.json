@@ -285,6 +285,87 @@
       "privacyLink": "l'informativa sulla privacy"
     }
   },
+  "userMfa": {
+    "remove": {
+      "title": "Rimuovi autenticazione a due fattori",
+      "warning": "Rimuovendo il secondo fattore l'account resta protetto solo dalla password. Se il tuo ruolo richiede l'MFA, ti verrà chiesto di configurarlo di nuovo al prossimo accesso.",
+      "authenticatorCode": "Codice autenticatore",
+      "backupCode": "Codice di backup",
+      "authenticatorPlaceholder": "123 456",
+      "backupPlaceholder": "XXXX-XXXX",
+      "useBackup": "Usa un codice di backup",
+      "useAuthenticator": "Usa l'app di autenticazione",
+      "cancel": "Annulla",
+      "remove": "Rimuovi fattore",
+      "removing": "Rimozione…",
+      "errors": {
+        "missingCode": "Inserisci il codice dal tuo autenticatore (o un codice di backup).",
+        "incorrectCode": "Codice errato. Riprova.",
+        "generic": "Impossibile rimuovere il fattore. Riprova."
+      }
+    },
+    "webauthn": {
+      "enroll": {
+        "title": "Aggiungi una passkey",
+        "intro": "Una passkey sostituisce il codice dell'app di autenticazione con un tocco o una richiesta biometrica. Puoi usare un lettore di impronte integrato, Face ID o una chiave di sicurezza hardware.",
+        "nameLabel": "Nome",
+        "namePlaceholder": "es. Yubikey 5C, iPhone Touch ID",
+        "nameHint": "Un'etichetta per riconoscere questa passkey in seguito nell'elenco delle impostazioni.",
+        "register": "Registra passkey",
+        "registering": "In attesa dell'autenticatore…",
+        "cancel": "Annulla",
+        "errors": {
+          "unsupported": "Questo browser non supporta le passkey. Prova Chrome, Safari o Firefox su HTTPS.",
+          "cancelled": "Registrazione annullata. Riprova quando sei pronto.",
+          "cancelledOrTimedOut": "Registrazione annullata o scaduta. Riprova.",
+          "alreadyRegistered": "Questo autenticatore è già registrato sul tuo account.",
+          "attestationFailed": "Impossibile verificare l'attestazione. Riprova.",
+          "generic": "Impossibile registrare la passkey."
+        }
+      }
+    },
+    "settings": {
+      "title": "Autenticazione a due fattori",
+      "status": "Stato",
+      "enrolled": "Configurato",
+      "notEnrolled": "Non configurato",
+      "graceRemaining": "Periodo di tolleranza rimanente: {{remaining}}",
+      "graceExpired": "Periodo di tolleranza scaduto — l'accesso è ora bloccato finché non configuri l'MFA.",
+      "addPasskey": "Aggiungi una passkey",
+      "removeFactor": "Rimuovi fattore",
+      "regenerateBackup": "Rigenera codici di backup",
+      "regenerating": "Rigenerazione…",
+      "regenerateSuccess": "Nuovi codici di backup generati. Salvali in un posto sicuro — i vecchi codici non funzionano più.",
+      "regenerateError": "Impossibile rigenerare i codici di backup. Riprova.",
+      "passkeyList": "Passkey registrate",
+      "passkeyRemove": "Rimuovi",
+      "passkeyRemoving": "Rimozione…",
+      "passkeyAdded": "Aggiunto il {{date}}",
+      "passkeyLastUsed": "Ultimo utilizzo {{date}}",
+      "passkeyNeverUsed": "Mai utilizzato"
+    },
+    "enrollWizard": {
+      "title": "Configura un secondo fattore",
+      "step1Title": "1. Scansiona il codice QR",
+      "step1Body": "Apri la tua app di autenticazione e scansiona il codice QR qui sotto. Il segreto condiviso è mostrato anche per l'inserimento manuale se l'app non può scansionare.",
+      "secretLabel": "Segreto",
+      "step2Title": "2. Verifica un codice",
+      "step2Body": "Digita il codice a 6 cifre che la tua app sta mostrando ora.",
+      "codeLabel": "Codice autenticatore",
+      "codePlaceholder": "123 456",
+      "verify": "Verifica e configura",
+      "verifying": "Verifica…",
+      "step3Title": "3. Salva i tuoi codici di backup",
+      "step3Body": "Questi codici ti permetteranno di accedere se perdi l'accesso all'autenticatore. Ognuno funziona solo una volta. Salvali in un posto sicuro — non verranno mostrati di nuovo.",
+      "done": "Fatto",
+      "back": "Indietro",
+      "cancel": "Annulla",
+      "errors": {
+        "incorrectCode": "Codice errato. Riprova.",
+        "generic": "Impossibile configurare. Riprova."
+      }
+    }
+  },
   "settings": {
     "account": {
       "title": "Impostazioni account",
