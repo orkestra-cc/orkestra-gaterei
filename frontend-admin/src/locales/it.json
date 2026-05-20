@@ -749,6 +749,17 @@
     "tabs": {
       "roles": "Ruoli",
       "bindings": "Binding ruoli"
+    },
+    "deleteModal": {
+      "title": "Elimina ruolo",
+      "intro": "Stai per eliminare il ruolo personalizzato <code>{{name}}</code>. Operazione irreversibile.",
+      "warning": "<strong>I binding vengono cascati.</strong> Ogni utente attualmente assegnato a questo ruolo perderà immediatamente i suoi permessi, e le righe di binding che lo referenziano saranno rimosse.",
+      "cancel": "Annulla",
+      "delete": "Elimina ruolo",
+      "deleting": "Eliminazione…",
+      "successToast": "Ruolo \"{{name}}\" eliminato",
+      "errorToast": "Eliminazione non riuscita: {{message}}",
+      "unknownError": "errore sconosciuto"
     }
   },
   "adminObservability": {

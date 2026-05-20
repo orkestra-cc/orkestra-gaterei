@@ -749,6 +749,17 @@
     "tabs": {
       "roles": "Roles",
       "bindings": "Role Bindings"
+    },
+    "deleteModal": {
+      "title": "Delete role",
+      "intro": "You are about to delete the custom role <code>{{name}}</code>. This cannot be undone.",
+      "warning": "<strong>Bindings cascade.</strong> Any user currently granted this role will lose its permissions immediately, and the binding rows that reference it will be removed.",
+      "cancel": "Cancel",
+      "delete": "Delete role",
+      "deleting": "Deleting…",
+      "successToast": "Role \"{{name}}\" deleted",
+      "errorToast": "Delete failed: {{message}}",
+      "unknownError": "unknown error"
     }
   },
   "adminObservability": {
