@@ -176,9 +176,7 @@ const ReceivedInvoiceTableHeader = () => {
 
               <Dropdown.Menu className="border py-0">
                 <div className="py-2">
-                  <Dropdown.Item>
-                    {t('billing.received.viewAll')}
-                  </Dropdown.Item>
+                  <Dropdown.Item>{t('billing.received.viewAll')}</Dropdown.Item>
                   <Dropdown.Item>
                     {t('billing.received.exportXml')}
                   </Dropdown.Item>

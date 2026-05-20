@@ -78,9 +78,7 @@ const WebhookEventsPage: React.FC = () => {
                       <code className="fs--2">{evt.type}</code>
                     </td>
                     <td>
-                      {evt.normalized || (
-                        <span className="text-muted">—</span>
-                      )}
+                      {evt.normalized || <span className="text-muted">—</span>}
                     </td>
                     <td>
                       {evt.processed ? (
@@ -104,9 +102,7 @@ const WebhookEventsPage: React.FC = () => {
                         </Badge>
                       )}
                     </td>
-                    <td>
-                      {new Date(evt.receivedAt).toLocaleString('it-IT')}
-                    </td>
+                    <td>{new Date(evt.receivedAt).toLocaleString('it-IT')}</td>
                   </tr>
                 ))}
               </tbody>

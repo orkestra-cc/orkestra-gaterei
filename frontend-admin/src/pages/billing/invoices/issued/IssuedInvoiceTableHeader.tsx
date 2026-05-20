@@ -150,10 +150,7 @@ const IssuedInvoiceTableHeader = () => {
         ></div>
         {getSelectedRowModel().rows.length > 0 ? (
           <div className="d-flex">
-            <Form.Select
-              size="sm"
-              aria-label={t('billing.issued.bulkActions')}
-            >
+            <Form.Select size="sm" aria-label={t('billing.issued.bulkActions')}>
               <option>{t('billing.issued.bulkActions')}</option>
               <option value="send">{t('billing.issued.bulkSend')}</option>
               <option value="delete">{t('billing.issued.bulkDelete')}</option>

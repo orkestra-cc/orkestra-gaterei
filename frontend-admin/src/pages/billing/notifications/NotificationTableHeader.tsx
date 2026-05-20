@@ -27,7 +27,10 @@ const NotificationTableHeader = () => {
     value: NotificationType | 'all' | 'unprocessed';
   }[] = [
     { label: t('billing.notifications.filters.all'), value: 'all' },
-    { label: t('billing.notifications.filters.unprocessed'), value: 'unprocessed' },
+    {
+      label: t('billing.notifications.filters.unprocessed'),
+      value: 'unprocessed'
+    },
     { label: t('billing.notifications.filters.RC'), value: 'RC' },
     { label: t('billing.notifications.filters.NS'), value: 'NS' },
     { label: t('billing.notifications.filters.MC'), value: 'MC' },

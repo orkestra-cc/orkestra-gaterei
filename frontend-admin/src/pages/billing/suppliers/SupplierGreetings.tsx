@@ -14,7 +14,9 @@ function SupplierGreetings() {
           <FaTruck className="text-white" size={32} />
         </div>
         <div className="ms-3">
-          <h6 className="mb-1 text-primary">{t('billing.common.manageKicker')}</h6>
+          <h6 className="mb-1 text-primary">
+            {t('billing.common.manageKicker')}
+          </h6>
           <h4 className="mb-0 text-primary fw-bold">
             {t('billing.suppliers.title')}
             <span className="text-info fw-medium">

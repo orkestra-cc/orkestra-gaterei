@@ -1,29 +1,34 @@
 # Plan — Multi-language support for `frontend-admin` (EN + IT)
 
-**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅. Phase 2 setup ✅ (`errcode` + `AuthEmailInUse`). Phase 3 ✅ (i18n bootstrap, EN default, typed `t()`, `useLanguageSync`). Phase 4 substantially progressed in 2026-05-20 session:
+**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅. Phase 2 setup ✅ (`errcode` + `AuthEmailInUse`). Phase 3 ✅ (i18n bootstrap, EN default, typed `t()`, `useLanguageSync`). **Phase 4 ✅ — every item touched at chrome level**:
 
 - ✅ Item 1 Shared chrome (`5e82742`, ~65 strings)
 - ✅ Item 2 Auth screens (`dc0bbdb`, ~120 strings)
 - ✅ Item 17 User preferences settings (`e9b7774`, 5 files)
 - ✅ Item 3 `/admin/modules` chrome (`20ba2d0`, 5 files)
 - ✅ Item 4 `/admin/users` chrome (`635f1db`, 3 files)
-- ✅ Items 5+6+8+9 Tenants/Clients/Roles/Observability chrome (`052c614`, 7 files — covers `/admin/tenants`, `/admin/clients`, `/admin/internal-tenants`, `/admin/roles`, `/admin/observability/log-levels`)
+- ✅ Items 5+6+8+9 Tenants/Clients/Roles/Observability chrome (`052c614`, 7 files)
+- ✅ Items 10+12 Billing + Company chrome (`39b837a`, 14 files — greetings, table headers, filters, CSV chrome — Italian preserved as IT source-of-truth)
+- ✅ Item 13 Subscriptions + Payments chrome (`6d82448`, 7 files — services catalog, subscriptions list, payment methods, transactions, webhooks)
+- ✅ Item 14 Identity / Marketing / Compliance / Sales addon chrome (`923fa7b` + `92c7b63`)
+- ✅ Item 15 Audit events page chrome (`92c7b63`)
+- ✅ Item 16 N/A — dev token generation is CLI-only (`scripts/devtoken.sh`); no UI surface
 - ✅ EN/IT parity CI test (`f5e1032`) catches drift between locales going forward
 
-**Deferred** — long-tail addon UIs across 92 files / 26K LOC:
+**Deferred (deep-form internals)** — these all live inside larger pages whose chrome is now extracted; the remaining work is the deep CRUD/configuration form bodies, which benefit from focused per-form review:
 
-- Item 7 `/admin/auth-policy` tabs (deep config forms inside the auth module detail page)
-- Item 10 Billing (`/billing/*` — invoices issued/received, suppliers, companies, notifications, dashboard — Italian-heavy)
-- Item 11 Documents (`/documents/templates`)
-- Item 12 Company (`/company/search`, `/company/lookup` — Italian-heavy)
-- Item 13 Subscriptions + Payments (`/subscriptions/*`, `/payments/*`)
-- Item 14 Compliance / Identity / Marketing / Sales / AI / Graph addons (`/admin/compliance`, `/identity`, `/marketing/*`, `/sales/*`, `/ai/*`, `/graph/*`)
-- Item 16 Dev module pages
-- MFA settings wizard inside item 17 (`/user/settings/mfa/*`)
-- Deep config sections inside item 3 (`ModuleConfigFields`, `ModuleConfigModal`, `AIModelsConfigSection`)
-- Detail modals inside items 5/8 (Create/Delete/Purge tenant, Create/Edit/Delete role, audit-events detail, client detail tabs)
+- Item 7 `/admin/auth-policy` tab bodies (inside the auth module detail config form — `ModuleConfigSection` / `ModuleConfigFields`)
+- Item 10 Billing detail forms: `IssuedInvoiceDetail` (2178 lines), `NewIssuedInvoice` (1910), `ReceivedInvoiceDetail` (559), `ImportXMLModal` (384), `SupplierModal` (563), `CompanyModal` (918), `BillingStatCards`, `InvoiceTrendChart`, `RecentInvoices`, `PendingActions`, `SDINotificationsSummary` — SDI/FatturaPA-specific field labels
+- Item 11 Documents (`/documents/templates`) — template editor body
+- Item 13 Subscriptions modal forms (pricing tier editor) and payments transaction refund modal
+- Item 14 Compliance SOC2 deep card content (~120 evidence rows), Identity `IdPConfigForm` + `ScimTokenSection`, Marketing import wizard steps, Sales settings prompt template editor, AI/Graph addon page bodies
+- Detail modals across items 5/8 (CreateTenantModal, DeleteTenantModal, PurgeTenantModal, TenantDetailModal, CreateRoleModal, EditRoleModal, DeleteRoleModal, CreateBindingModal, AuditEventDetailModal, clients detail tabs)
+- MFA settings wizard inside item 17 (`/user/settings/mfa/MfaEnrollWizard`, `WebAuthnEnrollDialog`, `MfaRemoveModal`, `MfaSettings`)
+- Deep module-config sections inside item 3 (`ModuleConfigFields`, `ModuleConfigModal`, `AIModelsConfigSection`, `ModuleDependencyCard`, `ModuleEnvironmentSwitcher`, `ModuleDashboardCards`)
+- Sales jobs detail view + JobsPage table internals
+- ProspectPage form field labels (Company URL, Locale, Full Analysis, Quick analysis buttons)
 
-Each deferred chunk would benefit from focused per-addon review (each addon has its own domain vocabulary). IT reviewer assignment still open. Phase 5 (language picker UI) can now proceed — the wiring is end-to-end and the settings page chrome is extracted.
+Each deferred chunk benefits from focused per-form review (domain-specific vocabulary: FatturaPA fields in billing, OIDC/SCIM in identity, Stripe terms in payments, MFA enrollment in security). IT reviewer assignment still open. Phase 5 (language picker UI) can now proceed — wiring is end-to-end and the settings page chrome is extracted.
 **Owner:** Salvatore
 **Scope:** `frontend-admin/` primary. Thin backend slice for persisting `user.language` and an error-code contract for admin-facing handlers.
 **Default language:** English. Italian ships alongside on day 1 (existing IT strings in JSX are the source of truth).
