@@ -402,6 +402,56 @@
       "title": "Account security",
       "description": "Password, two-factor, sessions, and trusted devices live on their own page now.",
       "manage": "Manage security"
+    },
+    "changePassword": {
+      "title": "Change Password",
+      "oldPassword": "Old Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "submit": "Update Password"
+    },
+    "identity": {
+      "idpConfig": {
+        "title": "OIDC Identity Provider",
+        "intro": "Per-tenant external login. Operators arrive on /login and pick \"Sign in with {{label}}\" — the redirect flow lands them back on the operator console with a fresh session.",
+        "issuerLabel": "Issuer URL",
+        "issuerPlaceholder": "https://idp.example.com",
+        "clientIdLabel": "Client ID",
+        "clientSecretLabel": "Client Secret",
+        "clientSecretMasked": "•••• rotates with the IdP, not stored in plaintext",
+        "redirectUriLabel": "Redirect URI",
+        "redirectUriHint": "Configure this URI exactly on the IdP side. Mismatches are silently rejected by the provider.",
+        "scopesLabel": "Scopes",
+        "scopesPlaceholder": "openid profile email",
+        "labelLabel": "Login button label",
+        "labelPlaceholder": "Sign in with Acme SSO",
+        "enabledLabel": "Enabled",
+        "save": "Save configuration",
+        "saving": "Saving…",
+        "saved": "Configuration saved.",
+        "saveError": "Could not save the configuration: {{message}}",
+        "discard": "Discard changes"
+      },
+      "scimToken": {
+        "title": "SCIM 2.0 Provisioning",
+        "intro": "Bearer token your IdP uses to push user lifecycle events (create, update, deactivate). Treat this like a password — rotate when leaked.",
+        "currentTokenLabel": "Current token",
+        "tokenHint": "Shown once at generation time and never again. Save it somewhere safe.",
+        "noToken": "No token issued yet.",
+        "generate": "Generate token",
+        "generating": "Generating…",
+        "rotate": "Rotate token",
+        "rotating": "Rotating…",
+        "revoke": "Revoke",
+        "revoking": "Revoking…",
+        "rotateConfirm": "Rotating immediately invalidates the existing token. SCIM pushes from the IdP will fail until you paste the new token there. Continue?",
+        "revokeConfirm": "Revoke the SCIM token? The IdP will lose its ability to push events until you generate a new one.",
+        "generatedToast": "SCIM token generated.",
+        "rotatedToast": "SCIM token rotated.",
+        "revokedToast": "SCIM token revoked.",
+        "errorToast": "SCIM operation failed: {{message}}",
+        "lastRotated": "Last rotated {{date}}"
+      }
     }
   },
   "audit": {

@@ -402,6 +402,56 @@
       "title": "Sicurezza dell'account",
       "description": "Password, autenticazione a due fattori, sessioni e dispositivi affidabili sono ora nella loro pagina dedicata.",
       "manage": "Gestisci la sicurezza"
+    },
+    "changePassword": {
+      "title": "Cambia password",
+      "oldPassword": "Vecchia password",
+      "newPassword": "Nuova password",
+      "confirmPassword": "Conferma password",
+      "submit": "Aggiorna password"
+    },
+    "identity": {
+      "idpConfig": {
+        "title": "Identity Provider OIDC",
+        "intro": "Login esterno per tenant. Gli operatori arrivano su /login e selezionano \"Accedi con {{label}}\" — il flusso di redirect li riporta sulla console operatore con una nuova sessione.",
+        "issuerLabel": "URL Issuer",
+        "issuerPlaceholder": "https://idp.example.com",
+        "clientIdLabel": "Client ID",
+        "clientSecretLabel": "Client Secret",
+        "clientSecretMasked": "•••• ruotato con l'IdP, non memorizzato in chiaro",
+        "redirectUriLabel": "Redirect URI",
+        "redirectUriHint": "Configura esattamente questo URI lato IdP. Le mismatch vengono rifiutate silenziosamente dal provider.",
+        "scopesLabel": "Scope",
+        "scopesPlaceholder": "openid profile email",
+        "labelLabel": "Etichetta pulsante login",
+        "labelPlaceholder": "Accedi con Acme SSO",
+        "enabledLabel": "Abilitato",
+        "save": "Salva configurazione",
+        "saving": "Salvataggio…",
+        "saved": "Configurazione salvata.",
+        "saveError": "Impossibile salvare la configurazione: {{message}}",
+        "discard": "Annulla modifiche"
+      },
+      "scimToken": {
+        "title": "Provisioning SCIM 2.0",
+        "intro": "Bearer token che il tuo IdP usa per inviare eventi di ciclo di vita degli utenti (creazione, aggiornamento, disattivazione). Trattalo come una password — ruotalo se leaked.",
+        "currentTokenLabel": "Token attuale",
+        "tokenHint": "Mostrato una sola volta al momento della generazione e mai più. Salvalo in un posto sicuro.",
+        "noToken": "Nessun token emesso ancora.",
+        "generate": "Genera token",
+        "generating": "Generazione…",
+        "rotate": "Ruota token",
+        "rotating": "Rotazione…",
+        "revoke": "Revoca",
+        "revoking": "Revoca in corso…",
+        "rotateConfirm": "La rotazione invalida immediatamente il token esistente. Le push SCIM dall'IdP falliranno finché non incolli il nuovo token lì. Continuare?",
+        "revokeConfirm": "Revocare il token SCIM? L'IdP perderà la capacità di inviare eventi finché non ne generi uno nuovo.",
+        "generatedToast": "Token SCIM generato.",
+        "rotatedToast": "Token SCIM ruotato.",
+        "revokedToast": "Token SCIM revocato.",
+        "errorToast": "Operazione SCIM non riuscita: {{message}}",
+        "lastRotated": "Ultima rotazione {{date}}"
+      }
     }
   },
   "audit": {
