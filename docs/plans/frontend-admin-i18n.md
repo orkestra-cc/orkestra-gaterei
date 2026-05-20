@@ -1,6 +1,6 @@
 # Plan — Multi-language support for `frontend-admin` (EN + IT)
 
-**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅ — `user.Language` field added to SDK iface with `en`/`it` allowlist, repo Update whitelist + backfill on module Init, PATCH `/v1/auth/{tier}/me` self-service endpoint, OpenAPI dump regenerated, tenantscope baseline rebased. IT reviewer assignment still open (flagged to owner). Phase 2 (error-code contract setup PR) next.
+**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅ — `user.Language` field + PATCH `/v1/auth/{tier}/me`. Phase 2 setup ✅ — `internal/shared/errcode` package with `Error` envelope + typed builders, golden-file contract test, first code (`AuthEmailInUse`) registered, `POST /v1/users` + admin client create handlers converted as the worked example. Package named `errcode` rather than the originally-planned `errs` to avoid collision with stdlib `errors` and the existing `internal/shared/errors` Manager package. Phase 2 per-page work piggybacks on Phase 4 PRs from here on. IT reviewer assignment still open. Phase 3 (frontend-admin i18n bootstrap) next.
 **Owner:** Salvatore
 **Scope:** `frontend-admin/` primary. Thin backend slice for persisting `user.language` and an error-code contract for admin-facing handlers.
 **Default language:** English. Italian ships alongside on day 1 (existing IT strings in JSX are the source of truth).
@@ -35,7 +35,7 @@ Goal: the operator picks **English** or **Italian** in their preferences. The ch
 
 - **Key convention:** namespace by feature, dot-separated. `billing.invoices.received.import.errorImporting`, `users.create.duplicateEmail`, `nav.adminModules`, etc. One JSON tree per locale: `frontend-admin/src/locales/en.json`, `it.json`. Sub-paths mirror the route tree where it makes sense.
 - **Typed `t()` from day 1:** generate `Resources` types from `en.json` so misspelled keys fail typecheck. Retrofitting types after thousands of keys exist is painful — pay this cost in Phase 3, not Phase 7.
-- **Error-code contract shape:** `huma.NewError` with an `errorCode` field on the response body. One const-per-code registry at `backend/internal/shared/errs/codes.go`. The `message` field stays as a human-readable English fallback; admin renders `t(\`errors.${errorCode}\`, { defaultValue: message })`.
+- **Error-code contract shape:** custom error type that implements `huma.StatusError` and JSON-serializes with a top-level `code` field. One const-per-code registry at `backend/internal/shared/errcode/codes.go`. The `detail` field stays as a human-readable English fallback; admin renders `t(\`errors.${code}\`, { defaultValue: detail })`.
 - **Where the language picker lives:** new "Language" select inside the existing user preferences page. Not in `/admin/modules` (that's per-tenant module config, not per-user). Saves via `PATCH /v1/users/me { language }`.
 - **No locale routing in URLs.** Operator console is not SEO-indexed; language is a per-user setting, not part of the URL. Saves us from rewriting `react-router` route definitions.
 - **Lazy module-by-module extraction.** One PR per backend module's pages keeps reviews tight and lets the error-code refactor for that backend module happen in the same PR.
@@ -67,18 +67,16 @@ Smallest possible backend change to persist the preference.
 
 This phase is **never done independently**. It piggybacks on Phase 4 PRs: when a frontend-admin page in module X is extracted, the same PR refactors module X's admin-facing handlers to return error codes.
 
-**One-time setup (a single first PR):**
+**One-time setup (✅ shipped as the Phase 2 setup PR):**
 
-1. Create `backend/internal/shared/errs/codes.go` — `const ErrCodeEmailInUse = "auth.email_in_use"` etc. Empty at first; populate as Phase 4 progresses.
-2. Decide and document the response shape. Two viable options to pick from in the first PR:
-   - **A** (preferred): extend the Huma error body with an `errorCode` field via a custom `huma.ErrorFormatter`. Frontend reads `error.errorCode`.
-   - **B** (fallback): use Huma's `ErrorDetail.Location = "errorCode"` + `Value = "auth.email_in_use"`. Less ergonomic on the frontend but zero formatter work.
-3. Add a **golden-file contract test**: `backend/internal/shared/errs/codes_test.go` snapshots `{handler → code}` so renames break CI loudly.
-4. Update `backend/CLAUDE.md` with the convention and a worked example.
+1. ✅ Created `backend/internal/shared/errcode/` (renamed from the planned `errs/` to avoid collisions with stdlib `errors` and the existing `internal/shared/errors/` Manager package). Holds the `Error` envelope type, typed status builders (`BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `UnprocessableEntity`), and `codes.go` with the const registry. First entry: `AuthEmailInUse = "auth.email_in_use"`.
+2. ✅ Picked **option A** — a custom error type implementing `huma.StatusError` that JSON-serializes with a top-level `code` field. No global `huma.NewError` override needed; handlers return `*errcode.Error` directly. Wire shape: `{status, title, detail, code}`. Option B was tempting because `admin_user_auth_handler.go` already does the `huma.NewError(status, "code", &huma.ErrorDetail{...})` workaround, but that overloads `detail` with the code string — option A's dedicated `code` field is cleaner and matches the pre-existing local `codedError` in `password_handler.go`, which can later swap to the shared type.
+3. ✅ Golden-file contract test (`codes_test.go`): AST-parses `codes.go` and cross-checks every declared const against a snapshot map. Renames, value drift, and forgotten snapshots all fail CI.
+4. ✅ Convention documented in `backend/CLAUDE.md` ("Error-code contract" section) with a worked-example code block.
 
-**Per-page (folded into Phase 4 PRs):** every handler that returns an error and is consumed by the admin page being extracted gets a code. Handlers not yet touched stay as-is — the frontend falls back to `error.message`.
+**Per-page (folded into Phase 4 PRs):** every handler that returns an error and is consumed by the admin page being extracted gets a code. Handlers not yet touched stay as-is — the frontend falls back to `detail`.
 
-**Exit criteria for the setup PR:** one handler converted end-to-end as the worked example (suggest `POST /v1/users` → `auth.email_in_use` because it's already on a page we'll extract early).
+**Exit criteria for the setup PR (✅):** `POST /v1/users` (and the parallel `POST /v1/admin/client-users` admin-direct create + PATCH `/v1/admin/client-users/{id}` admin update) converted end-to-end. The duplicate-email path now returns `errcode.Conflict(errcode.AuthEmailInUse, "Email already in use")` → `409 {"code":"auth.email_in_use",…}`. Verified against the regenerated OpenAPI dump.
 
 ### Phase 3 — `frontend-admin` i18n bootstrap
 
@@ -176,8 +174,9 @@ Order chosen by user-visible impact and risk. One PR per item. Each PR also hand
 | `backend/internal/core/user/services/migrations.go` | 1 | Backfill `language="en"` |
 | `backend/internal/core/user/handlers/user_handler.go` | 1 | Accept/return `language` on `/me` |
 | `backend/openapi/enterprise.json` | 1, 4 | Regenerated after route/schema changes |
-| `backend/internal/shared/errs/codes.go` (new) | 2 | Error code registry |
-| `backend/internal/shared/errs/codes_test.go` (new) | 2 | Golden-file contract test |
+| `backend/internal/shared/errcode/errcode.go` (new) | 2 | `*errcode.Error` envelope + typed status builders |
+| `backend/internal/shared/errcode/codes.go` (new) | 2 | Error code registry |
+| `backend/internal/shared/errcode/codes_test.go` (new) | 2 | Golden-file contract test (AST-parses codes.go) |
 | `backend/CLAUDE.md` | 0, 2 | Document error-code convention |
 | `frontend-admin/package.json` | 3 | Add i18next deps |
 | `frontend-admin/src/i18n.ts` (new) | 3 | i18n bootstrap |
