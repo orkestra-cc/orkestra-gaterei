@@ -752,6 +752,131 @@
       "title": "Issuing Companies",
       "newCompany": "New company"
     },
+    "companyModal": {
+      "title": {
+        "create": "New Company",
+        "edit": "Edit Company"
+      },
+      "tabs": {
+        "general": "General Data",
+        "address": "Address",
+        "rea": "REA",
+        "contact": "Contacts",
+        "bank": "Bank",
+        "openapi": "OpenAPI SDI"
+      },
+      "general": {
+        "denominationLabel": "Company Name",
+        "denominationPlaceholder": "e.g. Acme S.r.l.",
+        "countryLabel": "Country",
+        "vatLabel": "VAT Number",
+        "vatPlaceholder": "e.g. 12345678901",
+        "codiceFiscaleLabel": "Tax Code",
+        "codiceFiscalePlaceholder": "e.g. RSSMRA80A01H501Z",
+        "codiceFiscaleHelp": "Only if different from VAT number",
+        "regimeFiscaleLabel": "Tax Regime",
+        "professionalLabel": "Professional",
+        "professionalHelp": "Enable for professionals under the flat-rate regime: disables withholding tax and pre-fills the social security fund on invoices"
+      },
+      "address": {
+        "addressLabel": "Address",
+        "addressPlaceholder": "e.g. Via Roma",
+        "numeroCivicoLabel": "Street No.",
+        "numeroCivicoPlaceholder": "123",
+        "cityLabel": "City",
+        "cityPlaceholder": "e.g. Roma",
+        "provinceLabel": "Prov.",
+        "provincePlaceholder": "RM",
+        "postalCodeLabel": "ZIP",
+        "postalCodePlaceholder": "00100",
+        "countryLabel": "Country"
+      },
+      "rea": {
+        "officeLabel": "REA Office",
+        "officePlaceholder": "e.g. RM",
+        "officeHelp": "Province code",
+        "numberLabel": "REA Number",
+        "numberPlaceholder": "e.g. 123456",
+        "capitaleSocialeLabel": "Share Capital",
+        "capitaleSocialePlaceholder": "e.g. 10000.00",
+        "socioUnicoLabel": "Sole Shareholder",
+        "socioUnicoNotSpecified": "Not specified",
+        "socioUnicoSU": "SU - Sole Shareholder",
+        "socioUnicoSM": "SM - Multiple Shareholders",
+        "statoLiquidazioneLabel": "Liquidation Status",
+        "statoLiquidazioneLN": "LN - Not in liquidation",
+        "statoLiquidazioneLS": "LS - In liquidation",
+        "infoAlert": "REA data (Repertorio Economico Amministrativo) is required for limited companies and cooperatives registered with the Italian Business Register."
+      },
+      "contact": {
+        "emailLabel": "Email",
+        "emailPlaceholder": "e.g. info@company.com",
+        "pecLabel": "PEC",
+        "pecPlaceholder": "e.g. company@pec.it",
+        "pecHelp": "Certified Electronic Mail",
+        "phoneLabel": "Phone",
+        "phonePlaceholder": "e.g. +39 06 1234567",
+        "notesLabel": "Notes",
+        "notesPlaceholder": "Internal notes…"
+      },
+      "bank": {
+        "ibanLabel": "IBAN",
+        "ibanPlaceholder": "e.g. IT60X0542811101000000123456",
+        "bicLabel": "BIC/SWIFT",
+        "bicPlaceholder": "e.g. BLOPIT22",
+        "abiLabel": "ABI",
+        "abiPlaceholder": "e.g. 05428",
+        "cabLabel": "CAB",
+        "cabPlaceholder": "e.g. 11101",
+        "beneficiarioLabel": "Beneficiary",
+        "beneficiarioPlaceholder": "e.g. Acme S.r.l.",
+        "beneficiarioHelp": "Account holder name",
+        "istitutoLabel": "Financial Institution",
+        "istitutoPlaceholder": "e.g. Banca XYZ S.p.A."
+      },
+      "openapi": {
+        "infoTitle": "Business Registry OpenAPI SDI registration",
+        "infoBody": "Before you can send electronic invoices via OpenAPI SDI, you need to register the company profile.",
+        "statusRegisteredTitle": "Status: Registered",
+        "statusEmail": "Email:",
+        "statusSignature": "Digital signature:",
+        "statusStorage": "Legal storage:",
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "signatureSwitch": "Apply digital signature",
+        "signatureHelp": "Digitally sign invoices before sending",
+        "storageSwitch": "Legal storage",
+        "storageHelp": "Archive invoices in legal storage",
+        "emailNoteIntro": "The email for SDI notifications will be:",
+        "emailNotConfigured": "(not configured)",
+        "emailNoteOutro": "To change it, open the \"Contacts\" tab.",
+        "registering": "Registering…",
+        "updateButton": "Update OpenAPI SDI configuration",
+        "registerButton": "Register on OpenAPI SDI",
+        "notSavedTitle": "Company not yet saved",
+        "notSavedBody": "Save the company first to register it on OpenAPI SDI."
+      },
+      "validation": {
+        "vatRequired": "VAT number is required",
+        "denominationRequired": "Company name is required",
+        "addressRequired": "Address, City and ZIP are required"
+      },
+      "toasts": {
+        "emailRequiredOpenApi": "Email or PEC required for OpenAPI registration",
+        "saveErrorCreate": "Error while creating the company",
+        "saveErrorEdit": "Error while saving the company",
+        "registerSuccess": "OpenAPI SDI registration completed",
+        "registerErrorGeneric": "Error during registration",
+        "registerError": "Error while registering on OpenAPI SDI"
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "saving": "Saving…",
+        "creating": "Creating…",
+        "save": "Save Changes",
+        "create": "Create Company"
+      }
+    },
     "newIssued": {
       "header": {
         "titleInvoice": "New Invoice",

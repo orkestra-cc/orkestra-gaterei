@@ -752,6 +752,131 @@
       "title": "Aziende Emittenti",
       "newCompany": "Nuova Azienda"
     },
+    "companyModal": {
+      "title": {
+        "create": "Nuova Azienda",
+        "edit": "Modifica Azienda"
+      },
+      "tabs": {
+        "general": "Dati Generali",
+        "address": "Indirizzo",
+        "rea": "REA",
+        "contact": "Contatti",
+        "bank": "Banca",
+        "openapi": "OpenAPI SDI"
+      },
+      "general": {
+        "denominationLabel": "Ragione Sociale",
+        "denominationPlaceholder": "es. Acme S.r.l.",
+        "countryLabel": "Paese",
+        "vatLabel": "Partita IVA",
+        "vatPlaceholder": "es. 12345678901",
+        "codiceFiscaleLabel": "Codice Fiscale",
+        "codiceFiscalePlaceholder": "es. RSSMRA80A01H501Z",
+        "codiceFiscaleHelp": "Solo se diverso dalla P.IVA",
+        "regimeFiscaleLabel": "Regime Fiscale",
+        "professionalLabel": "Professionista",
+        "professionalHelp": "Attiva per professionisti in regime forfettario: disabilita ritenuta d'acconto e pre-compila la cassa previdenziale in fattura"
+      },
+      "address": {
+        "addressLabel": "Indirizzo",
+        "addressPlaceholder": "es. Via Roma",
+        "numeroCivicoLabel": "N. Civico",
+        "numeroCivicoPlaceholder": "123",
+        "cityLabel": "Città",
+        "cityPlaceholder": "es. Roma",
+        "provinceLabel": "Prov.",
+        "provincePlaceholder": "RM",
+        "postalCodeLabel": "CAP",
+        "postalCodePlaceholder": "00100",
+        "countryLabel": "Nazione"
+      },
+      "rea": {
+        "officeLabel": "Ufficio REA",
+        "officePlaceholder": "es. RM",
+        "officeHelp": "Sigla provincia",
+        "numberLabel": "Numero REA",
+        "numberPlaceholder": "es. 123456",
+        "capitaleSocialeLabel": "Capitale Sociale",
+        "capitaleSocialePlaceholder": "es. 10000.00",
+        "socioUnicoLabel": "Socio Unico",
+        "socioUnicoNotSpecified": "Non specificato",
+        "socioUnicoSU": "SU - Socio Unico",
+        "socioUnicoSM": "SM - Più Soci",
+        "statoLiquidazioneLabel": "Stato Liquidazione",
+        "statoLiquidazioneLN": "LN - Non in liquidazione",
+        "statoLiquidazioneLS": "LS - In liquidazione",
+        "infoAlert": "I dati REA (Repertorio Economico Amministrativo) sono obbligatori per le società di capitali e cooperative iscritte al Registro Imprese."
+      },
+      "contact": {
+        "emailLabel": "Email",
+        "emailPlaceholder": "es. info@azienda.it",
+        "pecLabel": "PEC",
+        "pecPlaceholder": "es. azienda@pec.it",
+        "pecHelp": "Posta Elettronica Certificata",
+        "phoneLabel": "Telefono",
+        "phonePlaceholder": "es. +39 06 1234567",
+        "notesLabel": "Note",
+        "notesPlaceholder": "Note interne..."
+      },
+      "bank": {
+        "ibanLabel": "IBAN",
+        "ibanPlaceholder": "es. IT60X0542811101000000123456",
+        "bicLabel": "BIC/SWIFT",
+        "bicPlaceholder": "es. BLOPIT22",
+        "abiLabel": "ABI",
+        "abiPlaceholder": "es. 05428",
+        "cabLabel": "CAB",
+        "cabPlaceholder": "es. 11101",
+        "beneficiarioLabel": "Beneficiario",
+        "beneficiarioPlaceholder": "es. Acme S.r.l.",
+        "beneficiarioHelp": "Intestatario del conto corrente",
+        "istitutoLabel": "Istituto Finanziario",
+        "istitutoPlaceholder": "es. Banca XYZ S.p.A."
+      },
+      "openapi": {
+        "infoTitle": "Registrazione Business Registry OpenAPI SDI",
+        "infoBody": "Prima di poter inviare fatture elettroniche tramite OpenAPI SDI, è necessario registrare l'anagrafica aziendale.",
+        "statusRegisteredTitle": "Stato: Registrato",
+        "statusEmail": "Email:",
+        "statusSignature": "Firma digitale:",
+        "statusStorage": "Conservazione:",
+        "statusActive": "Attiva",
+        "statusInactive": "Non attiva",
+        "signatureSwitch": "Applica firma digitale",
+        "signatureHelp": "Firma digitalmente le fatture prima dell'invio",
+        "storageSwitch": "Conservazione sostitutiva",
+        "storageHelp": "Archivia le fatture in conservazione a norma",
+        "emailNoteIntro": "L'email per le notifiche SDI sarà:",
+        "emailNotConfigured": "(non configurata)",
+        "emailNoteOutro": "Per modificarla, vai alla tab \"Contatti\".",
+        "registering": "Registrazione...",
+        "updateButton": "Aggiorna configurazione OpenAPI SDI",
+        "registerButton": "Registra su OpenAPI SDI",
+        "notSavedTitle": "Azienda non ancora salvata",
+        "notSavedBody": "Salva prima l'azienda per poterla registrare su OpenAPI SDI."
+      },
+      "validation": {
+        "vatRequired": "La Partita IVA è obbligatoria",
+        "denominationRequired": "La Ragione Sociale è obbligatoria",
+        "addressRequired": "Indirizzo, Città e CAP sono obbligatori"
+      },
+      "toasts": {
+        "emailRequiredOpenApi": "Email o PEC richiesta per la registrazione OpenAPI",
+        "saveErrorCreate": "Errore durante la creazione dell'azienda",
+        "saveErrorEdit": "Errore durante il salvataggio dell'azienda",
+        "registerSuccess": "Registrazione su OpenAPI SDI completata",
+        "registerErrorGeneric": "Errore durante la registrazione",
+        "registerError": "Errore durante la registrazione su OpenAPI SDI"
+      },
+      "actions": {
+        "cancel": "Annulla",
+        "saving": "Salvataggio...",
+        "creating": "Creazione...",
+        "save": "Salva Modifiche",
+        "create": "Crea Azienda"
+      }
+    },
     "newIssued": {
       "header": {
         "titleInvoice": "Nuova Fattura",
