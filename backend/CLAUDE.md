@@ -138,6 +138,18 @@ git add openapi/enterprise.json
 
 The dump runs the full enterprise build (`cmd/server` with default tags) with `OPENAPI_DUMP=1` set, which serializes `huma.API.OpenAPI()` to disk and exits before binding any listener. Module Init runs against an isolated Mongo namespace (`orkestra_openapi_dump`) and Redis DB index `15`, so dev/staging data is never touched. Both `operatorAPI` and `clientAPI` share a single in-memory OpenAPI document (the audience split lives at the mux/host level today), so one file covers both surfaces.
 
+## Error-code contract
+
+Admin-facing handlers return a stable `errorCode` alongside the human-fallback `message` so frontends can localize the user-visible string without coupling to the handler's English text. Codes follow `<module>.<situation>` in **snake_case** — the module owns its namespace, the situation names the failure semantically (not the HTTP status). Codes live in `internal/shared/errs/codes.go` as `const` strings and are covered by a golden-file contract test so a rename breaks CI loudly. Handlers not yet migrated keep returning `message`-only; the frontend falls back to that text.
+
+Examples:
+
+- `auth.email_in_use` — `POST /v1/users` rejected because the email is already registered (409).
+- `billing.invoice_not_found` — SDI invoice UUID lookup miss (404).
+- `authz.permission_denied` — Cedar policy refused the action (403).
+
+See [`../docs/plans/frontend-admin-i18n.md`](../docs/plans/frontend-admin-i18n.md) (Phase 2) for the rollout. Until a handler is migrated, do not invent a code for it from the frontend — read it off the response or fall back to `message`.
+
 ## Dev Tokens (Dev/Staging Only)
 
 ```bash

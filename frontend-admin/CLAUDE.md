@@ -274,6 +274,18 @@ Who writes `public/config.js` at runtime:
 
 Adding a new field: declare it on `RuntimeConfig` in `src/config/environment.ts`, read it via the `config` singleton, and add the env-var fallback in **all three** generators (dev compose, staging compose, nginx entrypoint). Never reach for `import.meta.env.VITE_*` from new code — those bake at build time and defeat the point.
 
+## Internationalization (i18n)
+
+User-visible strings live in `src/locales/<lng>.json` and are rendered through `react-i18next`'s `t()`, never hard-coded in JSX. The app ships with `en` (default) and `it`; the user's choice is persisted on `user.language` and synced into `i18n` on auth state changes. Translation keys are **dot-separated and namespaced by feature**, mirroring the route tree where possible: `<module-or-area>.<page>.<element>`. Backend error codes translate via a flat `errors.<code>` namespace so handlers can stay UI-agnostic.
+
+Examples:
+
+- `nav.adminModules` — the sidebar entry for `/admin/modules`.
+- `billing.invoices.received.import.errorImporting` — the toast shown when the SDI XML import fails on the received-invoices page.
+- `errors.auth.email_in_use` — the user-facing message for the `auth.email_in_use` error code returned by `POST /v1/users`.
+
+See [`../docs/plans/frontend-admin-i18n.md`](../docs/plans/frontend-admin-i18n.md) for the rollout plan and phase status.
+
 ## Conventions
 
 - **Cookie auth** — every fetch goes through RTK Query's `baseApi` which sets `credentials: 'include'`. Never call `fetch` directly with custom auth headers.
