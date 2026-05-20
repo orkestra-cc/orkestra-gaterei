@@ -559,7 +559,30 @@
         "kmsActiveFootnote": "Per-tenant envelopes ready for crypto-shred on purge",
         "kmsShredded": "KMS keys shredded",
         "kmsShreddedFootnote": "Tenants purged via crypto-shred (unrecoverable by design)"
-      }
+      },
+      "loadError": "Failed to load SOC2 evidence. You need the <code>system.compliance.audit.read</code> permission to view this page.",
+      "controlsHeading": "Controls",
+      "controlsSubtitle": "Status heuristics are conservative — the payload panel is the source of truth for auditors.",
+      "controlsEmpty": "No controls reported.",
+      "colControl": "Control",
+      "colStatus": "Status",
+      "colPayload": "Payload",
+      "showPayload": "Show payload",
+      "controlNames": {
+        "CC6_1_logical_access": "Logical access — privileged accounts",
+        "CC6_6_account_management": "Account management — MFA coverage",
+        "CC6_8_data_protection": "Data protection — KMS key lifecycle",
+        "CC7_2_monitoring": "Monitoring — failed-login trend",
+        "CC7_2_audit_coverage": "Monitoring — audit trail coverage"
+      },
+      "statusLabels": {
+        "pass": "Healthy",
+        "warn": "Attention",
+        "alert": "Critical",
+        "unknown": "No data"
+      },
+      "mfaCoverageFraction": "{{covered}} / {{total}}",
+      "coveragePercentBadge": "{{percent}}%"
     }
   },
   "aiModels": {

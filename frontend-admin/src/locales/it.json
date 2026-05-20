@@ -559,7 +559,30 @@
         "kmsActiveFootnote": "Envelope per tenant pronti per crypto-shred al purge",
         "kmsShredded": "Chiavi KMS distrutte",
         "kmsShreddedFootnote": "Tenant cancellati via crypto-shred (irrecuperabili per design)"
-      }
+      },
+      "loadError": "Impossibile caricare le evidenze SOC2. Serve il permesso <code>system.compliance.audit.read</code> per visualizzare questa pagina.",
+      "controlsHeading": "Controlli",
+      "controlsSubtitle": "Le euristiche di stato sono conservative — il pannello payload è la fonte di verità per gli auditor.",
+      "controlsEmpty": "Nessun controllo riportato.",
+      "colControl": "Controllo",
+      "colStatus": "Stato",
+      "colPayload": "Payload",
+      "showPayload": "Mostra payload",
+      "controlNames": {
+        "CC6_1_logical_access": "Accesso logico — account privilegiati",
+        "CC6_6_account_management": "Gestione account — copertura MFA",
+        "CC6_8_data_protection": "Protezione dati — ciclo di vita chiavi KMS",
+        "CC7_2_monitoring": "Monitoraggio — trend login falliti",
+        "CC7_2_audit_coverage": "Monitoraggio — copertura audit trail"
+      },
+      "statusLabels": {
+        "pass": "OK",
+        "warn": "Attenzione",
+        "alert": "Critico",
+        "unknown": "Nessun dato"
+      },
+      "mfaCoverageFraction": "{{covered}} / {{total}}",
+      "coveragePercentBadge": "{{percent}}%"
     }
   },
   "aiModels": {
