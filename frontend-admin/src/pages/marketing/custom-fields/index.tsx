@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Nav, Tab, Form, Button, Table, Alert } from 'react-bootstrap';
 import { useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   useGetCustomFieldSchemaQuery,
   useUpsertCustomFieldSchemaMutation,
@@ -49,6 +50,7 @@ const newField = (): FieldDef => ({
 });
 
 const CustomFieldsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const target = readTarget(searchParams.get('target'));
 
@@ -129,7 +131,7 @@ const CustomFieldsPage: React.FC = () => {
   return (
     <>
       <div className="mb-3">
-        <h3 className="fw-normal mb-1">Custom fields</h3>
+        <h3 className="fw-normal mb-1">{t('marketing.customFields.title')}</h3>
         <p className="fs-10 text-muted mb-0">
           Per-tenant typed-bag schema for Person and Organization records.
           Write-time validation rejects unknown fields unless you opt into

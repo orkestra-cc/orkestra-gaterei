@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import { Card, Nav, Tab, Table, Badge } from 'react-bootstrap';
 import { Link, useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import {
   useListMarketingPersonsQuery,
   useListMarketingOrgsQuery,
@@ -25,6 +26,7 @@ const fullName = (p: Person) =>
   [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
 
 const ContactsListPage: React.FC = () => {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
 
@@ -36,8 +38,8 @@ const ContactsListPage: React.FC = () => {
 
   const tagsByUUID = useMemo(() => {
     const map: Record<string, Tag> = {};
-    tagsResp?.items?.forEach(t => {
-      map[t.uuid] = t;
+    tagsResp?.items?.forEach(tag => {
+      map[tag.uuid] = tag;
     });
     return map;
   }, [tagsResp]);
@@ -53,7 +55,7 @@ const ContactsListPage: React.FC = () => {
   return (
     <>
       <div className="mb-3">
-        <h3 className="fw-normal mb-1">Contacts</h3>
+        <h3 className="fw-normal mb-1">{t('marketing.contacts.title')}</h3>
         <p className="fs-10 text-muted mb-0">
           Persons and Organizations imported into or created within this
           tenant's marketing base.

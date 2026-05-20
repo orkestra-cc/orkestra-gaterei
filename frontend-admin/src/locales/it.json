@@ -323,6 +323,69 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "compliance": {
+    "soc2": {
+      "title": "Evidenze SOC2",
+      "description": "Aggregato puntuale dei controlli CC che gli auditor campionano comunemente. Ogni refresh ricalcola dalla sorgente — due auditor che premono questo a un minuto di distanza vedono la stessa risposta se lo stato non è cambiato.",
+      "generatedAt": "Generato il {{date}}",
+      "regenerate": "Rigenera",
+      "regenerating": "Rigenerazione…",
+      "stats": {
+        "privileged": "Utenti privilegiati",
+        "privilegedFootnote": "ruoli super_admin + administrator + developer",
+        "privilegedWithMfa": "Privilegiati con MFA",
+        "noPrivToEvaluate": "Nessun utente privilegiato da valutare",
+        "targetMet": "100% — obiettivo raggiunto",
+        "missingSecondFactor_one": "{{count}} account senza secondo fattore",
+        "missingSecondFactor_other": "{{count}} account senza secondo fattore",
+        "failedLogins24h": "Login falliti (24h)",
+        "failedLoginsFootnote": "CC7.2 — picchi indicano credential stuffing o drift di integrazione",
+        "auditRows24h": "Righe audit (24h)",
+        "auditEmptyFootnote": "Nessun evento nelle ultime 24 ore — la pipeline potrebbe essere instabile",
+        "auditActiveFootnote": "Pipeline di audit sta catturando attivamente eventi",
+        "kmsActive": "Chiavi KMS attive",
+        "kmsActiveFootnote": "Envelope per tenant pronti per crypto-shred al purge",
+        "kmsShredded": "Chiavi KMS distrutte",
+        "kmsShreddedFootnote": "Tenant cancellati via crypto-shred (irrecuperabili per design)"
+      }
+    }
+  },
+  "identityAddon": {
+    "title": "Identity (IdP + SCIM)",
+    "description": "Configura il login OIDC per tenant e provvedi il bearer SCIM 2.0 che l'IdP usa per inviare eventi di ciclo di vita degli utenti. Le modifiche si applicano al <strong>tenant attualmente selezionato</strong>; cambia tenant per configurarne uno diverso."
+  },
+  "marketing": {
+    "contacts": {
+      "title": "Contatti"
+    },
+    "tags": {
+      "title": "Tag"
+    },
+    "customFields": {
+      "title": "Campi personalizzati"
+    },
+    "imports": {
+      "title": "Importazioni"
+    }
+  },
+  "sales": {
+    "jobs": {
+      "titleCount": "Job ({{count}})"
+    },
+    "prospect": {
+      "analyzeTitle": "Analizza un'azienda",
+      "resultTitle": "Risultato"
+    },
+    "settings": {
+      "promptTemplate": "Template Prompt",
+      "promptInfo": "Info Prompt",
+      "templateVariables": "Variabili Template",
+      "llmConfiguration": "Configurazione LLM",
+      "activeConfiguration": "Configurazione Attiva",
+      "kicker": "Sales Intelligence",
+      "title": "Impostazioni"
+    }
+  },
   "subscriptions": {
     "services": {
       "title": "Servizi",

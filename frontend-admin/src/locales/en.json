@@ -323,6 +323,69 @@
       "manage": "Manage security"
     }
   },
+  "compliance": {
+    "soc2": {
+      "title": "SOC2 Evidence",
+      "description": "Point-in-time aggregate of the CC-class controls auditors commonly sample. Every refresh recomputes from source — two auditors hitting this one minute apart see the same answer when state hasn't changed.",
+      "generatedAt": "Generated at {{date}}",
+      "regenerate": "Regenerate",
+      "regenerating": "Regenerating…",
+      "stats": {
+        "privileged": "Privileged users",
+        "privilegedFootnote": "super_admin + administrator + developer roles",
+        "privilegedWithMfa": "Privileged with MFA",
+        "noPrivToEvaluate": "No privileged users to evaluate",
+        "targetMet": "100% — target met",
+        "missingSecondFactor_one": "{{count}} account missing a second factor",
+        "missingSecondFactor_other": "{{count}} accounts missing a second factor",
+        "failedLogins24h": "Failed logins (24h)",
+        "failedLoginsFootnote": "CC7.2 — spikes indicate credential stuffing or integration drift",
+        "auditRows24h": "Audit rows (24h)",
+        "auditEmptyFootnote": "No events in the last 24 hours — pipeline may be unhealthy",
+        "auditActiveFootnote": "Audit pipeline actively capturing events",
+        "kmsActive": "KMS keys active",
+        "kmsActiveFootnote": "Per-tenant envelopes ready for crypto-shred on purge",
+        "kmsShredded": "KMS keys shredded",
+        "kmsShreddedFootnote": "Tenants purged via crypto-shred (unrecoverable by design)"
+      }
+    }
+  },
+  "identityAddon": {
+    "title": "Identity (IdP + SCIM)",
+    "description": "Configure per-tenant OIDC sign-in and provision the SCIM 2.0 bearer token the IdP uses to push user lifecycle events. Changes apply to the <strong>currently selected tenant</strong>; switch tenants to configure a different one."
+  },
+  "marketing": {
+    "contacts": {
+      "title": "Contacts"
+    },
+    "tags": {
+      "title": "Tags"
+    },
+    "customFields": {
+      "title": "Custom fields"
+    },
+    "imports": {
+      "title": "Imports"
+    }
+  },
+  "sales": {
+    "jobs": {
+      "titleCount": "Jobs ({{count}})"
+    },
+    "prospect": {
+      "analyzeTitle": "Analyze a Company",
+      "resultTitle": "Result"
+    },
+    "settings": {
+      "promptTemplate": "Prompt Template",
+      "promptInfo": "Prompt Info",
+      "templateVariables": "Template Variables",
+      "llmConfiguration": "LLM Configuration",
+      "activeConfiguration": "Active Configuration",
+      "kicker": "Sales Intelligence",
+      "title": "Settings"
+    }
+  },
   "subscriptions": {
     "services": {
       "title": "Services",

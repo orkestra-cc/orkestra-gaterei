@@ -13,6 +13,7 @@ import {
   Badge,
   InputGroup
 } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import {
   useListMarketingTagsQuery,
   useCreateMarketingTagMutation,
@@ -30,6 +31,7 @@ const empty: TagPayload = {
 };
 
 const TagsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { data, isLoading } = useListMarketingTagsQuery();
   const [createTag] = useCreateMarketingTagMutation();
   const [updateTag] = useUpdateMarketingTagMutation();
@@ -44,14 +46,14 @@ const TagsPage: React.FC = () => {
     setForm(empty);
     setShow(true);
   };
-  const openEdit = (t: Tag) => {
-    setEditing(t);
+  const openEdit = (tag: Tag) => {
+    setEditing(tag);
     setForm({
-      name: t.name,
-      slug: t.slug,
-      description: t.description ?? '',
-      color: t.color ?? '',
-      parentUuid: t.parentUuid ?? ''
+      name: tag.name,
+      slug: tag.slug,
+      description: tag.description ?? '',
+      color: tag.color ?? '',
+      parentUuid: tag.parentUuid ?? ''
     });
     setShow(true);
   };
@@ -74,24 +76,24 @@ const TagsPage: React.FC = () => {
     setShow(false);
   };
 
-  const onDelete = async (t: Tag) => {
+  const onDelete = async (tag: Tag) => {
     if (
       !window.confirm(
-        `Delete tag "${t.name}"? References on contacts will become orphans.`
+        `Delete tag "${tag.name}"? References on contacts will become orphans.`
       )
     ) {
       return;
     }
-    await deleteTag(t.uuid);
+    await deleteTag(tag.uuid);
   };
 
-  const parents = (data?.items ?? []).filter(t => !t.parentUuid);
+  const parents = (data?.items ?? []).filter(tag => !tag.parentUuid);
 
   return (
     <>
       <div className="mb-3 d-flex justify-content-between align-items-center">
         <div>
-          <h3 className="fw-normal mb-1">Tags</h3>
+          <h3 className="fw-normal mb-1">{t('marketing.tags.title')}</h3>
           <p className="fs-10 text-muted mb-0">
             Hierarchical labels applied to persons and organizations. Slug is
             the stable machine identifier — name is free to rename without
@@ -125,25 +127,25 @@ const TagsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map(t => (
-                  <tr key={t.uuid}>
-                    <td className="fw-medium">{t.name}</td>
+                {data.items.map(tag => (
+                  <tr key={tag.uuid}>
+                    <td className="fw-medium">{tag.name}</td>
                     <td>
-                      <code className="fs-10">{t.slug}</code>
+                      <code className="fs-10">{tag.slug}</code>
                     </td>
                     <td>
-                      <small className="text-muted">{t.path}</small>
+                      <small className="text-muted">{tag.path}</small>
                     </td>
                     <td>
-                      {t.color ? (
+                      {tag.color ? (
                         <Badge
                           pill
                           style={{
-                            backgroundColor: t.color,
+                            backgroundColor: tag.color,
                             color: '#fff'
                           }}
                         >
-                          {t.color}
+                          {tag.color}
                         </Badge>
                       ) : (
                         '—'
@@ -153,7 +155,7 @@ const TagsPage: React.FC = () => {
                       <Button
                         size="sm"
                         variant="link"
-                        onClick={() => openEdit(t)}
+                        onClick={() => openEdit(tag)}
                       >
                         Edit
                       </Button>
@@ -161,7 +163,7 @@ const TagsPage: React.FC = () => {
                         size="sm"
                         variant="link"
                         className="text-danger"
-                        onClick={() => onDelete(t)}
+                        onClick={() => onDelete(tag)}
                       >
                         Delete
                       </Button>

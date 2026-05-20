@@ -4,6 +4,7 @@
 
 import { Card, Table, Badge, Button } from 'react-bootstrap';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useListMarketingImportsQuery } from 'store/api/marketingApi';
 import type { ImportJobStatus } from 'types/marketing';
 
@@ -15,13 +16,14 @@ const statusVariant: Record<ImportJobStatus, string> = {
 };
 
 const ImportsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { data, isLoading, refetch } = useListMarketingImportsQuery(undefined);
 
   return (
     <>
       <div className="mb-3 d-flex justify-content-between align-items-center">
         <div>
-          <h3 className="fw-normal mb-1">Imports</h3>
+          <h3 className="fw-normal mb-1">{t('marketing.imports.title')}</h3>
           <p className="fs-10 text-muted mb-0">
             Audit log of every contact-base import. Phase 1 ships CSV; Excel +
             Odoo adapters arrive in Phase 3.
