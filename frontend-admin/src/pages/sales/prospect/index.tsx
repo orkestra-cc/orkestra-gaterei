@@ -58,7 +58,8 @@ const ProspectPage = () => {
       setResult(data);
     } catch (err: any) {
       setResult({
-        error: err?.data?.detail || err?.message || 'Request failed'
+        error:
+          err?.data?.detail || err?.message || t('sales.prospect.requestFailed')
       });
     }
   };
@@ -70,7 +71,8 @@ const ProspectPage = () => {
       setResult(data);
     } catch (err: any) {
       setResult({
-        error: err?.data?.detail || err?.message || 'Request failed'
+        error:
+          err?.data?.detail || err?.message || t('sales.prospect.requestFailed')
       });
     }
   };
@@ -99,10 +101,10 @@ const ProspectPage = () => {
                 <Row className="g-3 align-items-end">
                   <Col md={6}>
                     <Form.Group>
-                      <Form.Label>Company URL</Form.Label>
+                      <Form.Label>{t('sales.prospect.urlLabel')}</Form.Label>
                       <Form.Control
                         type="url"
-                        placeholder="https://example.com"
+                        placeholder={t('sales.prospect.urlPlaceholder')}
                         value={url}
                         onChange={e => setUrl(e.target.value)}
                         required
@@ -111,13 +113,17 @@ const ProspectPage = () => {
                   </Col>
                   <Col md={2}>
                     <Form.Group>
-                      <Form.Label>Locale</Form.Label>
+                      <Form.Label>{t('sales.prospect.localeLabel')}</Form.Label>
                       <Form.Select
                         value={locale}
                         onChange={e => setLocale(e.target.value)}
                       >
-                        <option value="it">Italian</option>
-                        <option value="en">English</option>
+                        <option value="it">
+                          {t('sales.prospect.localeItalian')}
+                        </option>
+                        <option value="en">
+                          {t('sales.prospect.localeEnglish')}
+                        </option>
                       </Form.Select>
                     </Form.Group>
                   </Col>
@@ -132,7 +138,7 @@ const ProspectPage = () => {
                       ) : (
                         <FontAwesomeIcon icon={faRocket} className="me-1" />
                       )}
-                      Full Analysis
+                      {t('sales.prospect.fullButton')}
                     </Button>
                     <Button
                       variant="outline-primary"
@@ -144,7 +150,7 @@ const ProspectPage = () => {
                       ) : (
                         <FontAwesomeIcon icon={faBolt} className="me-1" />
                       )}
-                      Quick (60s)
+                      {t('sales.prospect.quickButton')}
                     </Button>
                   </Col>
                 </Row>
@@ -172,17 +178,20 @@ const ProspectPage = () => {
                       }
                       className="fs-6"
                     >
-                      Score: {result.score} ({result.grade})
+                      {t('sales.prospect.scoreBadge', {
+                        score: result.score,
+                        grade: result.grade
+                      })}
                     </Badge>
                   )}
                   {result.jobId && (
                     <Badge bg="info" className="fs-6">
-                      Job: {result.jobId}
+                      {t('sales.prospect.jobBadge', { id: result.jobId })}
                     </Badge>
                   )}
                   {result.error && (
                     <Badge bg="danger" className="fs-6">
-                      Error
+                      {t('sales.prospect.errorBadge')}
                     </Badge>
                   )}
                 </div>

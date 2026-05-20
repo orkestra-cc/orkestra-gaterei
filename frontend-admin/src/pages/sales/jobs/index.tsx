@@ -90,6 +90,7 @@ function isRunning(status: string) {
 // ─── Agent Result Card ───
 
 function AgentResultCard({ result }: { result: any }) {
+  const { t } = useTranslation();
   let findings: any = null;
   try {
     findings =
@@ -107,7 +108,7 @@ function AgentResultCard({ result }: { result: any }) {
           <strong>{formatAgentName(result.agentName)}</strong>
           {result.error && (
             <Badge bg="danger" className="ms-2">
-              Error
+              {t('sales.jobs.detail.agentErrorBadge')}
             </Badge>
           )}
         </div>
@@ -123,11 +124,13 @@ function AgentResultCard({ result }: { result: any }) {
                     : 'secondary'
             }
           >
-            Score: {result.score}
+            {t('sales.jobs.detail.agentScoreBadge', { score: result.score })}
           </Badge>
           {result.latencyMs > 0 && (
             <small className="text-muted">
-              {(result.latencyMs / 1000).toFixed(1)}s
+              {t('sales.jobs.detail.agentLatencySeconds', {
+                seconds: (result.latencyMs / 1000).toFixed(1)
+              })}
             </small>
           )}
         </div>
@@ -157,6 +160,7 @@ function formatAgentName(name: string) {
 // ─── Job Detail Page (URL: /sales/jobs/:uuid) ───
 
 export function JobDetailPage() {
+  const { t } = useTranslation();
   const { uuid } = useParams<{ uuid: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -230,8 +234,11 @@ export function JobDetailPage() {
                     {job.companyUrl}
                   </h5>
                   <small className="text-muted">
-                    {job.status.toUpperCase()} | {elapsed}s elapsed
-                    {running && ' — refreshing every 3s'}
+                    {t('sales.jobs.detail.subtitle', {
+                      status: job.status.toUpperCase(),
+                      elapsed
+                    })}
+                    {running && t('sales.jobs.detail.subtitleRefreshing')}
                   </small>
                 </div>
               </div>
@@ -247,7 +254,10 @@ export function JobDetailPage() {
                     }
                     className="fs-6"
                   >
-                    {job.totalScore} ({job.grade})
+                    {t('sales.jobs.detail.scoreBadge', {
+                      score: job.totalScore,
+                      grade: job.grade
+                    })}
                   </Badge>
                 )}
                 <Badge
@@ -262,7 +272,8 @@ export function JobDetailPage() {
                     size="sm"
                     onClick={() => cancelJob(job.uuid)}
                   >
-                    <FontAwesomeIcon icon={faTrash} className="me-1" /> Cancel
+                    <FontAwesomeIcon icon={faTrash} className="me-1" />{' '}
+                    {t('sales.jobs.detail.cancelButton')}
                   </Button>
                 )}
                 {(job.status === 'failed' || job.status === 'cancelled') && (
@@ -280,7 +291,7 @@ export function JobDetailPage() {
                     ) : (
                       <FontAwesomeIcon icon={faRedo} className="me-1" />
                     )}
-                    Retry
+                    {t('sales.jobs.detail.retryButton')}
                   </Button>
                 )}
                 {hasFailedAgents && (
@@ -297,7 +308,9 @@ export function JobDetailPage() {
                     ) : (
                       <FontAwesomeIcon icon={faRedo} className="me-1" />
                     )}
-                    Re-run {failedAgents.length} Failed
+                    {t('sales.jobs.detail.rerunFailedButton', {
+                      count: failedAgents.length
+                    })}
                   </Button>
                 )}
                 {job.reportUuid && (
@@ -305,20 +318,22 @@ export function JobDetailPage() {
                     to={`/sales/reports/${job.reportUuid}`}
                     className="btn btn-outline-success btn-sm"
                   >
-                    <FontAwesomeIcon icon={faFileAlt} className="me-1" /> Report
+                    <FontAwesomeIcon icon={faFileAlt} className="me-1" />{' '}
+                    {t('sales.jobs.detail.reportLink')}
                   </Link>
                 )}
                 <Button
                   variant="outline-danger"
                   size="sm"
                   onClick={() => {
-                    if (window.confirm('Delete this job and its report?')) {
+                    if (window.confirm(t('sales.jobs.detail.deleteConfirm'))) {
                       cancelJob(job.uuid);
                       navigate('/sales/jobs');
                     }
                   }}
                 >
-                  <FontAwesomeIcon icon={faTrash} className="me-1" /> Delete
+                  <FontAwesomeIcon icon={faTrash} className="me-1" />{' '}
+                  {t('sales.jobs.detail.deleteButton')}
                 </Button>
               </div>
             </Card.Header>
@@ -331,7 +346,7 @@ export function JobDetailPage() {
         <Col xxl={12}>
           <Card>
             <Card.Header>
-              <h6 className="mb-0">Pipeline Progress</h6>
+              <h6 className="mb-0">{t('sales.jobs.detail.pipelineTitle')}</h6>
             </Card.Header>
             <Card.Body className="py-2">
               <div className="d-flex gap-4">
@@ -340,9 +355,21 @@ export function JobDetailPage() {
                   const color = PHASE_COLORS[phase.status] || 'text-muted';
                   const duration =
                     phase.startedAt && phase.completedAt
-                      ? `${((new Date(phase.completedAt).getTime() - new Date(phase.startedAt).getTime()) / 1000).toFixed(1)}s`
+                      ? t('sales.jobs.detail.phaseDurationSeconds', {
+                          seconds: (
+                            (new Date(phase.completedAt).getTime() -
+                              new Date(phase.startedAt).getTime()) /
+                            1000
+                          ).toFixed(1)
+                        })
                       : phase.startedAt && phase.status === 'running'
-                        ? `${((Date.now() - new Date(phase.startedAt).getTime()) / 1000).toFixed(0)}s...`
+                        ? t('sales.jobs.detail.phaseDurationRunning', {
+                            seconds: (
+                              (Date.now() -
+                                new Date(phase.startedAt).getTime()) /
+                              1000
+                            ).toFixed(0)
+                          })
                         : '';
 
                   return (
@@ -357,9 +384,7 @@ export function JobDetailPage() {
                           {phase.name}
                         </strong>
                         {duration && (
-                          <small className="text-muted ms-1">
-                            ({duration})
-                          </small>
+                          <small className="text-muted ms-1">{duration}</small>
                         )}
                       </div>
                       {i < (job.phases || []).length - 1 && (
@@ -380,7 +405,8 @@ export function JobDetailPage() {
           <Col xxl={12}>
             <Card border="danger">
               <Card.Body className="text-danger">
-                <strong>Error:</strong> {job.errorMessage}
+                <strong>{t('sales.jobs.detail.errorPrefix')}</strong>{' '}
+                {job.errorMessage}
               </Card.Body>
             </Card>
           </Col>
@@ -397,9 +423,8 @@ export function JobDetailPage() {
             >
               <FontAwesomeIcon icon={faClock} />
               <div>
-                <strong>Batch Mode</strong> — Agent analysis has been submitted
-                as a batch job to your LLM provider. Results typically arrive
-                within 1 hour. This page will update automatically.
+                <strong>{t('sales.jobs.detail.batchTitle')}</strong>
+                {t('sales.jobs.detail.batchBody')}
               </div>
             </Alert>
           </Col>
@@ -432,14 +457,16 @@ export function JobDetailPage() {
                   {agentResults.length > 0 && (
                     <Tab
                       eventKey="agents"
-                      title={`Agent Results (${agentResults.length})`}
+                      title={t('sales.jobs.detail.agentResultsTab', {
+                        count: agentResults.length
+                      })}
                     >
                       {agentResults.map((r: any, i: number) => (
                         <AgentResultCard key={i} result={r} />
                       ))}
                     </Tab>
                   )}
-                  <Tab eventKey="raw" title="Raw JSON">
+                  <Tab eventKey="raw" title={t('sales.jobs.detail.rawTab')}>
                     <pre
                       className="bg-body-tertiary p-3 rounded"
                       style={{
@@ -462,11 +489,14 @@ export function JobDetailPage() {
       <Row className="g-3 mb-3">
         <Col xxl={12}>
           <small className="text-muted">
-            Created: {new Date(job.createdAt).toLocaleString()}
-            {job.completedAt && (
-              <> | Completed: {new Date(job.completedAt).toLocaleString()}</>
-            )}
-            {' | '}UUID: {job.uuid}
+            {t('sales.jobs.detail.footerCreated', {
+              date: new Date(job.createdAt).toLocaleString()
+            })}
+            {job.completedAt &&
+              t('sales.jobs.detail.footerCompleted', {
+                date: new Date(job.completedAt).toLocaleString()
+              })}
+            {t('sales.jobs.detail.footerUuid', { uuid: job.uuid })}
           </small>
         </Col>
       </Row>
@@ -543,7 +573,7 @@ const JobsPage = () => {
                   spin={isLoading}
                   className="me-1"
                 />{' '}
-                Refresh
+                {t('sales.jobs.refresh')}
               </Button>
             </Card.Header>
             <Card.Body className="p-0">
@@ -553,17 +583,17 @@ const JobsPage = () => {
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="text-center text-muted py-5">
-                  No jobs yet. Run a prospect analysis to get started.
+                  {t('sales.jobs.empty')}
                 </div>
               ) : (
                 <Table hover responsive className="mb-0">
                   <thead>
                     <tr>
                       <th></th>
-                      <th>URL</th>
-                      <th>Status</th>
-                      <th>Score</th>
-                      <th>Created</th>
+                      <th>{t('sales.jobs.colUrl')}</th>
+                      <th>{t('sales.jobs.colStatus')}</th>
+                      <th>{t('sales.jobs.colScore')}</th>
+                      <th>{t('sales.jobs.colCreated')}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -597,8 +627,11 @@ const JobsPage = () => {
                         </td>
                         <td>
                           {job.totalScore
-                            ? `${job.totalScore} (${job.grade})`
-                            : '—'}
+                            ? t('sales.jobs.scoreWithGrade', {
+                                score: job.totalScore,
+                                grade: job.grade
+                              })
+                            : t('sales.jobs.scoreDash')}
                         </td>
                         <td>
                           <small>
@@ -631,7 +664,7 @@ const JobsPage = () => {
                                 if (
                                   !isRunning(job.status) ||
                                   window.confirm(
-                                    'Cancel and delete this running job?'
+                                    t('sales.jobs.confirmCancelRunning')
                                   )
                                 ) {
                                   cancelJob(job.uuid);
