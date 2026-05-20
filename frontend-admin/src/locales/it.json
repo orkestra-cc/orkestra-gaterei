@@ -585,6 +585,136 @@
       "coveragePercentBadge": "{{percent}}%"
     }
   },
+  "aiAgents": {
+    "greetings": {
+      "kicker": "AI Agents",
+      "title": "Progetti",
+      "titleAccent": " Agent",
+      "subtitle": "Gestisci progetti di agent AI con documenti RAG e memory bank Hindsight"
+    },
+    "table": {
+      "filterAll": "Tutti gli stati",
+      "filterActive": "Attivi",
+      "filterArchived": "Archiviati",
+      "newProject": "Nuovo progetto",
+      "loadingProjects": "Caricamento progetti…",
+      "empty": "Nessun progetto trovato",
+      "createFirst": "Crea il tuo primo progetto",
+      "colName": "Nome",
+      "colDescription": "Descrizione",
+      "colStatus": "Stato",
+      "colDocuments": "Documenti",
+      "colCreated": "Creato",
+      "colActions": "Azioni",
+      "actionDocuments": "Documenti",
+      "actionSettings": "Impostazioni",
+      "actionEdit": "Modifica",
+      "actionDelete": "Elimina"
+    },
+    "projectForm": {
+      "titleCreate": "Nuovo progetto",
+      "titleEdit": "Modifica progetto",
+      "nameLabel": "Nome",
+      "namePlaceholder": "Es. Agent ISO 9001 Compliance",
+      "descriptionLabel": "Descrizione",
+      "descriptionPlaceholder": "Descrivi finalità e scope di questo progetto agent…",
+      "statusLabel": "Stato",
+      "statusActive": "Attivo",
+      "statusArchived": "Archiviato",
+      "cancel": "Annulla",
+      "saveChanges": "Salva modifiche",
+      "create": "Crea"
+    },
+    "deleteModal": {
+      "title": "Elimina progetto",
+      "body": "Sei sicuro di voler eliminare <strong>{{name}}</strong>?",
+      "warning": "Questo rimuoverà il progetto, il suo memory bank Hindsight e tutte le conversazioni. L'azione non può essere annullata.",
+      "cancel": "Annulla",
+      "confirm": "Elimina"
+    },
+    "documentsModal": {
+      "title": "Documenti — {{name}}",
+      "loading": "Caricamento documenti…",
+      "empty": "Nessun documento RAG completato. Importa prima i documenti sotto AI → Documenti.",
+      "colDocument": "Documento",
+      "colStandard": "Standard",
+      "colChunks": "Chunk",
+      "dash": "-",
+      "assignedCount_one": "{{count}} documento assegnato",
+      "assignedCount_other": "{{count}} documenti assegnati",
+      "done": "Fatto"
+    },
+    "settings": {
+      "title": "Impostazioni agent — {{name}}",
+      "systemPromptLabel": "System Prompt",
+      "systemPromptPlaceholder": "Istruzioni personalizzate anteposte a ogni query…",
+      "systemPromptHelp": "Sovrascrive il contesto di default della persona",
+      "directivesLabel": "Direttive aggiuntive",
+      "directivesPlaceholder": "Una direttiva per riga…",
+      "directivesHelp": "Aggiunte sopra le direttive della persona",
+      "dispositionHeading": "Disposizione (0 = usa il default della persona)",
+      "sliderDefault": "Default",
+      "sliderSkepticism": "Scetticismo",
+      "sliderLiteralism": "Letteralità",
+      "sliderEmpathy": "Empatia",
+      "dispositionLabels": {
+        "skepticismLow": "Fiducioso",
+        "skepticismHigh": "Aderente ai documenti",
+        "literalismLow": "Creativo",
+        "literalismHigh": "Letterale",
+        "empathyLow": "Distaccato",
+        "empathyHigh": "Caloroso / d'aiuto"
+      },
+      "temperatureLabel": "Stile risposta",
+      "temperaturePersona": "Default persona",
+      "temperaturePrecise": "Preciso — fattuale, senza speculazioni",
+      "temperatureBalanced": "Bilanciato",
+      "temperatureCreative": "Creativo — esplorativo, propone alternative",
+      "languageLabel": "Lingua risposta",
+      "languageAuto": "Auto (segui la lingua della query)",
+      "languageEn": "English",
+      "languageIt": "Italiano",
+      "languageEs": "Espanol",
+      "languageDe": "Deutsch",
+      "languageFr": "Francais",
+      "save": "Salva impostazioni"
+    },
+    "chat": {
+      "headerFallback": "Chat agent",
+      "personaButton": "{{label}}",
+      "newConversation": "Nuova conversazione",
+      "conversationsHeading": "Conversazioni",
+      "sidebarEmpty": "Nessuna conversazione",
+      "untitled": "Conversazione senza titolo",
+      "emptyTitle": "Nessun messaggio",
+      "emptySubtitle": "Fai una domanda per iniziare",
+      "inputPlaceholder": "Scrivi un messaggio... (Shift+Invio per andare a capo)",
+      "messageBubble": {
+        "user": "Tu",
+        "assistant": "Assistente",
+        "thinking": "Sto pensando...",
+        "sources_one": "{{count}} fonte",
+        "sources_other": "{{count}} fonti",
+        "latencySeconds": "{{seconds}}s",
+        "tokens": "{{count}} token",
+        "tokensBreakdown": "({{input}} in / {{output}} out)"
+      },
+      "personaLabels": {
+        "developer": "Developer",
+        "administrator": "Administrator",
+        "manager": "Manager",
+        "auditor": "Auditor",
+        "guest": "Guest"
+      },
+      "personaDescriptions": {
+        "developer": "Dettagli tecnici, dati grezzi, numeri di sezione",
+        "administrator": "Completo, compliance + gestione",
+        "manager": "Riassunti, impatto business, rischi",
+        "auditor": "Basato su evidenze, status compliance, citazioni",
+        "guest": "Panoramiche generali, niente dettagli interni"
+      }
+    }
+  },
   "aiModels": {
     "greetings": {
       "kicker": "Gestione",

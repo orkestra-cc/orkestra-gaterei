@@ -585,6 +585,136 @@
       "coveragePercentBadge": "{{percent}}%"
     }
   },
+  "aiAgents": {
+    "greetings": {
+      "kicker": "AI Agents",
+      "title": "Agent",
+      "titleAccent": " Projects",
+      "subtitle": "Manage AI agent projects with scoped RAG documents and Hindsight memory banks"
+    },
+    "table": {
+      "filterAll": "All statuses",
+      "filterActive": "Active",
+      "filterArchived": "Archived",
+      "newProject": "New Project",
+      "loadingProjects": "Loading projects…",
+      "empty": "No projects found",
+      "createFirst": "Create your first project",
+      "colName": "Name",
+      "colDescription": "Description",
+      "colStatus": "Status",
+      "colDocuments": "Documents",
+      "colCreated": "Created",
+      "colActions": "Actions",
+      "actionDocuments": "Documents",
+      "actionSettings": "Settings",
+      "actionEdit": "Edit",
+      "actionDelete": "Delete"
+    },
+    "projectForm": {
+      "titleCreate": "New Project",
+      "titleEdit": "Edit Project",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. ISO 9001 Compliance Agent",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Describe the purpose and scope of this agent project…",
+      "statusLabel": "Status",
+      "statusActive": "Active",
+      "statusArchived": "Archived",
+      "cancel": "Cancel",
+      "saveChanges": "Save Changes",
+      "create": "Create"
+    },
+    "deleteModal": {
+      "title": "Delete Project",
+      "body": "Are you sure you want to delete <strong>{{name}}</strong>?",
+      "warning": "This will remove the project, its Hindsight memory bank, and all conversations. This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    },
+    "documentsModal": {
+      "title": "Documents — {{name}}",
+      "loading": "Loading documents…",
+      "empty": "No completed RAG documents found. Ingest documents first under AI → Documents.",
+      "colDocument": "Document",
+      "colStandard": "Standard",
+      "colChunks": "Chunks",
+      "dash": "-",
+      "assignedCount_one": "{{count}} document assigned",
+      "assignedCount_other": "{{count}} documents assigned",
+      "done": "Done"
+    },
+    "settings": {
+      "title": "Agent Settings — {{name}}",
+      "systemPromptLabel": "System Prompt",
+      "systemPromptPlaceholder": "Custom instructions prepended to every query…",
+      "systemPromptHelp": "Overrides the persona's default context",
+      "directivesLabel": "Extra Directives",
+      "directivesPlaceholder": "One directive per line…",
+      "directivesHelp": "Added on top of persona directives",
+      "dispositionHeading": "Disposition (0 = use persona default)",
+      "sliderDefault": "Default",
+      "sliderSkepticism": "Skepticism",
+      "sliderLiteralism": "Literalism",
+      "sliderEmpathy": "Empathy",
+      "dispositionLabels": {
+        "skepticismLow": "Trusting",
+        "skepticismHigh": "Strict to docs",
+        "literalismLow": "Creative",
+        "literalismHigh": "Literal",
+        "empathyLow": "Detached",
+        "empathyHigh": "Helpful / warm"
+      },
+      "temperatureLabel": "Response Style",
+      "temperaturePersona": "Persona default",
+      "temperaturePrecise": "Precise — factual, no speculation",
+      "temperatureBalanced": "Balanced",
+      "temperatureCreative": "Creative — exploratory, suggests alternatives",
+      "languageLabel": "Response Language",
+      "languageAuto": "Auto (follow query language)",
+      "languageEn": "English",
+      "languageIt": "Italiano",
+      "languageEs": "Espanol",
+      "languageDe": "Deutsch",
+      "languageFr": "Francais",
+      "save": "Save Settings"
+    },
+    "chat": {
+      "headerFallback": "Agent Chat",
+      "personaButton": "{{label}}",
+      "newConversation": "New Conversation",
+      "conversationsHeading": "Conversations",
+      "sidebarEmpty": "No conversations yet",
+      "untitled": "Untitled conversation",
+      "emptyTitle": "No messages yet",
+      "emptySubtitle": "Ask a question to get started",
+      "inputPlaceholder": "Type a message... (Shift+Enter for newline)",
+      "messageBubble": {
+        "user": "You",
+        "assistant": "Assistant",
+        "thinking": "Thinking...",
+        "sources_one": "{{count}} source",
+        "sources_other": "{{count}} sources",
+        "latencySeconds": "{{seconds}}s",
+        "tokens": "{{count}} tokens",
+        "tokensBreakdown": "({{input}} in / {{output}} out)"
+      },
+      "personaLabels": {
+        "developer": "Developer",
+        "administrator": "Administrator",
+        "manager": "Manager",
+        "auditor": "Auditor",
+        "guest": "Guest"
+      },
+      "personaDescriptions": {
+        "developer": "Technical details, raw data, section numbers",
+        "administrator": "Comprehensive, compliance + management",
+        "manager": "Summaries, business impact, risk",
+        "auditor": "Evidence-based, compliance status, citations",
+        "guest": "General overviews, no internal details"
+      }
+    }
+  },
   "aiModels": {
     "greetings": {
       "kicker": "Management",
