@@ -323,6 +323,80 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "adminTenants": {
+    "totalTitle": "Tenant totali",
+    "active": "Attivi",
+    "members": "Membri",
+    "deletedSuffix": "{{count}} eliminati",
+    "softDeletedBreakdown": "{{active}} attivi · {{deleted}} eliminati",
+    "emptyFootnote": "Tutti i tenant sono attivi",
+    "internalEmptyFootnote": "Tutti i tenant interni sono attivi",
+    "clientsEmptyFootnote": "Tutti i clienti sono attivi",
+    "percentOfTotal": "{{percent}}% del totale",
+    "noTenantsYet": "Nessun tenant ancora",
+    "averagePerTenant": "{{avg}} media per tenant",
+    "planMix": "Mix di piani",
+    "plan": "piano",
+    "plans": "piani",
+    "noActiveTenants": "Nessun tenant attivo",
+    "noOrgSelected": "Nessuna organizzazione selezionata",
+    "rolesNeedOrg": "La gestione ruoli è limitata a una singola organizzazione. Selezionane o creane una dallo switcher in alto a destra per continuare.",
+    "wrappers": {
+      "tenantToolbarTitle": "Gestione tenant",
+      "internalToolbarTitle": "Tenant interni",
+      "internalTotalTitle": "Tenant interni",
+      "internalMembersTitle": "Membri interni",
+      "internalCreateLabel": "Nuovo tenant interno",
+      "internalCreateTitle": "Crea tenant interno",
+      "internalCreateSubmit": "Crea tenant",
+      "clientsToolbarTitle": "Clienti",
+      "clientsTotalTitle": "Clienti",
+      "clientsMembersTitle": "Membri cliente",
+      "clientsCreateLabel": "Nuovo cliente",
+      "clientsCreateTitle": "Crea cliente",
+      "clientsCreateSubmit": "Crea cliente"
+    }
+  },
+  "adminRoles": {
+    "pageTitle": "Gestione ruoli",
+    "intro": "Gestisci ruoli e binding per <strong>{{tenant}}</strong>. I ruoli di sistema sono in sola lettura; i ruoli personalizzati possono essere creati selezionando permessi dal catalogo.",
+    "tabs": {
+      "roles": "Ruoli",
+      "bindings": "Binding ruoli"
+    }
+  },
+  "adminObservability": {
+    "logLevels": {
+      "title": "Livelli di log",
+      "description": "Amministrazione runtime dei livelli di log (ADR-0005 Fase F). Gli override per modulo hanno effetto immediato — nessun riavvio. Lo stdout + il fanout OTLP (Fase E) rispettano la stessa soglia.",
+      "lastUpdated": "Ultimo aggiornamento: {{date}}",
+      "lastUpdatedBy": "Ultimo aggiornamento: {{date}} da {{user}}",
+      "globalLabel": "Globale:",
+      "resetToEnv": "Reset a env",
+      "confirmReset": "Reimpostare ogni livello di log ai default dell'env catturati al boot? La modifica viene persistita.",
+      "globalSetToast": "Livello globale impostato su {{level}}",
+      "moduleSetToast": "{{module}} impostato su {{level}}",
+      "moduleRevertToast": "{{module}} ripristinato al globale",
+      "resetDoneToast": "Livelli di log reimpostati ai default di boot",
+      "globalFailToast": "Impossibile aggiornare il livello globale",
+      "moduleFailToast": "Impossibile aggiornare {{module}}",
+      "revertFailToast": "Impossibile ripristinare {{module}}",
+      "resetFailToast": "Reset non riuscito",
+      "loadFailed": "Impossibile caricare i livelli di log. Il modulo logging potrebbe essere in errore — controlla i log del backend.",
+      "loading": "Caricamento…",
+      "columns": {
+        "module": "Modulo",
+        "effective": "Livello effettivo",
+        "override": "Override",
+        "set": "Imposta override",
+        "actions": "Azioni"
+      },
+      "overrideExplicit": "esplicito",
+      "overrideInherits": "eredita globale",
+      "noModules": "Nessun modulo registrato.",
+      "revert": "Ripristina"
+    }
+  },
   "adminUsers": {
     "welcomeKicker": "Benvenuto in",
     "welcomeTitle": "Gestione",

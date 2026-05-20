@@ -323,6 +323,80 @@
       "manage": "Manage security"
     }
   },
+  "adminTenants": {
+    "totalTitle": "Total tenants",
+    "active": "Active",
+    "members": "Members",
+    "deletedSuffix": "{{count}} deleted",
+    "softDeletedBreakdown": "{{active}} active · {{deleted}} soft-deleted",
+    "emptyFootnote": "All tenants are active",
+    "internalEmptyFootnote": "All internal tenants are active",
+    "clientsEmptyFootnote": "All clients are active",
+    "percentOfTotal": "{{percent}}% of total",
+    "noTenantsYet": "No tenants yet",
+    "averagePerTenant": "{{avg}} avg per tenant",
+    "planMix": "Plan mix",
+    "plan": "plan",
+    "plans": "plans",
+    "noActiveTenants": "No active tenants",
+    "noOrgSelected": "No organization selected",
+    "rolesNeedOrg": "Role management is scoped to a single organization. Select or create one from the top-right org switcher to continue.",
+    "wrappers": {
+      "tenantToolbarTitle": "Tenant Management",
+      "internalToolbarTitle": "Internal Tenants",
+      "internalTotalTitle": "Internal tenants",
+      "internalMembersTitle": "Internal members",
+      "internalCreateLabel": "New internal tenant",
+      "internalCreateTitle": "Create internal tenant",
+      "internalCreateSubmit": "Create tenant",
+      "clientsToolbarTitle": "Clients",
+      "clientsTotalTitle": "Clients",
+      "clientsMembersTitle": "Client members",
+      "clientsCreateLabel": "New client",
+      "clientsCreateTitle": "Create client",
+      "clientsCreateSubmit": "Create client"
+    }
+  },
+  "adminRoles": {
+    "pageTitle": "Role Management",
+    "intro": "Manage roles and bindings for <strong>{{tenant}}</strong>. System roles are read-only; custom roles can be created by picking permissions from the catalog.",
+    "tabs": {
+      "roles": "Roles",
+      "bindings": "Role Bindings"
+    }
+  },
+  "adminObservability": {
+    "logLevels": {
+      "title": "Log levels",
+      "description": "Runtime log-level admin (ADR-0005 Phase F). Per-module overrides take effect immediately — no restart. Stdout + OTLP fanout (Phase E) honor the same threshold.",
+      "lastUpdated": "Last updated: {{date}}",
+      "lastUpdatedBy": "Last updated: {{date}} by {{user}}",
+      "globalLabel": "Global:",
+      "resetToEnv": "Reset to env",
+      "confirmReset": "Reset every log level to the env defaults captured at boot? This persists the change.",
+      "globalSetToast": "Global log level set to {{level}}",
+      "moduleSetToast": "{{module}} set to {{level}}",
+      "moduleRevertToast": "{{module}} reverted to global",
+      "resetDoneToast": "Log levels reset to boot defaults",
+      "globalFailToast": "Failed to update global log level",
+      "moduleFailToast": "Failed to update {{module}}",
+      "revertFailToast": "Failed to revert {{module}}",
+      "resetFailToast": "Reset failed",
+      "loadFailed": "Failed to load log levels. The logging module may have failed init — check backend logs.",
+      "loading": "Loading…",
+      "columns": {
+        "module": "Module",
+        "effective": "Effective level",
+        "override": "Override",
+        "set": "Set override",
+        "actions": "Actions"
+      },
+      "overrideExplicit": "explicit",
+      "overrideInherits": "inherits global",
+      "noModules": "No modules registered.",
+      "revert": "Revert"
+    }
+  },
   "adminUsers": {
     "welcomeKicker": "Welcome to",
     "welcomeTitle": "User",
