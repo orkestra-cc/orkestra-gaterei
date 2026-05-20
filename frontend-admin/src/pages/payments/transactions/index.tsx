@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button, Card, Form, Modal, Table } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import PageHeader from 'components/common/PageHeader';
 import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
@@ -25,6 +26,7 @@ const formatMoney = (cents: number, currency = 'EUR') =>
   }).format(cents / 100);
 
 const TransactionsListPage: React.FC = () => {
+  const { t } = useTranslation();
   const [statusFilter, setStatusFilter] = useState('');
   const { data, isLoading, refetch } = useListPaymentTransactionsQuery({
     status: statusFilter || undefined
@@ -55,8 +57,8 @@ const TransactionsListPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="Transazioni"
-        description="Storico degli addebiti e rimborsi Stripe"
+        title={t('payments.transactions.title')}
+        description={t('payments.transactions.description')}
         className="mb-3"
       >
         <Flex className="gap-2 mt-3">
@@ -65,7 +67,7 @@ const TransactionsListPage: React.FC = () => {
             variant="orkestra-default"
             onClick={() => refetch()}
           >
-            Aggiorna
+            {t('payments.transactions.refresh')}
           </IconButton>
         </Flex>
       </PageHeader>

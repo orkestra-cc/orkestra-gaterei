@@ -323,6 +323,102 @@
       "manage": "Manage security"
     }
   },
+  "subscriptions": {
+    "services": {
+      "title": "Services",
+      "description": "Catalog of recurring AI services offered with subscription pricing",
+      "new": "New service",
+      "refresh": "Refresh",
+      "loading": "Loading...",
+      "empty": "No services in catalog. Create one to get started.",
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "category": "Category",
+        "pricing": "Pricing",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "statusActive": "Active",
+      "statusInactive": "Inactive",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{name}}\"?",
+      "modalEditTitle": "Edit service",
+      "modalNewTitle": "New service"
+    },
+    "list": {
+      "title": "Subscriptions",
+      "description": "Customers × services with automatic renewal cycle",
+      "newSubscription": "New subscription",
+      "refresh": "Refresh",
+      "loading": "Loading...",
+      "empty": "No subscriptions.",
+      "filters": {
+        "all": "All statuses",
+        "active": "Active",
+        "past_due": "Past due",
+        "suspended": "Suspended",
+        "cancelled": "Cancelled",
+        "expired": "Expired"
+      },
+      "columns": {
+        "client": "Client",
+        "service": "Service",
+        "tier": "Tier",
+        "status": "Status",
+        "nextBilling": "Next billing",
+        "failedAttempts": "Failed attempts",
+        "actions": "Actions"
+      },
+      "modalTitle": "New subscription",
+      "selectPlaceholder": "Select..."
+    }
+  },
+  "payments": {
+    "methods": {
+      "title": "Payment methods",
+      "description": "Cards and saved methods per customer",
+      "refresh": "Refresh",
+      "selectTenant": "Select external tenant",
+      "selectTenantHint": "Select an external tenant to view saved methods.",
+      "loading": "Loading...",
+      "empty": "No methods saved for this customer.",
+      "columns": {
+        "provider": "Provider",
+        "brand": "Brand",
+        "last4": "Last 4",
+        "expiry": "Expiry",
+        "default": "Default",
+        "created": "Created"
+      },
+      "defaultBadge": "default"
+    },
+    "transactions": {
+      "title": "Transactions",
+      "description": "Stripe charges, refunds, and dispute history",
+      "refresh": "Refresh"
+    },
+    "webhooks": {
+      "title": "Webhook events",
+      "description": "Audit trail of webhook deliveries from gateways",
+      "refresh": "Refresh",
+      "allProviders": "All providers",
+      "loading": "Loading...",
+      "empty": "No events received.",
+      "columns": {
+        "provider": "Provider",
+        "eventId": "Event ID",
+        "type": "Type",
+        "normalized": "Normalized",
+        "processed": "Processed",
+        "received": "Received"
+      },
+      "statusOk": "ok",
+      "statusError": "error",
+      "statusPending": "pending"
+    }
+  },
   "billing": {
     "common": {
       "backToDashboard": "Back to billing dashboard",

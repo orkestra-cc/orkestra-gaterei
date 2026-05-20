@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge, Button, Card, Modal, Form, Table } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import PageHeader from 'components/common/PageHeader';
 import IconButton from 'components/common/IconButton';
 import Flex from 'components/common/Flex';
@@ -33,6 +34,7 @@ const formatMoney = (cents: number, currency = 'EUR') =>
   );
 
 const ServicesListPage: React.FC = () => {
+  const { t } = useTranslation();
   const { data, isLoading, refetch } =
     useListSubscriptionServicesQuery(undefined);
   const [create] = useCreateSubscriptionServiceMutation();
@@ -93,20 +95,20 @@ const ServicesListPage: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="Servizi"
-        description="Catalogo dei servizi AI offerti con prezzi ricorrenti"
+        title={t('subscriptions.services.title')}
+        description={t('subscriptions.services.description')}
         className="mb-3"
       >
         <Flex className="gap-2 mt-3">
           <IconButton icon="plus" variant="primary" onClick={openNew}>
-            Nuovo servizio
+            {t('subscriptions.services.new')}
           </IconButton>
           <IconButton
             icon="sync-alt"
             variant="orkestra-default"
             onClick={() => refetch()}
           >
-            Aggiorna
+            {t('subscriptions.services.refresh')}
           </IconButton>
         </Flex>
       </PageHeader>
@@ -114,21 +116,23 @@ const ServicesListPage: React.FC = () => {
       <Card>
         <Card.Body className="p-0">
           {isLoading ? (
-            <div className="p-4">Caricamento...</div>
+            <div className="p-4">{t('subscriptions.services.loading')}</div>
           ) : !data?.items.length ? (
             <div className="p-4 text-muted text-center">
-              Nessun servizio in catalogo. Creane uno per iniziare.
+              {t('subscriptions.services.empty')}
             </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
                 <tr>
-                  <th>Code</th>
-                  <th>Nome</th>
-                  <th>Categoria</th>
-                  <th>Prezzi</th>
-                  <th>Stato</th>
-                  <th className="text-end">Azioni</th>
+                  <th>{t('subscriptions.services.columns.code')}</th>
+                  <th>{t('subscriptions.services.columns.name')}</th>
+                  <th>{t('subscriptions.services.columns.category')}</th>
+                  <th>{t('subscriptions.services.columns.pricing')}</th>
+                  <th>{t('subscriptions.services.columns.status')}</th>
+                  <th className="text-end">
+                    {t('subscriptions.services.columns.actions')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -140,18 +144,20 @@ const ServicesListPage: React.FC = () => {
                     <td>{s.name}</td>
                     <td>{s.category}</td>
                     <td>
-                      {s.pricingTiers.map(t => (
-                        <div key={t.code}>
+                      {s.pricingTiers.map(pt => (
+                        <div key={pt.code}>
                           <small>
-                            <strong>{t.cycle}</strong>:{' '}
-                            {formatMoney(t.amountCents, t.currency)}
+                            <strong>{pt.cycle}</strong>:{' '}
+                            {formatMoney(pt.amountCents, pt.currency)}
                           </small>
                         </div>
                       ))}
                     </td>
                     <td>
                       <Badge bg={s.active ? 'success' : 'secondary'}>
-                        {s.active ? 'Attivo' : 'Inattivo'}
+                        {s.active
+                          ? t('subscriptions.services.statusActive')
+                          : t('subscriptions.services.statusInactive')}
                       </Badge>
                     </td>
                     <td className="text-end">
@@ -160,19 +166,25 @@ const ServicesListPage: React.FC = () => {
                         variant="link"
                         onClick={() => openEdit(s)}
                       >
-                        Modifica
+                        {t('subscriptions.services.edit')}
                       </Button>
                       <Button
                         size="sm"
                         variant="link"
                         className="text-danger"
                         onClick={async () => {
-                          if (confirm(`Eliminare "${s.name}"?`)) {
+                          if (
+                            confirm(
+                              t('subscriptions.services.deleteConfirm', {
+                                name: s.name
+                              })
+                            )
+                          ) {
                             await del(s.uuid).unwrap();
                           }
                         }}
                       >
-                        Elimina
+                        {t('subscriptions.services.delete')}
                       </Button>
                     </td>
                   </tr>
@@ -186,7 +198,9 @@ const ServicesListPage: React.FC = () => {
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>
-            {editing ? 'Modifica servizio' : 'Nuovo servizio'}
+            {editing
+              ? t('subscriptions.services.modalEditTitle')
+              : t('subscriptions.services.modalNewTitle')}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>

@@ -323,6 +323,102 @@
       "manage": "Gestisci la sicurezza"
     }
   },
+  "subscriptions": {
+    "services": {
+      "title": "Servizi",
+      "description": "Catalogo dei servizi AI offerti con prezzi ricorrenti",
+      "new": "Nuovo servizio",
+      "refresh": "Aggiorna",
+      "loading": "Caricamento...",
+      "empty": "Nessun servizio in catalogo. Creane uno per iniziare.",
+      "columns": {
+        "code": "Code",
+        "name": "Nome",
+        "category": "Categoria",
+        "pricing": "Prezzi",
+        "status": "Stato",
+        "actions": "Azioni"
+      },
+      "statusActive": "Attivo",
+      "statusInactive": "Inattivo",
+      "edit": "Modifica",
+      "delete": "Elimina",
+      "deleteConfirm": "Eliminare \"{{name}}\"?",
+      "modalEditTitle": "Modifica servizio",
+      "modalNewTitle": "Nuovo servizio"
+    },
+    "list": {
+      "title": "Sottoscrizioni",
+      "description": "Clienti × servizi con ciclo di rinnovo automatico",
+      "newSubscription": "Nuova sottoscrizione",
+      "refresh": "Aggiorna",
+      "loading": "Caricamento...",
+      "empty": "Nessuna sottoscrizione.",
+      "filters": {
+        "all": "Tutti gli stati",
+        "active": "Attive",
+        "past_due": "In ritardo",
+        "suspended": "Sospese",
+        "cancelled": "Cancellate",
+        "expired": "Scadute"
+      },
+      "columns": {
+        "client": "Cliente",
+        "service": "Servizio",
+        "tier": "Tier",
+        "status": "Stato",
+        "nextBilling": "Prossimo addebito",
+        "failedAttempts": "Tentativi falliti",
+        "actions": "Azioni"
+      },
+      "modalTitle": "Nuova sottoscrizione",
+      "selectPlaceholder": "Seleziona..."
+    }
+  },
+  "payments": {
+    "methods": {
+      "title": "Metodi di pagamento",
+      "description": "Carte e metodi salvati per cliente",
+      "refresh": "Aggiorna",
+      "selectTenant": "Seleziona tenant esterno",
+      "selectTenantHint": "Seleziona un tenant esterno per visualizzare i metodi salvati.",
+      "loading": "Caricamento...",
+      "empty": "Nessun metodo salvato per questo cliente.",
+      "columns": {
+        "provider": "Provider",
+        "brand": "Brand",
+        "last4": "Ultime 4",
+        "expiry": "Scadenza",
+        "default": "Default",
+        "created": "Creato"
+      },
+      "defaultBadge": "default"
+    },
+    "transactions": {
+      "title": "Transazioni",
+      "description": "Storico addebiti, rimborsi e dispute Stripe",
+      "refresh": "Aggiorna"
+    },
+    "webhooks": {
+      "title": "Eventi webhook",
+      "description": "Audit trail dei webhook ricevuti dai gateway",
+      "refresh": "Aggiorna",
+      "allProviders": "Tutti i provider",
+      "loading": "Caricamento...",
+      "empty": "Nessun evento ricevuto.",
+      "columns": {
+        "provider": "Provider",
+        "eventId": "Event ID",
+        "type": "Tipo",
+        "normalized": "Normalizzato",
+        "processed": "Processato",
+        "received": "Ricevuto"
+      },
+      "statusOk": "ok",
+      "statusError": "errore",
+      "statusPending": "in attesa"
+    }
+  },
   "billing": {
     "common": {
       "backToDashboard": "Torna alla dashboard fatturazione",
