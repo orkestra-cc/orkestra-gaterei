@@ -3105,6 +3105,61 @@
       "errorUnknown": "errore sconosciuto"
     }
   },
+  "adminInternalTenants": {
+    "detail": {
+      "breadcrumbList": "Tenant interni",
+      "notFound": "Tenant non trovato oppure non hai i permessi per visualizzarlo.",
+      "backToList": "Torna ai tenant interni",
+      "tierBadge": "interno",
+      "statusActive": "attivo",
+      "statusArchived": "archiviato",
+      "statusSuspended": "sospeso",
+      "statusProvisioning": "in provisioning",
+      "statusPurged": "rimosso",
+      "idLabel": "ID:",
+      "ownerLabel": "Proprietario:",
+      "tabs": {
+        "overview": "Panoramica",
+        "members": "Membri"
+      }
+    }
+  },
+  "operatorProfile": {
+    "loadingAria": "Caricamento…",
+    "errorLoad": "Errore nel caricamento dei dati utente. Riprova più tardi.",
+    "userNotFound": "Utente non trovato.",
+    "statusActive": "Attivo",
+    "statusInactive": "Inattivo",
+    "registeredLabel": "Registrato: {{date}}",
+    "lastLoginLabel": "Ultimo accesso: {{when}}",
+    "roleLabel": "Ruolo: {{role}}",
+    "lastLoginNever": "Mai",
+    "lastLoginUnderHour": "Meno di un'ora fa",
+    "lastLoginHoursAgoOne": "{{count}} ora fa",
+    "lastLoginHoursAgoOther": "{{count}} ore fa",
+    "lastLoginOneDayAgo": "1 giorno fa",
+    "lastLoginDaysAgoOther": "{{count}} giorni fa",
+    "intro": {
+      "title": "Informazioni utente",
+      "socialLoginLabel": "Login social",
+      "providerAvatarAlt": "Avatar {{provider}}",
+      "accountCreatedLabel": "Account creato",
+      "lastUpdatedLabel": "Ultimo aggiornamento",
+      "lastLoginCardLabel": "Ultimo accesso",
+      "emailVerificationLabel": "Verifica email",
+      "emailVerifiedBadge": "Verificata",
+      "emailNotVerifiedBadge": "Non verificata",
+      "lastLoginNever": "Mai",
+      "systemNotesLabel": "Note di sistema",
+      "systemNotesAccountCreated": "Account {{role}} creato il {{date}}.",
+      "systemNotesEmailVerified": " Email verificata.",
+      "systemNotesEmailNotVerified": " Email non ancora verificata.",
+      "systemNotesActive": " Account attivo.",
+      "systemNotesDisabled": " Account disabilitato.",
+      "showMore": "Mostra altri dettagli",
+      "showLess": "Mostra meno dettagli"
+    }
+  },
   "adminRoles": {
     "pageTitle": "Gestione ruoli",
     "intro": "Gestisci ruoli e binding per <strong>{{tenant}}</strong>. I ruoli di sistema sono in sola lettura; i ruoli personalizzati possono essere creati selezionando permessi dal catalogo.",

@@ -3105,6 +3105,61 @@
       "errorUnknown": "unknown error"
     }
   },
+  "adminInternalTenants": {
+    "detail": {
+      "breadcrumbList": "Internal Tenants",
+      "notFound": "Tenant not found or you lack permission to view it.",
+      "backToList": "Back to internal tenants",
+      "tierBadge": "internal",
+      "statusActive": "active",
+      "statusArchived": "archived",
+      "statusSuspended": "suspended",
+      "statusProvisioning": "provisioning",
+      "statusPurged": "purged",
+      "idLabel": "ID:",
+      "ownerLabel": "Owner:",
+      "tabs": {
+        "overview": "Overview",
+        "members": "Members"
+      }
+    }
+  },
+  "operatorProfile": {
+    "loadingAria": "Loading...",
+    "errorLoad": "Error loading user data. Please try again later.",
+    "userNotFound": "User not found.",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "registeredLabel": "Registered: {{date}}",
+    "lastLoginLabel": "Last Login: {{when}}",
+    "roleLabel": "Role: {{role}}",
+    "lastLoginNever": "Never",
+    "lastLoginUnderHour": "Less than an hour ago",
+    "lastLoginHoursAgoOne": "{{count}} hour ago",
+    "lastLoginHoursAgoOther": "{{count}} hours ago",
+    "lastLoginOneDayAgo": "1 day ago",
+    "lastLoginDaysAgoOther": "{{count}} days ago",
+    "intro": {
+      "title": "User Information",
+      "socialLoginLabel": "Social Login",
+      "providerAvatarAlt": "{{provider}} avatar",
+      "accountCreatedLabel": "Account Created",
+      "lastUpdatedLabel": "Last Updated",
+      "lastLoginCardLabel": "Last Login",
+      "emailVerificationLabel": "Email Verification",
+      "emailVerifiedBadge": "Verified",
+      "emailNotVerifiedBadge": "Not Verified",
+      "lastLoginNever": "Never",
+      "systemNotesLabel": "System Notes",
+      "systemNotesAccountCreated": "Account {{role}} created on {{date}}.",
+      "systemNotesEmailVerified": " Email verified.",
+      "systemNotesEmailNotVerified": " Email not yet verified.",
+      "systemNotesActive": " Account active.",
+      "systemNotesDisabled": " Account disabled.",
+      "showMore": "Show more details",
+      "showLess": "Show less details"
+    }
+  },
   "adminRoles": {
     "pageTitle": "Role Management",
     "intro": "Manage roles and bindings for <strong>{{tenant}}</strong>. System roles are read-only; custom roles can be created by picking permissions from the catalog.",
