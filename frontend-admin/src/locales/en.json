@@ -3427,6 +3427,43 @@
       }
     }
   },
+  "userProfileScaffold": {
+    "intro": {
+      "title": "Intro",
+      "showMore": "Show more",
+      "showLess": "Show less"
+    },
+    "followers": {
+      "title": "Followers ({{count}})",
+      "allMembers": "All Members"
+    },
+    "activityLog": {
+      "title": "Activity log",
+      "allLogs": "All logs"
+    },
+    "education": {
+      "cardTitle": "Education",
+      "addNew": "Add new education",
+      "labelSchool": "School",
+      "labelDegree": "Degree",
+      "labelField": "Field",
+      "labelFrom": "From",
+      "labelTo": "To",
+      "save": "Save"
+    },
+    "experiences": {
+      "cardTitle": "Experiences",
+      "addNew": "Add new experience",
+      "labelCompany": "Company",
+      "labelPosition": "Position",
+      "labelCity": "City",
+      "labelDescription": "Description",
+      "labelCurrentlyWork": "I currently work here",
+      "labelFrom": "From",
+      "labelTo": "To",
+      "save": "Save"
+    }
+  },
   "userScaffold": {
     "dashboard": {
       "pageTitle": "Dashboard",

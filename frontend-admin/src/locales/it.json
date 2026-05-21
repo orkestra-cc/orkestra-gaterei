@@ -3427,6 +3427,43 @@
       }
     }
   },
+  "userProfileScaffold": {
+    "intro": {
+      "title": "Introduzione",
+      "showMore": "Mostra altro",
+      "showLess": "Mostra meno"
+    },
+    "followers": {
+      "title": "Follower ({{count}})",
+      "allMembers": "Tutti i membri"
+    },
+    "activityLog": {
+      "title": "Log attività",
+      "allLogs": "Tutti i log"
+    },
+    "education": {
+      "cardTitle": "Formazione",
+      "addNew": "Aggiungi nuova formazione",
+      "labelSchool": "Scuola",
+      "labelDegree": "Titolo di studio",
+      "labelField": "Campo",
+      "labelFrom": "Da",
+      "labelTo": "A",
+      "save": "Salva"
+    },
+    "experiences": {
+      "cardTitle": "Esperienze",
+      "addNew": "Aggiungi nuova esperienza",
+      "labelCompany": "Azienda",
+      "labelPosition": "Posizione",
+      "labelCity": "Città",
+      "labelDescription": "Descrizione",
+      "labelCurrentlyWork": "Lavoro qui attualmente",
+      "labelFrom": "Da",
+      "labelTo": "A",
+      "save": "Salva"
+    }
+  },
   "userScaffold": {
     "dashboard": {
       "pageTitle": "Dashboard",
