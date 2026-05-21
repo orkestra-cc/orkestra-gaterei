@@ -1364,7 +1364,51 @@
   },
   "marketing": {
     "contacts": {
-      "title": "Contacts"
+      "title": "Contacts",
+      "detail": {
+        "loading": "Loading…",
+        "notFoundTitle": "Contact not found",
+        "notFoundBody": "The person UUID <code>{{id}}</code> does not exist in this tenant.",
+        "backToContacts": "← Back to contacts",
+        "allContacts": "← All contacts",
+        "unnamed": "Unnamed contact",
+        "tabs": {
+          "overview": "Overview",
+          "memberships": "Memberships",
+          "sources": "Sources"
+        },
+        "emailsHeader": "Emails",
+        "emailsEmpty": "No emails on file.",
+        "badgePrimary": "primary",
+        "badgeVerified": "verified",
+        "phonesHeader": "Phones",
+        "phonesEmpty": "No phones on file.",
+        "tagsHeader": "Tags",
+        "tagsEmpty": "No tags.",
+        "languageHeader": "Language",
+        "customFieldsHeader": "Custom fields",
+        "dash": "—",
+        "memberships": {
+          "empty": "No memberships. Link this person to an organization to populate the activity-org denormalization (used in Phase 2+ scoring).",
+          "colOrg": "Organization",
+          "colRole": "Role",
+          "colStatus": "Status",
+          "colPeriod": "Period",
+          "statusActive": "active",
+          "statusClosed": "closed",
+          "primary": "primary",
+          "present": "present"
+        },
+        "sources": {
+          "description": "Every importer run and manual create appends a provenance entry; the array is monotonic so this is the audit log of where this contact's data came from.",
+          "empty": "No provenance entries.",
+          "colImporter": "Importer",
+          "colJob": "Job",
+          "colExternalId": "External ID",
+          "colImportedAt": "Imported at"
+        },
+        "editDisabled": "Edit (coming in Phase 1 follow-up)"
+      }
     },
     "tags": {
       "title": "Tags"

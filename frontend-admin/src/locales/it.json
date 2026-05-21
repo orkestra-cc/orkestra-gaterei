@@ -1364,7 +1364,51 @@
   },
   "marketing": {
     "contacts": {
-      "title": "Contatti"
+      "title": "Contatti",
+      "detail": {
+        "loading": "Caricamento…",
+        "notFoundTitle": "Contatto non trovato",
+        "notFoundBody": "L'UUID persona <code>{{id}}</code> non esiste in questo tenant.",
+        "backToContacts": "← Torna ai contatti",
+        "allContacts": "← Tutti i contatti",
+        "unnamed": "Contatto senza nome",
+        "tabs": {
+          "overview": "Panoramica",
+          "memberships": "Appartenenze",
+          "sources": "Origini"
+        },
+        "emailsHeader": "Email",
+        "emailsEmpty": "Nessuna email registrata.",
+        "badgePrimary": "primaria",
+        "badgeVerified": "verificata",
+        "phonesHeader": "Telefoni",
+        "phonesEmpty": "Nessun telefono registrato.",
+        "tagsHeader": "Tag",
+        "tagsEmpty": "Nessun tag.",
+        "languageHeader": "Lingua",
+        "customFieldsHeader": "Campi personalizzati",
+        "dash": "—",
+        "memberships": {
+          "empty": "Nessuna appartenenza. Collega questa persona a un'organizzazione per popolare la denormalizzazione activity-org (usata nello scoring di Fase 2+).",
+          "colOrg": "Organizzazione",
+          "colRole": "Ruolo",
+          "colStatus": "Stato",
+          "colPeriod": "Periodo",
+          "statusActive": "attiva",
+          "statusClosed": "chiusa",
+          "primary": "primaria",
+          "present": "in corso"
+        },
+        "sources": {
+          "description": "Ogni esecuzione dell'importer e ogni creazione manuale aggiunge una voce di provenienza; l'array è monotono e rappresenta il log di audit delle fonti dati del contatto.",
+          "empty": "Nessuna voce di provenienza.",
+          "colImporter": "Importer",
+          "colJob": "Job",
+          "colExternalId": "ID esterno",
+          "colImportedAt": "Importato il"
+        },
+        "editDisabled": "Modifica (in arrivo nei follow-up di Fase 1)"
+      }
     },
     "tags": {
       "title": "Tag"
