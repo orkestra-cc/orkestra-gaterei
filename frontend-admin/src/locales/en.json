@@ -978,6 +978,91 @@
         "submit": "Run Algorithm",
         "running": "Running…"
       }
+    },
+    "relationships": {
+      "pageTitle": "Relationship Types",
+      "addButton": "Add Relationship",
+      "empty": "No relationship types configured.",
+      "cols": {
+        "name": "Name",
+        "description": "Description",
+        "fromTo": "From → To",
+        "properties": "Properties",
+        "actions": "Actions"
+      },
+      "categoryLabels": {
+        "iso": "ISO",
+        "law": "Law",
+        "regulation": "Regulation",
+        "generic": "Generic"
+      },
+      "systemBadge": "System",
+      "editTitle": "Edit",
+      "deleteTitle": "Delete",
+      "deleteConfirm": "Delete relationship type \"{{name}}\"?",
+      "modal": {
+        "titleEdit": "Edit Relationship Type",
+        "titleAdd": "Add Relationship Type",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. IMPLEMENTS",
+        "nameImmutable": "Name cannot be changed",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "What this relationship represents",
+        "fromNodeLabel": "From Node",
+        "toNodeLabel": "To Node",
+        "propertiesLabel": "Properties",
+        "propertiesPlaceholder": "e.g. similarity, referenceText (comma-separated)",
+        "categoriesLabel": "Active for Categories",
+        "cancel": "Cancel",
+        "save": "Save Changes",
+        "create": "Create",
+        "saving": "Saving…",
+        "errorNameRequired": "Name is required",
+        "errorGeneric": "Operation failed"
+      }
+    },
+    "vector": {
+      "pageTitle": "Vector Search",
+      "databaseLabel": "Database:",
+      "databasePlaceholder": "default",
+      "indexes": {
+        "title": "Vector Indexes",
+        "empty": "No vector indexes found.",
+        "cols": {
+          "name": "Name",
+          "label": "Label",
+          "property": "Property",
+          "dimensions": "Dims",
+          "similarity": "Similarity",
+          "state": "State"
+        },
+        "drop": "Drop"
+      },
+      "create": {
+        "title": "Create Vector Index",
+        "namePlaceholder": "Index name",
+        "labelPlaceholder": "Label",
+        "propertyPlaceholder": "Property",
+        "dimensionsPlaceholder": "Dims",
+        "submit": "Create Index",
+        "similarity": {
+          "cos": "Cosine",
+          "l2sq": "Euclidean (L2)",
+          "ip": "Inner Product"
+        }
+      },
+      "search": {
+        "title": "Similarity Search",
+        "indexLabel": "Index",
+        "indexPlaceholder": "Select index…",
+        "indexOption": "{{name}} ({{dimensions}}d, {{similarity}})",
+        "vectorLabel": "Query Vector (JSON array)",
+        "vectorPlaceholder": "[0.1, 0.2, 0.3, …]",
+        "topKLabel": "Top K",
+        "minScoreLabel": "Min Score",
+        "submit": "Search",
+        "searching": "Searching…"
+      }
     }
   },
   "identityAddon": {

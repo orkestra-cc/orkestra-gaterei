@@ -978,6 +978,91 @@
         "submit": "Esegui algoritmo",
         "running": "In esecuzione…"
       }
+    },
+    "relationships": {
+      "pageTitle": "Tipi di relazione",
+      "addButton": "Aggiungi relazione",
+      "empty": "Nessun tipo di relazione configurato.",
+      "cols": {
+        "name": "Nome",
+        "description": "Descrizione",
+        "fromTo": "Da → A",
+        "properties": "Proprietà",
+        "actions": "Azioni"
+      },
+      "categoryLabels": {
+        "iso": "ISO",
+        "law": "Legge",
+        "regulation": "Regolamento",
+        "generic": "Generico"
+      },
+      "systemBadge": "Sistema",
+      "editTitle": "Modifica",
+      "deleteTitle": "Elimina",
+      "deleteConfirm": "Eliminare il tipo di relazione \"{{name}}\"?",
+      "modal": {
+        "titleEdit": "Modifica tipo di relazione",
+        "titleAdd": "Aggiungi tipo di relazione",
+        "nameLabel": "Nome",
+        "namePlaceholder": "es. IMPLEMENTS",
+        "nameImmutable": "Il nome non può essere modificato",
+        "descriptionLabel": "Descrizione",
+        "descriptionPlaceholder": "Cosa rappresenta questa relazione",
+        "fromNodeLabel": "Nodo di origine",
+        "toNodeLabel": "Nodo di destinazione",
+        "propertiesLabel": "Proprietà",
+        "propertiesPlaceholder": "es. similarity, referenceText (separati da virgola)",
+        "categoriesLabel": "Attiva per categorie",
+        "cancel": "Annulla",
+        "save": "Salva modifiche",
+        "create": "Crea",
+        "saving": "Salvataggio…",
+        "errorNameRequired": "Il nome è obbligatorio",
+        "errorGeneric": "Operazione fallita"
+      }
+    },
+    "vector": {
+      "pageTitle": "Ricerca vettoriale",
+      "databaseLabel": "Database:",
+      "databasePlaceholder": "default",
+      "indexes": {
+        "title": "Indici vettoriali",
+        "empty": "Nessun indice vettoriale trovato.",
+        "cols": {
+          "name": "Nome",
+          "label": "Etichetta",
+          "property": "Proprietà",
+          "dimensions": "Dim.",
+          "similarity": "Similarità",
+          "state": "Stato"
+        },
+        "drop": "Elimina"
+      },
+      "create": {
+        "title": "Crea indice vettoriale",
+        "namePlaceholder": "Nome indice",
+        "labelPlaceholder": "Etichetta",
+        "propertyPlaceholder": "Proprietà",
+        "dimensionsPlaceholder": "Dim.",
+        "submit": "Crea indice",
+        "similarity": {
+          "cos": "Coseno",
+          "l2sq": "Euclidea (L2)",
+          "ip": "Prodotto interno"
+        }
+      },
+      "search": {
+        "title": "Ricerca per similarità",
+        "indexLabel": "Indice",
+        "indexPlaceholder": "Seleziona indice…",
+        "indexOption": "{{name}} ({{dimensions}}d, {{similarity}})",
+        "vectorLabel": "Vettore di query (array JSON)",
+        "vectorPlaceholder": "[0.1, 0.2, 0.3, …]",
+        "topKLabel": "Top K",
+        "minScoreLabel": "Punteggio min.",
+        "submit": "Cerca",
+        "searching": "Ricerca…"
+      }
     }
   },
   "identityAddon": {
