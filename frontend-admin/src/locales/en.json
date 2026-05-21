@@ -922,6 +922,64 @@
       }
     }
   },
+  "graph": {
+    "databases": {
+      "pageTitle": "Graph Databases",
+      "connection": {
+        "title": "Connection Status",
+        "connected": "Connected",
+        "disconnected": "Disconnected"
+      },
+      "online": {
+        "title": "Databases",
+        "suffix": "online"
+      },
+      "list": {
+        "title": "Available Databases",
+        "empty": "No databases found",
+        "cols": {
+          "name": "Name",
+          "status": "Status",
+          "address": "Address",
+          "default": "Default",
+          "home": "Home"
+        },
+        "defaultBadge": "Default",
+        "homeBadge": "Home"
+      },
+      "schema": {
+        "title": "Schema: {{database}}",
+        "nodes": "{{count}} nodes",
+        "relationships": "{{count}} relationships",
+        "unavailable": "Unable to fetch schema",
+        "labelsHeading": "Labels ({{count}})",
+        "relTypesHeading": "Relationship Types ({{count}})",
+        "indexesHeading": "Indexes ({{count}})"
+      }
+    },
+    "algorithms": {
+      "pageTitle": "Graph Algorithms",
+      "databaseLabel": "Database:",
+      "databasePlaceholder": "default",
+      "available": {
+        "title": "Available Algorithms (MAGE)",
+        "cols": {
+          "name": "Name",
+          "category": "Category",
+          "procedure": "Procedure"
+        }
+      },
+      "run": {
+        "title": "Run Algorithm",
+        "algorithmLabel": "Algorithm",
+        "selectPlaceholder": "Select algorithm…",
+        "configHeading": "Algorithm Configuration (JSON)",
+        "configPlaceholder": "{}",
+        "submit": "Run Algorithm",
+        "running": "Running…"
+      }
+    }
+  },
   "identityAddon": {
     "title": "Identity (IdP + SCIM)",
     "description": "Configure per-tenant OIDC sign-in and provision the SCIM 2.0 bearer token the IdP uses to push user lifecycle events. Changes apply to the <strong>currently selected tenant</strong>; switch tenants to configure a different one."

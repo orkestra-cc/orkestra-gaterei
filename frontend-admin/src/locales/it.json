@@ -922,6 +922,64 @@
       }
     }
   },
+  "graph": {
+    "databases": {
+      "pageTitle": "Database grafo",
+      "connection": {
+        "title": "Stato connessione",
+        "connected": "Connesso",
+        "disconnected": "Disconnesso"
+      },
+      "online": {
+        "title": "Database",
+        "suffix": "online"
+      },
+      "list": {
+        "title": "Database disponibili",
+        "empty": "Nessun database trovato",
+        "cols": {
+          "name": "Nome",
+          "status": "Stato",
+          "address": "Indirizzo",
+          "default": "Predefinito",
+          "home": "Home"
+        },
+        "defaultBadge": "Predefinito",
+        "homeBadge": "Home"
+      },
+      "schema": {
+        "title": "Schema: {{database}}",
+        "nodes": "{{count}} nodi",
+        "relationships": "{{count}} relazioni",
+        "unavailable": "Impossibile recuperare lo schema",
+        "labelsHeading": "Etichette ({{count}})",
+        "relTypesHeading": "Tipi di relazione ({{count}})",
+        "indexesHeading": "Indici ({{count}})"
+      }
+    },
+    "algorithms": {
+      "pageTitle": "Algoritmi grafo",
+      "databaseLabel": "Database:",
+      "databasePlaceholder": "default",
+      "available": {
+        "title": "Algoritmi disponibili (MAGE)",
+        "cols": {
+          "name": "Nome",
+          "category": "Categoria",
+          "procedure": "Procedura"
+        }
+      },
+      "run": {
+        "title": "Esegui algoritmo",
+        "algorithmLabel": "Algoritmo",
+        "selectPlaceholder": "Seleziona algoritmo…",
+        "configHeading": "Configurazione algoritmo (JSON)",
+        "configPlaceholder": "{}",
+        "submit": "Esegui algoritmo",
+        "running": "In esecuzione…"
+      }
+    }
+  },
   "identityAddon": {
     "title": "Identity (IdP + SCIM)",
     "description": "Configura il login OIDC per tenant e provvedi il bearer SCIM 2.0 che l'IdP usa per inviare eventi di ciclo di vita degli utenti. Le modifiche si applicano al <strong>tenant attualmente selezionato</strong>; cambia tenant per configurarne uno diverso."
