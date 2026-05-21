@@ -1152,6 +1152,116 @@
         "charsSuffix": "{{count}} chars"
       }
     },
+    "explorer": {
+      "pageTitle": "Graph Explorer",
+      "view": {
+        "graph": "Graph",
+        "split": "Split",
+        "table": "Table"
+      },
+      "sidebar": {
+        "title": "Database Schema",
+        "collapse": "Collapse sidebar",
+        "expand": "Expand Schema"
+      },
+      "results": {
+        "title": "Results",
+        "rowsOne": "{{count}} row in {{ms}}ms",
+        "rowsOther": "{{count}} rows in {{ms}}ms",
+        "emptyHint": "Run a query to see results here. Click a label in the schema to browse nodes."
+      },
+      "node": {
+        "labelPrefix": "Node {{id}}",
+        "close": "Close"
+      },
+      "deleteNodeConfirm": "Delete node {{id}} (:{{labels}})?\nThis will also remove all connected relationships.",
+      "deleteRelConfirm": "Delete relationship {{id}} (:{{type}})?"
+    },
+    "cypher": {
+      "cardTitle": "Cypher Query",
+      "ctrlEnterHint": "Ctrl+Enter to execute",
+      "queryPlaceholder": "MATCH (n) RETURN n LIMIT 25",
+      "execute": "Execute",
+      "running": "Running…",
+      "readOnly": "Read Only",
+      "clear": "Clear",
+      "parameters": "Parameters",
+      "paramsSetBadge": "set",
+      "history": "History",
+      "paramsLabel": "Query Parameters (JSON)",
+      "paramsPlaceholder": "{ \"name\": \"value\" }",
+      "errorInvalidJson": "Invalid JSON parameters"
+    },
+    "results": {
+      "loading": "Running query…",
+      "nullCell": "null",
+      "noResultsTitle": "No results.",
+      "noResultsUpdates": "Query executed successfully with updates.",
+      "noResultsEmpty": "The query returned an empty result set.",
+      "graphAvailableBadge": "Graph data available",
+      "rowsOne": "{{count}} row",
+      "rowsOther": "{{count}} rows",
+      "metadata": {
+        "nodesCreated": "Nodes created",
+        "nodesDeleted": "Nodes deleted",
+        "relsCreated": "Rels created",
+        "relsDeleted": "Rels deleted",
+        "propsSet": "Props set",
+        "labelsAdded": "Labels added",
+        "labelsRemoved": "Labels removed"
+      }
+    },
+    "schema": {
+      "loading": "Loading schema…",
+      "error": "Failed to load schema. Check the graph database connection.",
+      "empty": "No schema data available",
+      "databaseDefaultOption": "Default database",
+      "databaseDefaultSuffix": " (default)",
+      "databaseHomeSuffix": " (home)",
+      "documentScopeLabel": "Document scope",
+      "documentScopeAll": "All documents",
+      "nodesBadge": "{{count}} nodes",
+      "relsBadge": "{{count}} rels",
+      "sections": {
+        "labels": "Labels",
+        "relationshipTypes": "Relationship Types",
+        "indexes": "Indexes",
+        "constraints": "Constraints"
+      },
+      "emptyLabels": "No labels found",
+      "emptyRelTypes": "No relationship types found",
+      "emptyIndexes": "No indexes found",
+      "emptyConstraints": "No constraints found",
+      "noProperties": "No properties",
+      "browseLabelTitle": "Browse :{{name}} nodes",
+      "browseRelTitle": "Browse :{{name}} relationships",
+      "indexTypePrefix": "Type:",
+      "indexLabelsPrefix": "Labels:",
+      "indexPropsPrefix": "Props:"
+    },
+    "viewer": {
+      "layoutAriaLabel": "Graph layout",
+      "fit": "Fit",
+      "exportPng": "Export PNG",
+      "nodesOne": "{{count}} node",
+      "nodesOther": "{{count}} nodes",
+      "edgesOne": "{{count}} edge",
+      "edgesOther": "{{count}} edges",
+      "legendTitle": "Labels",
+      "layouts": {
+        "fcose": "fCoSE",
+        "cose": "CoSE",
+        "circle": "Circle",
+        "grid": "Grid",
+        "breadthfirst": "Breadthfirst",
+        "concentric": "Concentric"
+      }
+    },
+    "contextMenu": {
+      "expandNeighbors": "Expand Neighbors",
+      "deleteNode": "Delete Node",
+      "deleteRelationship": "Delete Relationship"
+    },
     "vector": {
       "pageTitle": "Vector Search",
       "databaseLabel": "Database:",

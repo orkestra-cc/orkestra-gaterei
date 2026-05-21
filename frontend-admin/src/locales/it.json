@@ -1152,6 +1152,116 @@
         "charsSuffix": "{{count}} caratteri"
       }
     },
+    "explorer": {
+      "pageTitle": "Graph Explorer",
+      "view": {
+        "graph": "Grafo",
+        "split": "Diviso",
+        "table": "Tabella"
+      },
+      "sidebar": {
+        "title": "Schema database",
+        "collapse": "Comprimi sidebar",
+        "expand": "Espandi schema"
+      },
+      "results": {
+        "title": "Risultati",
+        "rowsOne": "{{count}} riga in {{ms}}ms",
+        "rowsOther": "{{count}} righe in {{ms}}ms",
+        "emptyHint": "Esegui una query per vedere i risultati qui. Clicca un'etichetta nello schema per esplorare i nodi."
+      },
+      "node": {
+        "labelPrefix": "Nodo {{id}}",
+        "close": "Chiudi"
+      },
+      "deleteNodeConfirm": "Eliminare il nodo {{id}} (:{{labels}})?\nVerranno rimosse anche tutte le relazioni connesse.",
+      "deleteRelConfirm": "Eliminare la relazione {{id}} (:{{type}})?"
+    },
+    "cypher": {
+      "cardTitle": "Query Cypher",
+      "ctrlEnterHint": "Ctrl+Invio per eseguire",
+      "queryPlaceholder": "MATCH (n) RETURN n LIMIT 25",
+      "execute": "Esegui",
+      "running": "In esecuzione…",
+      "readOnly": "Sola lettura",
+      "clear": "Pulisci",
+      "parameters": "Parametri",
+      "paramsSetBadge": "impostati",
+      "history": "Cronologia",
+      "paramsLabel": "Parametri query (JSON)",
+      "paramsPlaceholder": "{ \"name\": \"value\" }",
+      "errorInvalidJson": "Parametri JSON non validi"
+    },
+    "results": {
+      "loading": "Esecuzione query…",
+      "nullCell": "null",
+      "noResultsTitle": "Nessun risultato.",
+      "noResultsUpdates": "Query eseguita con successo con aggiornamenti.",
+      "noResultsEmpty": "La query ha restituito un insieme di risultati vuoto.",
+      "graphAvailableBadge": "Dati grafo disponibili",
+      "rowsOne": "{{count}} riga",
+      "rowsOther": "{{count}} righe",
+      "metadata": {
+        "nodesCreated": "Nodi creati",
+        "nodesDeleted": "Nodi eliminati",
+        "relsCreated": "Rel. create",
+        "relsDeleted": "Rel. eliminate",
+        "propsSet": "Proprietà impostate",
+        "labelsAdded": "Etichette aggiunte",
+        "labelsRemoved": "Etichette rimosse"
+      }
+    },
+    "schema": {
+      "loading": "Caricamento schema…",
+      "error": "Impossibile caricare lo schema. Verifica la connessione al database grafo.",
+      "empty": "Nessun dato di schema disponibile",
+      "databaseDefaultOption": "Database predefinito",
+      "databaseDefaultSuffix": " (predefinito)",
+      "databaseHomeSuffix": " (home)",
+      "documentScopeLabel": "Ambito documento",
+      "documentScopeAll": "Tutti i documenti",
+      "nodesBadge": "{{count}} nodi",
+      "relsBadge": "{{count}} rel.",
+      "sections": {
+        "labels": "Etichette",
+        "relationshipTypes": "Tipi di relazione",
+        "indexes": "Indici",
+        "constraints": "Vincoli"
+      },
+      "emptyLabels": "Nessuna etichetta trovata",
+      "emptyRelTypes": "Nessun tipo di relazione trovato",
+      "emptyIndexes": "Nessun indice trovato",
+      "emptyConstraints": "Nessun vincolo trovato",
+      "noProperties": "Nessuna proprietà",
+      "browseLabelTitle": "Esplora i nodi :{{name}}",
+      "browseRelTitle": "Esplora le relazioni :{{name}}",
+      "indexTypePrefix": "Tipo:",
+      "indexLabelsPrefix": "Etichette:",
+      "indexPropsPrefix": "Prop.:"
+    },
+    "viewer": {
+      "layoutAriaLabel": "Layout grafo",
+      "fit": "Adatta",
+      "exportPng": "Esporta PNG",
+      "nodesOne": "{{count}} nodo",
+      "nodesOther": "{{count}} nodi",
+      "edgesOne": "{{count}} arco",
+      "edgesOther": "{{count}} archi",
+      "legendTitle": "Etichette",
+      "layouts": {
+        "fcose": "fCoSE",
+        "cose": "CoSE",
+        "circle": "Cerchio",
+        "grid": "Griglia",
+        "breadthfirst": "Ampiezza",
+        "concentric": "Concentrico"
+      }
+    },
+    "contextMenu": {
+      "expandNeighbors": "Espandi vicini",
+      "deleteNode": "Elimina nodo",
+      "deleteRelationship": "Elimina relazione"
+    },
     "vector": {
       "pageTitle": "Ricerca vettoriale",
       "databaseLabel": "Database:",
