@@ -13,7 +13,7 @@ import {
   Badge,
   InputGroup
 } from 'react-bootstrap';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   useListMarketingTagsQuery,
   useCreateMarketingTagMutation,
@@ -78,9 +78,7 @@ const TagsPage: React.FC = () => {
 
   const onDelete = async (tag: Tag) => {
     if (
-      !window.confirm(
-        `Delete tag "${tag.name}"? References on contacts will become orphans.`
-      )
+      !window.confirm(t('marketing.tags.confirmDelete', { name: tag.name }))
     ) {
       return;
     }
@@ -95,34 +93,33 @@ const TagsPage: React.FC = () => {
         <div>
           <h3 className="fw-normal mb-1">{t('marketing.tags.title')}</h3>
           <p className="fs-10 text-muted mb-0">
-            Hierarchical labels applied to persons and organizations. Slug is
-            the stable machine identifier — name is free to rename without
-            touching the contacts that reference it.
+            {t('marketing.tags.subtitle')}
           </p>
         </div>
         <Button variant="primary" onClick={openNew}>
-          New tag
+          {t('marketing.tags.newTag')}
         </Button>
       </div>
 
       <Card>
         <Card.Body className="p-0">
           {isLoading ? (
-            <div className="p-3 text-muted">Loading…</div>
+            <div className="p-3 text-muted">{t('marketing.tags.loading')}</div>
           ) : !data?.items?.length ? (
             <div className="p-3 text-muted">
-              No tags yet. Operators build their own taxonomy — e.g.
-              <code>/Industry</code>, <code>/Region</code>,<code>/Segment</code>{' '}
-              root branches.
+              <Trans
+                i18nKey="marketing.tags.empty"
+                components={{ code: <code /> }}
+              />
             </div>
           ) : (
             <Table responsive hover className="mb-0">
               <thead className="bg-200">
                 <tr>
-                  <th>Name</th>
-                  <th>Slug</th>
-                  <th>Path</th>
-                  <th>Color</th>
+                  <th>{t('marketing.tags.colName')}</th>
+                  <th>{t('marketing.tags.colSlug')}</th>
+                  <th>{t('marketing.tags.colPath')}</th>
+                  <th>{t('marketing.tags.colColor')}</th>
                   <th style={{ width: 140 }} />
                 </tr>
               </thead>
@@ -157,7 +154,7 @@ const TagsPage: React.FC = () => {
                         variant="link"
                         onClick={() => openEdit(tag)}
                       >
-                        Edit
+                        {t('marketing.tags.edit')}
                       </Button>
                       <Button
                         size="sm"
@@ -165,7 +162,7 @@ const TagsPage: React.FC = () => {
                         className="text-danger"
                         onClick={() => onDelete(tag)}
                       >
-                        Delete
+                        {t('marketing.tags.delete')}
                       </Button>
                     </td>
                   </tr>
@@ -179,11 +176,15 @@ const TagsPage: React.FC = () => {
       <Modal show={show} onHide={() => setShow(false)}>
         <Form onSubmit={onSubmit}>
           <Modal.Header closeButton>
-            <Modal.Title>{editing ? 'Edit tag' : 'New tag'}</Modal.Title>
+            <Modal.Title>
+              {editing
+                ? t('marketing.tags.modalTitleEdit')
+                : t('marketing.tags.modalTitleNew')}
+            </Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label>Name</Form.Label>
+              <Form.Label>{t('marketing.tags.formName')}</Form.Label>
               <Form.Control
                 required
                 value={form.name}
@@ -191,21 +192,20 @@ const TagsPage: React.FC = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Slug</Form.Label>
+              <Form.Label>{t('marketing.tags.formSlug')}</Form.Label>
               <InputGroup>
                 <Form.Control
                   value={form.slug}
                   onChange={e => setForm({ ...form, slug: e.target.value })}
-                  placeholder="Auto-derived from name when empty"
+                  placeholder={t('marketing.tags.formSlugPlaceholder')}
                 />
               </InputGroup>
               <Form.Text className="text-muted">
-                Empty = derived from name. Modifiable but stable — used as the
-                dedup key for re-imports.
+                {t('marketing.tags.formSlugHelp')}
               </Form.Text>
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Description</Form.Label>
+              <Form.Label>{t('marketing.tags.formDescription')}</Form.Label>
               <Form.Control
                 as="textarea"
                 rows={2}
@@ -216,7 +216,7 @@ const TagsPage: React.FC = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Color</Form.Label>
+              <Form.Label>{t('marketing.tags.formColor')}</Form.Label>
               <Form.Control
                 type="color"
                 value={form.color || '#1f6feb'}
@@ -225,13 +225,13 @@ const TagsPage: React.FC = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Parent</Form.Label>
+              <Form.Label>{t('marketing.tags.formParent')}</Form.Label>
               <Form.Select
                 value={form.parentUuid ?? ''}
                 onChange={e => setForm({ ...form, parentUuid: e.target.value })}
                 disabled={!!editing}
               >
-                <option value="">(root)</option>
+                <option value="">{t('marketing.tags.formParentRoot')}</option>
                 {parents.map(p => (
                   <option key={p.uuid} value={p.uuid}>
                     {p.name} ({p.slug})
@@ -240,18 +240,17 @@ const TagsPage: React.FC = () => {
               </Form.Select>
               {editing && (
                 <Form.Text className="text-muted">
-                  Use the (future) move-subtree action to reparent — generic
-                  edit doesn't change parentUuid.
+                  {t('marketing.tags.formParentHelp')}
                 </Form.Text>
               )}
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="outline-secondary" onClick={() => setShow(false)}>
-              Cancel
+              {t('marketing.tags.cancel')}
             </Button>
             <Button type="submit" variant="primary">
-              {editing ? 'Save' : 'Create'}
+              {editing ? t('marketing.tags.save') : t('marketing.tags.create')}
             </Button>
           </Modal.Footer>
         </Form>

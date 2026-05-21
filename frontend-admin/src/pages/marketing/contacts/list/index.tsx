@@ -57,8 +57,7 @@ const ContactsListPage: React.FC = () => {
       <div className="mb-3">
         <h3 className="fw-normal mb-1">{t('marketing.contacts.title')}</h3>
         <p className="fs-10 text-muted mb-0">
-          Persons and Organizations imported into or created within this
-          tenant's marketing base.
+          {t('marketing.contacts.list.subtitle')}
         </p>
       </div>
       <Card>
@@ -67,7 +66,7 @@ const ContactsListPage: React.FC = () => {
             <Nav variant="tabs" className="border-0">
               <Nav.Item>
                 <Nav.Link eventKey="persons">
-                  Persons{' '}
+                  {t('marketing.contacts.list.tabPersons')}{' '}
                   {persons?.meta?.count !== undefined && (
                     <Badge bg="secondary" pill>
                       {persons.meta.count}
@@ -77,7 +76,7 @@ const ContactsListPage: React.FC = () => {
               </Nav.Item>
               <Nav.Item>
                 <Nav.Link eventKey="organizations">
-                  Organizations{' '}
+                  {t('marketing.contacts.list.tabOrganizations')}{' '}
                   {orgs?.meta?.count !== undefined && (
                     <Badge bg="secondary" pill>
                       {orgs.meta.count}
@@ -91,20 +90,21 @@ const ContactsListPage: React.FC = () => {
             <Tab.Content>
               <Tab.Pane eventKey="persons">
                 {personsLoading ? (
-                  <div className="p-3 text-muted">Loading…</div>
+                  <div className="p-3 text-muted">
+                    {t('marketing.contacts.list.loading')}
+                  </div>
                 ) : !persons?.items?.length ? (
                   <div className="p-3 text-muted">
-                    No persons yet. Run a CSV import to populate the contact
-                    base.
+                    {t('marketing.contacts.list.emptyPersons')}
                   </div>
                 ) : (
                   <Table responsive hover className="mb-0">
                     <thead className="bg-200">
                       <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Tags</th>
-                        <th>Updated</th>
+                        <th>{t('marketing.contacts.list.colName')}</th>
+                        <th>{t('marketing.contacts.list.colEmail')}</th>
+                        <th>{t('marketing.contacts.list.colTags')}</th>
+                        <th>{t('marketing.contacts.list.colUpdated')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -148,18 +148,22 @@ const ContactsListPage: React.FC = () => {
               </Tab.Pane>
               <Tab.Pane eventKey="organizations">
                 {orgsLoading ? (
-                  <div className="p-3 text-muted">Loading…</div>
+                  <div className="p-3 text-muted">
+                    {t('marketing.contacts.list.loading')}
+                  </div>
                 ) : !orgs?.items?.length ? (
-                  <div className="p-3 text-muted">No organizations yet.</div>
+                  <div className="p-3 text-muted">
+                    {t('marketing.contacts.list.emptyOrganizations')}
+                  </div>
                 ) : (
                   <Table responsive hover className="mb-0">
                     <thead className="bg-200">
                       <tr>
-                        <th>Legal name</th>
-                        <th>Kind</th>
-                        <th>VAT</th>
-                        <th>Email</th>
-                        <th>Updated</th>
+                        <th>{t('marketing.contacts.list.colLegalName')}</th>
+                        <th>{t('marketing.contacts.list.colKind')}</th>
+                        <th>{t('marketing.contacts.list.colVAT')}</th>
+                        <th>{t('marketing.contacts.list.colEmail')}</th>
+                        <th>{t('marketing.contacts.list.colUpdated')}</th>
                       </tr>
                     </thead>
                     <tbody>
