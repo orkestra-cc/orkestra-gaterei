@@ -1,6 +1,6 @@
 # Plan — Multi-language support for `frontend-admin` (EN + IT)
 
-**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅. Phase 2 setup ✅ (`errcode` + `AuthEmailInUse`). Phase 3 ✅ (i18n bootstrap, EN default, typed `t()`, `useLanguageSync`). **Phase 4 ✅ — every item touched at chrome level + deep dive into admin/MFA/identity destructive modals**:
+**Status:** Phase 0 ✅ (2026-05-20). Phase 1 ✅. Phase 2 setup ✅ (`errcode` + `AuthEmailInUse`). Phase 3 ✅ (i18n bootstrap, EN default, typed `t()`, `useLanguageSync`). **Phase 5 ✅ (2026-05-21) — language picker in `/user/settings`**. **Phase 4 ✅ — every item touched at chrome level + deep dive into admin/MFA/identity destructive modals**:
 
 - ✅ Item 1 Shared chrome (`5e82742`, ~65 strings)
 - ✅ Item 2 Auth screens (`dc0bbdb`, ~120 strings)
@@ -177,7 +177,9 @@ Order chosen by user-visible impact and risk. One PR per item. Each PR also hand
 
 **Exit criteria for the phase:** zero raw English/Italian literals in `frontend-admin/src/pages/`. Lint rule from Phase 7 stays green.
 
-### Phase 5 — Language picker in preferences
+### Phase 5 — Language picker in preferences ✅
+
+Shipped 2026-05-21. New `LanguageSettings.tsx` card mounted in the right-column sidebar of `user/settings/Settings.tsx` (above `AccountSettings`, grouped with other personal preferences). New `useUpdateCurrentUserMutation` on `authApi` PATCHes `/v1/auth/operator/me` with the `language` field; on success it patches both `getCurrentUser` and `getSession` caches in-place so subscribers re-render against the new value without an extra round-trip. Optimistic flow: select change flips `i18n.changeLanguage(next)` + writes the `orkestra_admin_lang` cookie (30-day TTL) immediately, then awaits the PATCH; on failure both sides are reverted and a `react-toastify` error toast fires. `useLanguageSync` (already wired in `App.tsx`) remains the source of truth on subsequent loads. New `settings.language.*` namespace (~9 keys: title/description/selectLabel/saving/optionEn/optionIt/toastSaved/toastFailed/errorUnknown).
 
 1. Locate the existing user preferences page (likely `frontend-admin/src/pages/user/Settings.tsx` per the structure described in [[project_user_security_center]] — confirm in the impl PR).
 2. Add a "Language" form section with a select: English / Italiano.

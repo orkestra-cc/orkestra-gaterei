@@ -440,6 +440,17 @@
       "description": "Password, autenticazione a due fattori, sessioni e dispositivi affidabili sono ora nella loro pagina dedicata.",
       "manage": "Gestisci la sicurezza"
     },
+    "language": {
+      "title": "Lingua",
+      "description": "Scegli la lingua dell'interfaccia della console operatore. La tua preferenza viene sincronizzata su ogni dispositivo da cui accedi.",
+      "selectLabel": "Lingua dell'interfaccia",
+      "saving": "Salvataggio…",
+      "optionEn": "English",
+      "optionIt": "Italiano",
+      "toastSaved": "Lingua aggiornata.",
+      "toastFailed": "Impossibile salvare la preferenza di lingua. Modifica annullata.",
+      "errorUnknown": "Errore sconosciuto"
+    },
     "changePassword": {
       "title": "Cambia password",
       "oldPassword": "Vecchia password",

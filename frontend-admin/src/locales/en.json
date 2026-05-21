@@ -440,6 +440,17 @@
       "description": "Password, two-factor, sessions, and trusted devices live on their own page now.",
       "manage": "Manage security"
     },
+    "language": {
+      "title": "Language",
+      "description": "Switch the operator console interface language. Your preference syncs to every device you sign in from.",
+      "selectLabel": "Display language",
+      "saving": "Saving…",
+      "optionEn": "English",
+      "optionIt": "Italiano",
+      "toastSaved": "Language updated.",
+      "toastFailed": "Could not save your language preference. Reverted.",
+      "errorUnknown": "Unknown error"
+    },
     "changePassword": {
       "title": "Change Password",
       "oldPassword": "Old Password",

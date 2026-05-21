@@ -7,6 +7,7 @@ import avatar from 'assets/img/team/2.jpg';
 import ProfileSettings from './ProfileSettings';
 import ExperiencesSettings from './ExperiencesSettings';
 import EducationSettings from './EducationSettings';
+import LanguageSettings from './LanguageSettings';
 import AccountSettings from './AccountSettings';
 import BillingSettings from './BillingSettings';
 import DangerZone from './DangerZone';
@@ -35,6 +36,7 @@ const Settings: React.FC = () => {
         </Col>
         <Col lg={4}>
           <div className="sticky-sidebar">
+            <LanguageSettings />
             <AccountSettings />
             <BillingSettings />
             <Card className="mb-3">
