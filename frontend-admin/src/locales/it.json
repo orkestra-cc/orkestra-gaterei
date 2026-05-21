@@ -3427,6 +3427,56 @@
       }
     }
   },
+  "userPrivacy": {
+    "intro": {
+      "title": "Privacy e tuoi dati",
+      "body": "Ai sensi del GDPR hai diritto di accedere a una copia dei tuoi dati personali (<em>diritto di accesso</em>) e di richiederne la cancellazione (<em>diritto all'oblio</em>). Entrambi i flussi vengono eseguiti su tutti i moduli che detengono dati su di te."
+    },
+    "export": {
+      "title": "Esporta i tuoi dati",
+      "description": "Scarica un bundle JSON con i dati personali che ogni modulo detiene per il tuo account. È sicuro riprovare — l'endpoint è in sola lettura e non modifica lo stato.",
+      "button": "Scarica bundle JSON",
+      "submitting": "Raccolta dei tuoi dati…",
+      "filename": "orkestra-export-dati-{{user}}-{{ts}}.json",
+      "toastSuccessOne": "Esportati dati da {{count}} modulo.",
+      "toastSuccessOther": "Esportati dati da {{count}} moduli.",
+      "toastPartial": "Alcuni moduli non sono riusciti a esportare. Apri il file per consultare la sezione errori.",
+      "toastFailure": "Esportazione dei dati non riuscita. Riprova più tardi."
+    },
+    "erase": {
+      "title": "Elimina il tuo account",
+      "description": "Rimuove definitivamente i tuoi dati personali su tutti i moduli. Verrai disconnesso immediatamente. Non c'è alcun ripristino possibile.",
+      "button": "Elimina il mio account",
+      "submitting": "Eliminazione…",
+      "loadingProfile": "Caricamento del tuo profilo…",
+      "toastSuccessOne": "Account eliminato. {{count}} riga rimossa.",
+      "toastSuccessOther": "Account eliminato. {{count}} righe rimosse.",
+      "toastFailure": "Eliminazione dell'account non riuscita. Riprova più tardi."
+    },
+    "modal": {
+      "title": "Elimina il tuo account",
+      "warn": {
+        "intro": "Stai per <strong>eliminare definitivamente</strong> il tuo account e ogni record collegato. È un'azione GDPR di diritto all'oblio — il backend esegue ogni producer PII registrato e hard-delete le righe corrispondenti.",
+        "bullet1": "Profilo utente, sessioni, fattori MFA e bind OAuth vengono cancellati.",
+        "bullet2": "Tutti i refresh token vengono invalidati — non potrai più accedere.",
+        "bullet3": "I dati che hai prodotto <em>su</em> altri soggetti (note condivise, righe di audit, modifiche al workspace) vengono mantenuti per motivi regolamentari e di audit-trail.",
+        "bullet4": "Non c'è alcun ripristino, alcun periodo di grazia e alcun percorso di recovery.",
+        "stopNotifications": "Se vuoi solo smettere di ricevere notifiche, usa <strong>Account → Notifiche</strong>."
+      },
+      "typeEmail": {
+        "prompt": "Digita la tua email qui sotto per confermare l'account che stai eliminando:",
+        "placeholder": "tu@esempio.com",
+        "feedback": "L'email non corrisponde."
+      },
+      "finalStep": {
+        "alert": "Questa è la conferma finale. Premendo <strong>Elimina il mio account</strong> l'eliminazione viene eseguita immediatamente.",
+        "body": "Verrai disconnesso e reindirizzato alla pagina di login. Non potrai più accedere."
+      },
+      "cancel": "Annulla",
+      "continue": "Continua",
+      "finalSubmit": "Elimina il mio account"
+    }
+  },
   "userSecurity": {
     "pageTitle": "Sicurezza account",
     "pageSubtitle": "Gestisci password, secondi fattori e sessioni attive.",

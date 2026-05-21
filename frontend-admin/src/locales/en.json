@@ -3427,6 +3427,56 @@
       }
     }
   },
+  "userPrivacy": {
+    "intro": {
+      "title": "Privacy & your data",
+      "body": "Under the GDPR you have the right to access a copy of your personal data (<em>right of access</em>) and to request its deletion (<em>right to erasure</em>). Both flows run against every module that holds data about you."
+    },
+    "export": {
+      "title": "Export your data",
+      "description": "Downloads a JSON bundle with the personal data every module holds for your account. Safe to retry — the endpoint is read-only and does not mutate state.",
+      "button": "Download JSON bundle",
+      "submitting": "Gathering your data…",
+      "filename": "orkestra-data-export-{{user}}-{{ts}}.json",
+      "toastSuccessOne": "Exported data from {{count}} module.",
+      "toastSuccessOther": "Exported data from {{count}} modules.",
+      "toastPartial": "Some modules failed to export. Open the file to review the errors section.",
+      "toastFailure": "Failed to export your data. Please try again later."
+    },
+    "erase": {
+      "title": "Delete your account",
+      "description": "Permanently removes your personal data across every module. You will be signed out immediately. There is no undo and no recovery path.",
+      "button": "Delete my account",
+      "submitting": "Erasing…",
+      "loadingProfile": "Loading your profile…",
+      "toastSuccessOne": "Account erased. {{count}} row removed.",
+      "toastSuccessOther": "Account erased. {{count}} rows removed.",
+      "toastFailure": "Failed to erase your account. Please try again later."
+    },
+    "modal": {
+      "title": "Delete your account",
+      "warn": {
+        "intro": "You are about to <strong>permanently delete</strong> your account and every record tied to it. This is a GDPR right-to-erasure action — the backend runs every registered PII producer and hard-deletes the matching rows.",
+        "bullet1": "Your user profile, sessions, MFA factors, and OAuth bindings are wiped.",
+        "bullet2": "All refresh tokens are invalidated — you cannot sign back in.",
+        "bullet3": "Data you authored <em>about</em> other subjects (shared notes, audit rows, workspace edits) is retained for regulatory and audit-trail reasons.",
+        "bullet4": "There is no undo, no grace period, and no recovery path.",
+        "stopNotifications": "If you only want to stop receiving notifications, use <strong>Account → Notifications</strong> instead."
+      },
+      "typeEmail": {
+        "prompt": "Type your email below to confirm the account you are deleting:",
+        "placeholder": "you@example.com",
+        "feedback": "Email does not match."
+      },
+      "finalStep": {
+        "alert": "This is the final confirmation. Pressing <strong>Erase my account</strong> runs the deletion immediately.",
+        "body": "You will be signed out and redirected to the login page. You will not be able to log back in."
+      },
+      "cancel": "Cancel",
+      "continue": "Continue",
+      "finalSubmit": "Erase my account"
+    }
+  },
   "userSecurity": {
     "pageTitle": "Account security",
     "pageSubtitle": "Manage your password, second factors, and active sessions.",
