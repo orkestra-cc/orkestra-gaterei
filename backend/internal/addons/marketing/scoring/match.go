@@ -94,6 +94,16 @@ func matchKindSelector(kind models.ActivityKind, selector any) bool {
 	}
 }
 
+// MatchPayload is the exported wrapper around the internal payload
+// matcher. ScoreService re-uses it to evaluate
+// ProfileFilter.CustomFieldFilters against a Person's customFields
+// bag — the matching semantics (implicit equality, $eq/$ne/$in/$exists,
+// numeric coercion) are identical to the engine's rule-level
+// payload matcher, so the same primitive serves both call sites.
+func MatchPayload(payload, filter map[string]any) bool {
+	return matchPayload(payload, filter)
+}
+
 // matchPayload reports whether actPayload satisfies filter. Filter
 // keys map to one of:
 //

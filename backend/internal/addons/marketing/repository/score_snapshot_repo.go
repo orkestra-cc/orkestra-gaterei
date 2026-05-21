@@ -168,14 +168,39 @@ func (r *ScoreSnapshotRepository) Leaderboard(ctx context.Context, f Leaderboard
 	return out, nil
 }
 
-// ListStale returns up to `limit` snapshots flagged Stale=true,
-// across every profile. The nightly RecomputeJob iterates this in
-// batches until it returns zero.
+// ListStale returns up to `limit` snapshots flagged Stale=true in
+// the caller's tenant. Used by callers that already carry a tenant
+// scope (eager flows, admin endpoints). The nightly RecomputeJob
+// uses ListStaleAcrossTenants instead because it runs outside any
+// user request.
 func (r *ScoreSnapshotRepository) ListStale(ctx context.Context, limit int64) ([]models.ScoreSnapshot, error) {
 	filter, err := tenantrepo.Scope(ctx, bson.M{"stale": true})
 	if err != nil {
 		return nil, err
 	}
+	return r.listStaleWithFilter(ctx, filter, limit)
+}
+
+// ListStaleAcrossTenants returns up to `limit` stale snapshots
+// regardless of tenant scope. This is the ONE place in the marketing
+// addon that intentionally bypasses tenantrepo.Scope, because the
+// nightly RecomputeJob runs outside any user request and needs to
+// drain stale rows across every tenant in a single pass.
+//
+// The returned ScoreSnapshot rows carry TenantID populated from disk;
+// the caller (ScoreService.RecomputeStaleBatch) stamps that value
+// onto a fresh context via ctxauth.KeyTenantID before delegating
+// downstream work to scope-aware methods.
+//
+// Mirrors the pattern in
+// backend/internal/addons/subscriptions/repository/subscription_repository.go::FindDue
+// — both are nightly cross-tenant scans, both bypass scoping by
+// design, both document the bypass loudly.
+func (r *ScoreSnapshotRepository) ListStaleAcrossTenants(ctx context.Context, limit int64) ([]models.ScoreSnapshot, error) {
+	return r.listStaleWithFilter(ctx, bson.M{"stale": true}, limit)
+}
+
+func (r *ScoreSnapshotRepository) listStaleWithFilter(ctx context.Context, filter bson.M, limit int64) ([]models.ScoreSnapshot, error) {
 	if limit <= 0 {
 		limit = 200
 	}

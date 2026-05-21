@@ -12,24 +12,42 @@
 package marketing
 
 import (
+	"context"
 	"log/slog"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra-cc/orkestra-addon-marketing/handlers"
 	"github.com/orkestra-cc/orkestra-addon-marketing/importers"
 	csvimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/csv"
+	"github.com/orkestra-cc/orkestra-addon-marketing/jobs"
 	"github.com/orkestra-cc/orkestra-addon-marketing/models"
 	"github.com/orkestra-cc/orkestra-addon-marketing/repository"
+	"github.com/orkestra-cc/orkestra-addon-marketing/scoring"
 	"github.com/orkestra-cc/orkestra-addon-marketing/services"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 )
 
-// MarketingModule implements the Orkestra SDK Module interface for the
-// marketing addon. Phase 1 wires the data layer (PR-2), CRUD handlers
-// + routes (PR-3), CSV importer (PR-4), and operator nav items (PR-5).
+// Settings is the typed view of the marketing module's config schema.
+// Each field corresponds 1:1 to an entry in ConfigSchema() — keep them
+// in sync. UnmarshalModule decodes the active environment into this
+// struct so Init() consumes module config through a single typed
+// surface (same pattern as subscriptions).
+type Settings struct {
+	ScoreRecomputeInterval time.Duration `module:"scoreRecomputeInterval"`
+	ScoreEagerOnInsert     bool          `module:"scoreEagerOnInsert"`
+	ActivityBreakdownMax   int           `module:"activityBreakdownMax"`
+}
+
+// MarketingModule implements the Orkestra SDK Module interface for
+// the marketing addon. Phase 1 shipped the contact base + CSV
+// importer + admin UI. Phase 2 grows the module with the activity
+// log, score profiles, score snapshots, and the eager + nightly
+// recompute pipeline (this PR-3 wires the scheduler; PR-4 adds the
+// HTTP routes; PR-5 adds the frontend).
 type MarketingModule struct {
 	module.BaseModule
 
@@ -48,6 +66,19 @@ type MarketingModule struct {
 	// wired in Init. Phase 1 ships only the CSV adapter; future adapters
 	// (excel, odoo) append to the slice without changing the wiring shape.
 	importerAdapters []importers.Importer
+
+	// Phase 2 services held for downstream wiring (PR-4 handlers, the
+	// recompute job) and for tests that need to inspect them.
+	activitySvc  *services.ActivityService
+	scoreSvc     *services.ScoreService
+	profileSvc   *services.ScoreProfileService
+	recomputeJob *jobs.RecomputeJob
+
+	// recomputeCancel cancels the goroutine context created in Start.
+	// Stop calls both this and recomputeJob.Stop — either path on its
+	// own would exit the ticker, but belt-and-braces matches the
+	// subscriptions pattern (see jobs/renewal_job.go select loop).
+	recomputeCancel context.CancelFunc
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -323,40 +354,91 @@ func (m *MarketingModule) NavItems() []module.NavItemSpec {
 	}}
 }
 
+// ConfigSchema declares the per-tenant runtime knobs operators can
+// edit at /admin/modules. Phase 2 introduces three keys — all
+// scoring-engine tuning. EnvVars seed the first-boot defaults on a
+// fresh install (see backend/CLAUDE.md "first boot of a brand-new
+// install").
+//
+// scoreEagerOnInsert flips eager recomputes off for import bursts —
+// when set false the nightly job is the only recompute path. The
+// flag is read once at Init time; flipping it requires a module
+// disable+enable cycle to take effect (acceptable: the use case is
+// "I'm about to run a 100k-row import, turn eager off for an hour
+// then back on").
+func (m *MarketingModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "scoreRecomputeInterval", Label: "Score nightly-recompute interval", Type: module.FieldDuration, Default: "24h", EnvVar: "MARKETING_SCORE_RECOMPUTE_INTERVAL"},
+		{Key: "scoreEagerOnInsert", Label: "Recompute score on activity insert", Type: module.FieldBool, Default: "true", EnvVar: "MARKETING_SCORE_EAGER_ON_INSERT"},
+		{Key: "activityBreakdownMax", Label: "Max breakdown entries per snapshot", Type: module.FieldInt, Default: "100", EnvVar: "MARKETING_ACTIVITY_BREAKDOWN_MAX"},
+	}
+}
+
 // Permissions declares the Cedar permission catalog this module
-// publishes. Phase 1 ships three coarse-grained keys covering Person,
-// Organization, Membership, Tag, and Custom-Field-Schema operations —
-// the design document's finer-grained marketing.tag.write /
-// marketing.custom_field.* permissions are intentionally folded into
-// marketing.contact.* to keep the RBAC surface small until a real
-// separation-of-duties requirement appears.
+// publishes.
+//
+// Phase 1 shipped the contact-base bucket (read/write/delete) and
+// the import bucket. Phase 2 (this PR) adds marketing.score_profile.write
+// for the scoring admin surface; marketing.activity.read and
+// marketing.activity.write are deliberately deferred to PR-4 because
+// the routes that consume them don't exist yet.
+//
+// Note on read access for activities + snapshots: those fold into
+// marketing.contact.read at the handler boundary (Phase 2 plan §2.3).
+// An operator who can see the contact base must also see the
+// scoring that ranks it; granting one without the other would be
+// semantically incoherent.
 //
 // Later phases add:
-//   - marketing.import.run (PR-4, importer trigger gate)
-//   - marketing.activity.read / write (Phase 2, event log)
-//   - marketing.score_profile.write (Phase 2, scoring tuning)
+//   - marketing.activity.read / write (PR-4, event-log handlers)
 //   - marketing.card_type.write / marketing.card.{issue,suspend,revoke}
 //     (Phase 4, card lifecycle)
 //   - marketing.conflict.resolve (Phase 3, review queue)
 func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
-		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, and import-job audit"},
+		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, import-job audit, activity timelines, score profiles, and score snapshots"},
 		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
 		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
 		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
+		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
 	}
 }
 
-// Init wires the data + service + handler graph. The registry calls
-// this after all dependencies have been initialized.
+// Init wires the data + service + handler + job graph. The registry
+// calls this after every declared dependency has finished its own
+// Init.
 //
-// Wiring order: repositories first (Mongo collections only), then
-// services (orchestration), then handlers (HTTP/Huma adapters). The
-// custom-field service is shared by both contact services because
-// each calls Validate before persisting record bags.
+// Wiring order:
+//
+//  1. Module config decoded into Settings (one typed surface).
+//  2. Repositories (Mongo collections only, no business logic).
+//  3. Phase 1 services + handlers (contacts, tags, importer).
+//  4. Phase 2 scoring engine (pure, no I/O).
+//  5. Phase 2 services — ActivityService → ScoreService →
+//     ScoreProfileService. The arrow is the dependency order:
+//     ScoreService is registered as an ActivityService listener so
+//     activity inserts trigger eager recomputes; ScoreProfileService
+//     calls ScoreService.InvalidateProfile on every save.
+//  6. RecomputeJob, held on the module for Start/Stop.
+//
+// The order matters because RegisterListener must run after both
+// the ActivityService (producer) and the ScoreService (consumer)
+// exist.
 func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.ScoreRecomputeInterval <= 0 {
+		settings.ScoreRecomputeInterval = 24 * time.Hour
+	}
+	if settings.ActivityBreakdownMax <= 0 {
+		settings.ActivityBreakdownMax = scoring.DefaultBreakdownMax
+	}
+
+	// --- Phase 1 wiring (unchanged) ---
 	orgRepo := repository.NewOrganizationRepository(deps.DB)
 	personRepo := repository.NewPersonRepository(deps.DB)
 	mshipRepo := repository.NewMembershipRepository(deps.DB)
@@ -380,9 +462,65 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.customFieldHandler = handlers.NewCustomFieldSchemaHandler(cfSvc)
 	m.importsHandler = handlers.NewImportsHandler(importSvc)
 
-	m.logger.Info("Marketing module initialized")
+	// --- Phase 2 wiring ---
+	actRepo := repository.NewActivityRepository(deps.DB)
+	profRepo := repository.NewScoreProfileRepository(deps.DB)
+	snapRepo := repository.NewScoreSnapshotRepository(deps.DB)
+
+	engine := scoring.NewEngine(settings.ActivityBreakdownMax, deps.Logger)
+
+	m.scoreSvc = services.NewScoreService(snapRepo, profRepo, actRepo, personRepo, engine, settings.ScoreEagerOnInsert, deps.Logger)
+	m.activitySvc = services.NewActivityService(actRepo, mshipRepo, deps.Logger)
+	m.profileSvc = services.NewScoreProfileService(profRepo, m.scoreSvc, deps.Logger)
+
+	// Register eager-recompute hook. The closure captures
+	// m.scoreSvc, so the listener slice on ActivityService is the
+	// only reference path between activity inserts and score
+	// recomputation — no global registry, no service-locator
+	// indirection.
+	m.activitySvc.RegisterListener(m.scoreSvc.OnActivityInserted)
+
+	m.recomputeJob = jobs.NewRecomputeJob(m.scoreSvc, settings.ScoreRecomputeInterval, deps.Logger)
+
+	m.logger.Info("Marketing module initialized",
+		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
+		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
+		slog.Int("activityBreakdownMax", settings.ActivityBreakdownMax),
+	)
 	return nil
 }
+
+// Start spawns the nightly recompute job. The registry calls Start
+// only when the module is enabled — disabled modules go through
+// Init (so collections + handlers are wired and the gated routes
+// return 503) but skip Start, so the background ticker doesn't run.
+func (m *MarketingModule) Start(_ context.Context) error {
+	if m.recomputeJob == nil {
+		return nil
+	}
+	jobCtx, cancel := context.WithCancel(context.Background())
+	m.recomputeCancel = cancel
+	go m.recomputeJob.Start(jobCtx)
+	return nil
+}
+
+// Stop cancels the ticker. Both signals (ctx cancel + stopChan close)
+// reach the goroutine's select loop; whichever fires first wins.
+func (m *MarketingModule) Stop(_ context.Context) error {
+	if m.recomputeCancel != nil {
+		m.recomputeCancel()
+	}
+	if m.recomputeJob != nil {
+		m.recomputeJob.Stop()
+	}
+	return nil
+}
+
+// HealthCheck reports the module as healthy as long as Init has run.
+// A future enhancement could probe the recompute job's last-tick
+// timestamp; today the per-module health surface doesn't require
+// background-job liveness.
+func (m *MarketingModule) HealthCheck(_ context.Context) error { return nil }
 
 // RegisterRoutes mounts the CRUD surface on the operator API. The
 // addon serves Tier-1 internal-tenant operators only — Tier-2 client
