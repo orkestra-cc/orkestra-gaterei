@@ -1021,6 +1021,137 @@
         "errorGeneric": "Operation failed"
       }
     },
+    "rag": {
+      "pageTitle": "RAG Query",
+      "toolbar": {
+        "modelLabel": "Model:",
+        "defaultLLM": "Default LLM",
+        "defaultSuffix": " (default)",
+        "isoLabel": "ISO:",
+        "isoPlaceholder": "All",
+        "clearButton": "Clear"
+      },
+      "chat": {
+        "emptyTitle": "Ask questions about your ISO norms and documents.",
+        "emptyExample": "Example: \"What are the requirements for risk assessment in ISO 27001?\"",
+        "searching": "Searching…",
+        "generating": "Generating answer…",
+        "errorFallback": "An error occurred while processing your question. Please try again.",
+        "inputPlaceholder": "Ask a question about your ISO documents…",
+        "send": "Send",
+        "sourcesOne": "{{count}} source",
+        "sourcesOther": "{{count}} sources",
+        "scorePercent": "{{percent}}%"
+      },
+      "metadata": {
+        "embed": "embed: {{ms}}ms",
+        "search": "search: {{ms}}ms",
+        "llm": "llm: {{ms}}ms",
+        "total": "total: {{ms}}ms",
+        "chunks": "chunks: {{count}}"
+      }
+    },
+    "documents": {
+      "pageTitle": "Documents",
+      "statusFilter": {
+        "all": "All status",
+        "pending": "Pending",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
+      "statusLabels": {
+        "pending": "pending",
+        "processing": "processing",
+        "completed": "completed",
+        "failed": "failed"
+      },
+      "isoFilterPlaceholder": "ISO filter…",
+      "uploadButton": "Upload",
+      "empty": "No documents ingested yet. Upload one to get started.",
+      "cols": {
+        "title": "Title",
+        "file": "File",
+        "iso": "ISO",
+        "llm": "LLM",
+        "status": "Status",
+        "chunks": "Chunks",
+        "size": "Size",
+        "date": "Date"
+      },
+      "versionPrefix": "v{{version}}",
+      "menu": {
+        "viewContent": "View Content",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "deleteConfirm": "Delete \"{{title}}\" and all its chunks from the knowledge graph?",
+      "pipeline": {
+        "heading": "What happens after upload?",
+        "intro": "When a document is uploaded, the backend runs an asynchronous ingestion pipeline that transforms it into a searchable knowledge graph. Here are the steps:",
+        "step1": "<strong>Text Extraction</strong> — <code>text_extractor.go</code> extracts raw text (Gotenberg for PDFs, pass-through for .txt/.md)",
+        "step2": "<strong>Structural Parsing</strong> — <code>structural_parser.go</code> (PDF/TXT) or <code>markdown_parser.go</code> (.md) builds a hierarchical tree of sections, clauses, and articles. Cleans OCR boilerplate, promotes numbered sub-clauses (e.g. 4.4.1) to proper nodes, and detects requirement levels (SHALL / SHOULD / MAY)",
+        "step3": "<strong>Chunking</strong> — <code>chunker.go</code> splits the tree into chunks respecting structural boundaries. Each chunk inherits metadata: full path, numbering, node type, requirement level. Lists are kept together with their introductory clause when possible",
+        "step4": "<strong>Contextual Enrichment</strong> — <code>contextual_enrichment.go</code> calls the LLM to generate a short context prefix for each chunk (Contextual Retrieval). The prefix is prepended before embedding so vectors capture broader document context",
+        "step5": "<strong>Embedding</strong> — Each chunk is embedded into a vector via the configured embedding model. The embedding uses the contextualized text (prefix + chunk) for better retrieval",
+        "step6": "<strong>Graph Node Creation</strong> — <code>ingestion_service.go</code> creates <code>:RagDocument</code>, <code>:RagSection</code>, and <code>:RagChunk</code> nodes in Memgraph",
+        "step7": "<strong>Structural Relationships</strong> — <code>ingestion_service.go</code> creates <code>HAS_SECTION</code>, <code>CONTAINS</code>, <code>NEXT_SECTION</code>, and <code>NEXT</code> edges to encode hierarchy and reading order",
+        "step8": "<strong>Semantic Relationships</strong> — <code>relationship_extractor.go</code> extracts definitions (<code>DEFINES</code>), cross-references (<code>REFERENCES</code>), and computes similarity edges (<code>SIMILAR_TO</code>, cosine ≥ 0.85)",
+        "step9": "<strong>Indexing</strong> — Vector indexes and property indexes are created for fast retrieval",
+        "footer": "All files are located in <code>backend/internal/rag/services/</code>. The pipeline is orchestrated by <code>ingestion_service.go</code>."
+      },
+      "uploadModal": {
+        "title": "Upload Document",
+        "fileLabel": "File (PDF or Text)",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Leave empty to use filename",
+        "isoLabel": "ISO Standard",
+        "isoPlaceholder": "e.g. ISO 9001",
+        "versionLabel": "Version",
+        "versionPlaceholder": "e.g. 2015",
+        "categoryLabel": "Document Category",
+        "category": {
+          "auto": "Auto-detect",
+          "iso": "ISO Standard",
+          "law": "Law / Legal Act",
+          "regulation": "Regulation",
+          "generic": "Generic Document"
+        },
+        "llmLabel": "LLM for Contextual Enrichment",
+        "llmDefaultOption": "Default model",
+        "llmOption": "{{name}} ({{modelName}})",
+        "llmDefaultSuffix": " - default",
+        "llmHelp": "Used to generate context prefixes for each chunk before embedding",
+        "cancel": "Cancel",
+        "submit": "Upload & Ingest",
+        "submitting": "Uploading…",
+        "errorNoFile": "Please select a file",
+        "errorGeneric": "Upload failed"
+      },
+      "editModal": {
+        "title": "Edit Document",
+        "titleLabel": "Title",
+        "isoLabel": "ISO Standard",
+        "isoPlaceholder": "e.g. ISO 9001",
+        "versionLabel": "Version",
+        "versionPlaceholder": "e.g. 2015",
+        "cancel": "Cancel",
+        "save": "Save Changes",
+        "saving": "Saving…",
+        "errorTitleRequired": "Title is required",
+        "errorGeneric": "Update failed"
+      },
+      "viewer": {
+        "chunksSummary": "{{count}} chunks",
+        "searchPlaceholder": "Search in document content…",
+        "matchSummary": "{{matched}} of {{total}} chunks match",
+        "loading": "Loading content…",
+        "emptyChunks": "No chunks available. The document may still be processing.",
+        "noMatches": "No chunks match your search.",
+        "close": "Close",
+        "charsSuffix": "{{count}} chars"
+      }
+    },
     "vector": {
       "pageTitle": "Vector Search",
       "databaseLabel": "Database:",

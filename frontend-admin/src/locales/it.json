@@ -1021,6 +1021,137 @@
         "errorGeneric": "Operazione fallita"
       }
     },
+    "rag": {
+      "pageTitle": "Query RAG",
+      "toolbar": {
+        "modelLabel": "Modello:",
+        "defaultLLM": "LLM predefinito",
+        "defaultSuffix": " (predefinito)",
+        "isoLabel": "ISO:",
+        "isoPlaceholder": "Tutte",
+        "clearButton": "Pulisci"
+      },
+      "chat": {
+        "emptyTitle": "Poni domande sulle tue norme e documenti ISO.",
+        "emptyExample": "Esempio: \"Quali sono i requisiti per la valutazione del rischio nella ISO 27001?\"",
+        "searching": "Ricerca…",
+        "generating": "Generazione risposta…",
+        "errorFallback": "Si è verificato un errore durante l'elaborazione della domanda. Riprova.",
+        "inputPlaceholder": "Poni una domanda sui tuoi documenti ISO…",
+        "send": "Invia",
+        "sourcesOne": "{{count}} fonte",
+        "sourcesOther": "{{count}} fonti",
+        "scorePercent": "{{percent}}%"
+      },
+      "metadata": {
+        "embed": "embed: {{ms}}ms",
+        "search": "ricerca: {{ms}}ms",
+        "llm": "llm: {{ms}}ms",
+        "total": "totale: {{ms}}ms",
+        "chunks": "chunk: {{count}}"
+      }
+    },
+    "documents": {
+      "pageTitle": "Documenti",
+      "statusFilter": {
+        "all": "Tutti gli stati",
+        "pending": "In attesa",
+        "processing": "In elaborazione",
+        "completed": "Completati",
+        "failed": "Falliti"
+      },
+      "statusLabels": {
+        "pending": "in attesa",
+        "processing": "in elaborazione",
+        "completed": "completato",
+        "failed": "fallito"
+      },
+      "isoFilterPlaceholder": "Filtro ISO…",
+      "uploadButton": "Carica",
+      "empty": "Nessun documento ancora caricato. Caricane uno per iniziare.",
+      "cols": {
+        "title": "Titolo",
+        "file": "File",
+        "iso": "ISO",
+        "llm": "LLM",
+        "status": "Stato",
+        "chunks": "Chunk",
+        "size": "Dimensione",
+        "date": "Data"
+      },
+      "versionPrefix": "v{{version}}",
+      "menu": {
+        "viewContent": "Vedi contenuto",
+        "edit": "Modifica",
+        "delete": "Elimina"
+      },
+      "deleteConfirm": "Eliminare \"{{title}}\" e tutti i suoi chunk dal knowledge graph?",
+      "pipeline": {
+        "heading": "Cosa succede dopo il caricamento?",
+        "intro": "Quando un documento viene caricato, il backend esegue una pipeline di ingestione asincrona che lo trasforma in un knowledge graph ricercabile. Ecco i passaggi:",
+        "step1": "<strong>Estrazione del testo</strong> — <code>text_extractor.go</code> estrae il testo grezzo (Gotenberg per i PDF, pass-through per .txt/.md)",
+        "step2": "<strong>Analisi strutturale</strong> — <code>structural_parser.go</code> (PDF/TXT) o <code>markdown_parser.go</code> (.md) costruisce un albero gerarchico di sezioni, clausole e articoli. Pulisce il boilerplate OCR, promuove sotto-clausole numerate (es. 4.4.1) a nodi propri e rileva i livelli di requisito (SHALL / SHOULD / MAY)",
+        "step3": "<strong>Chunking</strong> — <code>chunker.go</code> divide l'albero in chunk rispettando i confini strutturali. Ogni chunk eredita i metadati: percorso completo, numerazione, tipo di nodo, livello di requisito. Le liste vengono mantenute insieme alla loro clausola introduttiva quando possibile",
+        "step4": "<strong>Arricchimento contestuale</strong> — <code>contextual_enrichment.go</code> invoca l'LLM per generare un breve prefisso di contesto per ogni chunk (Contextual Retrieval). Il prefisso viene anteposto prima dell'embedding così i vettori catturano il contesto più ampio del documento",
+        "step5": "<strong>Embedding</strong> — Ogni chunk viene trasformato in un vettore tramite il modello di embedding configurato. L'embedding utilizza il testo contestualizzato (prefisso + chunk) per un miglior recupero",
+        "step6": "<strong>Creazione dei nodi del grafo</strong> — <code>ingestion_service.go</code> crea i nodi <code>:RagDocument</code>, <code>:RagSection</code> e <code>:RagChunk</code> in Memgraph",
+        "step7": "<strong>Relazioni strutturali</strong> — <code>ingestion_service.go</code> crea gli archi <code>HAS_SECTION</code>, <code>CONTAINS</code>, <code>NEXT_SECTION</code> e <code>NEXT</code> per codificare gerarchia e ordine di lettura",
+        "step8": "<strong>Relazioni semantiche</strong> — <code>relationship_extractor.go</code> estrae definizioni (<code>DEFINES</code>), riferimenti incrociati (<code>REFERENCES</code>) e calcola archi di similarità (<code>SIMILAR_TO</code>, coseno ≥ 0.85)",
+        "step9": "<strong>Indicizzazione</strong> — Vengono creati indici vettoriali e indici di proprietà per un recupero veloce",
+        "footer": "Tutti i file si trovano in <code>backend/internal/rag/services/</code>. La pipeline è orchestrata da <code>ingestion_service.go</code>."
+      },
+      "uploadModal": {
+        "title": "Carica documento",
+        "fileLabel": "File (PDF o Testo)",
+        "titleLabel": "Titolo",
+        "titlePlaceholder": "Lascia vuoto per usare il nome del file",
+        "isoLabel": "Standard ISO",
+        "isoPlaceholder": "es. ISO 9001",
+        "versionLabel": "Versione",
+        "versionPlaceholder": "es. 2015",
+        "categoryLabel": "Categoria documento",
+        "category": {
+          "auto": "Rilevamento automatico",
+          "iso": "Standard ISO",
+          "law": "Legge / Atto normativo",
+          "regulation": "Regolamento",
+          "generic": "Documento generico"
+        },
+        "llmLabel": "LLM per arricchimento contestuale",
+        "llmDefaultOption": "Modello predefinito",
+        "llmOption": "{{name}} ({{modelName}})",
+        "llmDefaultSuffix": " - predefinito",
+        "llmHelp": "Usato per generare prefissi di contesto per ogni chunk prima dell'embedding",
+        "cancel": "Annulla",
+        "submit": "Carica e ingerisci",
+        "submitting": "Caricamento…",
+        "errorNoFile": "Seleziona un file",
+        "errorGeneric": "Caricamento fallito"
+      },
+      "editModal": {
+        "title": "Modifica documento",
+        "titleLabel": "Titolo",
+        "isoLabel": "Standard ISO",
+        "isoPlaceholder": "es. ISO 9001",
+        "versionLabel": "Versione",
+        "versionPlaceholder": "es. 2015",
+        "cancel": "Annulla",
+        "save": "Salva modifiche",
+        "saving": "Salvataggio…",
+        "errorTitleRequired": "Il titolo è obbligatorio",
+        "errorGeneric": "Aggiornamento fallito"
+      },
+      "viewer": {
+        "chunksSummary": "{{count}} chunk",
+        "searchPlaceholder": "Cerca nel contenuto del documento…",
+        "matchSummary": "{{matched}} di {{total}} chunk corrispondono",
+        "loading": "Caricamento contenuto…",
+        "emptyChunks": "Nessun chunk disponibile. Il documento potrebbe essere ancora in elaborazione.",
+        "noMatches": "Nessun chunk corrisponde alla ricerca.",
+        "close": "Chiudi",
+        "charsSuffix": "{{count}} caratteri"
+      }
+    },
     "vector": {
       "pageTitle": "Ricerca vettoriale",
       "databaseLabel": "Database:",
