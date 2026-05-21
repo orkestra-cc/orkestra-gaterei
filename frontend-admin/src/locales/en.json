@@ -3428,6 +3428,14 @@
     }
   },
   "userProfileScaffold": {
+    "banner": {
+      "userName": "Anthony Hopkins",
+      "userTitle": "Senior Software Engineer at Technext Limited",
+      "userLocation": "New York, USA",
+      "following": "Following",
+      "message": "Message",
+      "seeFollowersCount": "See followers (330)"
+    },
     "intro": {
       "title": "Intro",
       "showMore": "Show more",
