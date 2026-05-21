@@ -2823,6 +2823,35 @@
       "clientsCreateLabel": "New client",
       "clientsCreateTitle": "Create client",
       "clientsCreateSubmit": "Create client"
+    },
+    "table": {
+      "errorLoadIntro": "Failed to load tenants. You need the <code>system.tenants.admin</code> permission to view this page.",
+      "colName": "Name",
+      "colSlug": "Slug",
+      "colPlan": "Plan",
+      "colMembers": "Members",
+      "colCreated": "Created",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "statusActive": "active",
+      "statusDeleted": "deleted",
+      "statusPurged": "purged",
+      "manage": "Manage",
+      "archiveTitle": "Archive (soft-delete)",
+      "empty": "No tenants match the current filters.",
+      "totalOne": "{{count}} tenant total · showing {{shown}}",
+      "totalOther": "{{count}} tenants total · showing {{shown}}",
+      "includeSoftDeleted": "Include soft-deleted"
+    },
+    "tableHeader": {
+      "defaultTitle": "Tenant Management",
+      "defaultCreateLabel": "New Tenant",
+      "searchPlaceholder": "Search by name, slug, member email, or surname...",
+      "includeDeletedUsersToggle": "Include soft-deleted users in member matches",
+      "planAll": "All Plans",
+      "planFree": "Free",
+      "planPro": "Pro",
+      "planEnterprise": "Enterprise"
     }
   },
   "adminClients": {

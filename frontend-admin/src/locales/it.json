@@ -2823,6 +2823,35 @@
       "clientsCreateLabel": "Nuovo cliente",
       "clientsCreateTitle": "Crea cliente",
       "clientsCreateSubmit": "Crea cliente"
+    },
+    "table": {
+      "errorLoadIntro": "Caricamento tenant non riuscito. È richiesto il permesso <code>system.tenants.admin</code> per visualizzare questa pagina.",
+      "colName": "Nome",
+      "colSlug": "Slug",
+      "colPlan": "Piano",
+      "colMembers": "Membri",
+      "colCreated": "Creato",
+      "colStatus": "Stato",
+      "colActions": "Azioni",
+      "statusActive": "attivo",
+      "statusDeleted": "eliminato",
+      "statusPurged": "rimosso",
+      "manage": "Gestisci",
+      "archiveTitle": "Archivia (eliminazione soft)",
+      "empty": "Nessun tenant corrisponde ai filtri attuali.",
+      "totalOne": "{{count}} tenant totale · ne vengono mostrati {{shown}}",
+      "totalOther": "{{count}} tenant totali · ne vengono mostrati {{shown}}",
+      "includeSoftDeleted": "Includi eliminati (soft)"
+    },
+    "tableHeader": {
+      "defaultTitle": "Gestione tenant",
+      "defaultCreateLabel": "Nuovo tenant",
+      "searchPlaceholder": "Cerca per nome, slug, email membro o cognome...",
+      "includeDeletedUsersToggle": "Includi utenti soft-deleted nei match dei membri",
+      "planAll": "Tutti i piani",
+      "planFree": "Free",
+      "planPro": "Pro",
+      "planEnterprise": "Enterprise"
     }
   },
   "adminClients": {
