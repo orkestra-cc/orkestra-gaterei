@@ -2927,6 +2927,57 @@
         "org_owner": "Owner"
       },
       "roleOption": "{{label}} ({{value}})"
+    },
+    "divisions": {
+      "intro": "Divisions are organisational: each child is an independent Tier-2 tenant that holds its own subscriptions, entitlements, and members. Adding a division does <strong>not</strong> propagate the parent's subscriptions.",
+      "countOne": "{{count}} division",
+      "countOther": "{{count}} divisions",
+      "addButton": "Add division",
+      "loadFailed": "Failed to load divisions.",
+      "colName": "Name",
+      "colSlug": "Slug",
+      "colPlan": "Plan",
+      "colStatus": "Status",
+      "colCreated": "Created",
+      "statusActiveFallback": "active",
+      "empty": "No divisions yet. Add one to model a sub-workspace."
+    },
+    "createDivision": {
+      "title": "Add division to {{parent}}",
+      "labelName": "Name",
+      "placeholderName": "e.g. Acme EU",
+      "labelSlug": "Slug",
+      "placeholderSlug": "acme-eu",
+      "slugHelp": "Auto-derived from the name unless you override it.",
+      "cancel": "Cancel",
+      "submit": "Create division",
+      "submitting": "Creating…",
+      "toastCreated": "Division \"{{name}}\" created under {{parent}}",
+      "toastFailed": "Create failed: {{error}}",
+      "errorUnknown": "unknown error"
+    },
+    "subscriptions": {
+      "loadFailed": "Failed to load subscriptions. This may mean the subscriptions module is disabled.",
+      "empty": "No subscriptions for this client yet. When one lands, it will appear here — the entitlement syncer grants capabilities on activation.",
+      "colTier": "Tier",
+      "colStatus": "Status",
+      "colPeriod": "Period",
+      "colNextBilling": "Next billing",
+      "colCreated": "Created"
+    },
+    "payments": {
+      "loadFailed": "Failed to load payments. This may mean the payments module is disabled.",
+      "empty": "No payment transactions for this client yet.",
+      "colProvider": "Provider",
+      "colReference": "Reference",
+      "colAmount": "Amount",
+      "colStatus": "Status",
+      "colCharged": "Charged",
+      "colCreated": "Created",
+      "refundedSuffix": "refunded {{amount}}"
+    },
+    "activity": {
+      "placeholder": "Per-tenant activity log lands in a follow-up. Until then, module-level audit trails (<code>compliance_audit_events</code>, <code>subscriptions_activity</code>) carry the per-resource history."
     }
   },
   "adminRoles": {

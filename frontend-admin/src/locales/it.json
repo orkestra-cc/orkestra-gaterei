@@ -2927,6 +2927,57 @@
         "org_owner": "Proprietario"
       },
       "roleOption": "{{label}} ({{value}})"
+    },
+    "divisions": {
+      "intro": "Le divisioni sono organizzative: ogni figlio è un tenant Tier-2 indipendente che possiede le proprie sottoscrizioni, entitlement e membri. Aggiungere una divisione <strong>non</strong> propaga le sottoscrizioni del padre.",
+      "countOne": "{{count}} divisione",
+      "countOther": "{{count}} divisioni",
+      "addButton": "Aggiungi divisione",
+      "loadFailed": "Caricamento delle divisioni non riuscito.",
+      "colName": "Nome",
+      "colSlug": "Slug",
+      "colPlan": "Piano",
+      "colStatus": "Stato",
+      "colCreated": "Creato",
+      "statusActiveFallback": "attivo",
+      "empty": "Nessuna divisione al momento. Aggiungine una per modellare un sotto-workspace."
+    },
+    "createDivision": {
+      "title": "Aggiungi divisione a {{parent}}",
+      "labelName": "Nome",
+      "placeholderName": "es. Acme EU",
+      "labelSlug": "Slug",
+      "placeholderSlug": "acme-eu",
+      "slugHelp": "Derivato automaticamente dal nome, salvo override.",
+      "cancel": "Annulla",
+      "submit": "Crea divisione",
+      "submitting": "Creazione…",
+      "toastCreated": "Divisione \"{{name}}\" creata sotto {{parent}}",
+      "toastFailed": "Creazione fallita: {{error}}",
+      "errorUnknown": "errore sconosciuto"
+    },
+    "subscriptions": {
+      "loadFailed": "Caricamento delle sottoscrizioni non riuscito. Il modulo subscriptions potrebbe essere disabilitato.",
+      "empty": "Nessuna sottoscrizione per questo cliente. Quando ne arriverà una, comparirà qui — il syncer degli entitlement assegna le capability all'attivazione.",
+      "colTier": "Livello",
+      "colStatus": "Stato",
+      "colPeriod": "Periodo",
+      "colNextBilling": "Prossima fatturazione",
+      "colCreated": "Creato"
+    },
+    "payments": {
+      "loadFailed": "Caricamento dei pagamenti non riuscito. Il modulo payments potrebbe essere disabilitato.",
+      "empty": "Nessuna transazione di pagamento per questo cliente.",
+      "colProvider": "Provider",
+      "colReference": "Riferimento",
+      "colAmount": "Importo",
+      "colStatus": "Stato",
+      "colCharged": "Addebitato",
+      "colCreated": "Creato",
+      "refundedSuffix": "rimborsato {{amount}}"
+    },
+    "activity": {
+      "placeholder": "Il log attività per tenant arriverà in un follow-up. Nel frattempo i log a livello di modulo (<code>compliance_audit_events</code>, <code>subscriptions_activity</code>) mantengono la storia per risorsa."
     }
   },
   "adminRoles": {
