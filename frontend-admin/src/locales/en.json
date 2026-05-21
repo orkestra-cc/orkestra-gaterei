@@ -1895,6 +1895,21 @@
       "discoverKicker": "Discover",
       "searchKicker": "Search"
     },
+    "companyPage": {
+      "title": "Issuing Companies",
+      "description": "Manage the companies used to issue electronic invoices.",
+      "alertHeading": "Company configuration:",
+      "alertBody": "The companies configured here are used as the seller (cedente/prestatore) on electronic invoices. The company marked as <em>Default</em> is pre-selected when creating new invoices."
+    },
+    "greetings": {
+      "cardTitle": "Electronic Invoicing",
+      "quickLinks": {
+        "newInvoice": "New Invoice",
+        "clients": "Clients",
+        "suppliers": "Suppliers",
+        "sdiNotifications": "SDI Notifications"
+      }
+    },
     "notifications": {
       "title": "SDI Notifications",
       "unprocessedBadge_one": "{{count}} to handle",

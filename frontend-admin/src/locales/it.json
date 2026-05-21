@@ -1895,6 +1895,21 @@
       "discoverKicker": "Scopri",
       "searchKicker": "Ricerca"
     },
+    "companyPage": {
+      "title": "Aziende Emittenti",
+      "description": "Gestisci le aziende per l'emissione delle fatture elettroniche.",
+      "alertHeading": "Configurazione Aziende:",
+      "alertBody": "Le aziende qui configurate verranno utilizzate come cedente/prestatore (venditore) nelle fatture elettroniche. L'azienda impostata come <em>Default</em> verrà pre-selezionata automaticamente nella creazione di nuove fatture."
+    },
+    "greetings": {
+      "cardTitle": "Fatturazione Elettronica",
+      "quickLinks": {
+        "newInvoice": "Nuova Fattura",
+        "clients": "Clienti",
+        "suppliers": "Fornitori",
+        "sdiNotifications": "Notifiche SDI"
+      }
+    },
     "notifications": {
       "title": "Notifiche SDI",
       "unprocessedBadge_one": "{{count}} da gestire",
