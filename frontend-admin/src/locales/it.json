@@ -2825,6 +2825,54 @@
       "clientsCreateSubmit": "Crea cliente"
     }
   },
+  "adminClients": {
+    "detail": {
+      "breadcrumbClients": "Clienti",
+      "noTenantForUser": "Questo utente Tier-2 non ha ancora un tenant cliente.",
+      "backToClients": "Torna ai clienti",
+      "notFound": "Cliente non trovato oppure non hai i permessi per visualizzarlo.",
+      "tierBadge": "esterno",
+      "fatturaPaBadge": "FatturaPA",
+      "statusActive": "attivo",
+      "statusArchived": "archiviato",
+      "statusSuspended": "sospeso",
+      "statusProvisioning": "in provisioning",
+      "statusPurged": "rimosso",
+      "idLabel": "ID:",
+      "ownerLabel": "Proprietario:",
+      "tabs": {
+        "overview": "Panoramica",
+        "members": "Membri",
+        "divisions": "Divisioni",
+        "subscriptions": "Sottoscrizioni",
+        "payments": "Pagamenti",
+        "billing": "Identità di fatturazione",
+        "activity": "Attività"
+      }
+    },
+    "overview": {
+      "labelName": "Nome",
+      "labelSlug": "Slug",
+      "labelPlan": "Piano",
+      "labelStatus": "Stato",
+      "labelTenantId": "ID tenant",
+      "labelOwner": "Proprietario",
+      "labelCreated": "Creato",
+      "labelUpdated": "Aggiornato",
+      "planHelp": "Modifica l'etichetta del piano dal menu della riga nella pagina elenco; gli entitlement provengono dalle sottoscrizioni, non dal valore del piano.",
+      "save": "Salva modifiche",
+      "saving": "Salvataggio…",
+      "toastSaved": "Cliente aggiornato",
+      "toastSaveFailed": "Aggiornamento fallito: {{error}}",
+      "errorUnknown": "errore sconosciuto"
+    },
+    "impersonate": {
+      "start": "Impersona",
+      "stop": "Interrompi impersonificazione",
+      "toastStarted": "Stai impersonando {{name}}",
+      "toastStopped": "Impersonificazione interrotta"
+    }
+  },
   "adminRoles": {
     "pageTitle": "Gestione ruoli",
     "intro": "Gestisci ruoli e binding per <strong>{{tenant}}</strong>. I ruoli di sistema sono in sola lettura; i ruoli personalizzati possono essere creati selezionando permessi dal catalogo.",

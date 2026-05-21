@@ -2825,6 +2825,54 @@
       "clientsCreateSubmit": "Create client"
     }
   },
+  "adminClients": {
+    "detail": {
+      "breadcrumbClients": "Clients",
+      "noTenantForUser": "This Tier-2 user has no client tenant yet.",
+      "backToClients": "Back to clients",
+      "notFound": "Client not found or you lack permission to view it.",
+      "tierBadge": "external",
+      "fatturaPaBadge": "FatturaPA",
+      "statusActive": "active",
+      "statusArchived": "archived",
+      "statusSuspended": "suspended",
+      "statusProvisioning": "provisioning",
+      "statusPurged": "purged",
+      "idLabel": "ID:",
+      "ownerLabel": "Owner:",
+      "tabs": {
+        "overview": "Overview",
+        "members": "Members",
+        "divisions": "Divisions",
+        "subscriptions": "Subscriptions",
+        "payments": "Payments",
+        "billing": "Billing identity",
+        "activity": "Activity"
+      }
+    },
+    "overview": {
+      "labelName": "Name",
+      "labelSlug": "Slug",
+      "labelPlan": "Plan",
+      "labelStatus": "Status",
+      "labelTenantId": "Tenant ID",
+      "labelOwner": "Owner",
+      "labelCreated": "Created",
+      "labelUpdated": "Updated",
+      "planHelp": "Edit plan label from the list page's row menu; entitlements come from subscriptions, not the plan value.",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "toastSaved": "Client updated",
+      "toastSaveFailed": "Update failed: {{error}}",
+      "errorUnknown": "unknown error"
+    },
+    "impersonate": {
+      "start": "Impersonate",
+      "stop": "Stop impersonating",
+      "toastStarted": "Now impersonating {{name}}",
+      "toastStopped": "Impersonation stopped"
+    }
+  },
   "adminRoles": {
     "pageTitle": "Role Management",
     "intro": "Manage roles and bindings for <strong>{{tenant}}</strong>. System roles are read-only; custom roles can be created by picking permissions from the catalog.",
