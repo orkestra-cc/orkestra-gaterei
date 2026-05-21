@@ -3416,6 +3416,72 @@
       "toastUnlinkSelfAction": "You cannot unlink your own OAuth identity from the admin surface.",
       "toastUnlinkFailed": "Unlink failed: {{error}}",
       "errorUnknown": "unknown error"
+    },
+    "userActions": {
+      "quickTitle": "Quick Actions",
+      "editProfile": "Edit Profile",
+      "changeRole": "Change Role",
+      "accountSettings": "Account Settings",
+      "menuSecuritySettings": "Security Settings",
+      "menuNotificationPrefs": "Notification Preferences",
+      "menuLoginHistory": "Login History",
+      "menuExportData": "Export User Data",
+      "securityTitle": "Security Actions",
+      "lockAccount": "Lock Account",
+      "unlockAccount": "Unlock Account",
+      "suspendUser": "Suspend User",
+      "forceLogout": "Force Logout",
+      "reset2fa": "Reset 2FA",
+      "roleModal": {
+        "title": "Change User Role",
+        "selectLabel": "Select New Role",
+        "cancel": "Cancel",
+        "submit": "Update Role",
+        "submitting": "Updating…",
+        "toastSuccess": "Role successfully updated to {{role}}",
+        "toastFailure": "Unable to update role",
+        "errorUpdate": "Error updating role"
+      },
+      "roleDescriptions": {
+        "guest": "Read-only access",
+        "operator": "Read + self-service",
+        "manager": "Read/write without delete or admin",
+        "developer": "Technical power user — cannot manage admin/super_admin",
+        "administrator": "Organization administrator — cannot elevate peers to admin",
+        "super_admin": "Full power, wildcard permission"
+      },
+      "profileModal": {
+        "title": "Edit User Profile",
+        "labelEmail": "Email",
+        "placeholderEmail": "Enter email",
+        "labelFullName": "Full Name",
+        "placeholderFullName": "Enter full name",
+        "labelPhone": "Phone",
+        "placeholderPhone": "Enter phone number",
+        "cancel": "Cancel",
+        "submit": "Update Profile",
+        "submitting": "Updating…",
+        "toastSuccess": "Profile updated successfully",
+        "toastFailure": "Unable to update profile",
+        "toastEmailInUse": "Email already in use by another user",
+        "errorUpdate": "Error updating profile"
+      },
+      "lockModal": {
+        "titleLock": "Lock Account",
+        "titleUnlock": "Unlock Account",
+        "confirmLock": "Are you sure you want to lock the account of <strong>{{name}}</strong>?",
+        "confirmUnlock": "Are you sure you want to unlock the account of <strong>{{name}}</strong>?",
+        "warningLock": "The user will no longer be able to access the system until the account is unlocked.",
+        "warningUnlock": "The user will be able to access the system again.",
+        "cancel": "Cancel",
+        "submitLock": "Lock",
+        "submitUnlock": "Unlock",
+        "submitting": "Please wait…",
+        "toastLocked": "Account locked successfully",
+        "toastUnlocked": "Account unlocked successfully",
+        "toastFailure": "Unable to modify account status",
+        "errorGeneric": "Error during operation"
+      }
     }
   },
   "adminUsers": {

@@ -3416,6 +3416,72 @@
       "toastUnlinkSelfAction": "Non puoi scollegare la tua identità OAuth dalla console di amministrazione.",
       "toastUnlinkFailed": "Scollegamento non riuscito: {{error}}",
       "errorUnknown": "errore sconosciuto"
+    },
+    "userActions": {
+      "quickTitle": "Azioni rapide",
+      "editProfile": "Modifica profilo",
+      "changeRole": "Cambia ruolo",
+      "accountSettings": "Impostazioni account",
+      "menuSecuritySettings": "Impostazioni di sicurezza",
+      "menuNotificationPrefs": "Preferenze notifiche",
+      "menuLoginHistory": "Cronologia accessi",
+      "menuExportData": "Esporta dati utente",
+      "securityTitle": "Azioni di sicurezza",
+      "lockAccount": "Blocca account",
+      "unlockAccount": "Sblocca account",
+      "suspendUser": "Sospendi utente",
+      "forceLogout": "Forza logout",
+      "reset2fa": "Reset 2FA",
+      "roleModal": {
+        "title": "Cambia ruolo utente",
+        "selectLabel": "Seleziona nuovo ruolo",
+        "cancel": "Annulla",
+        "submit": "Aggiorna ruolo",
+        "submitting": "Aggiornamento…",
+        "toastSuccess": "Ruolo aggiornato con successo a {{role}}",
+        "toastFailure": "Impossibile aggiornare il ruolo",
+        "errorUpdate": "Errore nell'aggiornamento del ruolo"
+      },
+      "roleDescriptions": {
+        "guest": "Accesso in sola lettura",
+        "operator": "Lettura + self-service",
+        "manager": "Lettura/scrittura senza eliminazione o admin",
+        "developer": "Utente tecnico avanzato — non può gestire admin/super_admin",
+        "administrator": "Amministratore dell'organizzazione — non può promuovere pari a admin",
+        "super_admin": "Pieni poteri, permesso wildcard"
+      },
+      "profileModal": {
+        "title": "Modifica profilo utente",
+        "labelEmail": "Email",
+        "placeholderEmail": "Inserisci email",
+        "labelFullName": "Nome completo",
+        "placeholderFullName": "Inserisci nome completo",
+        "labelPhone": "Telefono",
+        "placeholderPhone": "Inserisci numero di telefono",
+        "cancel": "Annulla",
+        "submit": "Aggiorna profilo",
+        "submitting": "Aggiornamento…",
+        "toastSuccess": "Profilo aggiornato con successo",
+        "toastFailure": "Impossibile aggiornare il profilo",
+        "toastEmailInUse": "Email già in uso da un altro utente",
+        "errorUpdate": "Errore nell'aggiornamento del profilo"
+      },
+      "lockModal": {
+        "titleLock": "Blocca account",
+        "titleUnlock": "Sblocca account",
+        "confirmLock": "Sei sicuro di voler bloccare l'account di <strong>{{name}}</strong>?",
+        "confirmUnlock": "Sei sicuro di voler sbloccare l'account di <strong>{{name}}</strong>?",
+        "warningLock": "L'utente non potrà più accedere al sistema fino allo sblocco dell'account.",
+        "warningUnlock": "L'utente potrà accedere nuovamente al sistema.",
+        "cancel": "Annulla",
+        "submitLock": "Blocca",
+        "submitUnlock": "Sblocca",
+        "submitting": "Attendere…",
+        "toastLocked": "Account bloccato con successo",
+        "toastUnlocked": "Account sbloccato con successo",
+        "toastFailure": "Impossibile modificare lo stato dell'account",
+        "errorGeneric": "Errore durante l'operazione"
+      }
     }
   },
   "adminUsers": {
