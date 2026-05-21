@@ -765,6 +765,26 @@
         "auditor": "Basato su evidenze, status compliance, citazioni",
         "guest": "Panoramiche generali, niente dettagli interni"
       }
+    },
+    "personal": {
+      "header": "Agente personale",
+      "loading": "Configurazione dell'agente personale…",
+      "errorLoad": "Impossibile caricare l'agente personale. Riprova più tardi.",
+      "buttonSettingsTitle": "Impostazioni agente",
+      "buttonDocumentsTitle": "Gestisci documenti",
+      "documentsTitle": "Documenti",
+      "documentsEmpty": "Nessun documento completato disponibile.",
+      "chunkCount": "{{count}} chunk",
+      "settingsTitle": "Impostazioni agente",
+      "settingsLanguage": "Lingua",
+      "settingsTemperature": "Temperatura",
+      "settingsSkepticism": "Scetticismo",
+      "settingsLiteralism": "Letteralità",
+      "settingsEmpathy": "Empatia",
+      "settingsSave": "Salva impostazioni",
+      "temperaturePrecise": "Preciso",
+      "temperatureBalanced": "Bilanciato",
+      "temperatureCreative": "Creativo"
     }
   },
   "aiModels": {

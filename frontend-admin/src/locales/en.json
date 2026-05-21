@@ -765,6 +765,26 @@
         "auditor": "Evidence-based, compliance status, citations",
         "guest": "General overviews, no internal details"
       }
+    },
+    "personal": {
+      "header": "Personal Agent",
+      "loading": "Setting up your personal agent…",
+      "errorLoad": "Failed to load personal agent. Please try again later.",
+      "buttonSettingsTitle": "Agent settings",
+      "buttonDocumentsTitle": "Manage documents",
+      "documentsTitle": "Documents",
+      "documentsEmpty": "No completed documents available.",
+      "chunkCount": "{{count}} chunks",
+      "settingsTitle": "Agent Settings",
+      "settingsLanguage": "Language",
+      "settingsTemperature": "Temperature",
+      "settingsSkepticism": "Skepticism",
+      "settingsLiteralism": "Literalism",
+      "settingsEmpathy": "Empathy",
+      "settingsSave": "Save Settings",
+      "temperaturePrecise": "Precise",
+      "temperatureBalanced": "Balanced",
+      "temperatureCreative": "Creative"
     }
   },
   "aiModels": {
