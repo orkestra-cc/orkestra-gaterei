@@ -168,6 +168,96 @@
         ],
         "type": "object"
       },
+      "ActivityRefsView": {
+        "additionalProperties": false,
+        "properties": {
+          "campaignUuid": {
+            "type": "string"
+          },
+          "cardUuid": {
+            "type": "string"
+          },
+          "contentUuid": {
+            "type": "string"
+          },
+          "correctsActivityUuid": {
+            "type": "string"
+          },
+          "eventUuid": {
+            "type": "string"
+          },
+          "formUuid": {
+            "type": "string"
+          },
+          "importJobUuid": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActivityView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ActivityView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "orgUuid": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "personUuid": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refs": {
+            "$ref": "#/components/schemas/ActivityRefsView"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "tenantId",
+          "personUuid",
+          "kind",
+          "occurredAt",
+          "recordedAt",
+          "source"
+        ],
+        "type": "object"
+      },
       "AddDocumentsRequestBody": {
         "additionalProperties": false,
         "properties": {
@@ -1557,6 +1647,47 @@
         },
         "type": "object"
       },
+      "BreakdownEntryView": {
+        "additionalProperties": false,
+        "properties": {
+          "activityKind": {
+            "type": "string"
+          },
+          "activityUuid": {
+            "type": "string"
+          },
+          "appliedDecay": {
+            "format": "double",
+            "type": "number"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pointsContributed": {
+            "format": "double",
+            "type": "number"
+          },
+          "rawPoints": {
+            "format": "double",
+            "type": "number"
+          },
+          "ruleIndex": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "activityUuid",
+          "activityKind",
+          "occurredAt",
+          "ruleIndex",
+          "rawPoints",
+          "appliedDecay",
+          "pointsContributed"
+        ],
+        "type": "object"
+      },
       "BusinessRegistryConfigOutput": {
         "additionalProperties": false,
         "properties": {
@@ -2442,6 +2573,28 @@
             "$ref": "#/components/schemas/NationalParentCompany"
           }
         },
+        "type": "object"
+      },
+      "CorrectionPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CorrectionPayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Human-readable explanation; required.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
         "type": "object"
       },
       "CreateAdminRequestBody": {
@@ -3866,6 +4019,29 @@
         },
         "type": "object"
       },
+      "DecayView": {
+        "additionalProperties": false,
+        "properties": {
+          "fn": {
+            "description": "One of: none, linear, exponential",
+            "type": "string"
+          },
+          "halfLifeDays": {
+            "description": "exponential: contribution halves every N days",
+            "format": "int64",
+            "type": "integer"
+          },
+          "windowDays": {
+            "description": "linear: contribution drops to 0 after N days",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fn"
+        ],
+        "type": "object"
+      },
       "DeleteClientUserAdminResponseBody": {
         "additionalProperties": false,
         "properties": {
@@ -4984,6 +5160,34 @@
         "required": [
           "value"
         ],
+        "type": "object"
+      },
+      "FilterView": {
+        "additionalProperties": false,
+        "properties": {
+          "customFieldFilters": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "tagsExclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tagsInclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "ForeignTradeData": {
@@ -6973,6 +7177,94 @@
         ],
         "type": "object"
       },
+      "LeaderboardEntryView": {
+        "additionalProperties": false,
+        "properties": {
+          "activityCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "applicable": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "computedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "personUuid": {
+            "type": "string"
+          },
+          "profileUuid": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "uuid": {
+            "type": "string"
+          },
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "uuid",
+          "personUuid",
+          "profileUuid",
+          "profileVersion",
+          "value",
+          "applicable",
+          "stale",
+          "activityCount",
+          "asOf",
+          "computedAt"
+        ],
+        "type": "object"
+      },
+      "LeaderboardResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/LeaderboardResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardEntryView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ListMeta"
+          }
+        },
+        "required": [
+          "items",
+          "meta"
+        ],
+        "type": "object"
+      },
       "LegalFormDetail": {
         "additionalProperties": false,
         "properties": {
@@ -7002,6 +7294,37 @@
         },
         "required": [
           "type"
+        ],
+        "type": "object"
+      },
+      "ListActivitiesResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListActivitiesResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ListMeta"
+          }
+        },
+        "required": [
+          "items",
+          "meta"
         ],
         "type": "object"
       },
@@ -7542,6 +7865,33 @@
         ],
         "type": "object"
       },
+      "ListPersonScoresResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListPersonScoresResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ListPersonsResponseBody": {
         "additionalProperties": false,
         "properties": {
@@ -7792,6 +8142,33 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/CustomFieldSchemaView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ListScoreProfilesResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListScoreProfilesResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreProfileView"
             },
             "type": [
               "array",
@@ -8538,6 +8915,50 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ManualActivityPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ManualActivityPayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "externalId": {
+            "description": "Optional dedup key for integrations replaying manual rows; if empty the service mints one",
+            "type": "string"
+          },
+          "kind": {
+            "description": "One of: call_made, meeting_held, note_added, corrected_by",
+            "type": "string"
+          },
+          "occurredAt": {
+            "description": "When the event happened. Defaults to now when omitted.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "description": "Kind-specific free-form details (notes, duration, location, ...)",
+            "type": "object"
+          },
+          "personUuid": {
+            "description": "UUID of the person the activity is logged against",
+            "type": "string"
+          },
+          "refs": {
+            "$ref": "#/components/schemas/ActivityRefsView"
+          }
+        },
+        "required": [
+          "personUuid",
+          "kind"
+        ],
         "type": "object"
       },
       "MarkProcessedResponseBody": {
@@ -12781,6 +13202,38 @@
         ],
         "type": "object"
       },
+      "RuleView": {
+        "additionalProperties": false,
+        "properties": {
+          "activityKind": {
+            "description": "string, []string, or '*' wildcard"
+          },
+          "cap": {
+            "format": "double",
+            "type": "number"
+          },
+          "decay": {
+            "$ref": "#/components/schemas/DecayView"
+          },
+          "matchPayload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "points": {
+            "format": "double",
+            "type": "number"
+          },
+          "windowDays": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "activityKind",
+          "points"
+        ],
+        "type": "object"
+      },
       "RunAlgorithmRequestDTOBody": {
         "additionalProperties": false,
         "properties": {
@@ -13151,6 +13604,124 @@
         },
         "required": [
           "exists"
+        ],
+        "type": "object"
+      },
+      "ScoreProfilePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ScoreProfilePayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "defaultDecay": {
+            "$ref": "#/components/schemas/DecayView"
+          },
+          "description": {
+            "type": "string"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/FilterView"
+          },
+          "name": {
+            "description": "Slug-like identifier, unique per tenant",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "active",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "ScoreProfileView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ScoreProfileView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "defaultDecay": {
+            "$ref": "#/components/schemas/DecayView"
+          },
+          "description": {
+            "type": "string"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/FilterView"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "uuid",
+          "tenantId",
+          "name",
+          "active",
+          "rules",
+          "version",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -13944,6 +14515,85 @@
         "required": [
           "number",
           "reason"
+        ],
+        "type": "object"
+      },
+      "SnapshotView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SnapshotView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "activityCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "applicable": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownEntryView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "computedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "personUuid": {
+            "type": "string"
+          },
+          "profileUuid": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          },
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "uuid",
+          "tenantId",
+          "personUuid",
+          "profileUuid",
+          "profileVersion",
+          "value",
+          "asOf",
+          "computedAt",
+          "applicable",
+          "stale",
+          "activityCount"
         ],
         "type": "object"
       },
@@ -30065,6 +30715,98 @@
         ]
       }
     },
+    "/v1/marketing/activities": {
+      "post": {
+        "operationId": "marketing-create-activity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualActivityPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Log a manual activity (call, meeting, note, correction)",
+        "tags": [
+          "Marketing - Activities"
+        ]
+      }
+    },
+    "/v1/marketing/activities/{id}/correct": {
+      "post": {
+        "operationId": "marketing-correct-activity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Insert a corrected_by row that supersedes the activity",
+        "tags": [
+          "Marketing - Activities"
+        ]
+      }
+    },
     "/v1/marketing/custom-field-schemas": {
       "get": {
         "operationId": "marketing-list-custom-field-schemas",
@@ -31029,6 +31771,477 @@
         "summary": "Add a membership to a person",
         "tags": [
           "Marketing - Memberships"
+        ]
+      }
+    },
+    "/v1/marketing/persons/{personId}/activities": {
+      "get": {
+        "operationId": "marketing-list-person-activities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by activity kind; repeat the param for multiple.",
+            "explode": false,
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "description": "Filter by activity kind; repeat the param for multiple.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Filter by source: importer | campaign_engine | webhook | manual | system",
+            "explode": false,
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "description": "Filter by source: importer | campaign_engine | webhook | manual | system",
+              "type": "string"
+            }
+          },
+          {
+            "description": "ISO-8601 timestamp; activities with occurredAt \u003e= since are returned",
+            "explode": false,
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "description": "ISO-8601 timestamp; activities with occurredAt \u003e= since are returned",
+              "type": "string"
+            }
+          },
+          {
+            "description": "ISO-8601 timestamp; activities with occurredAt \u003c until are returned",
+            "explode": false,
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "description": "ISO-8601 timestamp; activities with occurredAt \u003c until are returned",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, default 100, capped at 1000",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Page size, default 100, capped at 1000",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "skip",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListActivitiesResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List activities for a person",
+        "tags": [
+          "Marketing - Activities"
+        ]
+      }
+    },
+    "/v1/marketing/persons/{personId}/scores": {
+      "get": {
+        "operationId": "marketing-list-person-scores",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPersonScoresResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List all score snapshots for a person across profiles",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      }
+    },
+    "/v1/marketing/score-profiles": {
+      "get": {
+        "operationId": "marketing-list-score-profiles",
+        "parameters": [
+          {
+            "description": "When true, only profiles with active=true are returned",
+            "explode": false,
+            "in": "query",
+            "name": "activeOnly",
+            "schema": {
+              "description": "When true, only profiles with active=true are returned",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListScoreProfilesResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List score profiles",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      },
+      "post": {
+        "operationId": "marketing-create-score-profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreProfilePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreProfileView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a score profile",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      }
+    },
+    "/v1/marketing/score-profiles/{id}": {
+      "delete": {
+        "operationId": "marketing-delete-score-profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a score profile and cascade-delete its snapshots",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      },
+      "get": {
+        "operationId": "marketing-get-score-profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreProfileView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a score profile",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      },
+      "patch": {
+        "operationId": "marketing-replace-score-profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreProfilePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreProfileView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Replace a score profile (full-body); bumps version and invalidates snapshots",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      }
+    },
+    "/v1/marketing/score-profiles/{id}/leaderboard": {
+      "get": {
+        "operationId": "marketing-score-profile-leaderboard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Skip rows where the person fails the profile filter (applicable=false). Default false.",
+            "explode": false,
+            "in": "query",
+            "name": "applicableOnly",
+            "schema": {
+              "description": "Skip rows where the person fails the profile filter (applicable=false). Default false.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Default 50, capped at 500",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Default 50, capped at 500",
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "skip",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Top-scoring persons for a profile, ordered by value descending",
+        "tags": [
+          "Marketing - Scoring"
+        ]
+      }
+    },
+    "/v1/marketing/score-snapshots/{id}": {
+      "get": {
+        "operationId": "marketing-get-score-snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a single score snapshot with full breakdown",
+        "tags": [
+          "Marketing - Scoring"
         ]
       }
     },

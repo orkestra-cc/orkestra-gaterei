@@ -62,6 +62,12 @@ type MarketingModule struct {
 	customFieldHandler *handlers.CustomFieldSchemaHandler
 	importsHandler     *handlers.ImportsHandler
 
+	// Phase 2 handlers — activity log, score profile CRUD, snapshot
+	// reads + per-profile leaderboard.
+	activityHandler *handlers.ActivityHandler
+	profileHandler  *handlers.ScoreProfileHandler
+	snapshotHandler *handlers.SnapshotHandler
+
 	// Importer registry — exposed via NewImportService when handlers are
 	// wired in Init. Phase 1 ships only the CSV adapter; future adapters
 	// (excel, odoo) append to the slice without changing the wiring shape.
@@ -378,19 +384,17 @@ func (m *MarketingModule) ConfigSchema() []module.ConfigField {
 // publishes.
 //
 // Phase 1 shipped the contact-base bucket (read/write/delete) and
-// the import bucket. Phase 2 (this PR) adds marketing.score_profile.write
-// for the scoring admin surface; marketing.activity.read and
-// marketing.activity.write are deliberately deferred to PR-4 because
-// the routes that consume them don't exist yet.
+// the import bucket. Phase 2 PR-3 added marketing.score_profile.write
+// for the scoring admin surface; Phase 2 PR-4 (this) adds
+// marketing.activity.write for manual activity logging + corrections.
 //
-// Note on read access for activities + snapshots: those fold into
-// marketing.contact.read at the handler boundary (Phase 2 plan §2.3).
-// An operator who can see the contact base must also see the
-// scoring that ranks it; granting one without the other would be
-// semantically incoherent.
+// Read access for activities + snapshots + score profiles folds into
+// marketing.contact.read at the handler boundary (Phase 2 plan §2.3):
+// an operator who can see the contact base must also see the
+// timeline + scoring that contextualises it. Granting contact-read
+// while denying activity-read would be semantically incoherent.
 //
 // Later phases add:
-//   - marketing.activity.read / write (PR-4, event-log handlers)
 //   - marketing.card_type.write / marketing.card.{issue,suspend,revoke}
 //     (Phase 4, card lifecycle)
 //   - marketing.conflict.resolve (Phase 3, review queue)
@@ -400,6 +404,7 @@ func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
 		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
 		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
+		{Key: "marketing.activity.write", Module: m.Name(), Description: "Log manual activities (call, meeting, note, correction) on the contact timeline"},
 		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
 	}
 }
@@ -482,6 +487,10 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 
 	m.recomputeJob = jobs.NewRecomputeJob(m.scoreSvc, settings.ScoreRecomputeInterval, deps.Logger)
 
+	m.activityHandler = handlers.NewActivityHandler(m.activitySvc)
+	m.profileHandler = handlers.NewScoreProfileHandler(m.profileSvc, snapRepo)
+	m.snapshotHandler = handlers.NewSnapshotHandler(snapRepo)
+
 	m.logger.Info("Marketing module initialized",
 		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
 		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
@@ -544,7 +553,11 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
-		// READ bucket — includes the import-job audit read surface.
+		// READ bucket — includes the import-job audit read surface, the
+		// Phase 2 activity timeline, the score-profile catalog +
+		// leaderboard, and snapshot reads. Phase 2 plan §2.3 folds
+		// activity-read / score-profile-read into contact.read because
+		// granting one without the other is incoherent.
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
 			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.contact.read"))
@@ -555,6 +568,9 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterTagReadRoutes(api, m.tagHandler)
 			handlers.RegisterCustomFieldReadRoutes(api, m.customFieldHandler)
 			handlers.RegisterImportReadRoutes(api, m.importsHandler)
+			handlers.RegisterActivityReadRoutes(api, m.activityHandler)
+			handlers.RegisterScoreProfileReadRoutes(api, m.profileHandler)
+			handlers.RegisterSnapshotReadRoutes(api, m.snapshotHandler)
 		})
 
 		// IMPORT bucket — separate gate so import access can be
@@ -591,6 +607,27 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterMembershipDeleteRoutes(api, m.membershipHandler)
 			handlers.RegisterTagDeleteRoutes(api, m.tagHandler)
 			handlers.RegisterCustomFieldDeleteRoutes(api, m.customFieldHandler)
+		})
+
+		// ACTIVITY WRITE bucket — manual activity logging + correction.
+		// Separate gate from contact.write because logging real-world
+		// touchpoints is a different authority than editing the contact
+		// record itself.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.activity.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterActivityWriteRoutes(api, m.activityHandler)
+		})
+
+		// SCORE PROFILE WRITE bucket — profile CRUD. Save bumps version
+		// and bulk-marks downstream snapshots as stale; the recompute
+		// job + the next eager hit on each person settle the new state.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.score_profile.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterScoreProfileWriteRoutes(api, m.profileHandler)
 		})
 	})
 }

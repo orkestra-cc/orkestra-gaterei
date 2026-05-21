@@ -167,6 +167,45 @@ func (s *ActivityService) Get(ctx context.Context, uuid string) (*models.Activit
 	return s.repo.GetByUUID(ctx, uuid)
 }
 
+// Correct inserts a KindCorrectedBy row pointing at originalUUID. The
+// scoring engine de-applies the original on the next recompute (the
+// correction itself contributes zero). Returns the newly-created
+// correction row.
+//
+// The original activity is looked up first to:
+//   - 404 cleanly when the UUID doesn't exist in the tenant.
+//   - Stamp the correction's PersonUUID + OrgUUID from the original
+//     so the timeline view of the corrected person shows both rows.
+//
+// A reason is required — corrections without explanation are
+// audit-hostile and the scoring engine doesn't surface them in any
+// useful way.
+func (s *ActivityService) Correct(ctx context.Context, originalUUID, reason string) (*models.Activity, error) {
+	if originalUUID == "" {
+		return nil, errors.New("marketing: empty originalUuid for correction")
+	}
+	if reason == "" {
+		return nil, errors.New("marketing: correction reason is required")
+	}
+	original, err := s.repo.GetByUUID(ctx, originalUUID)
+	if err != nil {
+		return nil, err
+	}
+	correction := &models.Activity{
+		PersonUUID: original.PersonUUID,
+		OrgUUID:    original.OrgUUID, // pin to the historical org, not the current one
+		Kind:       models.KindCorrectedBy,
+		OccurredAt: time.Now().UTC(),
+		Source:     models.ActivitySourceManual,
+		Payload: map[string]any{
+			"reason":             reason,
+			"previousActivityId": originalUUID,
+		},
+		Refs: models.ActivityRefs{CorrectsActivityUUID: originalUUID},
+	}
+	return s.Create(ctx, correction)
+}
+
 // ListForPerson returns the activity timeline for the given person.
 // Filter parameters layer on top of the per-person scope (kinds,
 // source, since/until, pagination).
