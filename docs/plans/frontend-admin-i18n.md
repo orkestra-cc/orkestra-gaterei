@@ -191,12 +191,22 @@ Shipped 2026-05-21. New `LanguageSettings.tsx` card mounted in the right-column 
 
 ### Phase 6 — Italian completion pass
 
-1. Grep `it.json` for `TODO_IT` markers — these are strings that had no Italian counterpart in the original JSX.
-2. Translate them. Tag the native-speaker reviewer assigned in Phase 0.
-3. **Visual smoke test every admin page in IT.** Italian runs ~25% longer than English on average — confirm sidebars, buttons, and table headers don't truncate or wrap badly.
-4. Fix layout regressions case by case (`min-width`, `flex-shrink`, abbreviated labels).
+1. ~~Grep `it.json` for `TODO_IT` markers~~ ✅ No `TODO_IT` markers present — the Phase 4 long-tail workflow translated keys inline (IT text from JSX as canonical when available, otherwise translated fresh during extraction) rather than stubbing.
+2. ~~Translate them.~~ ✅ Audit ran against EN==IT collisions instead: 399 keys had identical EN and IT values. Of those, **41 were genuine omissions** translated in the Phase 6 commit; the remaining **358 are intentional**:
+   - Italian loanwords already established in IT business/tech vocabulary (`Email`, `Password`, `Tenant`, `Provider`, `Database`, `Dashboard`, `Brand`, `Timestamp`, `Sandbox`, `Override`, `Auto`, `Manager`, `Auditor`, `Job`, `Importer`, `Adapter` — the latter two reinforced by IT body text using them as loanwords)
+   - SDI/FatturaPA-native Italian terms (`PEC`, `REA`, `CCIAA`, `ATECO`, `IBAN`, `BIC/SWIFT`, `ABI`, `CAB`, `Codice Destinatario`, `Codice Ufficio`, `Riferimento Amministrativo`)
+   - Proper nouns + brand names (Orkestra, Anthropic, Ollama, Gemini, OpenAPI, OpenID Connect, FatturaPA, Stripe, Cloud, ICP Builder)
+   - Interpolation patterns (`{{count}}%`, `{{value}}/5`, `{{score}} ({{grade}})`)
+   - Placeholder/sample values (`123 456`, `XXXX-XXXX`, `auth.login.succeeded`, `00100`, `RM`, `MATCH (n) RETURN n LIMIT 25`, URLs, JSON literals, sample-data names like `Anthony Hopkins`)
+   - Symbols (`—`, `-`, `/`, `★`)
+   - Month abbreviations (`Feb`/`Mar`/`Apr`/`Nov` — identical in IT)
+   - `purge`/`purged` tenant-destruction jargon — IT body text already uses `purge` as a loanword (`fare il purge`, `Esegui purge`, `Purge in corso…`); keeping the badge/button strings consistent with that style was deliberate.
 
-**Exit criteria:** zero `TODO_IT` in `it.json`. Manual screenshot review of every top-level admin route in both languages.
+   The 41 translated entries cover: `Default` badges/buttons (→ `Predefinito` / `Imposta predefinito`), `Built-in` (→ `Integrato`), `System Prompt` (→ `Prompt di sistema`), `Quick Prompt` (→ `Prompt rapido`), `Quick (60s)` (→ `Veloce (60s)`), `Score` columns + badges (→ `Punteggio`), AI-agent persona labels Developer/Administrator/Guest (→ `Sviluppatore` / `Amministratore` / `Ospite`), Stripe transaction filters Succeeded/Failed/Requires action/Refunded/Partially refunded (→ feminine forms `Riuscita` / `Fallita` / `Richiede azione` / `Rimborsata` / `Rimborsata parzialmente` since they describe `transazione`), `Event ID` (→ `ID evento`), subscription cycles Monthly/Quarterly/Annual (→ `Mensile` / `Trimestrale` / `Annuale`), service-modal category Agent/Custom (→ `Agente` / `Personalizzato`), `Code (SKU)` (→ `Codice (SKU)`), `Setup fee (cents)` + `amount (cents)` (→ `Costo di setup (centesimi)` + `importo (centesimi)`), `+ Tier` + tier columns (→ `+ Livello` / `Livello`), subscription Overview tab (→ `Panoramica`), Reports title accent (→ `Rapporti`), Contact Finder skill (→ `Trova contatti`), audit Metadata column (→ `Metadati`), adminUsers `Super Admin` (→ `Super amministratore`, matching the parallel `errors.401.roles.super_admin` translation).
+3. **Visual smoke test every admin page in IT.** ⚠️ Deferred — needs a running dev server + manual screenshot pass across every top-level admin route to confirm Italian (~25% longer than English on average) doesn't break sidebars, buttons, or table headers. Captured as a follow-up rather than a hard blocker on the Phase 6 commit.
+4. Fix layout regressions case by case (`min-width`, `flex-shrink`, abbreviated labels) — pending step 3.
+
+**Exit criteria:** zero `TODO_IT` in `it.json` ✅ (none present from the start); steps 3+4 deferred to a manual review session.
 
 ### Phase 7 — CI guardrails
 
