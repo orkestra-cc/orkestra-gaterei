@@ -2699,7 +2699,34 @@
       "titleAccent": " Cercate",
       "tableTitle": "Aziende Cercate",
       "searchTitle": "Cerca Azienda per Codice Fiscale o Partita IVA",
-      "searchPlaceholder": "Cerca per nome, P.IVA o codice fiscale"
+      "searchPlaceholder": "Cerca per nome, P.IVA o codice fiscale",
+      "fields": {
+        "taxCode": "Codice Fiscale",
+        "vatCode": "Partita IVA",
+        "sdiCode": "Codice SDI",
+        "address": "Indirizzo",
+        "headquarters": "Sede",
+        "registrationDate": "Data Registrazione",
+        "dash": "-"
+      },
+      "search": {
+        "formLabel": "Codice Fiscale / P.IVA",
+        "formPlaceholder": "Es. 12485671007",
+        "submit": "Cerca",
+        "submitting": "Ricerca…",
+        "errorNotFound": "Azienda non trovata. Verifica il codice fiscale o la partita IVA inserita.",
+        "errorServiceConfig": "Servizio aziende non configurato correttamente. Contattare l'amministratore per aggiornare il token API.",
+        "errorServiceDown": "Servizio aziende temporaneamente non disponibile. Riprova tra qualche minuto.",
+        "errorGeneric": "Errore durante la ricerca. Riprova più tardi."
+      },
+      "detail": {
+        "backToList": "Torna alla lista",
+        "back": "Ricerca Aziende",
+        "infoTitle": "Informazioni",
+        "enrichmentTitle": "Arricchimento Dati",
+        "errorNotFound": "Azienda non trovata.",
+        "errorGeneric": "Errore durante il caricamento. Riprova più tardi."
+      }
     },
     "search": {
       "kicker": "Scopri",

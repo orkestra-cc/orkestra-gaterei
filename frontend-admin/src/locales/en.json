@@ -2699,7 +2699,34 @@
       "titleAccent": " searched",
       "tableTitle": "Companies searched",
       "searchTitle": "Search company by Fiscal Code or VAT Number",
-      "searchPlaceholder": "Search by name, VAT or fiscal code"
+      "searchPlaceholder": "Search by name, VAT or fiscal code",
+      "fields": {
+        "taxCode": "Fiscal Code",
+        "vatCode": "VAT Number",
+        "sdiCode": "SDI Code",
+        "address": "Address",
+        "headquarters": "Headquarters",
+        "registrationDate": "Registration Date",
+        "dash": "-"
+      },
+      "search": {
+        "formLabel": "Fiscal Code / VAT Number",
+        "formPlaceholder": "e.g. 12485671007",
+        "submit": "Search",
+        "submitting": "Searching…",
+        "errorNotFound": "Company not found. Check the fiscal code or VAT number entered.",
+        "errorServiceConfig": "Company service not configured correctly. Contact the administrator to update the API token.",
+        "errorServiceDown": "Company service temporarily unavailable. Try again in a few minutes.",
+        "errorGeneric": "Error during search. Please try again later."
+      },
+      "detail": {
+        "backToList": "Back to list",
+        "back": "Company Search",
+        "infoTitle": "Information",
+        "enrichmentTitle": "Data Enrichment",
+        "errorNotFound": "Company not found.",
+        "errorGeneric": "Error during load. Please try again later."
+      }
     },
     "search": {
       "kicker": "Discover",
