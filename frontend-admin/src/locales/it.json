@@ -3731,6 +3731,86 @@
       "noConfig": "Questo modulo non ha campi configurabili."
     }
   },
+  "setup": {
+    "gate": {
+      "errorTitle": "Impossibile raggiungere il backend Orkestra",
+      "errorBody": "Il frontend non riesce a contattare il backend per verificare se eseguire la procedura guidata iniziale. Verifica che il container backend sia attivo e raggiungibile dal browser, poi riprova.",
+      "errorDefaultDetail": "La probe di setup su /v1/setup/status non ha risposto.",
+      "retry": "Riprova"
+    },
+    "wizard": {
+      "errorTitle": "Impossibile raggiungere il backend Orkestra",
+      "errorBody": "La procedura guidata non riesce a contattare il backend su <code>/v1/setup/status</code>. Verifica che il container backend sia in esecuzione e raggiungibile, poi riprova.",
+      "retry": "Riprova",
+      "back": "Indietro",
+      "stepWelcome": "Benvenuto",
+      "stepAdmin": "Amministratore",
+      "stepOrg": "Organizzazione",
+      "stepSmtp": "Invio email",
+      "stepDone": "Fine"
+    },
+    "welcome": {
+      "title": "Benvenuto in Orkestra",
+      "intro": "Prepariamo il tuo deployment. Ci vorrà circa un minuto e va eseguito esattamente una volta per installazione.",
+      "step1": "<strong>Crea un account amministratore.</strong> Il primo utente diventa il <code>developer</code> root e può gestire tutto il resto dall'interfaccia admin.",
+      "step2": "<strong>Crea la tua prima organizzazione.</strong> Orkestra è multi-tenant — ogni funzionalità vive all'interno di un'organizzazione, e verrai registrato come proprietario.",
+      "step3": "<strong>Configura l'invio email.</strong> I reset password e i link di verifica richiedono un relay SMTP funzionante. Puoi saltare questo passo e configurarlo dopo, ma quei flussi scarteranno silenziosamente le email finché non lo farai.",
+      "step4": "<strong>Hai finito.</strong> La procedura non riapparirà al prossimo avvio.",
+      "getStarted": "Inizia"
+    },
+    "admin": {
+      "title": "Crea l'account amministratore",
+      "intro": "Questo utente diventa il root della piattaforma con il ruolo <code>developer</code>. Puoi aggiungere altri utenti dopo dall'interfaccia admin.",
+      "labelFullName": "Nome completo",
+      "labelEmail": "Email",
+      "placeholderEmail": "admin@esempio.com",
+      "labelPassword": "Password",
+      "placeholderPassword": "Almeno 10 caratteri",
+      "passwordHelp": "Cifrata con Argon2id sul backend. Deve essere lunga almeno 10 caratteri e non contenere il tuo indirizzo email.",
+      "labelConfirmPassword": "Conferma password",
+      "submit": "Crea amministratore",
+      "submitting": "Creazione…",
+      "errorAllRequired": "Tutti i campi sono obbligatori.",
+      "errorPasswordLength": "La password deve essere lunga almeno 10 caratteri.",
+      "errorPasswordMismatch": "Le password non corrispondono.",
+      "errorConflict": "Esiste già un amministratore. Ricarica questa pagina per andare alla schermata di login.",
+      "errorGeneric": "Impossibile creare l'account amministratore. Riprova."
+    },
+    "org": {
+      "title": "Crea la tua prima organizzazione",
+      "intro": "Orkestra è multi-tenant — ogni funzionalità vive all'interno di un'organizzazione. La creiamo ora e ti registriamo come proprietario. Potrai rinominarla o aggiungere altre organizzazioni dopo dall'interfaccia admin.",
+      "labelName": "Nome organizzazione",
+      "nameHelp": "Etichetta leggibile mostrata in tutta l'interfaccia admin.",
+      "labelSlug": "Slug",
+      "slugHelp": "Identificativo URL-safe. Derivato automaticamente dal nome finché non lo modifichi. Solo lettere minuscole, numeri e trattini.",
+      "defaultName": "Workspace di {{firstName}}",
+      "defaultFirstName": "Default",
+      "submit": "Crea organizzazione",
+      "submitting": "Creazione…",
+      "errorNameRequired": "Il nome organizzazione è obbligatorio.",
+      "errorSlugInvalid": "Lo slug può contenere solo lettere minuscole, numeri e trattini.",
+      "errorSlugConflict": "Un'organizzazione con slug \"{{slug}}\" esiste già. Scegli uno slug diverso.",
+      "errorGeneric": "Impossibile creare l'organizzazione. Riprova."
+    },
+    "smtp": {
+      "title": "Configura l'invio email",
+      "intro": "Orkestra usa queste impostazioni per inviare email di verifica e reset password. Lascia il provider su <code>noop</code> per saltare completamente — puoi configurare SMTP più tardi da <code>/admin/modules</code>.",
+      "noopNotice": "<strong>Nota:</strong> finché il provider è <code>noop</code>, le email di reset password e verifica vengono loggate sullo stdout del backend invece di essere consegnate. Chiunque dimentichi la password avrà bisogno di un operatore backend per recuperare il link dai log.",
+      "errorHostRequired": "L'host SMTP è obbligatorio quando il provider non è \"noop\".",
+      "errorFromRequired": "L'indirizzo mittente è obbligatorio quando il provider non è \"noop\".",
+      "errorGeneric": "Impossibile salvare le impostazioni SMTP. Controlla i valori e riprova.",
+      "skip": "Salta per ora",
+      "submit": "Salva e continua",
+      "submitting": "Salvataggio…"
+    },
+    "finish": {
+      "title": "Orkestra è pronta",
+      "bodyWithOrg": "Il tuo account amministratore è stato creato, sei autenticato e l'organizzazione <strong>{{orgName}}</strong> è attiva. Potrai rinominarla o creare altre organizzazioni in seguito.",
+      "bodyWithoutOrg": "Il tuo account amministratore è stato creato, sei autenticato e la procedura guidata non apparirà più.",
+      "smtpWarning": "<strong>SMTP non è configurato.</strong> Le email di reset password e verifica verranno loggate sullo stdout del backend invece di essere consegnate. Puoi configurarlo in qualsiasi momento da <code>/admin/modules</code> — il modulo notification ha gli stessi campi che hai appena saltato.",
+      "goToDashboard": "Vai alla dashboard"
+    }
+  },
   "table": {
     "searchPlaceholder": "Cerca...",
     "rowsPerPage": "Righe per pagina:",
