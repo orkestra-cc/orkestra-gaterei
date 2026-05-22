@@ -1468,6 +1468,8 @@
         "tabs": {
           "overview": "Panoramica",
           "memberships": "Appartenenze",
+          "timeline": "Cronologia",
+          "scores": "Score",
           "sources": "Origini"
         },
         "emailsHeader": "Email",
@@ -1618,6 +1620,103 @@
           "backToList": "Torna alla lista importazioni",
           "runAnother": "Esegui un'altra"
         }
+      }
+    },
+    "timeline": {
+      "description": "Registro append-only di ogni interazione tracciata per questa persona. Le voci manuali (chiamata, meeting, nota) si riflettono nello score al prossimo ricalcolo.",
+      "logActivity": "Registra attività",
+      "loading": "Caricamento cronologia…",
+      "loadError": "Impossibile caricare la cronologia.",
+      "empty": "Nessuna attività registrata.",
+      "loadMore": "Carica altre",
+      "colWhen": "Quando",
+      "colKind": "Tipo",
+      "colPayload": "Dettagli",
+      "colSource": "Origine",
+      "kinds": {
+        "call_made": "Chiamata",
+        "meeting_held": "Meeting",
+        "note_added": "Nota",
+        "corrected_by": "Correzione"
+      },
+      "modal": {
+        "title": "Registra attività",
+        "kindLabel": "Tipo",
+        "occurredAtLabel": "Quando è successo?",
+        "occurredAtHelp": "Lascia vuoto per registrarlo come adesso.",
+        "noteLabel": "Note",
+        "notePlaceholder": "Cosa è successo? Gli operatori lo vedono nella cronologia e nel breakdown dello score.",
+        "save": "Registra attività",
+        "saving": "Salvataggio…",
+        "cancel": "Annulla",
+        "submitError": "Impossibile salvare l'attività. Verifica il form e riprova."
+      }
+    },
+    "scores": {
+      "description": "Snapshot ordinati per profilo di scoring. Modificando un profilo si incrementa la versione — gli snapshot diventano stale e il ricalcolo notturno li sistema. Il ricalcolo eager all'insert di un'attività li mantiene freschi nel frattempo.",
+      "loading": "Caricamento score…",
+      "loadError": "Impossibile caricare gli score.",
+      "empty": "Nessuno snapshot di score. Attività + un profilo attivo li produrranno.",
+      "colProfile": "Profilo",
+      "colValue": "Valore",
+      "colActivityCount": "Attività",
+      "colState": "Stato",
+      "viewBreakdown": "Vedi breakdown",
+      "badgeFresh": "fresco",
+      "badgeStale": "stale",
+      "badgeNotApplicable": "filtro esclude",
+      "breakdown": {
+        "title": "Breakdown dello score",
+        "points": "punti",
+        "loading": "Caricamento breakdown…",
+        "loadError": "Impossibile caricare il breakdown.",
+        "empty": "Nessuna attività ha contribuito a questo snapshot.",
+        "aggregateRow": "(aggregato delle righe oltre il cap del breakdown)",
+        "colWhen": "Quando",
+        "colKind": "Tipo",
+        "colRule": "Regola",
+        "colRaw": "Punti grezzi",
+        "colDecay": "Decay",
+        "colContribution": "Contributo"
+      }
+    },
+    "scoring": {
+      "title": "Scoring",
+      "subtitle": "Un profilo per audience o lead-quality lane. Ogni salvataggio incrementa la versione e invalida gli snapshot downstream.",
+      "profilesHeader": "Profili",
+      "newProfile": "+ Nuovo",
+      "loading": "Caricamento profili…",
+      "empty": "Nessun profilo di scoring. Creane uno per iniziare a classificare i contatti.",
+      "badgeActive": "attivo",
+      "badgeInactive": "inattivo",
+      "rulesSuffix": "regole",
+      "selectPrompt": "Scegli un profilo a sinistra, o creane uno nuovo.",
+      "confirmDelete": "Eliminare il profilo \"{{name}}\" e cascade-delete dei suoi snapshot?",
+      "form": {
+        "newTitle": "Nuovo profilo di scoring",
+        "editTitle": "Modifica {{name}}",
+        "nameLabel": "Nome",
+        "nameHelp": "Identificatore slug-like, unico per tenant. Usato nelle chiamate API — mantienilo stabile.",
+        "descriptionLabel": "Descrizione",
+        "activeLabel": "Attivo (saltato dal ricalcolo eager + notturno quando off)",
+        "rulesLabel": "Regole (array JSON)",
+        "rulesHelp": "Ogni regola: { activityKind, points, decay?, cap?, windowDays?, matchPayload? }. activityKind è una stringa, un array di stringhe, o \"*\".",
+        "filtersLabel": "Filtri (oggetto JSON)",
+        "defaultDecayLabel": "Default decay (oggetto JSON)",
+        "save": "Salva",
+        "saving": "Salvataggio…",
+        "delete": "Elimina profilo",
+        "saveError": "Impossibile salvare il profilo. Il backend ha rifiutato il body — verifica il JSON.",
+        "parseError": "Errore di parsing JSON: {{msg}}"
+      },
+      "leaderboard": {
+        "title": "Leaderboard",
+        "subtitle": "Top 20 persone applicable per valore corrente",
+        "loading": "Caricamento leaderboard…",
+        "empty": "Nessuno snapshot per questo profilo.",
+        "colPerson": "Persona",
+        "colValue": "Valore",
+        "colActivities": "Attività"
       }
     }
   },

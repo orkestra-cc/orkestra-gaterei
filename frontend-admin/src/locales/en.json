@@ -1468,6 +1468,8 @@
         "tabs": {
           "overview": "Overview",
           "memberships": "Memberships",
+          "timeline": "Timeline",
+          "scores": "Scores",
           "sources": "Sources"
         },
         "emailsHeader": "Emails",
@@ -1618,6 +1620,103 @@
           "backToList": "Back to imports list",
           "runAnother": "Run another"
         }
+      }
+    },
+    "timeline": {
+      "description": "Append-only log of every interaction logged for this person. Manual entries (call, meeting, note) reflect in the score on the next recompute.",
+      "logActivity": "Log activity",
+      "loading": "Loading timeline…",
+      "loadError": "Failed to load the timeline.",
+      "empty": "No activities yet.",
+      "loadMore": "Load more",
+      "colWhen": "When",
+      "colKind": "Kind",
+      "colPayload": "Details",
+      "colSource": "Source",
+      "kinds": {
+        "call_made": "Call",
+        "meeting_held": "Meeting",
+        "note_added": "Note",
+        "corrected_by": "Correction"
+      },
+      "modal": {
+        "title": "Log activity",
+        "kindLabel": "Kind",
+        "occurredAtLabel": "When did it happen?",
+        "occurredAtHelp": "Leave empty to log it as now.",
+        "noteLabel": "Notes",
+        "notePlaceholder": "What happened? Operators see this in the timeline and in the score breakdown.",
+        "save": "Log activity",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "submitError": "Could not save the activity. Check the form and retry."
+      }
+    },
+    "scores": {
+      "description": "Snapshot rankings per scoring profile. Edit a profile to bump the version — the snapshots flip stale and the nightly recompute settles them. Eager recompute on activity insert keeps them fresh in between.",
+      "loading": "Loading scores…",
+      "loadError": "Failed to load scores.",
+      "empty": "No score snapshots yet. Activities + an active profile will produce them.",
+      "colProfile": "Profile",
+      "colValue": "Value",
+      "colActivityCount": "Activities",
+      "colState": "State",
+      "viewBreakdown": "View breakdown",
+      "badgeFresh": "fresh",
+      "badgeStale": "stale",
+      "badgeNotApplicable": "filter excluded",
+      "breakdown": {
+        "title": "Score breakdown",
+        "points": "points",
+        "loading": "Loading breakdown…",
+        "loadError": "Failed to load the breakdown.",
+        "empty": "No activities contributed to this snapshot.",
+        "aggregateRow": "(aggregate of N rows past the breakdown cap)",
+        "colWhen": "When",
+        "colKind": "Kind",
+        "colRule": "Rule",
+        "colRaw": "Raw points",
+        "colDecay": "Decay",
+        "colContribution": "Contribution"
+      }
+    },
+    "scoring": {
+      "title": "Scoring",
+      "subtitle": "One profile per audience or lead-quality lane. Each save bumps the version and invalidates downstream snapshots.",
+      "profilesHeader": "Profiles",
+      "newProfile": "+ New",
+      "loading": "Loading profiles…",
+      "empty": "No score profiles yet. Create one to start ranking contacts.",
+      "badgeActive": "active",
+      "badgeInactive": "inactive",
+      "rulesSuffix": "rules",
+      "selectPrompt": "Pick a profile on the left, or create a new one.",
+      "confirmDelete": "Delete profile \"{{name}}\" and cascade-delete its snapshots?",
+      "form": {
+        "newTitle": "New scoring profile",
+        "editTitle": "Edit {{name}}",
+        "nameLabel": "Name",
+        "nameHelp": "Slug-like identifier, unique per tenant. Used in API calls — keep it stable.",
+        "descriptionLabel": "Description",
+        "activeLabel": "Active (skipped by the eager + nightly recompute when off)",
+        "rulesLabel": "Rules (JSON array)",
+        "rulesHelp": "Each rule: { activityKind, points, decay?, cap?, windowDays?, matchPayload? }. activityKind is a string, an array of strings, or \"*\".",
+        "filtersLabel": "Filters (JSON object)",
+        "defaultDecayLabel": "Default decay (JSON object)",
+        "save": "Save",
+        "saving": "Saving…",
+        "delete": "Delete profile",
+        "saveError": "Could not save the profile. The backend rejected the body — check the JSON.",
+        "parseError": "JSON parse error: {{msg}}"
+      },
+      "leaderboard": {
+        "title": "Leaderboard",
+        "subtitle": "Top 20 applicable persons by current value",
+        "loading": "Loading leaderboard…",
+        "empty": "No snapshots for this profile yet.",
+        "colPerson": "Person",
+        "colValue": "Value",
+        "colActivities": "Activities"
       }
     }
   },

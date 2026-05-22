@@ -20,6 +20,7 @@ const TagsPage = lazy(() => import('pages/marketing/tags'));
 const CustomFieldsPage = lazy(() => import('pages/marketing/custom-fields'));
 const ImportsPage = lazy(() => import('pages/marketing/imports'));
 const ImportWizard = lazy(() => import('pages/marketing/imports/wizard'));
+const ScoringPage = lazy(() => import('pages/marketing/scoring'));
 
 const perms: [string[]] = [
   ['super_admin', 'administrator', 'developer', 'manager']
@@ -61,6 +62,10 @@ export const marketingManifest: ModuleManifest = {
     {
       path: 'marketing/imports/new',
       element: wrap(<ImportWizard />, 'marketing-import-wizard')
+    },
+    {
+      path: 'marketing/scoring',
+      element: wrap(<ScoringPage />, 'marketing-scoring')
     }
   ],
   injectApi: () => import('store/api/marketingApi')

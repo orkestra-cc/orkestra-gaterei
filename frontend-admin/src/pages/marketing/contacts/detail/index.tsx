@@ -20,12 +20,16 @@ import {
   useListMarketingOrgsQuery,
   useListMarketingTagsQuery
 } from 'store/api/marketingApi';
+import TimelineTab from './TimelineTab';
+import ScoresTab from './ScoresTab';
 
-type TabKey = 'overview' | 'memberships' | 'sources';
+type TabKey = 'overview' | 'memberships' | 'timeline' | 'scores' | 'sources';
 const DEFAULT_TAB: TabKey = 'overview';
 
 const readTab = (raw: string | null | undefined): TabKey => {
   if (raw === 'memberships') return 'memberships';
+  if (raw === 'timeline') return 'timeline';
+  if (raw === 'scores') return 'scores';
   if (raw === 'sources') return 'sources';
   return 'overview';
 };
@@ -119,6 +123,16 @@ const ContactDetailPage: React.FC = () => {
                       {memberships.items.length}
                     </Badge>
                   ) : null}
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="timeline">
+                  {t('marketing.contacts.detail.tabs.timeline')}
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="scores">
+                  {t('marketing.contacts.detail.tabs.scores')}
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item>
@@ -317,6 +331,14 @@ const ContactDetailPage: React.FC = () => {
                     </tbody>
                   </Table>
                 )}
+              </Tab.Pane>
+
+              <Tab.Pane eventKey="timeline" mountOnEnter unmountOnExit>
+                <TimelineTab personId={id} />
+              </Tab.Pane>
+
+              <Tab.Pane eventKey="scores" mountOnEnter unmountOnExit>
+                <ScoresTab personId={id} />
               </Tab.Pane>
 
               <Tab.Pane eventKey="sources">

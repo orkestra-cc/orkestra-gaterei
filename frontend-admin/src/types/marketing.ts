@@ -265,6 +265,191 @@ export interface ColumnMapping {
   options?: Record<string, string>;
 }
 
+// --- Phase 2: activities + scoring ---
+
+// ActivityKind mirrors backend models/activity_kinds.go. Kept as a
+// string union so editors get autocomplete; the backend rejects
+// unknown values with 400.
+export type ActivityKind =
+  // Email
+  | 'email_sent'
+  | 'email_opened'
+  | 'email_clicked'
+  | 'email_bounced'
+  | 'email_unsubscribed'
+  | 'email_complained'
+  // Events
+  | 'event_invited'
+  | 'event_registered'
+  | 'event_attended'
+  | 'event_no_show'
+  | 'event_cancelled'
+  // Web / form
+  | 'form_submitted'
+  | 'page_visited'
+  | 'content_downloaded'
+  // Direct (the four ManualKinds the POST endpoint accepts)
+  | 'call_made'
+  | 'meeting_held'
+  | 'note_added'
+  // System
+  | 'imported'
+  | 'merged'
+  | 'tag_added'
+  | 'tag_removed'
+  | 'card_issued'
+  | 'card_status_changed'
+  | 'corrected_by';
+
+// MANUAL_ACTIVITY_KINDS pins the subset the POST /activities surface
+// accepts. Anything else returns 400 from the backend.
+export const MANUAL_ACTIVITY_KINDS: ActivityKind[] = [
+  'call_made',
+  'meeting_held',
+  'note_added',
+  'corrected_by'
+];
+
+export type ActivitySource =
+  | 'importer'
+  | 'campaign_engine'
+  | 'webhook'
+  | 'manual'
+  | 'system';
+
+export interface ActivityRefs {
+  campaignUuid?: string;
+  eventUuid?: string;
+  formUuid?: string;
+  contentUuid?: string;
+  importJobUuid?: string;
+  cardUuid?: string;
+  correctsActivityUuid?: string;
+}
+
+export interface Activity {
+  uuid: string;
+  tenantId: string;
+  personUuid: string;
+  orgUuid?: string;
+  kind: ActivityKind;
+  occurredAt: string;
+  recordedAt: string;
+  source: ActivitySource;
+  payload?: Record<string, unknown>;
+  refs?: ActivityRefs;
+  externalId?: string;
+  createdBy?: string;
+}
+
+export interface ManualActivityPayload {
+  personUuid: string;
+  kind: ActivityKind;
+  occurredAt?: string;
+  payload?: Record<string, unknown>;
+  refs?: ActivityRefs;
+  externalId?: string;
+}
+
+export interface CorrectionPayload {
+  reason: string;
+}
+
+// Decay function shapes — null/undefined window/half-life mean
+// the corresponding branch isn't applicable (validated server-side).
+export type DecayFnKind = 'none' | 'linear' | 'exponential';
+
+export interface DecayFn {
+  fn: DecayFnKind | string;
+  windowDays?: number;
+  halfLifeDays?: number;
+}
+
+// ScoreRule.activityKind is intentionally typed `unknown` so the
+// backend's polymorphic shape (string | string[] | "*" wildcard)
+// round-trips losslessly through JSON.
+export interface ScoreRule {
+  activityKind: unknown;
+  matchPayload?: Record<string, unknown>;
+  points: number;
+  decay?: DecayFn;
+  cap?: number;
+  windowDays?: number;
+}
+
+export interface ProfileFilter {
+  tagsInclude?: string[];
+  tagsExclude?: string[];
+  customFieldFilters?: Record<string, unknown>;
+}
+
+export interface ScoreProfile {
+  uuid: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  rules: ScoreRule[];
+  filters?: ProfileFilter;
+  defaultDecay?: DecayFn;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface ScoreProfilePayload {
+  name: string;
+  description?: string;
+  active: boolean;
+  rules: ScoreRule[];
+  filters?: ProfileFilter;
+  defaultDecay?: DecayFn;
+}
+
+export interface BreakdownEntry {
+  activityUuid: string;
+  activityKind: ActivityKind | 'aggregate';
+  occurredAt: string;
+  ruleIndex: number;
+  rawPoints: number;
+  appliedDecay: number;
+  pointsContributed: number;
+}
+
+export interface ScoreSnapshot {
+  uuid: string;
+  tenantId: string;
+  personUuid: string;
+  profileUuid: string;
+  profileVersion: number;
+  value: number;
+  breakdown?: BreakdownEntry[];
+  asOf: string;
+  computedAt: string;
+  applicable: boolean;
+  stale: boolean;
+  activityCount: number;
+  lastActivityAt?: string;
+}
+
+// LeaderboardEntry is a slimmer projection of ScoreSnapshot (no
+// breakdown) — the table cells don't need per-entry detail.
+export interface LeaderboardEntry {
+  uuid: string;
+  personUuid: string;
+  profileUuid: string;
+  profileVersion: number;
+  value: number;
+  applicable: boolean;
+  stale: boolean;
+  activityCount: number;
+  lastActivityAt?: string;
+  asOf: string;
+  computedAt: string;
+}
+
 // --- List envelopes ---
 
 export interface ListMeta {

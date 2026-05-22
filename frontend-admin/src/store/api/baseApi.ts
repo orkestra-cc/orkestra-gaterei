@@ -425,7 +425,15 @@ export const baseApi = createApi({
     'MarketingMembership',
     'MarketingTag',
     'MarketingCustomFieldSchema',
-    'MarketingImport'
+    'MarketingImport',
+    // Marketing module — Phase 2 activity log + scoring surfaces.
+    // ScoreSnapshot tags are keyed two ways: by uuid for single-row
+    // reads from the breakdown drawer, and by `person:<uuid>` /
+    // `profile:<uuid>` for the per-person and per-profile listings
+    // so a profile edit invalidates the right leaderboard rows.
+    'MarketingActivity',
+    'MarketingScoreProfile',
+    'MarketingScoreSnapshot'
   ],
   // Keep cache for 5 minutes by default
   keepUnusedDataFor: 300,
@@ -552,7 +560,10 @@ export const TENANT_SCOPED_TAGS = [
   'MarketingMembership',
   'MarketingTag',
   'MarketingCustomFieldSchema',
-  'MarketingImport'
+  'MarketingImport',
+  'MarketingActivity',
+  'MarketingScoreProfile',
+  'MarketingScoreSnapshot'
 ] as const;
 
 export default baseApi;

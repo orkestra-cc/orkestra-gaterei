@@ -25,7 +25,15 @@ import type {
   CustomFieldTarget,
   ImportJob,
   PaginatedItems,
-  SimpleItems
+  SimpleItems,
+  Activity,
+  ManualActivityPayload,
+  ActivityKind,
+  ActivitySource,
+  ScoreProfile,
+  ScoreProfilePayload,
+  ScoreSnapshot,
+  LeaderboardEntry
 } from '../../types/marketing';
 
 const buildQS = (params: Record<string, unknown>): string => {
@@ -341,13 +349,162 @@ export const marketingApi = baseApi.injectEndpoints({
     getMarketingImport: builder.query<ImportJob, string>({
       query: id => `/v1/marketing/imports/${id}`,
       providesTags: (_r, _e, id) => [{ type: 'MarketingImport', id }]
-    })
+    }),
     // runMarketingImport is intentionally NOT an RTK Query mutation —
     // multipart/form-data uploads don't fit cleanly through the
     // generated fetchBaseQuery serializer. The import wizard calls
     // `fetch` directly with credentials:'include' and then
     // invalidates the 'MarketingImport' / 'MarketingOrg' /
     // 'MarketingPerson' tags via `useDispatch + invalidateApiTags`.
+
+    // --- Phase 2: Activities --------------------------------------------
+
+    listPersonActivities: builder.query<
+      PaginatedItems<Activity>,
+      {
+        personId: string;
+        kind?: ActivityKind[];
+        source?: ActivitySource;
+        since?: string;
+        until?: string;
+        limit?: number;
+        skip?: number;
+      }
+    >({
+      query: ({ personId, ...rest }) =>
+        `/v1/marketing/persons/${personId}/activities${buildQS(rest)}`,
+      providesTags: (result, _e, { personId }) =>
+        result?.items
+          ? [
+              ...result.items.map(({ uuid }) => ({
+                type: 'MarketingActivity' as const,
+                id: uuid
+              })),
+              { type: 'MarketingActivity', id: `person:${personId}` }
+            ]
+          : [{ type: 'MarketingActivity', id: `person:${personId}` }]
+    }),
+    createActivity: builder.mutation<Activity, ManualActivityPayload>({
+      query: body => ({
+        url: '/v1/marketing/activities',
+        method: 'POST',
+        body
+      }),
+      // A new activity invalidates the timeline for the affected
+      // person AND every score snapshot of that person (eager
+      // recompute on the backend produces fresh snapshots; the UI
+      // re-fetches to reflect them).
+      invalidatesTags: (_r, _e, body) => [
+        { type: 'MarketingActivity', id: `person:${body.personUuid}` },
+        { type: 'MarketingScoreSnapshot', id: `person:${body.personUuid}` }
+      ]
+    }),
+    correctActivity: builder.mutation<
+      Activity,
+      { id: string; reason: string; personUuid: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/v1/marketing/activities/${id}/correct`,
+        method: 'POST',
+        body: { reason }
+      }),
+      invalidatesTags: (_r, _e, { personUuid }) => [
+        { type: 'MarketingActivity', id: `person:${personUuid}` },
+        { type: 'MarketingScoreSnapshot', id: `person:${personUuid}` }
+      ]
+    }),
+
+    // --- Phase 2: Score Profiles ----------------------------------------
+
+    listScoreProfiles: builder.query<
+      SimpleItems<ScoreProfile>,
+      { activeOnly?: boolean } | undefined
+    >({
+      query: params =>
+        `/v1/marketing/score-profiles${params ? buildQS(params) : ''}`,
+      providesTags: result =>
+        result?.items
+          ? [
+              ...result.items.map(({ uuid }) => ({
+                type: 'MarketingScoreProfile' as const,
+                id: uuid
+              })),
+              { type: 'MarketingScoreProfile', id: 'LIST' }
+            ]
+          : [{ type: 'MarketingScoreProfile', id: 'LIST' }]
+    }),
+    getScoreProfile: builder.query<ScoreProfile, string>({
+      query: id => `/v1/marketing/score-profiles/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'MarketingScoreProfile', id }]
+    }),
+    createScoreProfile: builder.mutation<ScoreProfile, ScoreProfilePayload>({
+      query: body => ({
+        url: '/v1/marketing/score-profiles',
+        method: 'POST',
+        body
+      }),
+      invalidatesTags: [{ type: 'MarketingScoreProfile', id: 'LIST' }]
+    }),
+    replaceScoreProfile: builder.mutation<
+      ScoreProfile,
+      { id: string; body: ScoreProfilePayload }
+    >({
+      query: ({ id, body }) => ({
+        url: `/v1/marketing/score-profiles/${id}`,
+        method: 'PATCH',
+        body
+      }),
+      // Save bumps the profile version and bulk-marks every downstream
+      // snapshot stale. Invalidate the per-profile leaderboard cache
+      // so the UI re-fetches the recomputed rows.
+      invalidatesTags: (_r, _e, { id }) => [
+        { type: 'MarketingScoreProfile', id },
+        { type: 'MarketingScoreProfile', id: 'LIST' },
+        { type: 'MarketingScoreSnapshot', id: `profile:${id}` }
+      ]
+    }),
+    deleteScoreProfile: builder.mutation<void, string>({
+      query: id => ({
+        url: `/v1/marketing/score-profiles/${id}`,
+        method: 'DELETE'
+      }),
+      // Delete cascades to snapshots on the server.
+      invalidatesTags: (_r, _e, id) => [
+        { type: 'MarketingScoreProfile', id },
+        { type: 'MarketingScoreProfile', id: 'LIST' },
+        { type: 'MarketingScoreSnapshot', id: `profile:${id}` }
+      ]
+    }),
+    getProfileLeaderboard: builder.query<
+      PaginatedItems<LeaderboardEntry>,
+      { id: string; applicableOnly?: boolean; limit?: number; skip?: number }
+    >({
+      query: ({ id, ...rest }) =>
+        `/v1/marketing/score-profiles/${id}/leaderboard${buildQS(rest)}`,
+      providesTags: (_r, _e, { id }) => [
+        { type: 'MarketingScoreSnapshot', id: `profile:${id}` }
+      ]
+    }),
+
+    // --- Phase 2: Score Snapshots --------------------------------------
+
+    listPersonScores: builder.query<SimpleItems<ScoreSnapshot>, string>({
+      query: personId => `/v1/marketing/persons/${personId}/scores`,
+      providesTags: (result, _e, personId) =>
+        result?.items
+          ? [
+              ...result.items.map(({ uuid }) => ({
+                type: 'MarketingScoreSnapshot' as const,
+                id: uuid
+              })),
+              { type: 'MarketingScoreSnapshot', id: `person:${personId}` }
+            ]
+          : [{ type: 'MarketingScoreSnapshot', id: `person:${personId}` }]
+    }),
+    getScoreSnapshot: builder.query<ScoreSnapshot, string>({
+      query: id => `/v1/marketing/score-snapshots/${id}`,
+      providesTags: (_r, _e, id) => [{ type: 'MarketingScoreSnapshot', id }]
+    })
   })
 });
 
@@ -375,5 +532,17 @@ export const {
   useUpsertCustomFieldSchemaMutation,
   useDeleteCustomFieldSchemaMutation,
   useListMarketingImportsQuery,
-  useGetMarketingImportQuery
+  useGetMarketingImportQuery,
+  // Phase 2
+  useListPersonActivitiesQuery,
+  useCreateActivityMutation,
+  useCorrectActivityMutation,
+  useListScoreProfilesQuery,
+  useGetScoreProfileQuery,
+  useCreateScoreProfileMutation,
+  useReplaceScoreProfileMutation,
+  useDeleteScoreProfileMutation,
+  useGetProfileLeaderboardQuery,
+  useListPersonScoresQuery,
+  useGetScoreSnapshotQuery
 } = marketingApi;
