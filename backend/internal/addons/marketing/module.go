@@ -37,9 +37,12 @@ import (
 // struct so Init() consumes module config through a single typed
 // surface (same pattern as subscriptions).
 type Settings struct {
-	ScoreRecomputeInterval time.Duration `module:"scoreRecomputeInterval"`
-	ScoreEagerOnInsert     bool          `module:"scoreEagerOnInsert"`
-	ActivityBreakdownMax   int           `module:"activityBreakdownMax"`
+	ScoreRecomputeInterval  time.Duration `module:"scoreRecomputeInterval"`
+	ScoreEagerOnInsert      bool          `module:"scoreEagerOnInsert"`
+	ActivityBreakdownMax    int           `module:"activityBreakdownMax"`
+	ImportWorkerConcurrency int           `module:"importWorkerConcurrency"`
+	ImportQueueBuffer       int           `module:"importQueueBuffer"`
+	ImportSpoolDir          string        `module:"importSpoolDir"`
 }
 
 // MarketingModule implements the Orkestra SDK Module interface for
@@ -85,6 +88,11 @@ type MarketingModule struct {
 	// own would exit the ticker, but belt-and-braces matches the
 	// subscriptions pattern (see jobs/renewal_job.go select loop).
 	recomputeCancel context.CancelFunc
+
+	// Phase 3 — async import runner.
+	conflictReviewRepo *repository.ConflictReviewRepository
+	importWorker       *importers.Worker
+	workerCancel       context.CancelFunc
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -249,6 +257,13 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "tenantId", Direction: 1},
 				{Field: "status", Direction: 1},
 			}},
+			// Phase 3 — idempotency lookup. Sparse because Phase 1 rows
+			// predate the field.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "idempotencyKey", Direction: 1},
+				{Field: "createdAt", Direction: -1},
+			}, Sparse: true},
 		}},
 		// Phase 2 — Storicizzazione & scoring.
 		//
@@ -336,6 +351,33 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "personUuid", Direction: 1},
 			}},
 		}},
+		// Phase 3 — Import avanzati.
+		//
+		// marketing_conflict_reviews: queue of import-flagged dedup
+		// conflicts awaiting operator resolution. The (tenant, status)
+		// index drives the pending queue read; the per-job index drives
+		// the "show me every review from this import" view that the
+		// imports list deep-links to.
+		{Name: models.ConflictReviewsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "importJobUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "targetKind", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "existingUuid", Direction: 1},
+			}},
+		}},
 	}
 }
 
@@ -356,6 +398,7 @@ func (m *MarketingModule) NavItems() []module.NavItemSpec {
 			{Name: "Tags", Icon: "tags", Path: "/marketing/tags", Active: true},
 			{Name: "Custom Fields", Icon: "list-check", Path: "/marketing/custom-fields", Active: true},
 			{Name: "Imports", Icon: "file-import", Path: "/marketing/imports", Active: true},
+			{Name: "Reviews", Icon: "balance-scale", Path: "/marketing/reviews", Active: true},
 			{Name: "Scoring", Icon: "chart-line", Path: "/marketing/scoring", Active: true},
 		},
 	}}
@@ -378,6 +421,10 @@ func (m *MarketingModule) ConfigSchema() []module.ConfigField {
 		{Key: "scoreRecomputeInterval", Label: "Score nightly-recompute interval", Type: module.FieldDuration, Default: "24h", EnvVar: "MARKETING_SCORE_RECOMPUTE_INTERVAL"},
 		{Key: "scoreEagerOnInsert", Label: "Recompute score on activity insert", Type: module.FieldBool, Default: "true", EnvVar: "MARKETING_SCORE_EAGER_ON_INSERT"},
 		{Key: "activityBreakdownMax", Label: "Max breakdown entries per snapshot", Type: module.FieldInt, Default: "100", EnvVar: "MARKETING_ACTIVITY_BREAKDOWN_MAX"},
+		// Phase 3 — async import runner.
+		{Key: "importWorkerConcurrency", Label: "Import worker concurrency", Type: module.FieldInt, Default: "2", EnvVar: "MARKETING_IMPORT_WORKER_CONCURRENCY"},
+		{Key: "importQueueBuffer", Label: "Import queue buffer", Type: module.FieldInt, Default: "32", EnvVar: "MARKETING_IMPORT_QUEUE_BUFFER"},
+		{Key: "importSpoolDir", Label: "Import spool directory", Type: module.FieldString, Default: "/var/lib/orkestra/marketing/spool", EnvVar: "MARKETING_IMPORT_SPOOL_DIR"},
 	}
 }
 
@@ -398,15 +445,15 @@ func (m *MarketingModule) ConfigSchema() []module.ConfigField {
 // Later phases add:
 //   - marketing.card_type.write / marketing.card.{issue,suspend,revoke}
 //     (Phase 4, card lifecycle)
-//   - marketing.conflict.resolve (Phase 3, review queue)
 func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
-		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, import-job audit, activity timelines, score profiles, and score snapshots"},
+		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, import-job audit, activity timelines, score profiles, snapshots, and conflict-review queue"},
 		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
 		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
 		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
 		{Key: "marketing.activity.write", Module: m.Name(), Description: "Log manual activities (call, meeting, note, correction) on the contact timeline"},
 		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
+		{Key: "marketing.conflict.resolve", Module: m.Name(), Description: "Resolve marketing import conflict reviews (keep_existing / take_incoming / manual_merge / dismiss)"},
 	}
 }
 
@@ -443,8 +490,17 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	if settings.ActivityBreakdownMax <= 0 {
 		settings.ActivityBreakdownMax = scoring.DefaultBreakdownMax
 	}
+	if settings.ImportWorkerConcurrency <= 0 {
+		settings.ImportWorkerConcurrency = 2
+	}
+	if settings.ImportQueueBuffer <= 0 {
+		settings.ImportQueueBuffer = 32
+	}
+	if settings.ImportSpoolDir == "" {
+		settings.ImportSpoolDir = "/var/lib/orkestra/marketing/spool"
+	}
 
-	// --- Phase 1 wiring (unchanged) ---
+	// --- Phase 1 wiring ---
 	orgRepo := repository.NewOrganizationRepository(deps.DB)
 	personRepo := repository.NewPersonRepository(deps.DB)
 	mshipRepo := repository.NewMembershipRepository(deps.DB)
@@ -459,7 +515,28 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	tagSvc := services.NewTagService(tagRepo)
 
 	m.importerAdapters = []importers.Importer{csvimp.New()}
-	importSvc := services.NewImportService(jobRepo, orgRepo, personRepo, mshipRepo, tagRepo, m.importerAdapters...)
+
+	// --- Phase 3 wiring — async import worker + conflict review repo ---
+	m.conflictReviewRepo = repository.NewConflictReviewRepository(deps.DB)
+
+	workerCatalog := make(map[string]importers.Importer, len(m.importerAdapters))
+	for _, a := range m.importerAdapters {
+		workerCatalog[a.Name()] = a
+	}
+	m.importWorker = importers.NewWorker(importers.WorkerDeps{
+		Logger:      deps.Logger,
+		JobRepo:     jobRepo,
+		OrgRepo:     orgRepo,
+		PersonRepo:  personRepo,
+		MshipRepo:   mshipRepo,
+		TagRepo:     tagRepo,
+		Catalog:     workerCatalog,
+		SpoolDir:    settings.ImportSpoolDir,
+		Concurrency: settings.ImportWorkerConcurrency,
+		QueueBuffer: settings.ImportQueueBuffer,
+	})
+
+	importSvc := services.NewImportService(jobRepo, m.importWorker, m.importerAdapters...)
 
 	m.orgHandler = handlers.NewOrganizationHandler(orgSvc)
 	m.personHandler = handlers.NewPersonHandler(personSvc)
@@ -496,32 +573,51 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
 		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
 		slog.Int("activityBreakdownMax", settings.ActivityBreakdownMax),
+		slog.Int("importWorkerConcurrency", settings.ImportWorkerConcurrency),
+		slog.Int("importQueueBuffer", settings.ImportQueueBuffer),
+		slog.String("importSpoolDir", settings.ImportSpoolDir),
 	)
 	return nil
 }
 
-// Start spawns the nightly recompute job. The registry calls Start
-// only when the module is enabled — disabled modules go through
-// Init (so collections + handlers are wired and the gated routes
-// return 503) but skip Start, so the background ticker doesn't run.
+// Start spawns the nightly recompute job + the import worker pool.
+// The registry calls Start only when the module is enabled —
+// disabled modules go through Init (so collections + handlers are
+// wired and the gated routes return 503) but skip Start, so the
+// background goroutines don't run.
 func (m *MarketingModule) Start(_ context.Context) error {
-	if m.recomputeJob == nil {
-		return nil
+	if m.recomputeJob != nil {
+		jobCtx, cancel := context.WithCancel(context.Background())
+		m.recomputeCancel = cancel
+		go m.recomputeJob.Start(jobCtx)
 	}
-	jobCtx, cancel := context.WithCancel(context.Background())
-	m.recomputeCancel = cancel
-	go m.recomputeJob.Start(jobCtx)
+	if m.importWorker != nil {
+		workerCtx, cancel := context.WithCancel(context.Background())
+		m.workerCancel = cancel
+		if err := m.importWorker.Start(workerCtx); err != nil {
+			m.logger.Error("Marketing import worker boot recovery failed", slog.String("err", err.Error()))
+		}
+	}
 	return nil
 }
 
-// Stop cancels the ticker. Both signals (ctx cancel + stopChan close)
-// reach the goroutine's select loop; whichever fires first wins.
-func (m *MarketingModule) Stop(_ context.Context) error {
+// Stop cancels the ticker + signals the worker to drain. Both signals
+// (ctx cancel + queue close in worker.Stop) reach the goroutines'
+// select loops; whichever fires first wins.
+func (m *MarketingModule) Stop(ctx context.Context) error {
 	if m.recomputeCancel != nil {
 		m.recomputeCancel()
 	}
 	if m.recomputeJob != nil {
 		m.recomputeJob.Stop()
+	}
+	if m.workerCancel != nil {
+		m.workerCancel()
+	}
+	if m.importWorker != nil {
+		if err := m.importWorker.Stop(ctx); err != nil {
+			m.logger.Warn("Marketing import worker shutdown timed out", slog.String("err", err.Error()))
+		}
 	}
 	return nil
 }

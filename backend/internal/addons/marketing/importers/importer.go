@@ -16,7 +16,30 @@
 // that yields canonical rows).
 package importers
 
-import "io"
+import (
+	"encoding/json"
+	"io"
+)
+
+// DecodeMapping deserializes a persisted ColumnMapping JSON blob.
+// Empty / nil input yields an empty (non-nil) ColumnMapping so the
+// pipeline can run with adapter defaults — useful for adapters that
+// derive their mapping from the source itself (e.g. Odoo res.partner
+// has a fixed schema). Errors surface as adapter-parse failures with
+// the underlying json error attached.
+func DecodeMapping(raw []byte) (ColumnMapping, error) {
+	if len(raw) == 0 {
+		return ColumnMapping{Columns: map[string]string{}}, nil
+	}
+	var m ColumnMapping
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ColumnMapping{}, err
+	}
+	if m.Columns == nil {
+		m.Columns = map[string]string{}
+	}
+	return m, nil
+}
 
 // ColumnMapping is the operator-supplied translation from the
 // adapter's native column space (CSV headers, Excel cell coords,

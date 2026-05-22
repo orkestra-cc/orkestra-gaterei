@@ -6162,6 +6162,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "conflictReviewUuids": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -6170,6 +6179,9 @@
             "type": "string"
           },
           "error": {
+            "type": "string"
+          },
+          "idempotencyKey": {
             "type": "string"
           },
           "importer": {
@@ -31014,10 +31026,10 @@
         ]
       },
       "post": {
-        "description": "Upload a CSV file with a column mapping JSON; runs synchronously and returns the final import job. Multipart fields: file (required), mapping (required, JSON ColumnMapping), importer (optional, defaults to csv), sourceName (optional, defaults to filename).",
+        "description": "Upload a CSV/Excel/Odoo payload with a column mapping JSON; the import runs asynchronously in the background worker. Returns 202 Accepted with the queued job UUID. Multipart fields: file (required), mapping (required, JSON ColumnMapping), importer (optional, defaults to csv), sourceName (optional, defaults to filename). Optional Idempotency-Key request header dedups identical submissions within 24h.",
         "operationId": "marketing-run-import",
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
@@ -31025,7 +31037,14 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "default": {
             "content": {
@@ -31038,7 +31057,7 @@
             "description": "Error"
           }
         },
-        "summary": "Run a CSV import",
+        "summary": "Enqueue an import job",
         "tags": [
           "Marketing - Imports"
         ]

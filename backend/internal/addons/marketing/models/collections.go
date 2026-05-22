@@ -25,4 +25,7 @@ const (
 	ActivitiesCollection     = "marketing_activities"
 	ScoreProfilesCollection  = "marketing_score_profiles"
 	ScoreSnapshotsCollection = "marketing_score_snapshots"
+
+	// Phase 3 — Import avanzati.
+	ConflictReviewsCollection = "marketing_conflict_reviews"
 )

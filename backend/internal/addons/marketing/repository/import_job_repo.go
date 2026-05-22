@@ -121,3 +121,115 @@ func (r *ImportJobRepository) UpdateStatus(ctx context.Context, uuid string, sta
 	}
 	return nil
 }
+
+// FindByIdempotencyKey returns the most recent job matching the key
+// inside the lookback window. Empty key short-circuits to (nil, nil)
+// because the caller MUST be able to compute one — surface that
+// invariant violation as a not-found, not a panic.
+func (r *ImportJobRepository) FindByIdempotencyKey(ctx context.Context, key string, lookback time.Duration) (*models.ImportJob, error) {
+	if key == "" {
+		return nil, nil
+	}
+	filter, err := tenantrepo.Scope(ctx, bson.M{
+		"idempotencyKey": key,
+		"createdAt":      bson.M{"$gte": time.Now().UTC().Add(-lookback)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	var out models.ImportJob
+	if err := r.coll.FindOne(ctx, filter, opts).Decode(&out); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AppendConflictReviewUUID adds the review UUID to the job's
+// conflictReviewUuids array. Used by the pipeline whenever it parks
+// a row in marketing_conflict_reviews; the worker reads
+// CountPendingForJob on the review repo for the authoritative gate,
+// but the array gives the UI a quick "which reviews came from this
+// job" lookup without a second query.
+func (r *ImportJobRepository) AppendConflictReviewUUID(ctx context.Context, jobUUID, reviewUUID string) error {
+	filter, err := tenantrepo.Scope(ctx, bson.M{"uuid": jobUUID})
+	if err != nil {
+		return err
+	}
+	patch := bson.M{
+		"$addToSet": bson.M{"conflictReviewUuids": reviewUUID},
+		"$set":      bson.M{"updatedAt": time.Now().UTC()},
+	}
+	res, err := r.coll.UpdateOne(ctx, filter, patch)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrImportJobNotFound
+	}
+	return nil
+}
+
+// ListAcrossTenantsByStatus returns every job in the given status across
+// all tenants. The ONE cross-tenant query in this repository — the worker
+// calls it once at boot to repopulate the queue with persisted-as-queued
+// jobs and to mark stuck-in-running jobs as runner_crash failures.
+// Mirrors the bypass pattern documented on
+// ScoreSnapshotRepository.ListStaleAcrossTenants.
+//
+// Caller is responsible for stamping each job's TenantID onto a fresh
+// ctx (via ctxauth.KeyTenantID) before delegating downstream work to
+// scope-aware methods.
+func (r *ImportJobRepository) ListAcrossTenantsByStatus(ctx context.Context, status models.ImportJobStatus, limit int64) ([]models.ImportJob, error) {
+	if !models.IsKnownImportJobStatus(status) {
+		return nil, errors.New("marketing: unknown import job status")
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: 1}}). // oldest first — preserve enqueue order
+		SetLimit(limit)
+	cur, err := r.coll.Find(ctx, bson.M{"status": status}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := make([]models.ImportJob, 0)
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MarkRunnerCrash transitions a job from running → failed with the
+// reserved "runner_crash" error message. Used by the worker's boot
+// recovery to salvage jobs the previous process couldn't finish.
+func (r *ImportJobRepository) MarkRunnerCrash(ctx context.Context, jobUUID, tenantID string) error {
+	if tenantID == "" {
+		return errors.New("marketing: empty tenantId in MarkRunnerCrash")
+	}
+	now := time.Now().UTC()
+	patch := bson.M{
+		"status":      models.ImportJobStatusFailed,
+		"error":       "runner_crash",
+		"completedAt": now,
+	}
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{"uuid": jobUUID, "tenantId": tenantID, "status": models.ImportJobStatusRunning},
+		bson.M{"$set": patch},
+	)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrImportJobNotFound
+	}
+	return nil
+}
