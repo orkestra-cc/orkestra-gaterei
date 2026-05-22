@@ -180,6 +180,50 @@ func (r *PersonRepository) AppendSource(ctx context.Context, uuid string, src mo
 	return err
 }
 
+// AddActiveCard appends cardUUID to marketing_persons.activeCardUuids
+// via $addToSet (so a re-issue with the same UUID is idempotent). Used
+// by CardService.Issue and CardService.Reinstate to keep the
+// denormalized list in sync with marketing_cards.status changes.
+func (r *PersonRepository) AddActiveCard(ctx context.Context, personUUID, cardUUID string) error {
+	filter, err := tenantrepo.Scope(ctx, bson.M{"uuid": personUUID})
+	if err != nil {
+		return err
+	}
+	res, err := r.coll.UpdateOne(ctx, filter, bson.M{
+		"$addToSet": bson.M{"activeCardUuids": cardUUID},
+		"$set":      bson.M{"updatedAt": time.Now().UTC()},
+	})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrPersonNotFound
+	}
+	return nil
+}
+
+// RemoveActiveCard pulls cardUUID from activeCardUuids. Used by
+// CardService.Revoke and CardService.Expire when a card transitions
+// to the terminal revoked state. Suspended cards remain in the list
+// (see IMPLEMENTATION_PLAN_PHASE_4.md §3.4 for the rationale).
+func (r *PersonRepository) RemoveActiveCard(ctx context.Context, personUUID, cardUUID string) error {
+	filter, err := tenantrepo.Scope(ctx, bson.M{"uuid": personUUID})
+	if err != nil {
+		return err
+	}
+	res, err := r.coll.UpdateOne(ctx, filter, bson.M{
+		"$pull": bson.M{"activeCardUuids": cardUUID},
+		"$set":  bson.M{"updatedAt": time.Now().UTC()},
+	})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrPersonNotFound
+	}
+	return nil
+}
+
 // Delete hard-deletes a person by UUID inside the caller's tenant.
 // The membership cascade is the service's responsibility.
 func (r *PersonRepository) Delete(ctx context.Context, uuid string) error {

@@ -39,12 +39,13 @@ import (
 // struct so Init() consumes module config through a single typed
 // surface (same pattern as subscriptions).
 type Settings struct {
-	ScoreRecomputeInterval  time.Duration `module:"scoreRecomputeInterval"`
-	ScoreEagerOnInsert      bool          `module:"scoreEagerOnInsert"`
-	ActivityBreakdownMax    int           `module:"activityBreakdownMax"`
-	ImportWorkerConcurrency int           `module:"importWorkerConcurrency"`
-	ImportQueueBuffer       int           `module:"importQueueBuffer"`
-	ImportSpoolDir          string        `module:"importSpoolDir"`
+	ScoreRecomputeInterval      time.Duration `module:"scoreRecomputeInterval"`
+	ScoreEagerOnInsert          bool          `module:"scoreEagerOnInsert"`
+	ActivityBreakdownMax        int           `module:"activityBreakdownMax"`
+	ImportWorkerConcurrency     int           `module:"importWorkerConcurrency"`
+	ImportQueueBuffer           int           `module:"importQueueBuffer"`
+	ImportSpoolDir              string        `module:"importSpoolDir"`
+	CardExpirationCheckInterval time.Duration `module:"cardExpirationCheckInterval"`
 }
 
 // MarketingModule implements the Orkestra SDK Module interface for
@@ -98,6 +99,15 @@ type MarketingModule struct {
 	importWorker          *importers.Worker
 	workerCancel          context.CancelFunc
 	activityEmitter       *services.ActivityEmitter
+
+	// Phase 4 — card lifecycle: type templates, instances, sequence
+	// counter for the {seq:N} placeholder, the orchestration services,
+	// and the expiration scheduler. Handlers + Cedar permissions ship
+	// in PR-3; this PR-2 brings the services + the scheduler only.
+	cardTypeSvc        *services.CardTypeService
+	cardSvc            *services.CardService
+	cardExpirationJob  *jobs.CardExpirationJob
+	cardExpirationStop context.CancelFunc
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -498,6 +508,8 @@ func (m *MarketingModule) ConfigSchema() []module.ConfigField {
 		{Key: "importWorkerConcurrency", Label: "Import worker concurrency", Type: module.FieldInt, Default: "2", EnvVar: "MARKETING_IMPORT_WORKER_CONCURRENCY"},
 		{Key: "importQueueBuffer", Label: "Import queue buffer", Type: module.FieldInt, Default: "32", EnvVar: "MARKETING_IMPORT_QUEUE_BUFFER"},
 		{Key: "importSpoolDir", Label: "Import spool directory", Type: module.FieldString, Default: "/var/lib/orkestra/marketing/spool", EnvVar: "MARKETING_IMPORT_SPOOL_DIR"},
+		// Phase 4 — card lifecycle.
+		{Key: "cardExpirationCheckInterval", Label: "Card expiration scanner interval", Type: module.FieldDuration, Default: "1h", EnvVar: "MARKETING_CARD_EXPIRATION_INTERVAL"},
 	}
 }
 
@@ -571,6 +583,9 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	}
 	if settings.ImportSpoolDir == "" {
 		settings.ImportSpoolDir = "/var/lib/orkestra/marketing/spool"
+	}
+	if settings.CardExpirationCheckInterval <= 0 {
+		settings.CardExpirationCheckInterval = time.Hour
 	}
 
 	// --- Phase 1 wiring ---
@@ -668,6 +683,27 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.profileHandler = handlers.NewScoreProfileHandler(m.profileSvc, snapRepo)
 	m.snapshotHandler = handlers.NewSnapshotHandler(snapRepo)
 
+	// --- Phase 4 wiring — card lifecycle ---
+	//
+	// CardTypeService caches the CodeFormat AST in-process; CardService
+	// is the single funnel for the §7 state machine and Activity emit.
+	// The expiration job runs as a Start/Stop-gated goroutine via
+	// CardExpirationJob.
+	cardTypeRepo := repository.NewCardTypeRepository(deps.DB)
+	cardRepo := repository.NewCardRepository(deps.DB)
+	cardSeqRepo := repository.NewCardSequenceRepository(deps.DB)
+
+	m.cardTypeSvc = services.NewCardTypeService(cardTypeRepo, cardRepo)
+	m.cardSvc = services.NewCardService(services.CardServiceDeps{
+		TypeService: m.cardTypeSvc,
+		CardRepo:    cardRepo,
+		SeqRepo:     cardSeqRepo,
+		PersonRepo:  personRepo,
+		ActivitySvc: m.activitySvc,
+		Logger:      deps.Logger,
+	})
+	m.cardExpirationJob = jobs.NewCardExpirationJob(cardRepo, m.cardSvc, settings.CardExpirationCheckInterval, deps.Logger)
+
 	m.logger.Info("Marketing module initialized",
 		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
 		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
@@ -675,6 +711,7 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 		slog.Int("importWorkerConcurrency", settings.ImportWorkerConcurrency),
 		slog.Int("importQueueBuffer", settings.ImportQueueBuffer),
 		slog.String("importSpoolDir", settings.ImportSpoolDir),
+		slog.Duration("cardExpirationCheckInterval", settings.CardExpirationCheckInterval),
 	)
 	return nil
 }
@@ -697,6 +734,11 @@ func (m *MarketingModule) Start(_ context.Context) error {
 			m.logger.Error("Marketing import worker boot recovery failed", slog.String("err", err.Error()))
 		}
 	}
+	if m.cardExpirationJob != nil {
+		expCtx, cancel := context.WithCancel(context.Background())
+		m.cardExpirationStop = cancel
+		go m.cardExpirationJob.Start(expCtx)
+	}
 	return nil
 }
 
@@ -717,6 +759,12 @@ func (m *MarketingModule) Stop(ctx context.Context) error {
 		if err := m.importWorker.Stop(ctx); err != nil {
 			m.logger.Warn("Marketing import worker shutdown timed out", slog.String("err", err.Error()))
 		}
+	}
+	if m.cardExpirationStop != nil {
+		m.cardExpirationStop()
+	}
+	if m.cardExpirationJob != nil {
+		m.cardExpirationJob.Stop()
 	}
 	return nil
 }
