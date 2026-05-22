@@ -28,4 +28,17 @@ const (
 
 	// Phase 3 — Import avanzati.
 	ConflictReviewsCollection = "marketing_conflict_reviews"
+
+	// Phase 4 — Card lifecycle. CardTypesCollection holds per-tenant
+	// card templates; CardsCollection holds the concrete instances
+	// emitted to a Person. CardSequencesCollection is an internal
+	// helper that backs the {seq:N} placeholder in code_format — one
+	// counter document per (tenantId, cardTypeUuid), updated atomically
+	// via findAndModify. The sequences collection is intentionally
+	// rebuildable from MAX(card.code) if a recovery is ever needed and
+	// is not part of the public schema set in
+	// docs/plans/marketing-addon/schemas/.
+	CardTypesCollection     = "marketing_card_types"
+	CardsCollection         = "marketing_cards"
+	CardSequencesCollection = "marketing_card_sequences"
 )

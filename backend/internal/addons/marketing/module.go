@@ -383,6 +383,74 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "existingUuid", Direction: 1},
 			}},
 		}},
+		// Phase 4 — Card lifecycle.
+		//
+		// marketing_card_types: per-tenant card templates. (tenant, key)
+		// is the operator-facing slug uniqueness; (tenant, active) drives
+		// the "list active types" admin view.
+		{Name: models.CardTypesCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "key", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "active", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "updatedAt", Direction: -1},
+			}},
+		}},
+		// marketing_cards: card instances emitted to a Person. The
+		// (tenant, code) unique index is the fail-safe against
+		// code-collision races; (tenant, personUuid) drives the
+		// contact-detail Cards tab; (tenant, status, expiresAt) is the
+		// expiration scheduler's drain query. The
+		// "one active per (person, type)" constraint cannot be expressed
+		// as a partial unique index on the current SDK IndexSpec — it
+		// is enforced at the service layer via a pre-write probe.
+		{Name: models.CardsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "code", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "cardTypeUuid", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "tier", Direction: 1},
+				{Field: "status", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "status", Direction: 1},
+				{Field: "expiresAt", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "issuedAt", Direction: -1},
+			}},
+		}},
+		// marketing_card_sequences: internal per-(tenant, cardType)
+		// counter backing the {seq:N} placeholder. One row per pair;
+		// findAndModify($inc, upsert) keeps the value monotonic and
+		// race-free.
+		{Name: models.CardSequencesCollection, Indexes: []module.IndexSpec{
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "cardTypeUuid", Direction: 1},
+			}, Unique: true},
+		}},
 	}
 }
 

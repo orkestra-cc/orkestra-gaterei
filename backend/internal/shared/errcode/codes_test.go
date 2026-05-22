@@ -21,7 +21,9 @@ import (
 // TestEveryConstSnapshotted fails if a new const is added without a
 // matching row here (so a forgotten snapshot blocks the PR).
 var goldenCodes = map[string]string{
-	"AuthEmailInUse": "auth.email_in_use",
+	"AuthEmailInUse":                 "auth.email_in_use",
+	"MarketingCardCodeCollision":     "marketing.card_code_collision",
+	"MarketingCardInvalidTransition": "marketing.card_invalid_transition",
 }
 
 // TestCodesMatchGoldenSnapshot asserts every snapshotted code resolves
