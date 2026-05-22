@@ -102,12 +102,16 @@ type MarketingModule struct {
 
 	// Phase 4 — card lifecycle: type templates, instances, sequence
 	// counter for the {seq:N} placeholder, the orchestration services,
-	// and the expiration scheduler. Handlers + Cedar permissions ship
-	// in PR-3; this PR-2 brings the services + the scheduler only.
+	// the expiration scheduler, and (PR-3) the HTTP handlers + the
+	// three new Cedar permissions (marketing.card_type.write +
+	// marketing.card.{issue,suspend,revoke}).
 	cardTypeSvc        *services.CardTypeService
 	cardSvc            *services.CardService
 	cardExpirationJob  *jobs.CardExpirationJob
 	cardExpirationStop context.CancelFunc
+
+	cardTypeHandler *handlers.CardTypeHandler
+	cardHandler     *handlers.CardHandlerWithReads
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -539,6 +543,17 @@ func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 		{Key: "marketing.activity.write", Module: m.Name(), Description: "Log manual activities (call, meeting, note, correction) on the contact timeline"},
 		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
 		{Key: "marketing.conflict.resolve", Module: m.Name(), Description: "Resolve marketing import conflict reviews (keep_existing / take_incoming / manual_merge / dismiss)"},
+		// Phase 4 — card lifecycle. Reads on card types + cards fold
+		// into marketing.contact.read (consistent with the activities
+		// and conflict-reviews fold-in). Writes split across three
+		// permissions so role catalogues can match real-world
+		// separation of duties: ops emit cards more often than they
+		// retire types, and revocation is irreversible so its bucket
+		// is intentionally narrower than suspend.
+		{Key: "marketing.card_type.write", Module: m.Name(), Description: "Create, update, and delete marketing card types"},
+		{Key: "marketing.card.issue", Module: m.Name(), Description: "Issue a marketing card to a person"},
+		{Key: "marketing.card.suspend", Module: m.Name(), Description: "Suspend or reinstate an active marketing card"},
+		{Key: "marketing.card.revoke", Module: m.Name(), Description: "Revoke a marketing card (terminal, irreversible)"},
 	}
 }
 
@@ -704,6 +719,16 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	})
 	m.cardExpirationJob = jobs.NewCardExpirationJob(cardRepo, m.cardSvc, settings.CardExpirationCheckInterval, deps.Logger)
 
+	m.cardTypeHandler = handlers.NewCardTypeHandler(m.cardTypeSvc)
+	m.cardHandler = handlers.NewCardHandlerWithReads(m.cardSvc, cardRepo)
+
+	// Wire the persons-list `?activeCardOfType=` resolver — the
+	// PersonHandler needs the CardRepository read-path to translate
+	// a type uuid into the set of currently-active card uuids.
+	if m.personHandler != nil {
+		m.personHandler.WithCardRepo(cardRepo)
+	}
+
 	m.logger.Info("Marketing module initialized",
 		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
 		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
@@ -816,6 +841,8 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterScoreProfileReadRoutes(api, m.profileHandler)
 			handlers.RegisterSnapshotReadRoutes(api, m.snapshotHandler)
 			handlers.RegisterConflictReviewReadRoutes(api, m.conflictReviewHandler)
+			handlers.RegisterCardTypeReadRoutes(api, m.cardTypeHandler)
+			handlers.RegisterCardReadRoutes(api, m.cardHandler)
 		})
 
 		// IMPORT bucket — separate gate so import access can be
@@ -885,6 +912,46 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.conflict.resolve"))
 			api := humachi.New(r, ri.APIConfig)
 			handlers.RegisterConflictReviewWriteRoutes(api, m.conflictReviewHandler)
+		})
+
+		// CARD TYPE WRITE bucket — Phase 4. Create/update/delete card
+		// types. Distinct from contact.write because retiring or
+		// reshaping a card type changes the operational catalog the
+		// admin UI exposes; ops with read-only contact access can be
+		// granted card-emit rights without also editing the catalog.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card_type.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardTypeWriteRoutes(api, m.cardTypeHandler)
+		})
+
+		// CARD ISSUE bucket — Phase 4. Emit a card to a person.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.issue"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardIssueRoutes(api, m.cardHandler.CardHandler)
+		})
+
+		// CARD SUSPEND bucket — Phase 4. Suspend / reinstate an
+		// active card. The inverse (reinstate) lives in the same
+		// bucket because it is the same operator authority.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.suspend"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardSuspendRoutes(api, m.cardHandler.CardHandler)
+		})
+
+		// CARD REVOKE bucket — Phase 4. Irreversible revocation.
+		// Narrower than suspend because revocation has no undo: ops
+		// catalogues typically constrain it to a smaller role set.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.revoke"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardRevokeRoutes(api, m.cardHandler.CardHandler)
 		})
 	})
 }

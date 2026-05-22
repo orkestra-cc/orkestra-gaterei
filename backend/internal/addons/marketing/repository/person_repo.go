@@ -93,12 +93,25 @@ func (r *PersonRepository) LookupByEmail(ctx context.Context, email string) (*mo
 
 // PersonListFilter parameterises the persons read surface. All fields
 // optional.
+//
+// Phase 4 adds two card-aware filters layered on the existing
+// marketing_persons.activeCardUuids denorm:
+//
+//   - HasActiveCard non-nil → presence/absence check on the array.
+//     A true value matches persons with at least one issued non-revoked
+//     card; false matches those with none.
+//   - ActiveCardUUIDs non-empty → element-in-array check, matching
+//     persons whose activeCardUuids contains any of the provided uuids.
+//     The handler resolves the operator's `?activeCardOfType=<typeUuid>`
+//     by translating it to a list of card uuids upstream.
 type PersonListFilter struct {
-	TagUUIDs []string
-	HasEmail bool
-	Source   string
-	Limit    int64
-	Skip     int64
+	TagUUIDs        []string
+	HasEmail        bool
+	Source          string
+	HasActiveCard   *bool
+	ActiveCardUUIDs []string
+	Limit           int64
+	Skip            int64
 }
 
 // List returns persons matching filter, newest-first by updatedAt.
@@ -113,6 +126,20 @@ func (r *PersonRepository) List(ctx context.Context, f PersonListFilter) ([]mode
 	}
 	if f.Source != "" {
 		base["sources.importer"] = f.Source
+	}
+	if f.HasActiveCard != nil {
+		if *f.HasActiveCard {
+			base["activeCardUuids.0"] = bson.M{"$exists": true}
+		} else {
+			// Either the field is absent or the array is empty.
+			base["$or"] = []bson.M{
+				{"activeCardUuids": bson.M{"$exists": false}},
+				{"activeCardUuids": bson.M{"$size": 0}},
+			}
+		}
+	}
+	if len(f.ActiveCardUUIDs) > 0 {
+		base["activeCardUuids"] = bson.M{"$in": f.ActiveCardUUIDs}
 	}
 	filter, err := tenantrepo.Scope(ctx, base)
 	if err != nil {

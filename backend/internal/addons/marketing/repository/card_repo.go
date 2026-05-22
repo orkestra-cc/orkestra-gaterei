@@ -98,6 +98,31 @@ func (r *CardRepository) ListByPerson(ctx context.Context, personUUID string) ([
 	return out, nil
 }
 
+// ListActiveByType returns every active card of the given type in
+// the caller's tenant. Used by the persons list handler when
+// resolving `?activeCardOfType=<typeUuid>` — the caller collects the
+// returned UUIDs and passes them into PersonListFilter.ActiveCardUUIDs
+// to leverage the activeCardUuids multikey index.
+func (r *CardRepository) ListActiveByType(ctx context.Context, cardTypeUUID string) ([]models.Card, error) {
+	filter, err := tenantrepo.Scope(ctx, bson.M{
+		"cardTypeUuid": cardTypeUUID,
+		"status":       models.CardStatusActive,
+	})
+	if err != nil {
+		return nil, err
+	}
+	cur, err := r.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := make([]models.Card, 0)
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FindActiveByPersonAndType returns the active card (if any) for the
 // given (personUuid, cardTypeUuid) pair. Consumed by CardService.Issue
 // to enforce the AllowMultiplePerPerson=false rule via a pre-write
