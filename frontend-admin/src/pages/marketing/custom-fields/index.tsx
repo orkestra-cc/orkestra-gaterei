@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Nav, Tab, Form, Button, Table, Alert } from 'react-bootstrap';
 import { useSearchParams } from 'react-router';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   useGetCustomFieldSchemaQuery,
   useUpsertCustomFieldSchemaMutation,
@@ -21,9 +22,12 @@ import type {
   CustomFieldType
 } from 'types/marketing';
 
-const TARGETS: { key: CustomFieldTarget; label: string }[] = [
-  { key: 'persons', label: 'Persons' },
-  { key: 'organizations', label: 'Organizations' }
+const TARGETS: { key: CustomFieldTarget; labelKey: string }[] = [
+  { key: 'persons', labelKey: 'marketing.customFields.targetPersons' },
+  {
+    key: 'organizations',
+    labelKey: 'marketing.customFields.targetOrganizations'
+  }
 ];
 
 const TYPES: CustomFieldType[] = [
@@ -49,6 +53,7 @@ const newField = (): FieldDef => ({
 });
 
 const CustomFieldsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const target = readTarget(searchParams.get('target'));
 
@@ -115,9 +120,13 @@ const CustomFieldsPage: React.FC = () => {
 
   const onDelete = async () => {
     if (!schema) return;
+    const targetLabel =
+      target === 'persons'
+        ? t('marketing.customFields.targetPersons')
+        : t('marketing.customFields.targetOrganizations');
     if (
       !window.confirm(
-        `Delete the ${target} custom-field schema? Existing records keep their bag intact — they just stop being validated against this schema.`
+        t('marketing.customFields.confirmDelete', { target: targetLabel })
       )
     )
       return;
@@ -129,11 +138,9 @@ const CustomFieldsPage: React.FC = () => {
   return (
     <>
       <div className="mb-3">
-        <h3 className="fw-normal mb-1">Custom fields</h3>
+        <h3 className="fw-normal mb-1">{t('marketing.customFields.title')}</h3>
         <p className="fs-10 text-muted mb-0">
-          Per-tenant typed-bag schema for Person and Organization records.
-          Write-time validation rejects unknown fields unless you opt into
-          permissive mode.
+          {t('marketing.customFields.subtitle')}
         </p>
       </div>
 
@@ -141,29 +148,37 @@ const CustomFieldsPage: React.FC = () => {
         <Tab.Container activeKey={target} onSelect={onTargetChange}>
           <Card.Header className="border-bottom-0">
             <Nav variant="tabs" className="border-0">
-              {TARGETS.map(t => (
-                <Nav.Item key={t.key}>
-                  <Nav.Link eventKey={t.key}>{t.label}</Nav.Link>
+              {TARGETS.map(tg => (
+                <Nav.Item key={tg.key}>
+                  <Nav.Link eventKey={tg.key}>{t(tg.labelKey)}</Nav.Link>
                 </Nav.Item>
               ))}
             </Nav>
           </Card.Header>
           <Card.Body>
             {isLoading ? (
-              <div className="text-muted">Loading…</div>
+              <div className="text-muted">
+                {t('marketing.customFields.loading')}
+              </div>
             ) : (
               <>
                 {schema && (
                   <Alert variant="light" className="mb-3">
-                    Schema version <strong>{schema.version}</strong> · updated{' '}
-                    {new Date(schema.updatedAt).toLocaleString()}
+                    <Trans
+                      i18nKey="marketing.customFields.schemaBanner"
+                      values={{
+                        version: schema.version,
+                        updatedAt: new Date(schema.updatedAt).toLocaleString()
+                      }}
+                      components={{ strong: <strong /> }}
+                    />
                   </Alert>
                 )}
 
                 <Form.Check
                   type="switch"
                   id="allowUnknown"
-                  label="Accept unknown fields (skip strict validation)"
+                  label={t('marketing.customFields.allowUnknownLabel')}
                   checked={allowUnknown}
                   onChange={e => setAllowUnknown(e.target.checked)}
                   className="mb-3"
@@ -172,11 +187,11 @@ const CustomFieldsPage: React.FC = () => {
                 <Table responsive size="sm">
                   <thead>
                     <tr>
-                      <th>Key</th>
-                      <th>Label</th>
-                      <th>Type</th>
-                      <th>Required</th>
-                      <th>Options</th>
+                      <th>{t('marketing.customFields.colKey')}</th>
+                      <th>{t('marketing.customFields.colLabel')}</th>
+                      <th>{t('marketing.customFields.colType')}</th>
+                      <th>{t('marketing.customFields.colRequired')}</th>
+                      <th>{t('marketing.customFields.colOptions')}</th>
                       <th />
                     </tr>
                   </thead>
@@ -190,7 +205,9 @@ const CustomFieldsPage: React.FC = () => {
                             onChange={e =>
                               updateField(i, { key: e.target.value })
                             }
-                            placeholder="industry"
+                            placeholder={t(
+                              'marketing.customFields.placeholderKey'
+                            )}
                           />
                         </td>
                         <td>
@@ -200,7 +217,9 @@ const CustomFieldsPage: React.FC = () => {
                             onChange={e =>
                               updateField(i, { label: e.target.value })
                             }
-                            placeholder="Industry"
+                            placeholder={t(
+                              'marketing.customFields.placeholderLabel'
+                            )}
                           />
                         </td>
                         <td>
@@ -213,9 +232,9 @@ const CustomFieldsPage: React.FC = () => {
                               })
                             }
                           >
-                            {TYPES.map(t => (
-                              <option key={t} value={t}>
-                                {t}
+                            {TYPES.map(tp => (
+                              <option key={tp} value={tp}>
+                                {tp}
                               </option>
                             ))}
                           </Form.Select>
@@ -240,7 +259,9 @@ const CustomFieldsPage: React.FC = () => {
                                   onChange={e =>
                                     updateOption(i, oi, e.target.value)
                                   }
-                                  placeholder="value"
+                                  placeholder={t(
+                                    'marketing.customFields.placeholderOption'
+                                  )}
                                 />
                               ))}
                               <Button
@@ -249,7 +270,7 @@ const CustomFieldsPage: React.FC = () => {
                                 className="px-0"
                                 onClick={() => addOption(i)}
                               >
-                                + option
+                                {t('marketing.customFields.addOption')}
                               </Button>
                             </>
                           ) : (
@@ -263,7 +284,7 @@ const CustomFieldsPage: React.FC = () => {
                             className="text-danger"
                             onClick={() => removeField(i)}
                           >
-                            Remove
+                            {t('marketing.customFields.remove')}
                           </Button>
                         </td>
                       </tr>
@@ -275,7 +296,7 @@ const CustomFieldsPage: React.FC = () => {
                   variant="outline-primary"
                   onClick={() => setFields([...fields, newField()])}
                 >
-                  + field
+                  {t('marketing.customFields.addField')}
                 </Button>
               </>
             )}
@@ -288,7 +309,7 @@ const CustomFieldsPage: React.FC = () => {
                 onClick={onDelete}
                 disabled={upsertState.isLoading}
               >
-                Delete schema
+                {t('marketing.customFields.deleteSchema')}
               </Button>
             )}
             <Button
@@ -297,7 +318,9 @@ const CustomFieldsPage: React.FC = () => {
               onClick={onSave}
               disabled={upsertState.isLoading}
             >
-              {schema ? 'Save changes' : 'Create schema'}
+              {schema
+                ? t('marketing.customFields.saveChanges')
+                : t('marketing.customFields.createSchema')}
             </Button>
           </Card.Footer>
         </Tab.Container>

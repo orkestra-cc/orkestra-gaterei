@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -30,32 +31,36 @@ func NewImportsHandler(svc *services.ImportService) *ImportsHandler {
 
 // ImportJobView is the read shape returned to operators.
 type ImportJobView struct {
-	UUID        string                 `json:"uuid"`
-	TenantID    string                 `json:"tenantId"`
-	Importer    string                 `json:"importer"`
-	SourceName  string                 `json:"sourceName,omitempty"`
-	Status      models.ImportJobStatus `json:"status"`
-	Stats       models.ImportJobStats  `json:"stats"`
-	Error       string                 `json:"error,omitempty"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	StartedAt   *time.Time             `json:"startedAt,omitempty"`
-	CompletedAt *time.Time             `json:"completedAt,omitempty"`
-	CreatedBy   string                 `json:"createdBy,omitempty"`
+	UUID                string                 `json:"uuid"`
+	TenantID            string                 `json:"tenantId"`
+	Importer            string                 `json:"importer"`
+	SourceName          string                 `json:"sourceName,omitempty"`
+	Status              models.ImportJobStatus `json:"status"`
+	Stats               models.ImportJobStats  `json:"stats"`
+	Error               string                 `json:"error,omitempty"`
+	IdempotencyKey      string                 `json:"idempotencyKey,omitempty"`
+	ConflictReviewUUIDs []string               `json:"conflictReviewUuids,omitempty"`
+	CreatedAt           time.Time              `json:"createdAt"`
+	StartedAt           *time.Time             `json:"startedAt,omitempty"`
+	CompletedAt         *time.Time             `json:"completedAt,omitempty"`
+	CreatedBy           string                 `json:"createdBy,omitempty"`
 }
 
 func toImportJobView(j *models.ImportJob) ImportJobView {
 	return ImportJobView{
-		UUID:        j.UUID,
-		TenantID:    j.TenantID,
-		Importer:    j.Importer,
-		SourceName:  j.SourceName,
-		Status:      j.Status,
-		Stats:       j.Stats,
-		Error:       j.Error,
-		CreatedAt:   j.CreatedAt,
-		StartedAt:   j.StartedAt,
-		CompletedAt: j.CompletedAt,
-		CreatedBy:   j.CreatedBy,
+		UUID:                j.UUID,
+		TenantID:            j.TenantID,
+		Importer:            j.Importer,
+		SourceName:          j.SourceName,
+		Status:              j.Status,
+		Stats:               j.Stats,
+		Error:               j.Error,
+		IdempotencyKey:      j.IdempotencyKey,
+		ConflictReviewUUIDs: j.ConflictReviewUUIDs,
+		CreatedAt:           j.CreatedAt,
+		StartedAt:           j.StartedAt,
+		CompletedAt:         j.CompletedAt,
+		CreatedBy:           j.CreatedBy,
 	}
 }
 
@@ -80,12 +85,14 @@ type GetImportResponse struct {
 	Body ImportJobView
 }
 
-// RunImportResponse is returned by POST /v1/marketing/imports. The
-// status code is 200 (sync completion, not 202) because the body
-// carries the final outcome — Phase 1 doesn't have an async fan-out
-// to poll against.
+// RunImportResponse is returned by POST /v1/marketing/imports.
+// Phase 3 moved execution behind a background worker; the handler
+// returns 202 Accepted with the queued job's UUID + Location header so
+// the caller can poll GET /v1/marketing/imports/{id} for completion.
 type RunImportResponse struct {
-	Body ImportJobView
+	Status   int    `header:"-"`
+	Location string `header:"Location"`
+	Body     ImportJobView
 }
 
 // --- Handler methods ---
@@ -117,10 +124,14 @@ func (h *ImportsHandler) Get(ctx context.Context, in *GetImportInput) (*GetImpor
 }
 
 // Run accepts a multipart upload (`file` + `mapping` JSON string +
-// optional `sourceName`) and executes it synchronously. The handler
-// extracts the raw HTTP request from context (the same pattern the
-// rag addon uses for document uploads) because Huma does not yet
-// have a first-class multipart-form binding.
+// optional `sourceName` + optional Idempotency-Key header) and
+// enqueues the import. Returns 202 Accepted with the queued job's
+// UUID; the caller polls GET /v1/marketing/imports/{id} until status
+// is done / failed / paused_for_review.
+//
+// The handler extracts the raw HTTP request from context (the same
+// pattern the rag addon uses for document uploads) because Huma does
+// not yet have a first-class multipart-form binding.
 func (h *ImportsHandler) Run(ctx context.Context, _ *struct{}) (*RunImportResponse, error) {
 	httpReq, ok := ctx.Value("http_request").(*http.Request)
 	if !ok || httpReq == nil {
@@ -138,6 +149,11 @@ func (h *ImportsHandler) Run(ctx context.Context, _ *struct{}) (*RunImportRespon
 		return nil, huma.Error400BadRequest("file is required (multipart form field 'file'): " + err.Error())
 	}
 	defer file.Close()
+
+	body, err := io.ReadAll(file)
+	if err != nil {
+		return nil, huma.Error400BadRequest("failed to read uploaded file: " + err.Error())
+	}
 
 	mappingRaw := httpReq.FormValue("mapping")
 	if mappingRaw == "" {
@@ -157,14 +173,24 @@ func (h *ImportsHandler) Run(ctx context.Context, _ *struct{}) (*RunImportRespon
 		sourceName = header.Filename
 	}
 
-	job, err := h.svc.Run(ctx, importerName, sourceName, file, mapping)
+	explicitKey := httpReq.Header.Get("Idempotency-Key")
+
+	job, err := h.svc.Enqueue(ctx, importerName, sourceName, body, mapping, []byte(mappingRaw), explicitKey)
 	if err != nil {
-		if errors.Is(err, services.ErrImportFailed) {
+		switch {
+		case errors.Is(err, services.ErrUnknownImporter):
 			return nil, huma.Error400BadRequest(err.Error())
+		case errors.Is(err, services.ErrImportFailed):
+			return nil, huma.Error500InternalServerError(err.Error())
+		default:
+			return nil, huma.Error500InternalServerError(err.Error())
 		}
-		return nil, huma.Error500InternalServerError(err.Error())
 	}
-	return &RunImportResponse{Body: toImportJobView(job)}, nil
+	return &RunImportResponse{
+		Status:   http.StatusAccepted,
+		Location: "/v1/marketing/imports/" + job.UUID,
+		Body:     toImportJobView(job),
+	}, nil
 }
 
 // --- Route registration ---
@@ -187,14 +213,20 @@ func RegisterImportReadRoutes(api huma.API, h *ImportsHandler) {
 // subgroup with `marketing.import.run`. SkipValidateBody is set
 // because huma cannot validate multipart inputs through its
 // generated schema — the handler validates manually.
+//
+// The route returns 202 Accepted with the queued job UUID + a
+// Location header pointing at GET /v1/marketing/imports/{id}; the
+// caller polls that endpoint until status transitions to done /
+// failed / paused_for_review.
 func RegisterImportRunRoutes(api huma.API, h *ImportsHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID:      "marketing-run-import",
 		Method:           http.MethodPost,
 		Path:             "/v1/marketing/imports",
-		Summary:          "Run a CSV import",
-		Description:      "Upload a CSV file with a column mapping JSON; runs synchronously and returns the final import job. Multipart fields: file (required), mapping (required, JSON ColumnMapping), importer (optional, defaults to csv), sourceName (optional, defaults to filename).",
+		Summary:          "Enqueue an import job",
+		Description:      "Upload a CSV/Excel/Odoo payload with a column mapping JSON; the import runs asynchronously in the background worker. Returns 202 Accepted with the queued job UUID. Multipart fields: file (required), mapping (required, JSON ColumnMapping), importer (optional, defaults to csv), sourceName (optional, defaults to filename). Optional Idempotency-Key request header dedups identical submissions within 24h.",
 		Tags:             []string{"Marketing - Imports"},
 		SkipValidateBody: true,
+		DefaultStatus:    http.StatusAccepted,
 	}, h.Run)
 }

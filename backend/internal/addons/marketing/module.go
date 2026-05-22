@@ -12,24 +12,47 @@
 package marketing
 
 import (
+	"context"
 	"log/slog"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/orkestra-cc/orkestra-addon-marketing/handlers"
 	"github.com/orkestra-cc/orkestra-addon-marketing/importers"
 	csvimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/csv"
+	excelimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/excel"
+	odooimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/odoo"
+	"github.com/orkestra-cc/orkestra-addon-marketing/jobs"
 	"github.com/orkestra-cc/orkestra-addon-marketing/models"
 	"github.com/orkestra-cc/orkestra-addon-marketing/repository"
+	"github.com/orkestra-cc/orkestra-addon-marketing/scoring"
 	"github.com/orkestra-cc/orkestra-addon-marketing/services"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra-cc/orkestra-sdk/module"
 	"github.com/orkestra-cc/orkestra-sdk/modulegate"
 )
 
-// MarketingModule implements the Orkestra SDK Module interface for the
-// marketing addon. Phase 1 wires the data layer (PR-2), CRUD handlers
-// + routes (PR-3), CSV importer (PR-4), and operator nav items (PR-5).
+// Settings is the typed view of the marketing module's config schema.
+// Each field corresponds 1:1 to an entry in ConfigSchema() — keep them
+// in sync. UnmarshalModule decodes the active environment into this
+// struct so Init() consumes module config through a single typed
+// surface (same pattern as subscriptions).
+type Settings struct {
+	ScoreRecomputeInterval  time.Duration `module:"scoreRecomputeInterval"`
+	ScoreEagerOnInsert      bool          `module:"scoreEagerOnInsert"`
+	ActivityBreakdownMax    int           `module:"activityBreakdownMax"`
+	ImportWorkerConcurrency int           `module:"importWorkerConcurrency"`
+	ImportQueueBuffer       int           `module:"importQueueBuffer"`
+	ImportSpoolDir          string        `module:"importSpoolDir"`
+}
+
+// MarketingModule implements the Orkestra SDK Module interface for
+// the marketing addon. Phase 1 shipped the contact base + CSV
+// importer + admin UI. Phase 2 grows the module with the activity
+// log, score profiles, score snapshots, and the eager + nightly
+// recompute pipeline (this PR-3 wires the scheduler; PR-4 adds the
+// HTTP routes; PR-5 adds the frontend).
 type MarketingModule struct {
 	module.BaseModule
 
@@ -44,10 +67,37 @@ type MarketingModule struct {
 	customFieldHandler *handlers.CustomFieldSchemaHandler
 	importsHandler     *handlers.ImportsHandler
 
+	// Phase 2 handlers — activity log, score profile CRUD, snapshot
+	// reads + per-profile leaderboard.
+	activityHandler *handlers.ActivityHandler
+	profileHandler  *handlers.ScoreProfileHandler
+	snapshotHandler *handlers.SnapshotHandler
+
 	// Importer registry — exposed via NewImportService when handlers are
 	// wired in Init. Phase 1 ships only the CSV adapter; future adapters
 	// (excel, odoo) append to the slice without changing the wiring shape.
 	importerAdapters []importers.Importer
+
+	// Phase 2 services held for downstream wiring (PR-4 handlers, the
+	// recompute job) and for tests that need to inspect them.
+	activitySvc  *services.ActivityService
+	scoreSvc     *services.ScoreService
+	profileSvc   *services.ScoreProfileService
+	recomputeJob *jobs.RecomputeJob
+
+	// recomputeCancel cancels the goroutine context created in Start.
+	// Stop calls both this and recomputeJob.Stop — either path on its
+	// own would exit the ticker, but belt-and-braces matches the
+	// subscriptions pattern (see jobs/renewal_job.go select loop).
+	recomputeCancel context.CancelFunc
+
+	// Phase 3 — async import runner + conflict review queue + auto-emission.
+	conflictReviewRepo    *repository.ConflictReviewRepository
+	conflictReviewSvc     *services.ConflictReviewService
+	conflictReviewHandler *handlers.ConflictReviewHandler
+	importWorker          *importers.Worker
+	workerCancel          context.CancelFunc
+	activityEmitter       *services.ActivityEmitter
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -212,6 +262,126 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "tenantId", Direction: 1},
 				{Field: "status", Direction: 1},
 			}},
+			// Phase 3 — idempotency lookup. Sparse because Phase 1 rows
+			// predate the field.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "idempotencyKey", Direction: 1},
+				{Field: "createdAt", Direction: -1},
+			}, Sparse: true},
+		}},
+		// Phase 2 — Storicizzazione & scoring.
+		//
+		// marketing_activities: append-only event log. Indexes optimise
+		// for the timeline read (per-person + per-org chronological),
+		// the score-engine read (per-kind chronological), the dedup
+		// invariant, the per-ref analytics queries (campaign / event /
+		// card), and the per-source audit query.
+		{Name: models.ActivitiesCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+				{Field: "occurredAt", Direction: -1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "orgUuid", Direction: 1},
+				{Field: "occurredAt", Direction: -1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "kind", Direction: 1},
+				{Field: "occurredAt", Direction: -1},
+			}},
+			// dedupKey is unique across the whole collection (the
+			// hash already incorporates personUuid). The Phase 2
+			// plan §2.2 calls this out as the idempotence gate.
+			{Keys: map[string]int{"dedupKey": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "refs.campaignUuid", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "refs.eventUuid", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "refs.cardUuid", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "source", Direction: 1},
+				{Field: "recordedAt", Direction: -1},
+			}},
+		}},
+		// marketing_score_profiles: small collection (1-10 rows per
+		// tenant), reads dominated by the admin UI + the score
+		// engine's per-tick active-profile fetch.
+		{Name: models.ScoreProfilesCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "name", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "active", Direction: 1},
+			}},
+		}},
+		// marketing_score_snapshots: cache rebuildable from the
+		// activity log. The (tenant, person, profile) unique index is
+		// the upsert key — concurrent eager + nightly recomputers
+		// converge deterministically on the same document.
+		{Name: models.ScoreSnapshotsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+				{Field: "profileUuid", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "profileUuid", Direction: 1},
+				{Field: "value", Direction: -1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "profileUuid", Direction: 1},
+				{Field: "stale", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+			}},
+		}},
+		// Phase 3 — Import avanzati.
+		//
+		// marketing_conflict_reviews: queue of import-flagged dedup
+		// conflicts awaiting operator resolution. The (tenant, status)
+		// index drives the pending queue read; the per-job index drives
+		// the "show me every review from this import" view that the
+		// imports list deep-links to.
+		{Name: models.ConflictReviewsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "importJobUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "targetKind", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "existingUuid", Direction: 1},
+			}},
 		}},
 	}
 }
@@ -233,44 +403,109 @@ func (m *MarketingModule) NavItems() []module.NavItemSpec {
 			{Name: "Tags", Icon: "tags", Path: "/marketing/tags", Active: true},
 			{Name: "Custom Fields", Icon: "list-check", Path: "/marketing/custom-fields", Active: true},
 			{Name: "Imports", Icon: "file-import", Path: "/marketing/imports", Active: true},
+			{Name: "Reviews", Icon: "balance-scale", Path: "/marketing/reviews", Active: true},
+			{Name: "Scoring", Icon: "chart-line", Path: "/marketing/scoring", Active: true},
 		},
 	}}
 }
 
-// Permissions declares the Cedar permission catalog this module
-// publishes. Phase 1 ships three coarse-grained keys covering Person,
-// Organization, Membership, Tag, and Custom-Field-Schema operations —
-// the design document's finer-grained marketing.tag.write /
-// marketing.custom_field.* permissions are intentionally folded into
-// marketing.contact.* to keep the RBAC surface small until a real
-// separation-of-duties requirement appears.
+// ConfigSchema declares the per-tenant runtime knobs operators can
+// edit at /admin/modules. Phase 2 introduces three keys — all
+// scoring-engine tuning. EnvVars seed the first-boot defaults on a
+// fresh install (see backend/CLAUDE.md "first boot of a brand-new
+// install").
 //
-// Later phases add:
-//   - marketing.import.run (PR-4, importer trigger gate)
-//   - marketing.activity.read / write (Phase 2, event log)
-//   - marketing.score_profile.write (Phase 2, scoring tuning)
-//   - marketing.card_type.write / marketing.card.{issue,suspend,revoke}
-//     (Phase 4, card lifecycle)
-//   - marketing.conflict.resolve (Phase 3, review queue)
-func (m *MarketingModule) Permissions() []iface.PermissionSpec {
-	return []iface.PermissionSpec{
-		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, and import-job audit"},
-		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
-		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
-		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
+// scoreEagerOnInsert flips eager recomputes off for import bursts —
+// when set false the nightly job is the only recompute path. The
+// flag is read once at Init time; flipping it requires a module
+// disable+enable cycle to take effect (acceptable: the use case is
+// "I'm about to run a 100k-row import, turn eager off for an hour
+// then back on").
+func (m *MarketingModule) ConfigSchema() []module.ConfigField {
+	return []module.ConfigField{
+		{Key: "scoreRecomputeInterval", Label: "Score nightly-recompute interval", Type: module.FieldDuration, Default: "24h", EnvVar: "MARKETING_SCORE_RECOMPUTE_INTERVAL"},
+		{Key: "scoreEagerOnInsert", Label: "Recompute score on activity insert", Type: module.FieldBool, Default: "true", EnvVar: "MARKETING_SCORE_EAGER_ON_INSERT"},
+		{Key: "activityBreakdownMax", Label: "Max breakdown entries per snapshot", Type: module.FieldInt, Default: "100", EnvVar: "MARKETING_ACTIVITY_BREAKDOWN_MAX"},
+		// Phase 3 — async import runner.
+		{Key: "importWorkerConcurrency", Label: "Import worker concurrency", Type: module.FieldInt, Default: "2", EnvVar: "MARKETING_IMPORT_WORKER_CONCURRENCY"},
+		{Key: "importQueueBuffer", Label: "Import queue buffer", Type: module.FieldInt, Default: "32", EnvVar: "MARKETING_IMPORT_QUEUE_BUFFER"},
+		{Key: "importSpoolDir", Label: "Import spool directory", Type: module.FieldString, Default: "/var/lib/orkestra/marketing/spool", EnvVar: "MARKETING_IMPORT_SPOOL_DIR"},
 	}
 }
 
-// Init wires the data + service + handler graph. The registry calls
-// this after all dependencies have been initialized.
+// Permissions declares the Cedar permission catalog this module
+// publishes.
 //
-// Wiring order: repositories first (Mongo collections only), then
-// services (orchestration), then handlers (HTTP/Huma adapters). The
-// custom-field service is shared by both contact services because
-// each calls Validate before persisting record bags.
+// Phase 1 shipped the contact-base bucket (read/write/delete) and
+// the import bucket. Phase 2 PR-3 added marketing.score_profile.write
+// for the scoring admin surface; Phase 2 PR-4 (this) adds
+// marketing.activity.write for manual activity logging + corrections.
+//
+// Read access for activities + snapshots + score profiles folds into
+// marketing.contact.read at the handler boundary (Phase 2 plan §2.3):
+// an operator who can see the contact base must also see the
+// timeline + scoring that contextualises it. Granting contact-read
+// while denying activity-read would be semantically incoherent.
+//
+// Later phases add:
+//   - marketing.card_type.write / marketing.card.{issue,suspend,revoke}
+//     (Phase 4, card lifecycle)
+func (m *MarketingModule) Permissions() []iface.PermissionSpec {
+	return []iface.PermissionSpec{
+		{Key: "marketing.contact.read", Module: m.Name(), Description: "View persons, organizations, memberships, tags, custom-field schemas, import-job audit, activity timelines, score profiles, snapshots, and conflict-review queue"},
+		{Key: "marketing.contact.write", Module: m.Name(), Description: "Create and update persons, organizations, memberships, tags, and custom-field schemas"},
+		{Key: "marketing.contact.delete", Module: m.Name(), Description: "Hard-delete contacts (org/person cascades to memberships) and tags/schemas"},
+		{Key: "marketing.import.run", Module: m.Name(), Description: "Trigger CSV/Excel/Odoo imports of contact data (separate gate from contact.write so import access can be granted independently)"},
+		{Key: "marketing.activity.write", Module: m.Name(), Description: "Log manual activities (call, meeting, note, correction) on the contact timeline"},
+		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
+		{Key: "marketing.conflict.resolve", Module: m.Name(), Description: "Resolve marketing import conflict reviews (keep_existing / take_incoming / manual_merge / dismiss)"},
+	}
+}
+
+// Init wires the data + service + handler + job graph. The registry
+// calls this after every declared dependency has finished its own
+// Init.
+//
+// Wiring order:
+//
+//  1. Module config decoded into Settings (one typed surface).
+//  2. Repositories (Mongo collections only, no business logic).
+//  3. Phase 1 services + handlers (contacts, tags, importer).
+//  4. Phase 2 scoring engine (pure, no I/O).
+//  5. Phase 2 services — ActivityService → ScoreService →
+//     ScoreProfileService. The arrow is the dependency order:
+//     ScoreService is registered as an ActivityService listener so
+//     activity inserts trigger eager recomputes; ScoreProfileService
+//     calls ScoreService.InvalidateProfile on every save.
+//  6. RecomputeJob, held on the module for Start/Stop.
+//
+// The order matters because RegisterListener must run after both
+// the ActivityService (producer) and the ScoreService (consumer)
+// exist.
 func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.logger = deps.Logger
 
+	var settings Settings
+	if err := deps.ConfigService.UnmarshalModule(context.Background(), m.Name(), &settings); err != nil {
+		return err
+	}
+	if settings.ScoreRecomputeInterval <= 0 {
+		settings.ScoreRecomputeInterval = 24 * time.Hour
+	}
+	if settings.ActivityBreakdownMax <= 0 {
+		settings.ActivityBreakdownMax = scoring.DefaultBreakdownMax
+	}
+	if settings.ImportWorkerConcurrency <= 0 {
+		settings.ImportWorkerConcurrency = 2
+	}
+	if settings.ImportQueueBuffer <= 0 {
+		settings.ImportQueueBuffer = 32
+	}
+	if settings.ImportSpoolDir == "" {
+		settings.ImportSpoolDir = "/var/lib/orkestra/marketing/spool"
+	}
+
+	// --- Phase 1 wiring ---
 	orgRepo := repository.NewOrganizationRepository(deps.DB)
 	personRepo := repository.NewPersonRepository(deps.DB)
 	mshipRepo := repository.NewMembershipRepository(deps.DB)
@@ -284,8 +519,29 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	mshipSvc := services.NewMembershipService(mshipRepo)
 	tagSvc := services.NewTagService(tagRepo)
 
-	m.importerAdapters = []importers.Importer{csvimp.New()}
-	importSvc := services.NewImportService(jobRepo, orgRepo, personRepo, mshipRepo, tagRepo, m.importerAdapters...)
+	m.importerAdapters = []importers.Importer{csvimp.New(), excelimp.New(), odooimp.New()}
+
+	// --- Phase 3 wiring — async import worker + conflict review repo ---
+	m.conflictReviewRepo = repository.NewConflictReviewRepository(deps.DB)
+
+	workerCatalog := make(map[string]importers.Importer, len(m.importerAdapters))
+	for _, a := range m.importerAdapters {
+		workerCatalog[a.Name()] = a
+	}
+	m.importWorker = importers.NewWorker(importers.WorkerDeps{
+		Logger:      deps.Logger,
+		JobRepo:     jobRepo,
+		OrgRepo:     orgRepo,
+		PersonRepo:  personRepo,
+		MshipRepo:   mshipRepo,
+		TagRepo:     tagRepo,
+		Catalog:     workerCatalog,
+		SpoolDir:    settings.ImportSpoolDir,
+		Concurrency: settings.ImportWorkerConcurrency,
+		QueueBuffer: settings.ImportQueueBuffer,
+	})
+
+	importSvc := services.NewImportService(jobRepo, m.importWorker, m.importerAdapters...)
 
 	m.orgHandler = handlers.NewOrganizationHandler(orgSvc)
 	m.personHandler = handlers.NewPersonHandler(personSvc)
@@ -294,9 +550,114 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.customFieldHandler = handlers.NewCustomFieldSchemaHandler(cfSvc)
 	m.importsHandler = handlers.NewImportsHandler(importSvc)
 
-	m.logger.Info("Marketing module initialized")
+	// --- Phase 2 wiring ---
+	actRepo := repository.NewActivityRepository(deps.DB)
+	profRepo := repository.NewScoreProfileRepository(deps.DB)
+	snapRepo := repository.NewScoreSnapshotRepository(deps.DB)
+
+	engine := scoring.NewEngine(settings.ActivityBreakdownMax, deps.Logger)
+
+	m.scoreSvc = services.NewScoreService(snapRepo, profRepo, actRepo, personRepo, engine, settings.ScoreEagerOnInsert, deps.Logger)
+	m.activitySvc = services.NewActivityService(actRepo, mshipRepo, deps.Logger)
+	m.profileSvc = services.NewScoreProfileService(profRepo, m.scoreSvc, deps.Logger)
+
+	// Register eager-recompute hook. The closure captures
+	// m.scoreSvc, so the listener slice on ActivityService is the
+	// only reference path between activity inserts and score
+	// recomputation — no global registry, no service-locator
+	// indirection.
+	m.activitySvc.RegisterListener(m.scoreSvc.OnActivityInserted)
+
+	// Phase 3 — auto-emission. ActivityEmitter wraps ActivityService
+	// for the system-source emissions (tag_added/_removed via the
+	// PersonService update listener, imported direct from the importer
+	// pipeline, merged direct from ConflictReviewService.Resolve).
+	m.activityEmitter = services.NewActivityEmitter(m.activitySvc, deps.Logger)
+	personSvc.RegisterUpdateListener(m.activityEmitter.OnPersonUpdated)
+
+	// Phase 3 — conflict review queue.
+	m.conflictReviewSvc = services.NewConflictReviewService(
+		m.conflictReviewRepo,
+		personRepo,
+		orgRepo,
+		jobRepo,
+		m.activitySvc,
+		m.activityEmitter,
+		deps.Logger,
+	)
+	m.conflictReviewHandler = handlers.NewConflictReviewHandler(m.conflictReviewSvc)
+
+	// Late-wire the worker's optional collaborators now that the
+	// ConflictReviewService + ActivityEmitter exist. The worker was
+	// constructed earlier (before the services that depend on the
+	// pipeline-adjacent repos) so the late hook is the simplest way
+	// to break the build order without forcing two-phase Init.
+	m.importWorker.WireServices(m.conflictReviewSvc, m.activityEmitter)
+
+	m.recomputeJob = jobs.NewRecomputeJob(m.scoreSvc, settings.ScoreRecomputeInterval, deps.Logger)
+
+	m.activityHandler = handlers.NewActivityHandler(m.activitySvc)
+	m.profileHandler = handlers.NewScoreProfileHandler(m.profileSvc, snapRepo)
+	m.snapshotHandler = handlers.NewSnapshotHandler(snapRepo)
+
+	m.logger.Info("Marketing module initialized",
+		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
+		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
+		slog.Int("activityBreakdownMax", settings.ActivityBreakdownMax),
+		slog.Int("importWorkerConcurrency", settings.ImportWorkerConcurrency),
+		slog.Int("importQueueBuffer", settings.ImportQueueBuffer),
+		slog.String("importSpoolDir", settings.ImportSpoolDir),
+	)
 	return nil
 }
+
+// Start spawns the nightly recompute job + the import worker pool.
+// The registry calls Start only when the module is enabled —
+// disabled modules go through Init (so collections + handlers are
+// wired and the gated routes return 503) but skip Start, so the
+// background goroutines don't run.
+func (m *MarketingModule) Start(_ context.Context) error {
+	if m.recomputeJob != nil {
+		jobCtx, cancel := context.WithCancel(context.Background())
+		m.recomputeCancel = cancel
+		go m.recomputeJob.Start(jobCtx)
+	}
+	if m.importWorker != nil {
+		workerCtx, cancel := context.WithCancel(context.Background())
+		m.workerCancel = cancel
+		if err := m.importWorker.Start(workerCtx); err != nil {
+			m.logger.Error("Marketing import worker boot recovery failed", slog.String("err", err.Error()))
+		}
+	}
+	return nil
+}
+
+// Stop cancels the ticker + signals the worker to drain. Both signals
+// (ctx cancel + queue close in worker.Stop) reach the goroutines'
+// select loops; whichever fires first wins.
+func (m *MarketingModule) Stop(ctx context.Context) error {
+	if m.recomputeCancel != nil {
+		m.recomputeCancel()
+	}
+	if m.recomputeJob != nil {
+		m.recomputeJob.Stop()
+	}
+	if m.workerCancel != nil {
+		m.workerCancel()
+	}
+	if m.importWorker != nil {
+		if err := m.importWorker.Stop(ctx); err != nil {
+			m.logger.Warn("Marketing import worker shutdown timed out", slog.String("err", err.Error()))
+		}
+	}
+	return nil
+}
+
+// HealthCheck reports the module as healthy as long as Init has run.
+// A future enhancement could probe the recompute job's last-tick
+// timestamp; today the per-module health surface doesn't require
+// background-job liveness.
+func (m *MarketingModule) HealthCheck(_ context.Context) error { return nil }
 
 // RegisterRoutes mounts the CRUD surface on the operator API. The
 // addon serves Tier-1 internal-tenant operators only — Tier-2 client
@@ -320,7 +681,11 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 	ri.Operator.ProtectedRouter.Group(func(gated chi.Router) {
 		gated.Use(modulegate.ModuleGate(ri.ConfigService, m.Name()))
 
-		// READ bucket — includes the import-job audit read surface.
+		// READ bucket — includes the import-job audit read surface, the
+		// Phase 2 activity timeline, the score-profile catalog +
+		// leaderboard, and snapshot reads. Phase 2 plan §2.3 folds
+		// activity-read / score-profile-read into contact.read because
+		// granting one without the other is incoherent.
 		gated.Group(func(r chi.Router) {
 			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
 			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.contact.read"))
@@ -331,6 +696,10 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterTagReadRoutes(api, m.tagHandler)
 			handlers.RegisterCustomFieldReadRoutes(api, m.customFieldHandler)
 			handlers.RegisterImportReadRoutes(api, m.importsHandler)
+			handlers.RegisterActivityReadRoutes(api, m.activityHandler)
+			handlers.RegisterScoreProfileReadRoutes(api, m.profileHandler)
+			handlers.RegisterSnapshotReadRoutes(api, m.snapshotHandler)
+			handlers.RegisterConflictReviewReadRoutes(api, m.conflictReviewHandler)
 		})
 
 		// IMPORT bucket — separate gate so import access can be
@@ -367,6 +736,39 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterMembershipDeleteRoutes(api, m.membershipHandler)
 			handlers.RegisterTagDeleteRoutes(api, m.tagHandler)
 			handlers.RegisterCustomFieldDeleteRoutes(api, m.customFieldHandler)
+		})
+
+		// ACTIVITY WRITE bucket — manual activity logging + correction.
+		// Separate gate from contact.write because logging real-world
+		// touchpoints is a different authority than editing the contact
+		// record itself.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.activity.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterActivityWriteRoutes(api, m.activityHandler)
+		})
+
+		// SCORE PROFILE WRITE bucket — profile CRUD. Save bumps version
+		// and bulk-marks downstream snapshots as stale; the recompute
+		// job + the next eager hit on each person settle the new state.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.score_profile.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterScoreProfileWriteRoutes(api, m.profileHandler)
+		})
+
+		// CONFLICT RESOLVE bucket — review-queue resolution. Distinct
+		// from contact.write because operators may be granted
+		// queue-management authority without full record-edit access
+		// (e.g. import operators who triage but don't curate contacts
+		// outside of imports).
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.conflict.resolve"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterConflictReviewWriteRoutes(api, m.conflictReviewHandler)
 		})
 	})
 }

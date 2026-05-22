@@ -3,18 +3,38 @@ package models
 import "time"
 
 // ImportJobStatus enumerates the lifecycle states of an import job.
-// Phase 1 ships a minimal subset — no `paused_for_review` (Phase 3,
-// conflict-review queue) and no `queued`/`running` separation
-// (Phase-1 imports run synchronously inside the POST handler, so the
-// job transitions queued→running→done|failed in one request).
+// Phase 3 moved the importer behind a background worker, so the
+// queued → running → done|failed transitions are split across the
+// HTTP boundary; the paused_for_review branch holds a job while
+// the operator drains its pending marketing_conflict_reviews.
+//
+// State diagram:
+//
+//	queued ──► running ──┬─► done
+//	                     │
+//	                     ├─► failed
+//	                     │
+//	                     └─► paused_for_review ──► running (on last resolve)
 type ImportJobStatus string
 
 const (
-	ImportJobStatusQueued  ImportJobStatus = "queued"
-	ImportJobStatusRunning ImportJobStatus = "running"
-	ImportJobStatusDone    ImportJobStatus = "done"
-	ImportJobStatusFailed  ImportJobStatus = "failed"
+	ImportJobStatusQueued          ImportJobStatus = "queued"
+	ImportJobStatusRunning         ImportJobStatus = "running"
+	ImportJobStatusPausedForReview ImportJobStatus = "paused_for_review"
+	ImportJobStatusDone            ImportJobStatus = "done"
+	ImportJobStatusFailed          ImportJobStatus = "failed"
 )
+
+// IsKnownImportJobStatus is the closed-enum guard used by repository
+// filters and the boot-recovery sweep.
+func IsKnownImportJobStatus(s ImportJobStatus) bool {
+	switch s {
+	case ImportJobStatusQueued, ImportJobStatusRunning,
+		ImportJobStatusPausedForReview, ImportJobStatusDone, ImportJobStatusFailed:
+		return true
+	}
+	return false
+}
 
 // ImportJobStats accumulates per-row outcomes during an import. Every
 // counter is bumped on its own code path so the totals are mutually
@@ -40,10 +60,14 @@ type ImportJobStats struct {
 // entries on Person / Organization rows carry the JobUUID so any row
 // can be traced back to the run that produced it.
 //
-// Phase 1 schema is intentionally narrower than
-// docs/plans/marketing-addon/schemas/marketing_import_jobs.md — the
-// full schema lands in Phase 3 with the review-queue work
-// (paused_for_review status, ConflictReviewUUIDs reference array).
+// Phase 3 extends the row with:
+//   - IdempotencyKey — sha256(file_bytes || mapping_json) (or the
+//     operator-supplied Idempotency-Key header). Same key within 24h
+//     per tenant returns the existing job from POST /imports.
+//   - ConflictReviewUUIDs — back-reference to every review the worker
+//     parked for this job. CountPendingForJob on the review repo is
+//     the canonical "is the queue drained" check, but this array lets
+//     the timeline UI surface them without an extra query.
 type ImportJob struct {
 	UUID     string `bson:"uuid" json:"uuid"`
 	TenantID string `bson:"tenantId" json:"tenantId"`
@@ -60,8 +84,21 @@ type ImportJob struct {
 	Stats  ImportJobStats  `bson:"stats" json:"stats"`
 
 	// Error carries the failure reason when Status == failed. Empty
-	// otherwise.
+	// otherwise. Reserved values: "runner_crash" (backend restarted
+	// mid-job), "queue_full" (worker queue saturated at enqueue time).
 	Error string `bson:"error,omitempty" json:"error,omitempty"`
+
+	// IdempotencyKey is the SHA-256 of (file bytes || mapping JSON) by
+	// default, overridable via the Idempotency-Key request header. Two
+	// POST /imports calls with the same key inside the 24h window
+	// return the existing UUID instead of creating a duplicate job.
+	IdempotencyKey string `bson:"idempotencyKey,omitempty" json:"idempotencyKey,omitempty"`
+
+	// ConflictReviewUUIDs lists every review the worker parked for this
+	// job. Append-only; never trimmed even after every review resolves
+	// (the audit value is in seeing how many manual decisions this run
+	// generated).
+	ConflictReviewUUIDs []string `bson:"conflictReviewUuids,omitempty" json:"conflictReviewUuids,omitempty"`
 
 	CreatedAt   time.Time  `bson:"createdAt" json:"createdAt"`
 	StartedAt   *time.Time `bson:"startedAt,omitempty" json:"startedAt,omitempty"`

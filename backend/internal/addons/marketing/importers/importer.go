@@ -16,7 +16,30 @@
 // that yields canonical rows).
 package importers
 
-import "io"
+import (
+	"encoding/json"
+	"io"
+)
+
+// DecodeMapping deserializes a persisted ColumnMapping JSON blob.
+// Empty / nil input yields an empty (non-nil) ColumnMapping so the
+// pipeline can run with adapter defaults — useful for adapters that
+// derive their mapping from the source itself (e.g. Odoo res.partner
+// has a fixed schema). Errors surface as adapter-parse failures with
+// the underlying json error attached.
+func DecodeMapping(raw []byte) (ColumnMapping, error) {
+	if len(raw) == 0 {
+		return ColumnMapping{Columns: map[string]string{}}, nil
+	}
+	var m ColumnMapping
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ColumnMapping{}, err
+	}
+	if m.Columns == nil {
+		m.Columns = map[string]string{}
+	}
+	return m, nil
+}
 
 // ColumnMapping is the operator-supplied translation from the
 // adapter's native column space (CSV headers, Excel cell coords,
@@ -112,4 +135,33 @@ type Importer interface {
 	// surface as 400s — runtime errors during row extraction flow
 	// through Source.Err() instead.
 	Parse(reader io.Reader, mapping ColumnMapping) (Source, error)
+}
+
+// CapabilityFlags is the static feature surface an adapter advertises
+// to the operator UI. The wizard reads these to decide which steps to
+// render (e.g. show the sheet picker for adapters where
+// SheetSelection=true). New flags are append-only; defaults are zero
+// values so adapters that don't care don't need to update.
+type CapabilityFlags struct {
+	// SheetSelection — the source has multiple addressable sheets
+	// (xlsx workbooks). When true, the wizard surfaces a sheet picker
+	// driven by the dry-run preview.
+	SheetSelection bool
+
+	// ActivityEmission — the adapter can produce Activity rows
+	// alongside the canonical-record stream (engagement-CSV mode,
+	// Odoo mail.message pull). When true, the wizard surfaces the
+	// engagement opt-in toggle.
+	ActivityEmission bool
+}
+
+// AdapterDescriptor pairs Name + Capabilities for adapters that opt
+// into the description surface. The pipeline does not require it —
+// only the wizard does — so adapters that don't implement
+// DescribeCapabilities use the zero-value defaults.
+type AdapterDescriptor interface {
+	Importer
+	// DescribeCapabilities returns the static feature surface for
+	// this adapter. Called by the wizard's adapter-picker endpoint.
+	DescribeCapabilities() CapabilityFlags
 }

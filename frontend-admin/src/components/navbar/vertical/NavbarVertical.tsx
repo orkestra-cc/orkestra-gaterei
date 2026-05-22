@@ -1,12 +1,14 @@
 import { useEffect, useState, Fragment } from 'react';
 import classNames from 'classnames';
 import { Nav, Navbar, Row, Col, Placeholder } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { navbarBreakPoint, topNavbarBreakpoint } from 'config';
 import Flex from 'components/common/Flex';
 import Logo from 'components/common/Logo';
 import NavbarVerticalMenu from './NavbarVerticalMenu';
 import ToggleButton from './ToggleButton';
 import { capitalize } from 'helpers/utils';
+import { translateNavRealm, translateNavSection } from 'helpers/navLabel';
 import NavbarTopDropDownMenus from 'components/navbar/top/NavbarTopDropDownMenus';
 import bgNavbar from 'assets/img/generic/bg-navbar.png';
 import { useAppContext } from 'providers/AppProvider';
@@ -87,6 +89,7 @@ const NavbarSkeleton = () => (
 );
 
 const NavbarVertical = () => {
+  const { t } = useTranslation();
   const {
     config: {
       navbarPosition,
@@ -235,7 +238,9 @@ const NavbarVertical = () => {
         {/* Error state - show minimal message */}
         {isError && !isLoading && (
           <div className="navbar-vertical-content scrollbar text-center py-4">
-            <small className="text-muted">Navigation unavailable</small>
+            <small className="text-muted">
+              {t('nav.navigationUnavailable')}
+            </small>
           </div>
         )}
 
@@ -257,7 +262,9 @@ const NavbarVertical = () => {
                         return (
                           <Fragment key={realm.key}>
                             <RealmHeader
-                              label={capitalize(realm.label)}
+                              label={capitalize(
+                                translateNavRealm(t, realm.key, realm.label)
+                              )}
                               collapsed={collapsed}
                               onToggle={() => toggleRealmCollapsed(realm.key)}
                             />
@@ -269,7 +276,9 @@ const NavbarVertical = () => {
                                   {section.label &&
                                     section.label !== realm.label && (
                                       <NavbarSectionLabel
-                                        label={capitalize(section.label)}
+                                        label={capitalize(
+                                          translateNavSection(t, section.label)
+                                        )}
                                       />
                                     )}
                                   <NavbarVerticalMenu
@@ -283,7 +292,11 @@ const NavbarVertical = () => {
                     : filteredNavigation.map(route => (
                         <Fragment key={route.label}>
                           {!route.labelDisable && (
-                            <NavbarLabel label={capitalize(route.label)} />
+                            <NavbarLabel
+                              label={capitalize(
+                                translateNavSection(t, route.label)
+                              )}
+                            />
                           )}
                           <NavbarVerticalMenu routes={route.children} />
                         </Fragment>

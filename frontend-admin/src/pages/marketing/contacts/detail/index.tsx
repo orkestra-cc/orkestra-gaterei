@@ -13,23 +13,29 @@ import {
   Col
 } from 'react-bootstrap';
 import { useParams, useSearchParams, Link } from 'react-router';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   useGetMarketingPersonQuery,
   useListPersonMembershipsQuery,
   useListMarketingOrgsQuery,
   useListMarketingTagsQuery
 } from 'store/api/marketingApi';
+import TimelineTab from './TimelineTab';
+import ScoresTab from './ScoresTab';
 
-type TabKey = 'overview' | 'memberships' | 'sources';
+type TabKey = 'overview' | 'memberships' | 'timeline' | 'scores' | 'sources';
 const DEFAULT_TAB: TabKey = 'overview';
 
 const readTab = (raw: string | null | undefined): TabKey => {
   if (raw === 'memberships') return 'memberships';
+  if (raw === 'timeline') return 'timeline';
+  if (raw === 'scores') return 'scores';
   if (raw === 'sources') return 'sources';
   return 'overview';
 };
 
 const ContactDetailPage: React.FC = () => {
+  const { t } = useTranslation();
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
@@ -57,18 +63,28 @@ const ContactDetailPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="p-3 text-muted">Loading…</div>;
+    return (
+      <div className="p-3 text-muted">
+        {t('marketing.contacts.detail.loading')}
+      </div>
+    );
   }
   if (error || !person) {
     return (
       <Card>
         <Card.Body>
-          <h5 className="mb-2">Contact not found</h5>
+          <h5 className="mb-2">
+            {t('marketing.contacts.detail.notFoundTitle')}
+          </h5>
           <p className="text-muted mb-0">
-            The person UUID <code>{id}</code> does not exist in this tenant.
+            <Trans
+              i18nKey="marketing.contacts.detail.notFoundBody"
+              values={{ id }}
+              components={{ code: <code /> }}
+            />
           </p>
           <Link to="/marketing/contacts" className="btn btn-link px-0 mt-2">
-            ← Back to contacts
+            {t('marketing.contacts.detail.backToContacts')}
           </Link>
         </Card.Body>
       </Card>
@@ -77,7 +93,8 @@ const ContactDetailPage: React.FC = () => {
 
   const fullName =
     [person.firstName, person.lastName].filter(Boolean).join(' ') ||
-    'Unnamed contact';
+    t('marketing.contacts.detail.unnamed');
+  const dash = t('marketing.contacts.detail.dash');
 
   return (
     <>
@@ -85,7 +102,7 @@ const ContactDetailPage: React.FC = () => {
         <h3 className="fw-normal mb-0">{fullName}</h3>
         {person.title && <span className="text-muted">{person.title}</span>}
         <Link to="/marketing/contacts" className="ms-auto text-muted">
-          ← All contacts
+          {t('marketing.contacts.detail.allContacts')}
         </Link>
       </div>
 
@@ -94,11 +111,13 @@ const ContactDetailPage: React.FC = () => {
           <Card.Header className="border-bottom-0">
             <Nav variant="tabs" className="border-0">
               <Nav.Item>
-                <Nav.Link eventKey="overview">Overview</Nav.Link>
+                <Nav.Link eventKey="overview">
+                  {t('marketing.contacts.detail.tabs.overview')}
+                </Nav.Link>
               </Nav.Item>
               <Nav.Item>
                 <Nav.Link eventKey="memberships">
-                  Memberships{' '}
+                  {t('marketing.contacts.detail.tabs.memberships')}{' '}
                   {memberships?.items?.length ? (
                     <Badge bg="secondary" pill>
                       {memberships.items.length}
@@ -107,8 +126,18 @@ const ContactDetailPage: React.FC = () => {
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item>
+                <Nav.Link eventKey="timeline">
+                  {t('marketing.contacts.detail.tabs.timeline')}
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
+                <Nav.Link eventKey="scores">
+                  {t('marketing.contacts.detail.tabs.scores')}
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
                 <Nav.Link eventKey="sources">
-                  Sources{' '}
+                  {t('marketing.contacts.detail.tabs.sources')}{' '}
                   {person.sources?.length ? (
                     <Badge bg="secondary" pill>
                       {person.sources.length}
@@ -123,7 +152,9 @@ const ContactDetailPage: React.FC = () => {
               <Tab.Pane eventKey="overview">
                 <Row>
                   <Col md={6}>
-                    <h6 className="text-muted">Emails</h6>
+                    <h6 className="text-muted">
+                      {t('marketing.contacts.detail.emailsHeader')}
+                    </h6>
                     {person.emails?.length ? (
                       <ul className="list-unstyled mb-3">
                         {person.emails.map((e, i) => (
@@ -131,23 +162,27 @@ const ContactDetailPage: React.FC = () => {
                             {e.address}
                             {e.primary && (
                               <Badge bg="primary" pill className="ms-2">
-                                primary
+                                {t('marketing.contacts.detail.badgePrimary')}
                               </Badge>
                             )}
                             {e.verified && (
                               <Badge bg="success" pill className="ms-1">
-                                verified
+                                {t('marketing.contacts.detail.badgeVerified')}
                               </Badge>
                             )}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-muted mb-3">No emails on file.</p>
+                      <p className="text-muted mb-3">
+                        {t('marketing.contacts.detail.emailsEmpty')}
+                      </p>
                     )}
                   </Col>
                   <Col md={6}>
-                    <h6 className="text-muted">Phones</h6>
+                    <h6 className="text-muted">
+                      {t('marketing.contacts.detail.phonesHeader')}
+                    </h6>
                     {person.phones?.length ? (
                       <ul className="list-unstyled mb-3">
                         {person.phones.map((p, i) => (
@@ -155,20 +190,24 @@ const ContactDetailPage: React.FC = () => {
                             {p.number}{' '}
                             {p.primary && (
                               <Badge bg="primary" pill className="ms-2">
-                                primary
+                                {t('marketing.contacts.detail.badgePrimary')}
                               </Badge>
                             )}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-muted mb-3">No phones on file.</p>
+                      <p className="text-muted mb-3">
+                        {t('marketing.contacts.detail.phonesEmpty')}
+                      </p>
                     )}
                   </Col>
                 </Row>
                 <Row>
                   <Col md={6}>
-                    <h6 className="text-muted">Tags</h6>
+                    <h6 className="text-muted">
+                      {t('marketing.contacts.detail.tagsHeader')}
+                    </h6>
                     {person.tags?.length ? (
                       <div className="mb-3">
                         {person.tags.map(uuid => (
@@ -187,18 +226,24 @@ const ContactDetailPage: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-muted mb-3">No tags.</p>
+                      <p className="text-muted mb-3">
+                        {t('marketing.contacts.detail.tagsEmpty')}
+                      </p>
                     )}
                   </Col>
                   <Col md={6}>
-                    <h6 className="text-muted">Language</h6>
-                    <p className="mb-3">{person.language || '—'}</p>
+                    <h6 className="text-muted">
+                      {t('marketing.contacts.detail.languageHeader')}
+                    </h6>
+                    <p className="mb-3">{person.language || dash}</p>
                   </Col>
                 </Row>
                 {person.customFields &&
                   Object.keys(person.customFields).length > 0 && (
                     <>
-                      <h6 className="text-muted">Custom fields</h6>
+                      <h6 className="text-muted">
+                        {t('marketing.contacts.detail.customFieldsHeader')}
+                      </h6>
                       <Table size="sm" className="mb-0">
                         <tbody>
                           {Object.entries(person.customFields).map(([k, v]) => (
@@ -218,18 +263,24 @@ const ContactDetailPage: React.FC = () => {
               <Tab.Pane eventKey="memberships">
                 {!memberships?.items?.length ? (
                   <p className="text-muted mb-0">
-                    No memberships. Link this person to an organization to
-                    populate the activity-org denormalization (used in Phase 2+
-                    scoring).
+                    {t('marketing.contacts.detail.memberships.empty')}
                   </p>
                 ) : (
                   <Table size="sm" responsive>
                     <thead>
                       <tr>
-                        <th>Organization</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Period</th>
+                        <th>
+                          {t('marketing.contacts.detail.memberships.colOrg')}
+                        </th>
+                        <th>
+                          {t('marketing.contacts.detail.memberships.colRole')}
+                        </th>
+                        <th>
+                          {t('marketing.contacts.detail.memberships.colStatus')}
+                        </th>
+                        <th>
+                          {t('marketing.contacts.detail.memberships.colPeriod')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -239,24 +290,40 @@ const ContactDetailPage: React.FC = () => {
                             {orgsByUUID[m.orgUuid]?.legalName ??
                               m.orgUuid.slice(0, 8)}
                           </td>
-                          <td>{m.role || '—'}</td>
+                          <td>{m.role || dash}</td>
                           <td>
                             {m.active ? (
-                              <Badge bg="success">active</Badge>
+                              <Badge bg="success">
+                                {t(
+                                  'marketing.contacts.detail.memberships.statusActive'
+                                )}
+                              </Badge>
                             ) : (
-                              <Badge bg="secondary">closed</Badge>
+                              <Badge bg="secondary">
+                                {t(
+                                  'marketing.contacts.detail.memberships.statusClosed'
+                                )}
+                              </Badge>
                             )}{' '}
-                            {m.primary && <Badge bg="primary">primary</Badge>}
+                            {m.primary && (
+                              <Badge bg="primary">
+                                {t(
+                                  'marketing.contacts.detail.memberships.primary'
+                                )}
+                              </Badge>
+                            )}
                           </td>
                           <td>
                             <small className="text-muted">
                               {m.since
                                 ? new Date(m.since).toLocaleDateString()
-                                : '—'}{' '}
+                                : dash}{' '}
                               →{' '}
                               {m.until
                                 ? new Date(m.until).toLocaleDateString()
-                                : 'present'}
+                                : t(
+                                    'marketing.contacts.detail.memberships.present'
+                                  )}
                             </small>
                           </td>
                         </tr>
@@ -266,22 +333,36 @@ const ContactDetailPage: React.FC = () => {
                 )}
               </Tab.Pane>
 
+              <Tab.Pane eventKey="timeline" mountOnEnter unmountOnExit>
+                <TimelineTab personId={id} />
+              </Tab.Pane>
+
+              <Tab.Pane eventKey="scores" mountOnEnter unmountOnExit>
+                <ScoresTab personId={id} />
+              </Tab.Pane>
+
               <Tab.Pane eventKey="sources">
                 <p className="text-muted">
-                  Every importer run and manual create appends a provenance
-                  entry; the array is monotonic so this is the audit log of
-                  where this contact's data came from.
+                  {t('marketing.contacts.detail.sources.description')}
                 </p>
                 {!person.sources?.length ? (
-                  <p className="text-muted mb-0">No provenance entries.</p>
+                  <p className="text-muted mb-0">
+                    {t('marketing.contacts.detail.sources.empty')}
+                  </p>
                 ) : (
                   <Table size="sm" responsive>
                     <thead>
                       <tr>
-                        <th>Importer</th>
-                        <th>Job</th>
-                        <th>External ID</th>
-                        <th>Imported at</th>
+                        <th>
+                          {t('marketing.contacts.detail.sources.colImporter')}
+                        </th>
+                        <th>{t('marketing.contacts.detail.sources.colJob')}</th>
+                        <th>
+                          {t('marketing.contacts.detail.sources.colExternalId')}
+                        </th>
+                        <th>
+                          {t('marketing.contacts.detail.sources.colImportedAt')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -298,11 +379,11 @@ const ContactDetailPage: React.FC = () => {
                                 <small>{s.jobUuid.slice(0, 8)}</small>
                               </Link>
                             ) : (
-                              '—'
+                              dash
                             )}
                           </td>
                           <td>
-                            <small>{s.externalId || '—'}</small>
+                            <small>{s.externalId || dash}</small>
                           </td>
                           <td>
                             <small className="text-muted">
@@ -322,7 +403,7 @@ const ContactDetailPage: React.FC = () => {
 
       <div className="mt-3 d-flex justify-content-end">
         <Button variant="outline-secondary" size="sm" disabled>
-          Edit (coming in Phase 1 follow-up)
+          {t('marketing.contacts.detail.editDisabled')}
         </Button>
       </div>
     </>
