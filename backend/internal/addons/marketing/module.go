@@ -22,6 +22,7 @@ import (
 	"github.com/orkestra-cc/orkestra-addon-marketing/importers"
 	csvimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/csv"
 	excelimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/excel"
+	odooimp "github.com/orkestra-cc/orkestra-addon-marketing/importers/odoo"
 	"github.com/orkestra-cc/orkestra-addon-marketing/jobs"
 	"github.com/orkestra-cc/orkestra-addon-marketing/models"
 	"github.com/orkestra-cc/orkestra-addon-marketing/repository"
@@ -518,7 +519,7 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	mshipSvc := services.NewMembershipService(mshipRepo)
 	tagSvc := services.NewTagService(tagRepo)
 
-	m.importerAdapters = []importers.Importer{csvimp.New(), excelimp.New()}
+	m.importerAdapters = []importers.Importer{csvimp.New(), excelimp.New(), odooimp.New()}
 
 	// --- Phase 3 wiring — async import worker + conflict review repo ---
 	m.conflictReviewRepo = repository.NewConflictReviewRepository(deps.DB)
