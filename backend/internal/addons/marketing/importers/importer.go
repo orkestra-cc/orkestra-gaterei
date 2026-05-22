@@ -136,3 +136,32 @@ type Importer interface {
 	// through Source.Err() instead.
 	Parse(reader io.Reader, mapping ColumnMapping) (Source, error)
 }
+
+// CapabilityFlags is the static feature surface an adapter advertises
+// to the operator UI. The wizard reads these to decide which steps to
+// render (e.g. show the sheet picker for adapters where
+// SheetSelection=true). New flags are append-only; defaults are zero
+// values so adapters that don't care don't need to update.
+type CapabilityFlags struct {
+	// SheetSelection — the source has multiple addressable sheets
+	// (xlsx workbooks). When true, the wizard surfaces a sheet picker
+	// driven by the dry-run preview.
+	SheetSelection bool
+
+	// ActivityEmission — the adapter can produce Activity rows
+	// alongside the canonical-record stream (engagement-CSV mode,
+	// Odoo mail.message pull). When true, the wizard surfaces the
+	// engagement opt-in toggle.
+	ActivityEmission bool
+}
+
+// AdapterDescriptor pairs Name + Capabilities for adapters that opt
+// into the description surface. The pipeline does not require it —
+// only the wizard does — so adapters that don't implement
+// DescribeCapabilities use the zero-value defaults.
+type AdapterDescriptor interface {
+	Importer
+	// DescribeCapabilities returns the static feature surface for
+	// this adapter. Called by the wizard's adapter-picker endpoint.
+	DescribeCapabilities() CapabilityFlags
+}
