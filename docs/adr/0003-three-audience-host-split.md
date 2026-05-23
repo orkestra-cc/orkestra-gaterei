@@ -161,12 +161,12 @@ Two distinct login paths per ADR decision:
 | `POST /v1/auth/client/register` | client (public) | `aud=client` (post-onboarding) |
 | `POST /v1/auth/client/refresh` | client | `aud=client` |
 | `POST /v1/auth/client/logout` | client | — |
-| `GET /v1/auth/{operator|client}/oauth/{provider}/start` | per-audience | — |
+| `GET /v1/auth/{tier}/oauth/{provider}/start` | per-audience | — |
 | `GET /v1/auth/oauth/{provider}/callback` | both (state-routed) | per `state.tier` |
 
 OAuth callback decodes `state` (CSRF + `tier` field signed) and routes the resulting session to the matching tier. There is **no** `/v1/auth/operator/register` — operator users are provisioned exclusively through `/v1/admin/users` by an existing operator (per decision: no operator self-signup).
 
-Password reset, MFA enrolment, WebAuthn registration follow the same `/{operator|client}/...` prefix discipline.
+Password reset, MFA enrolment, WebAuthn registration follow the same `/{tier}/...` prefix discipline.
 
 ### Split user/auth collections
 
@@ -297,7 +297,7 @@ Land **after** the in-flight tenant-consolidation series (current branch: `feat/
 | **PR-A** | `module.APISurface` and per-audience `RouteInfo` | Mechanical signature change across 12 modules. Both `Operator` and `Client` initially point at the same mux — no behavior change. Ship as a no-op refactor. | Yes — fully reversible |
 | **PR-B** | Split user/auth collections + tier-aware providers | Heavy. New collections, new providers (`OperatorUserProvider`, `ClientUserProvider`), data migration script (`backend/scripts/migrate_user_split.go`), integrity tests, repository tier guards. Behavior preserved (single login path still works). | Yes — was gated by feature flag `USER_TIER_SPLIT_ENABLED`; flag removed in PR-D D-8 hard cutover |
 | **PR-C** | Host mux + audience middleware + new env vars | `hostRouter`, two `huma.API`s, two `chi.Mux`es, `requireAudience` middleware. New env: `CONSOLE_HOST`, `CLIENT_API_HOST`, per-audience `*_CORS_ORIGINS`, `*_RATE_LIMIT_*`. Frontend operator dashboard moves to `console.*`. JWT issuance still single-aud (`operator` for everything; clients still issued via legacy path). | Yes |
-| **PR-D** | Auth path split + JWT v2 + hard cutover | `/v1/auth/{operator|client}/login` + per-tier refresh/logout/MFA/WebAuthn. JWT version bump, `v1` rejection. OAuth state-encoded tier. Onboarding module moves to `client` API. Sessions invalidated. | **Coordinated release** — frontend + backend land together |
+| **PR-D** | Auth path split + JWT v2 + hard cutover | `/v1/auth/{tier}/login` + per-tier refresh/logout/MFA/WebAuthn. JWT version bump, `v1` rejection. OAuth state-encoded tier. Onboarding module moves to `client` API. Sessions invalidated. | **Coordinated release** — frontend + backend land together |
 | **PR-E** *(future)* | Client-facing AI runtime endpoints | `/v1/agents/run`, `/v1/rag/query`, `/v1/documents/generate` on `client` API, gated by `subscriptions` entitlement, dispatched to `service` audience via existing remote providers (`shared/remote/`). | Yes |
 
 PR-A and PR-B can land concurrently with the post-tenant-consolidation `main`. PR-C depends on PR-A. PR-D depends on PR-B + PR-C. PR-E depends on PR-D + a `subscriptions` entitlement-enforcement primitive.
