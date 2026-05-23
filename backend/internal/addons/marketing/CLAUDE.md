@@ -138,8 +138,14 @@ time even if MarkStale fails.
 `POST /v1/marketing/imports` returns `202 Accepted + jobUuid`
 (Phase 3 moved execution behind a background worker). The handler
 persists the upload to disk under `MARKETING_IMPORT_SPOOL_DIR`
-(default `/var/lib/orkestra/marketing/spool`), records the job in
-`queued`, and hands it to the in-process worker queue. Idempotency:
+(schema default `/var/lib/orkestra/marketing/spool`, but
+**dev/staging compose override it to `/app/marketing-spool`** —
+the non-root container user can't `mkdir /var/lib/orkestra`, and
+the override is backed by a named volume so spool survives
+restarts. The env var only seeds on first boot; for an existing
+install change `importSpoolDir` at `/admin/modules/marketing`),
+records the job in `queued`, and hands it to the in-process worker
+queue. Idempotency:
 `sha256(body || canonical_mapping)` — same payload inside 24h
 returns the existing UUID (override via the `Idempotency-Key`
 header).

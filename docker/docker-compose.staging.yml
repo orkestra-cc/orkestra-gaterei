@@ -149,6 +149,16 @@ services:
       # running under Kubernetes or when infra is managed externally.
       CONTAINER_CONTROL_ENABLED: ${CONTAINER_CONTROL_ENABLED:-true}
 
+      # Marketing import spool — async-import payloads persist here between
+      # Enqueue and worker pickup. The schema default
+      # (/var/lib/orkestra/marketing/spool) is not writable by the
+      # non-root container user; override to a path we own + back with a
+      # named volume so spool survives restarts. First-boot seed only —
+      # for an existing install change `importSpoolDir` at
+      # /admin/modules/marketing instead (module_configs is authoritative
+      # after the first boot).
+      MARKETING_IMPORT_SPOOL_DIR: /app/marketing-spool
+
       # Module config (OAuth, OpenAPI billing/company tokens, Stripe keys,
       # SMTP, Hindsight URL, Memgraph URI, Gotenberg URL, AI provider keys,
       # per-module enable flags) is owned by ConfigService and edited at
@@ -160,6 +170,7 @@ services:
       - ./keys:/app/keys
       - orkestra-backend-logs-staging:/app/logs
       - orkestra-backend-uploads-staging:/app/uploads
+      - orkestra-backend-marketing-spool-staging:/app/marketing-spool
       # Enables the agents module to manage the orkestra-hindsight container
       # lifecycle. For stricter isolation in staging, front the socket with
       # tecnativa/docker-socket-proxy exposing only containers endpoints.
@@ -294,6 +305,8 @@ volumes:
   orkestra-backend-logs-staging:
     driver: local
   orkestra-backend-uploads-staging:
+    driver: local
+  orkestra-backend-marketing-spool-staging:
     driver: local
 
 networks:
