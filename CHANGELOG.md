@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [0.1.0] - 2026-05-23
 
+### Bug fixes
+
+- **(release)** Defensive guard when CHANGELOG.md is already current ([d9d9b5f](https://github.com/orkestra-cc/orkestra/commit/d9d9b5fc757040bee67da5a19d7f4d72f6f2e632))
+
+## [0.1.0] - 2026-05-23
+
 ### Features
 
 - **(mobile)** Dart-define overrides for fork-friendly backend URLs (fork-readiness Phase 5) ([6461b45](https://github.com/orkestra-cc/orkestra/commit/6461b45ff001b17aba3b3636dca5885430ffbd48))
@@ -558,6 +564,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - **(handlers)** Cover /v1/me/* polymorphic-owner fan-out ([b6d1c98](https://github.com/orkestra-cc/orkestra/commit/b6d1c98b70562449454c53a508d65393aef6d0d5))
 - B-5 tier-guard repo tests (ADR-0003 PR-B) ([25fa506](https://github.com/orkestra-cc/orkestra/commit/25fa506afdd9519f23d217b7bc78171186b17496))
 
+### Build
+
+- **(makefile)** Add init-yes target for CI / scripted environments (fork-readiness Phase 7) ([3f09fe2](https://github.com/orkestra-cc/orkestra/commit/3f09fe260be011f4fbadc05f2063b68d7ff5c4e8))
+
 ### CI
 
 - **(ai-service)** Build package, not single main.go file ([0d570ed](https://github.com/orkestra-cc/orkestra/commit/0d570eddfbff6a09ab2885d6c2ab9f89a22590cd))
@@ -582,6 +592,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Chores
 
+- **(governance)** CHANGELOG + GOVERNANCE + ROADMAP + release automation (fork-readiness Phase 6) ([29be6a9](https://github.com/orkestra-cc/orkestra/commit/29be6a9325926ed17a94cb49c5cd6b4c44040a58))
 - **(frontend-admin)** Prettier autofix + plan status (Phase 4 deep tail) ([a10db11](https://github.com/orkestra-cc/orkestra/commit/a10db11225d13225f5d291a2fbe2657dd8a98bfa))
 - **(frontend-admin)** Prettier autofix + plan status update (Phase 4 ✅) ([37a969a](https://github.com/orkestra-cc/orkestra/commit/37a969a6ab2620e6b6ed3774ba37392fbd180d6b))
 - **(openapi)** Regenerate enterprise.json for Phase F log-level routes ([b2e24b8](https://github.com/orkestra-cc/orkestra/commit/b2e24b8f3a199c29e1b72b0ab4a3e354384e3bac))
