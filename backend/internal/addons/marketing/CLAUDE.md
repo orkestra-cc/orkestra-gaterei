@@ -47,6 +47,27 @@ auto-emission of `tag_added` / `tag_removed` / `imported` /
 the `/marketing/reviews` admin page + side-by-side resolver modal
 + adapter picker on the import wizard.
 
+**Phase 4 (Card lifecycle) — shipped on
+`feature/marketing-phase-4`.** Five sequential PRs landed: PR-1
+data layer + code-format generator, PR-2 services + scheduler,
+PR-3 HTTP + Cedar + persons-list filters, PR-4 closes the
+Phase-3 leftovers (engagement-CSV emission, soft-match scan
+activation, `ListCorrectionsForActivity`), PR-5 operator-console
+UI. Three new MongoDB collections (`marketing_card_types`,
+`marketing_cards`, `marketing_card_sequences`), the
+`{YYYY,YY,MM,DD,seq:N,rand:N}` code-format generator, the full
+Issue/Suspend/Reinstate/Revoke state machine + the expiration
+scheduler (third cross-tenant bypass —
+`CardRepository.ListExpiringAcrossTenants`), 10 new card HTTP
+routes + 1 corrections-read route, three new permission keys
+(`marketing.card_type.write` + `marketing.card.{issue,suspend,revoke}`),
+`?hasActiveCard=` / `?activeCardOfType=` query params on
+`GET /v1/marketing/persons`, the `/marketing/card-types` admin
+page, contact-detail Cards tab + Issue/Suspend/Reinstate/Revoke
+modals, Timeline `corrected_by` UI (Correct button +
+strike-through + corrections expander), and the import wizard's
+"Engagement mode" checkbox with header auto-detect hint.
+
 Design rationale, per-collection schemas, and the per-phase
 execution plans live in the monorepo:
 
@@ -55,6 +76,7 @@ execution plans live in the monorepo:
 - [`docs/plans/marketing-addon/IMPLEMENTATION_PLAN.md`](../../../../docs/plans/marketing-addon/IMPLEMENTATION_PLAN.md) — Phase 1 execution plan
 - [`docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_2.md`](../../../../docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_2.md) — Phase 2 execution plan
 - [`docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_3.md`](../../../../docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_3.md) — Phase 3 execution plan
+- [`docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_4.md`](../../../../docs/plans/marketing-addon/IMPLEMENTATION_PLAN_PHASE_4.md) — Phase 4 execution plan (in progress)
 
 ## What it does today
 
@@ -80,7 +102,7 @@ on the operator router) is:
 - `marketing.contact.write`       → POST + PATCH on the 5 contact collections (custom-field-schemas via PUT)
 - `marketing.contact.delete`      → DELETE on the 5 contact collections
 - `marketing.import.run`          → POST `/v1/marketing/imports` (multipart upload, Phase 3 returns 202 Accepted + jobUuid; the wizard polls the imports list for completion). Accepts an optional `Idempotency-Key` header — same key within 24h returns the existing job UUID instead of creating a duplicate.
-- `marketing.activity.write`      → POST `/v1/marketing/activities` (manual log, restricted to `ManualKinds`: call_made, meeting_held, note_added, corrected_by) + POST `/v1/marketing/activities/{id}/correct` (insert a `corrected_by` row that supersedes the original)
+- `marketing.activity.write`      → POST `/v1/marketing/activities` (manual log, restricted to `ManualKinds`: call_made, meeting_held, note_added, corrected_by) + POST `/v1/marketing/activities/{id}/correct` (insert a `corrected_by` row that supersedes the original). The corresponding read GET `/v1/marketing/activities/{id}/corrections` (Phase 4 PR-4) folds under `marketing.contact.read` and returns `[]CorrectionEntry{correctingActivityUuid, recordedAt, recordedBy, reason}` oldest-first.
 - `marketing.score_profile.write` → POST + PATCH (full-body replace) + DELETE on `/v1/marketing/score-profiles` (Save bumps version + bulk-marks downstream snapshots stale; Delete cascades to snapshots)
 - `marketing.conflict.resolve`    → POST `/v1/marketing/conflict-reviews/{id}/resolve` (keep_existing / take_incoming / manual_merge) + POST `/v1/marketing/conflict-reviews/{id}/dismiss`. Distinct from contact-write because operators may be granted queue-management authority without full record-edit access (e.g. import operators triaging but not curating contacts outside imports).
 
@@ -140,7 +162,16 @@ Three adapters land canonical records into the pipeline:
   `page_visited` / `event_attended` (case-insensitive after
   TrimSpace), the source can emit Activity rows alongside the
   CanonicalRecord stream. Pairing with `occurred_at` preserves the
-  original event time.
+  original event time. Phase 4 PR-4 closed the emission loop:
+  setting `Options["engagementMode"]="true"` on the column mapping
+  flips the per-row extractor on, the CSV source populates
+  `CanonicalRecord.EngagementSignals`, and the pipeline emits one
+  Activity per truthy cell via `ActivityEmitter.EmitEngagement`
+  after the Person upsert resolves a personUuid (ExternalID
+  `engagement:<jobUuid>:<personUuid>:<kind>:<unixNano>` keeps
+  re-imports idempotent at the `dedupKey` unique index). Stats
+  counters `engagementEmitted` / `engagementOccurredAtFallback`
+  surface volume + parse-failure fidelity on the imports list.
 - `importers/excel/` — Phase 3 (`xuri/excelize`). Defaults to the
   first sheet by index; `Options["sheet"]=<exactName>` selects a
   specific one, `Options["headerRow"]=N` skips banner rows, and
@@ -177,7 +208,21 @@ first+last (case-insensitive) AND any phone overlap (digits-only
 last-10); `SoftMatchOrganization` does exact-after-normalize on
 `legal_name`. Soft-match hits ALWAYS route to the review queue —
 never auto-merge — because the false-positive rate is too high to
-commit without operator review.
+commit without operator review. Phase 4 PR-4 wired the scan into
+the pipeline's strict-miss path: `marketing_persons` carries the
+new denorm fields `firstNameLower` / `lastNameLower` /
+`phoneLast10[]` (populated by `PersonRepository` on every
+Create/Update; backed by two new sparse indexes) and
+`marketing_organizations` carries `legalNameNormalized` (one sparse
+index). On a strict-miss the pipeline calls
+`PersonRepository.FindSoftMatchByNameAndPhone` /
+`OrganizationRepository.FindSoftMatchByLegalName`, re-confirms via
+the in-memory `match.SoftMatchPerson` / `SoftMatchOrganization`
+comparator, and parks the row as a `ConflictSeveritySoft` review.
+The denormalisation backfill for legacy rows is intentionally
+**not** shipped in PR-4 — existing data starts cold, populates
+naturally on the next edit/import. Operators wanting an immediate
+backfill re-import the affected tenant.
 
 Activity auto-emission (`services/activity_emit.go`) fires
 alongside the pipeline:
@@ -252,7 +297,37 @@ optional engagement opt-in); the JSON config blob is submitted as
 the `file` multipart field — the backend's odoo adapter `Parse`
 reads it as the connection config. The imports list adds a
 "Reviews" badge column that deep-links to
-`/marketing/reviews?importJobUuid=<uuid>`.
+`/marketing/reviews?importJobUuid=<uuid>`. Phase 4 PR-5 added an
+"Engagement mode" checkbox under the CSV file picker that mutates
+the mapping JSON's `options.engagementMode` key + an info alert
+that auto-detects engagement columns in the uploaded CSV's header
+to nudge the operator toward enabling it.
+
+The `/marketing/card-types` page (Phase 4 PR-5) is a two-pane
+layout matching `/marketing/scoring`: type list on the left
+(displayName + key + active badge + code-format preview), create/
+edit form on the right (key + displayName + description +
+codeFormat with live placeholder preview rendered client-side +
+tiers chip-input + defaultBenefits chip-input +
+allowMultiplePerPerson + active). Key is immutable after first
+save.
+
+The contact-detail page (Phase 4 PR-5) gained a Cards tab
+(`?tab=cards`) between Scores and Sources that lists every card
+issued to the person with Code/Type/Tier/Status/Issued/Expires
+columns + per-row Suspend/Reinstate/Revoke dropdown driven by the
+card's current status. The "Issue card" button opens the type
+picker → tier picker (when the type carries tiers) → benefits
+override → optional expiresAt; reinstate skips reason capture;
+suspend captures a reason; revoke requires the operator to
+retype the card code as irreversibility friction.
+
+The Timeline tab grew a per-row Correct button (hidden on
+`corrected_by` rows themselves) + a strike-through renderer for
+rows superseded by a `corrected_by` entry in the visible page +
+a "↻ corrected" badge that toggles an inline expander listing
+the corrector chain (fetched from
+`GET /v1/marketing/activities/{id}/corrections`).
 
 ## What it does (eventual)
 
@@ -262,12 +337,7 @@ The full design ships in 4 functional phases plus a future phase 5:
 - **Phase 2 — Activity log + scoring.** Shipped. See "What it does
   today".
 - **Phase 3 — Advanced import.** Shipped. See "What it does today".
-- **Phase 4 — Card lifecycle.** `marketing_card_types` templates +
-  `marketing_cards` instances, staff-only issue/suspend/revoke flow,
-  per-type multi-card-per-person policy. The
-  `marketing_persons.activeCardUuids` field + its index are already
-  declared so the Phase 4 rollout doesn't need a write-blocking
-  index build.
+- **Phase 4 — Card lifecycle.** Shipped. See "What it does today".
 - **Phase 5 — (future) marketing operativo.** Segments, lead-capture
   forms, campaign sends, ESP webhooks, AI-assisted scoring.
 

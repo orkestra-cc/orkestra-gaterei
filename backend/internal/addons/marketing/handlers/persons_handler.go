@@ -15,11 +15,27 @@ import (
 // PersonHandler exposes CRUD on marketing_persons.
 type PersonHandler struct {
 	svc *services.PersonService
+
+	// cardRepo is the Phase-4 read-path collaborator that resolves the
+	// `?activeCardOfType=<typeUuid>` query param. The persons list
+	// translates the type uuid into a set of card uuids and passes
+	// them through to the PersonListFilter. Optional — nil when the
+	// module is wired in a context that does not need card filtering
+	// (e.g. legacy unit tests that pre-date Phase 4).
+	cardRepo *repository.CardRepository
 }
 
 // NewPersonHandler binds the handler to its service.
 func NewPersonHandler(svc *services.PersonService) *PersonHandler {
 	return &PersonHandler{svc: svc}
+}
+
+// WithCardRepo enables the Phase-4 `?activeCardOfType=<typeUuid>`
+// query param. Wired by the module's Init after the CardRepository
+// is constructed. Returns the receiver for fluent chaining.
+func (h *PersonHandler) WithCardRepo(repo *repository.CardRepository) *PersonHandler {
+	h.cardRepo = repo
+	return h
 }
 
 // --- DTOs ---
@@ -85,9 +101,11 @@ func toPersonView(p *models.Person) PersonView {
 
 type ListPersonsInput struct {
 	PaginatedQuery
-	Tags     []string `query:"tag"`
-	HasEmail bool     `query:"hasEmail"`
-	Source   string   `query:"source"`
+	Tags             []string `query:"tag"`
+	HasEmail         bool     `query:"hasEmail"`
+	Source           string   `query:"source"`
+	HasActiveCard    string   `query:"hasActiveCard" doc:"Pass true or false to filter on activeCardUuids presence; omit to ignore"`
+	ActiveCardOfType string   `query:"activeCardOfType" doc:"Card type UUID — returns only persons holding an active card of this type"`
 }
 
 type ListPersonsResponse struct {
@@ -129,13 +147,56 @@ type DeletePersonInput struct {
 // --- Handler methods ---
 
 func (h *PersonHandler) List(ctx context.Context, in *ListPersonsInput) (*ListPersonsResponse, error) {
-	got, err := h.svc.List(ctx, repository.PersonListFilter{
+	filter := repository.PersonListFilter{
 		TagUUIDs: in.Tags,
 		HasEmail: in.HasEmail,
 		Source:   in.Source,
 		Limit:    in.Limit,
 		Skip:     in.Skip,
-	})
+	}
+	// Phase 4 — activeCardUuids-aware filters. Translate the string
+	// query param to *bool ourselves so an absent param ("ignore")
+	// is distinguishable from an explicit false ("no active card").
+	if in.HasActiveCard != "" {
+		switch in.HasActiveCard {
+		case "true", "1", "yes":
+			t := true
+			filter.HasActiveCard = &t
+		case "false", "0", "no":
+			f := false
+			filter.HasActiveCard = &f
+		default:
+			return nil, huma.Error400BadRequest("hasActiveCard must be true or false")
+		}
+	}
+	// Phase 4 — activeCardOfType resolves at the handler layer:
+	// look up every active card of the given type, then pass the
+	// collected card uuids down as ActiveCardUUIDs. Operators can
+	// combine with hasActiveCard=true for "any active card of this
+	// type" semantics; combining with hasActiveCard=false is
+	// nonsensical and the repository's $or clause wins by reducing
+	// the result to the empty set.
+	if in.ActiveCardOfType != "" && h.cardRepo != nil {
+		cards, err := h.cardRepo.ListActiveByType(ctx, in.ActiveCardOfType)
+		if err != nil {
+			return nil, huma.Error500InternalServerError(err.Error())
+		}
+		uuids := make([]string, 0, len(cards))
+		for _, c := range cards {
+			uuids = append(uuids, c.UUID)
+		}
+		if len(uuids) == 0 {
+			// Short-circuit: no active card of this type → no
+			// persons can possibly match. Return an empty list
+			// without hitting marketing_persons.
+			resp := &ListPersonsResponse{}
+			resp.Body.Items = []PersonView{}
+			resp.Body.Meta = ListMeta{Limit: in.Limit, Skip: in.Skip, Count: 0}
+			return resp, nil
+		}
+		filter.ActiveCardUUIDs = uuids
+	}
+	got, err := h.svc.List(ctx, filter)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(err.Error())
 	}

@@ -39,12 +39,13 @@ import (
 // struct so Init() consumes module config through a single typed
 // surface (same pattern as subscriptions).
 type Settings struct {
-	ScoreRecomputeInterval  time.Duration `module:"scoreRecomputeInterval"`
-	ScoreEagerOnInsert      bool          `module:"scoreEagerOnInsert"`
-	ActivityBreakdownMax    int           `module:"activityBreakdownMax"`
-	ImportWorkerConcurrency int           `module:"importWorkerConcurrency"`
-	ImportQueueBuffer       int           `module:"importQueueBuffer"`
-	ImportSpoolDir          string        `module:"importSpoolDir"`
+	ScoreRecomputeInterval      time.Duration `module:"scoreRecomputeInterval"`
+	ScoreEagerOnInsert          bool          `module:"scoreEagerOnInsert"`
+	ActivityBreakdownMax        int           `module:"activityBreakdownMax"`
+	ImportWorkerConcurrency     int           `module:"importWorkerConcurrency"`
+	ImportQueueBuffer           int           `module:"importQueueBuffer"`
+	ImportSpoolDir              string        `module:"importSpoolDir"`
+	CardExpirationCheckInterval time.Duration `module:"cardExpirationCheckInterval"`
 }
 
 // MarketingModule implements the Orkestra SDK Module interface for
@@ -98,6 +99,19 @@ type MarketingModule struct {
 	importWorker          *importers.Worker
 	workerCancel          context.CancelFunc
 	activityEmitter       *services.ActivityEmitter
+
+	// Phase 4 — card lifecycle: type templates, instances, sequence
+	// counter for the {seq:N} placeholder, the orchestration services,
+	// the expiration scheduler, and (PR-3) the HTTP handlers + the
+	// three new Cedar permissions (marketing.card_type.write +
+	// marketing.card.{issue,suspend,revoke}).
+	cardTypeSvc        *services.CardTypeService
+	cardSvc            *services.CardService
+	cardExpirationJob  *jobs.CardExpirationJob
+	cardExpirationStop context.CancelFunc
+
+	cardTypeHandler *handlers.CardTypeHandler
+	cardHandler     *handlers.CardHandlerWithReads
 }
 
 // NewModule returns a new instance. The registry calls this once per
@@ -176,6 +190,16 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "tenantId", Direction: 1},
 				{Field: "tags", Direction: 1},
 			}},
+			// Phase 4 (PR-4 soft-match leftover) — backs
+			// OrganizationRepository.FindSoftMatchByLegalName. Sparse
+			// so legacy rows without the denorm don't perturb the
+			// index size; the unique constraint is intentionally not
+			// applied because two different legal entities can share a
+			// canonicalized name (e.g. "ACME SRL" in two regions).
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "legalNameNormalized", Direction: 1},
+			}, Sparse: true},
 			{OrderedKeys: []module.IndexKey{
 				{Field: "tenantId", Direction: 1},
 				{Field: "updatedAt", Direction: -1},
@@ -199,6 +223,21 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 			{OrderedKeys: []module.IndexKey{
 				{Field: "tenantId", Direction: 1},
 				{Field: "activeCardUuids", Direction: 1},
+			}, Sparse: true},
+			// Phase 4 (PR-4 soft-match leftover) — back the
+			// PersonRepository.FindSoftMatchByNameAndPhone path. The
+			// (firstNameLower, lastNameLower) compound carries the
+			// names; the multikey phoneLast10 narrows to candidates
+			// sharing a normalized number. Both are sparse so legacy
+			// rows without the denorm don't bloat the index.
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "firstNameLower", Direction: 1},
+				{Field: "lastNameLower", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "phoneLast10", Direction: 1},
 			}, Sparse: true},
 			{OrderedKeys: []module.IndexKey{
 				{Field: "tenantId", Direction: 1},
@@ -383,6 +422,74 @@ func (m *MarketingModule) Collections() []module.CollectionSpec {
 				{Field: "existingUuid", Direction: 1},
 			}},
 		}},
+		// Phase 4 — Card lifecycle.
+		//
+		// marketing_card_types: per-tenant card templates. (tenant, key)
+		// is the operator-facing slug uniqueness; (tenant, active) drives
+		// the "list active types" admin view.
+		{Name: models.CardTypesCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "key", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "active", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "updatedAt", Direction: -1},
+			}},
+		}},
+		// marketing_cards: card instances emitted to a Person. The
+		// (tenant, code) unique index is the fail-safe against
+		// code-collision races; (tenant, personUuid) drives the
+		// contact-detail Cards tab; (tenant, status, expiresAt) is the
+		// expiration scheduler's drain query. The
+		// "one active per (person, type)" constraint cannot be expressed
+		// as a partial unique index on the current SDK IndexSpec — it
+		// is enforced at the service layer via a pre-write probe.
+		{Name: models.CardsCollection, Indexes: []module.IndexSpec{
+			{Keys: map[string]int{"uuid": 1}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "code", Direction: 1},
+			}, Unique: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "personUuid", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "cardTypeUuid", Direction: 1},
+				{Field: "status", Direction: 1},
+			}},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "tier", Direction: 1},
+				{Field: "status", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "status", Direction: 1},
+				{Field: "expiresAt", Direction: 1},
+			}, Sparse: true},
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "issuedAt", Direction: -1},
+			}},
+		}},
+		// marketing_card_sequences: internal per-(tenant, cardType)
+		// counter backing the {seq:N} placeholder. One row per pair;
+		// findAndModify($inc, upsert) keeps the value monotonic and
+		// race-free.
+		{Name: models.CardSequencesCollection, Indexes: []module.IndexSpec{
+			{OrderedKeys: []module.IndexKey{
+				{Field: "tenantId", Direction: 1},
+				{Field: "cardTypeUuid", Direction: 1},
+			}, Unique: true},
+		}},
 	}
 }
 
@@ -404,6 +511,7 @@ func (m *MarketingModule) NavItems() []module.NavItemSpec {
 			{Name: "Custom Fields", Icon: "list-check", Path: "/marketing/custom-fields", Active: true},
 			{Name: "Imports", Icon: "file-import", Path: "/marketing/imports", Active: true},
 			{Name: "Reviews", Icon: "balance-scale", Path: "/marketing/reviews", Active: true},
+			{Name: "Card Types", Icon: "id-card", Path: "/marketing/card-types", Active: true},
 			{Name: "Scoring", Icon: "chart-line", Path: "/marketing/scoring", Active: true},
 		},
 	}}
@@ -430,6 +538,8 @@ func (m *MarketingModule) ConfigSchema() []module.ConfigField {
 		{Key: "importWorkerConcurrency", Label: "Import worker concurrency", Type: module.FieldInt, Default: "2", EnvVar: "MARKETING_IMPORT_WORKER_CONCURRENCY"},
 		{Key: "importQueueBuffer", Label: "Import queue buffer", Type: module.FieldInt, Default: "32", EnvVar: "MARKETING_IMPORT_QUEUE_BUFFER"},
 		{Key: "importSpoolDir", Label: "Import spool directory", Type: module.FieldString, Default: "/var/lib/orkestra/marketing/spool", EnvVar: "MARKETING_IMPORT_SPOOL_DIR"},
+		// Phase 4 — card lifecycle.
+		{Key: "cardExpirationCheckInterval", Label: "Card expiration scanner interval", Type: module.FieldDuration, Default: "1h", EnvVar: "MARKETING_CARD_EXPIRATION_INTERVAL"},
 	}
 }
 
@@ -459,6 +569,17 @@ func (m *MarketingModule) Permissions() []iface.PermissionSpec {
 		{Key: "marketing.activity.write", Module: m.Name(), Description: "Log manual activities (call, meeting, note, correction) on the contact timeline"},
 		{Key: "marketing.score_profile.write", Module: m.Name(), Description: "Create and update scoring profiles (rules, decay, filters); each save bumps the profile version and invalidates downstream snapshots"},
 		{Key: "marketing.conflict.resolve", Module: m.Name(), Description: "Resolve marketing import conflict reviews (keep_existing / take_incoming / manual_merge / dismiss)"},
+		// Phase 4 — card lifecycle. Reads on card types + cards fold
+		// into marketing.contact.read (consistent with the activities
+		// and conflict-reviews fold-in). Writes split across three
+		// permissions so role catalogues can match real-world
+		// separation of duties: ops emit cards more often than they
+		// retire types, and revocation is irreversible so its bucket
+		// is intentionally narrower than suspend.
+		{Key: "marketing.card_type.write", Module: m.Name(), Description: "Create, update, and delete marketing card types"},
+		{Key: "marketing.card.issue", Module: m.Name(), Description: "Issue a marketing card to a person"},
+		{Key: "marketing.card.suspend", Module: m.Name(), Description: "Suspend or reinstate an active marketing card"},
+		{Key: "marketing.card.revoke", Module: m.Name(), Description: "Revoke a marketing card (terminal, irreversible)"},
 	}
 }
 
@@ -503,6 +624,9 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	}
 	if settings.ImportSpoolDir == "" {
 		settings.ImportSpoolDir = "/var/lib/orkestra/marketing/spool"
+	}
+	if settings.CardExpirationCheckInterval <= 0 {
+		settings.CardExpirationCheckInterval = time.Hour
 	}
 
 	// --- Phase 1 wiring ---
@@ -600,6 +724,37 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 	m.profileHandler = handlers.NewScoreProfileHandler(m.profileSvc, snapRepo)
 	m.snapshotHandler = handlers.NewSnapshotHandler(snapRepo)
 
+	// --- Phase 4 wiring — card lifecycle ---
+	//
+	// CardTypeService caches the CodeFormat AST in-process; CardService
+	// is the single funnel for the §7 state machine and Activity emit.
+	// The expiration job runs as a Start/Stop-gated goroutine via
+	// CardExpirationJob.
+	cardTypeRepo := repository.NewCardTypeRepository(deps.DB)
+	cardRepo := repository.NewCardRepository(deps.DB)
+	cardSeqRepo := repository.NewCardSequenceRepository(deps.DB)
+
+	m.cardTypeSvc = services.NewCardTypeService(cardTypeRepo, cardRepo)
+	m.cardSvc = services.NewCardService(services.CardServiceDeps{
+		TypeService: m.cardTypeSvc,
+		CardRepo:    cardRepo,
+		SeqRepo:     cardSeqRepo,
+		PersonRepo:  personRepo,
+		ActivitySvc: m.activitySvc,
+		Logger:      deps.Logger,
+	})
+	m.cardExpirationJob = jobs.NewCardExpirationJob(cardRepo, m.cardSvc, settings.CardExpirationCheckInterval, deps.Logger)
+
+	m.cardTypeHandler = handlers.NewCardTypeHandler(m.cardTypeSvc)
+	m.cardHandler = handlers.NewCardHandlerWithReads(m.cardSvc, cardRepo)
+
+	// Wire the persons-list `?activeCardOfType=` resolver — the
+	// PersonHandler needs the CardRepository read-path to translate
+	// a type uuid into the set of currently-active card uuids.
+	if m.personHandler != nil {
+		m.personHandler.WithCardRepo(cardRepo)
+	}
+
 	m.logger.Info("Marketing module initialized",
 		slog.Duration("scoreRecomputeInterval", settings.ScoreRecomputeInterval),
 		slog.Bool("scoreEagerOnInsert", settings.ScoreEagerOnInsert),
@@ -607,6 +762,7 @@ func (m *MarketingModule) Init(deps *module.Dependencies) error {
 		slog.Int("importWorkerConcurrency", settings.ImportWorkerConcurrency),
 		slog.Int("importQueueBuffer", settings.ImportQueueBuffer),
 		slog.String("importSpoolDir", settings.ImportSpoolDir),
+		slog.Duration("cardExpirationCheckInterval", settings.CardExpirationCheckInterval),
 	)
 	return nil
 }
@@ -629,6 +785,11 @@ func (m *MarketingModule) Start(_ context.Context) error {
 			m.logger.Error("Marketing import worker boot recovery failed", slog.String("err", err.Error()))
 		}
 	}
+	if m.cardExpirationJob != nil {
+		expCtx, cancel := context.WithCancel(context.Background())
+		m.cardExpirationStop = cancel
+		go m.cardExpirationJob.Start(expCtx)
+	}
 	return nil
 }
 
@@ -649,6 +810,12 @@ func (m *MarketingModule) Stop(ctx context.Context) error {
 		if err := m.importWorker.Stop(ctx); err != nil {
 			m.logger.Warn("Marketing import worker shutdown timed out", slog.String("err", err.Error()))
 		}
+	}
+	if m.cardExpirationStop != nil {
+		m.cardExpirationStop()
+	}
+	if m.cardExpirationJob != nil {
+		m.cardExpirationJob.Stop()
 	}
 	return nil
 }
@@ -700,6 +867,8 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			handlers.RegisterScoreProfileReadRoutes(api, m.profileHandler)
 			handlers.RegisterSnapshotReadRoutes(api, m.snapshotHandler)
 			handlers.RegisterConflictReviewReadRoutes(api, m.conflictReviewHandler)
+			handlers.RegisterCardTypeReadRoutes(api, m.cardTypeHandler)
+			handlers.RegisterCardReadRoutes(api, m.cardHandler)
 		})
 
 		// IMPORT bucket — separate gate so import access can be
@@ -769,6 +938,46 @@ func (m *MarketingModule) RegisterRoutes(ri *module.RouteInfo) {
 			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.conflict.resolve"))
 			api := humachi.New(r, ri.APIConfig)
 			handlers.RegisterConflictReviewWriteRoutes(api, m.conflictReviewHandler)
+		})
+
+		// CARD TYPE WRITE bucket — Phase 4. Create/update/delete card
+		// types. Distinct from contact.write because retiring or
+		// reshaping a card type changes the operational catalog the
+		// admin UI exposes; ops with read-only contact access can be
+		// granted card-emit rights without also editing the catalog.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card_type.write"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardTypeWriteRoutes(api, m.cardTypeHandler)
+		})
+
+		// CARD ISSUE bucket — Phase 4. Emit a card to a person.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.issue"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardIssueRoutes(api, m.cardHandler.CardHandler)
+		})
+
+		// CARD SUSPEND bucket — Phase 4. Suspend / reinstate an
+		// active card. The inverse (reinstate) lives in the same
+		// bucket because it is the same operator authority.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.suspend"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardSuspendRoutes(api, m.cardHandler.CardHandler)
+		})
+
+		// CARD REVOKE bucket — Phase 4. Irreversible revocation.
+		// Narrower than suspend because revocation has no undo: ops
+		// catalogues typically constrain it to a smaller role set.
+		gated.Group(func(r chi.Router) {
+			r.Use(ri.Operator.AuthMW.RequireInternalTenant())
+			r.Use(ri.Operator.AuthMW.RequirePermission("marketing.card.revoke"))
+			api := humachi.New(r, ri.APIConfig)
+			handlers.RegisterCardRevokeRoutes(api, m.cardHandler.CardHandler)
 		})
 	})
 }

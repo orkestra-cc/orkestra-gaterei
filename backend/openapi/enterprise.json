@@ -1795,6 +1795,275 @@
         ],
         "type": "object"
       },
+      "CardTypePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CardTypePayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "allowMultiplePerPerson": {
+            "type": "boolean"
+          },
+          "codeFormat": {
+            "description": "Template — supports {YYYY}/{YY}/{MM}/{DD}, {seq:N}, {rand:N}",
+            "type": "string"
+          },
+          "defaultBenefits": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "description": "Markdown blurb",
+            "type": "string"
+          },
+          "displayName": {
+            "description": "Operator-facing name",
+            "type": "string"
+          },
+          "key": {
+            "description": "Lowercase slug, unique per tenant (e.g. premium_member)",
+            "type": "string"
+          },
+          "tiers": {
+            "description": "Allowed tier strings; empty = type carries no tier",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "displayName",
+          "codeFormat",
+          "allowMultiplePerPerson"
+        ],
+        "type": "object"
+      },
+      "CardTypeUpdatePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CardTypeUpdatePayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "allowMultiplePerPerson": {
+            "type": "boolean"
+          },
+          "codeFormat": {
+            "type": "string"
+          },
+          "defaultBenefits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CardTypeView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CardTypeView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "allowMultiplePerPerson": {
+            "type": "boolean"
+          },
+          "codeFormat": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "defaultBenefits": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "key",
+          "displayName",
+          "codeFormat",
+          "allowMultiplePerPerson",
+          "active",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CardView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CardView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "benefits": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cardTypeUuid": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedBy": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "personUuid": {
+            "type": "string"
+          },
+          "revokeReason": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedBy": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "suspendReason": {
+            "type": "string"
+          },
+          "suspendedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "suspendedBy": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uuid",
+          "cardTypeUuid",
+          "code",
+          "personUuid",
+          "status",
+          "issuedAt",
+          "issuedBy",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "ChangePasswordRequestBody": {
         "additionalProperties": false,
         "properties": {
@@ -2696,6 +2965,30 @@
             "$ref": "#/components/schemas/NationalParentCompany"
           }
         },
+        "type": "object"
+      },
+      "CorrectionEntryView": {
+        "additionalProperties": false,
+        "properties": {
+          "correctingActivityUuid": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "correctingActivityUuid",
+          "recordedAt",
+          "reason"
+        ],
         "type": "object"
       },
       "CorrectionPayload": {
@@ -6253,6 +6546,14 @@
             "format": "int64",
             "type": "integer"
           },
+          "engagementEmitted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "engagementOccurredAtFallback": {
+            "format": "int64",
+            "type": "integer"
+          },
           "membershipsLinked": {
             "format": "int64",
             "type": "integer"
@@ -7126,6 +7427,49 @@
         ],
         "type": "object"
       },
+      "IssueCardPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/IssueCardPayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "benefits": {
+            "description": "Override the type's defaultBenefits for this instance",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cardTypeUuid": {
+            "description": "Card type to emit",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "tier": {
+            "description": "Required when the type's tiers list is non-empty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cardTypeUuid"
+        ],
+        "type": "object"
+      },
       "Job": {
         "additionalProperties": false,
         "properties": {
@@ -7583,6 +7927,33 @@
         ],
         "type": "object"
       },
+      "ListCardTypesResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListCardTypesResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CardTypeView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ListConversationsResponseBody": {
         "additionalProperties": false,
         "properties": {
@@ -7614,6 +7985,33 @@
         "required": [
           "conversations",
           "total"
+        ],
+        "type": "object"
+      },
+      "ListCorrectionsResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListCorrectionsResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CorrectionEntryView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -7988,6 +8386,33 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "ListPersonCardsResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListPersonCardsResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CardView"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -11743,6 +12168,27 @@
         ],
         "type": "object"
       },
+      "PreviewCodeResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PreviewCodeResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
       "PreviewHTMLFromContentInput": {
         "additionalProperties": false,
         "properties": {
@@ -12740,6 +13186,25 @@
         "required": [
           "ready"
         ],
+        "type": "object"
+      },
+      "ReasonPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ReasonPayload.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Operator-supplied free-text reason recorded on the audit activity",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "RefundRequestBody": {
@@ -31024,6 +31489,496 @@
         ]
       }
     },
+    "/v1/marketing/activities/{id}/corrections": {
+      "get": {
+        "operationId": "marketing-list-activity-corrections",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCorrectionsResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List corrected_by rows superseding the activity, oldest-first",
+        "tags": [
+          "Marketing - Activities"
+        ]
+      }
+    },
+    "/v1/marketing/card-types": {
+      "get": {
+        "operationId": "marketing-list-card-types",
+        "parameters": [
+          {
+            "description": "When true, return only active card types",
+            "explode": false,
+            "in": "query",
+            "name": "activeOnly",
+            "schema": {
+              "description": "When true, return only active card types",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCardTypesResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List card types",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      },
+      "post": {
+        "operationId": "marketing-create-card-type",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardTypePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardTypeView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a card type",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      }
+    },
+    "/v1/marketing/card-types/preview-code": {
+      "get": {
+        "operationId": "marketing-preview-card-code",
+        "parameters": [
+          {
+            "description": "Template to render",
+            "explode": false,
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "description": "Template to render",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sequence value used when the template carries {seq:N}; defaults to 0",
+            "explode": false,
+            "in": "query",
+            "name": "seq",
+            "schema": {
+              "description": "Sequence value used when the template carries {seq:N}; defaults to 0",
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewCodeResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Preview a card code from a template",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      }
+    },
+    "/v1/marketing/card-types/{id}": {
+      "delete": {
+        "operationId": "marketing-delete-card-type",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a card type (only when no cards exist)",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      },
+      "get": {
+        "operationId": "marketing-get-card-type",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardTypeView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a card type",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      },
+      "patch": {
+        "operationId": "marketing-update-card-type",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardTypeUpdatePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardTypeView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a card type",
+        "tags": [
+          "Marketing - Card Types"
+        ]
+      }
+    },
+    "/v1/marketing/cards/{id}": {
+      "get": {
+        "operationId": "marketing-get-card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a card",
+        "tags": [
+          "Marketing - Cards"
+        ]
+      }
+    },
+    "/v1/marketing/cards/{id}/reinstate": {
+      "post": {
+        "operationId": "marketing-reinstate-card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Reinstate a suspended card",
+        "tags": [
+          "Marketing - Cards"
+        ]
+      }
+    },
+    "/v1/marketing/cards/{id}/revoke": {
+      "post": {
+        "operationId": "marketing-revoke-card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Revoke a card (terminal)",
+        "tags": [
+          "Marketing - Cards"
+        ]
+      }
+    },
+    "/v1/marketing/cards/{id}/suspend": {
+      "post": {
+        "operationId": "marketing-suspend-card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Suspend an active card",
+        "tags": [
+          "Marketing - Cards"
+        ]
+      }
+    },
     "/v1/marketing/conflict-reviews": {
       "get": {
         "operationId": "marketing-list-conflict-reviews",
@@ -31945,6 +32900,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Pass true or false to filter on activeCardUuids presence; omit to ignore",
+            "explode": false,
+            "in": "query",
+            "name": "hasActiveCard",
+            "schema": {
+              "description": "Pass true or false to filter on activeCardUuids presence; omit to ignore",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Card type UUID — returns only persons holding an active card of this type",
+            "explode": false,
+            "in": "query",
+            "name": "activeCardOfType",
+            "schema": {
+              "description": "Card type UUID — returns only persons holding an active card of this type",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -32338,6 +33313,96 @@
         "summary": "List activities for a person",
         "tags": [
           "Marketing - Activities"
+        ]
+      }
+    },
+    "/v1/marketing/persons/{personId}/cards": {
+      "get": {
+        "operationId": "marketing-list-person-cards",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPersonCardsResponseBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List cards held by a person",
+        "tags": [
+          "Marketing - Cards"
+        ]
+      },
+      "post": {
+        "operationId": "marketing-issue-card",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueCardPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Issue a card to a person",
+        "tags": [
+          "Marketing - Cards"
         ]
       }
     },
