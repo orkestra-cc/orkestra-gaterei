@@ -25,6 +25,7 @@ help:
 	@echo "First-time setup:"
 	@echo "  make init                - Scaffold docker/.env with random secrets + RS256 JWT keys"
 	@echo "  make init-force          - Re-init even if .env / keys exist (invalidates tokens)"
+	@echo "  make init-yes            - Non-interactive init for CI / scripted environments"
 	@echo ""
 	@echo "Stack lifecycle (wrappers over ./orkestra.sh):"
 	@echo "  make up                  - Launch the interactive TUI to deploy a stack"
@@ -314,6 +315,12 @@ init:
 
 init-force:
 	@bash scripts/init.sh --force
+
+# CI-friendly init — answers "yes" to every prompt (no overwrite of existing
+# files unless paired with --force, just suppresses the interactive prompt
+# when stdin isn't a TTY). Equivalent to `bash scripts/init.sh --yes`.
+init-yes:
+	@bash scripts/init.sh --yes
 
 # ---- Top-level CI dispatch ----
 
