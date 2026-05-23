@@ -1,17 +1,17 @@
 // Contacts list page — Persons + Organizations behind URL-synced tabs.
-// Phase 1 is intentionally a thin, table-driven surface so operators
-// can verify the contact base before the richer features land.
+// Each tab owns an independent useAdvanceTable instance (see sibling
+// PersonsTable / OrganizationsTable) so global filter and pagination
+// state survive tab switches.
 
-import { useMemo } from 'react';
-import { Card, Nav, Tab, Table, Badge } from 'react-bootstrap';
-import { Link, useSearchParams } from 'react-router';
+import { Card, Nav, Tab, Badge } from 'react-bootstrap';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   useListMarketingPersonsQuery,
-  useListMarketingOrgsQuery,
-  useListMarketingTagsQuery
+  useListMarketingOrgsQuery
 } from 'store/api/marketingApi';
-import type { Person, Organization, Tag } from 'types/marketing';
+import PersonsTable from './PersonsTable';
+import OrganizationsTable from './OrganizationsTable';
 
 type TabKey = 'persons' | 'organizations';
 const DEFAULT_TAB: TabKey = 'persons';
@@ -19,30 +19,15 @@ const DEFAULT_TAB: TabKey = 'persons';
 const readTab = (raw: string | null | undefined): TabKey =>
   raw === 'organizations' ? 'organizations' : 'persons';
 
-const primaryEmail = (p: Person | Organization) =>
-  p.emails?.find(e => e.primary)?.address ?? p.emails?.[0]?.address ?? '—';
-
-const fullName = (p: Person) =>
-  [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
-
 const ContactsListPage: React.FC = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get('tab'));
 
-  const { data: persons, isLoading: personsLoading } =
-    useListMarketingPersonsQuery(undefined);
-  const { data: orgs, isLoading: orgsLoading } =
-    useListMarketingOrgsQuery(undefined);
-  const { data: tagsResp } = useListMarketingTagsQuery();
-
-  const tagsByUUID = useMemo(() => {
-    const map: Record<string, Tag> = {};
-    tagsResp?.items?.forEach(tag => {
-      map[tag.uuid] = tag;
-    });
-    return map;
-  }, [tagsResp]);
+  // Only the counts are read here — the actual tables fire their own
+  // queries (RTK Query dedupes them, so this is free).
+  const { data: persons } = useListMarketingPersonsQuery(undefined);
+  const { data: orgs } = useListMarketingOrgsQuery(undefined);
 
   const onTabChange = (key: string | null) => {
     const next = readTab(key);
@@ -62,8 +47,8 @@ const ContactsListPage: React.FC = () => {
       </div>
       <Card>
         <Tab.Container activeKey={tab} onSelect={onTabChange}>
-          <Card.Header className="border-bottom-0">
-            <Nav variant="tabs" className="border-0">
+          <Card.Header className="border-bottom-0 px-0">
+            <Nav variant="tabs" className="border-0 px-x1">
               <Nav.Item>
                 <Nav.Link eventKey="persons">
                   {t('marketing.contacts.list.tabPersons')}{' '}
@@ -89,111 +74,10 @@ const ContactsListPage: React.FC = () => {
           <Card.Body className="p-0">
             <Tab.Content>
               <Tab.Pane eventKey="persons">
-                {personsLoading ? (
-                  <div className="p-3 text-muted">
-                    {t('marketing.contacts.list.loading')}
-                  </div>
-                ) : !persons?.items?.length ? (
-                  <div className="p-3 text-muted">
-                    {t('marketing.contacts.list.emptyPersons')}
-                  </div>
-                ) : (
-                  <Table responsive hover className="mb-0">
-                    <thead className="bg-200">
-                      <tr>
-                        <th>{t('marketing.contacts.list.colName')}</th>
-                        <th>{t('marketing.contacts.list.colEmail')}</th>
-                        <th>{t('marketing.contacts.list.colTags')}</th>
-                        <th>{t('marketing.contacts.list.colUpdated')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {persons.items.map(p => (
-                        <tr key={p.uuid}>
-                          <td>
-                            <Link
-                              to={`/marketing/contacts/${p.uuid}`}
-                              className="fw-medium"
-                            >
-                              {fullName(p)}
-                            </Link>
-                          </td>
-                          <td>{primaryEmail(p)}</td>
-                          <td>
-                            {p.tags?.map(uuid => (
-                              <Badge
-                                key={uuid}
-                                bg="info"
-                                pill
-                                className="me-1"
-                                style={{
-                                  backgroundColor:
-                                    tagsByUUID[uuid]?.color || undefined
-                                }}
-                              >
-                                {tagsByUUID[uuid]?.name ?? uuid.slice(0, 8)}
-                              </Badge>
-                            ))}
-                          </td>
-                          <td>
-                            <small className="text-muted">
-                              {new Date(p.updatedAt).toLocaleDateString()}
-                            </small>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                )}
+                {tab === 'persons' && <PersonsTable />}
               </Tab.Pane>
               <Tab.Pane eventKey="organizations">
-                {orgsLoading ? (
-                  <div className="p-3 text-muted">
-                    {t('marketing.contacts.list.loading')}
-                  </div>
-                ) : !orgs?.items?.length ? (
-                  <div className="p-3 text-muted">
-                    {t('marketing.contacts.list.emptyOrganizations')}
-                  </div>
-                ) : (
-                  <Table responsive hover className="mb-0">
-                    <thead className="bg-200">
-                      <tr>
-                        <th>{t('marketing.contacts.list.colLegalName')}</th>
-                        <th>{t('marketing.contacts.list.colKind')}</th>
-                        <th>{t('marketing.contacts.list.colVAT')}</th>
-                        <th>{t('marketing.contacts.list.colEmail')}</th>
-                        <th>{t('marketing.contacts.list.colUpdated')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orgs.items.map(o => (
-                        <tr key={o.uuid}>
-                          <td>
-                            <span className="fw-medium">{o.legalName}</span>
-                            {o.displayName && o.displayName !== o.legalName && (
-                              <div className="text-muted fs-10">
-                                {o.displayName}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <Badge bg="light" text="dark">
-                              {o.kind}
-                            </Badge>
-                          </td>
-                          <td>{o.vat || '—'}</td>
-                          <td>{primaryEmail(o)}</td>
-                          <td>
-                            <small className="text-muted">
-                              {new Date(o.updatedAt).toLocaleDateString()}
-                            </small>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </Table>
-                )}
+                {tab === 'organizations' && <OrganizationsTable />}
               </Tab.Pane>
             </Tab.Content>
           </Card.Body>

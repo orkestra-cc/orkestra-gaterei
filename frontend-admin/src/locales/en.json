@@ -1512,6 +1512,7 @@
         "loading": "Loading…",
         "emptyPersons": "No persons yet. Run a CSV import to populate the contact base.",
         "emptyOrganizations": "No organizations yet.",
+        "searchPlaceholder": "Search contacts…",
         "colName": "Name",
         "colEmail": "Email",
         "colTags": "Tags",
@@ -1527,6 +1528,7 @@
       "newTag": "New tag",
       "loading": "Loading…",
       "empty": "No tags yet. Operators build their own taxonomy — e.g. <code>/Industry</code>, <code>/Region</code>, <code>/Segment</code> root branches.",
+      "searchPlaceholder": "Search tags…",
       "colName": "Name",
       "colSlug": "Slug",
       "colPath": "Path",
@@ -1581,6 +1583,7 @@
         "newImport": "New import",
         "loading": "Loading…",
         "empty": "No imports yet. Click <strong>New import</strong> to upload a CSV.",
+        "searchPlaceholder": "Search imports…",
         "colSource": "Source",
         "colAdapter": "Adapter",
         "colStatus": "Status",
@@ -1593,7 +1596,15 @@
         "conflictsSuffix": " ({{count}} conflicts)",
         "reviewsBadge": "{{count}} pending",
         "orgsLine": "Orgs: {{created}} · {{merged}}",
-        "personsLine": "Persons: {{created}} · {{merged}}"
+        "personsLine": "Persons: {{created}} · {{merged}}",
+        "statusFilter": {
+          "all": "All statuses",
+          "queued": "Queued",
+          "running": "Running",
+          "paused_for_review": "Paused for review",
+          "done": "Done",
+          "failed": "Failed"
+        }
       },
       "adapter": {
         "label": "Import adapter",
@@ -1650,6 +1661,7 @@
       "refresh": "Refresh",
       "loading": "Loading reviews…",
       "empty": "No reviews match the current filters.",
+      "searchPlaceholder": "Search reviews…",
       "filter": {
         "status": "Status",
         "targetKind": "Target kind",
@@ -1773,6 +1785,8 @@
       "newProfile": "+ New",
       "loading": "Loading profiles…",
       "empty": "No score profiles yet. Create one to start ranking contacts.",
+      "noMatches": "No profiles match the filter.",
+      "searchPlaceholder": "Filter profiles…",
       "badgeActive": "active",
       "badgeInactive": "inactive",
       "rulesSuffix": "rules",
@@ -1812,6 +1826,8 @@
       "new": "+ New",
       "loading": "Loading card types…",
       "empty": "No card types yet. Create one to start issuing cards.",
+      "noMatches": "No card types match the filter.",
+      "searchPlaceholder": "Filter card types…",
       "badgeActive": "active",
       "badgeInactive": "inactive",
       "allowMultipleShort": "multi-issue",
@@ -4804,6 +4820,7 @@
     "next": "Next",
     "viewAll": "View all",
     "viewLess": "View less",
-    "rowsCount": "{{from}} to {{to}} of {{total}}"
+    "rowsCount": "{{from}} to {{to}} of {{total}}",
+    "exportCsv": "Export CSV"
   }
 }

@@ -12,8 +12,23 @@
 // JSON.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Form, Table } from 'react-bootstrap';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Form,
+  FormControl,
+  InputGroup
+} from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { ColumnDef } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
+import useAdvanceTable from 'hooks/ui/useAdvanceTable';
+import AdvanceTableProvider from 'providers/AdvanceTableProvider';
+import AdvanceTable from 'components/common/advance-table/AdvanceTable';
+import ExportCsvButton from 'components/common/advance-table/ExportCsvButton';
+import { formatDateForCSV } from 'utils/csvExport';
 import {
   useCreateScoreProfileMutation,
   useDeleteScoreProfileMutation,
@@ -23,6 +38,7 @@ import {
 } from 'store/api/marketingApi';
 import type {
   DecayFn,
+  LeaderboardEntry,
   ProfileFilter,
   ScoreProfile,
   ScoreProfilePayload,
@@ -103,6 +119,7 @@ const ScoringPage: React.FC = () => {
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
+  const [sidebarFilter, setSidebarFilter] = useState('');
 
   const { data: profiles, isLoading } = useListScoreProfilesQuery(undefined);
   const [createProfile, createState] = useCreateScoreProfileMutation();
@@ -113,6 +130,15 @@ const ScoringPage: React.FC = () => {
     () => profiles?.items?.find(p => p.uuid === selectedUuid) ?? null,
     [profiles, selectedUuid]
   );
+
+  const visibleProfiles = useMemo(() => {
+    const all = profiles?.items ?? [];
+    const needle = sidebarFilter.trim().toLowerCase();
+    if (!needle) return all;
+    return all.filter(p =>
+      `${p.name} ${p.description ?? ''}`.toLowerCase().includes(needle)
+    );
+  }, [profiles, sidebarFilter]);
 
   // Sync form when the user picks a different profile or enters
   // create mode. Operators editing without saving still see their
@@ -219,6 +245,27 @@ const ScoringPage: React.FC = () => {
                 {t('marketing.scoring.newProfile')}
               </Button>
             </Card.Header>
+            <div className="px-3 py-2 border-bottom border-200">
+              <InputGroup className="position-relative">
+                <FormControl
+                  size="sm"
+                  type="search"
+                  value={sidebarFilter}
+                  onChange={e => setSidebarFilter(e.target.value)}
+                  placeholder={t('marketing.scoring.searchPlaceholder')}
+                  aria-label={t('marketing.scoring.searchPlaceholder')}
+                  className="shadow-none"
+                />
+                <Button
+                  size="sm"
+                  variant="outline-secondary"
+                  className="border-300 hover-border-secondary"
+                  tabIndex={-1}
+                >
+                  <FontAwesomeIcon icon="search" className="fs-10" />
+                </Button>
+              </InputGroup>
+            </div>
             <Card.Body className="p-0">
               {isLoading && (
                 <p className="text-muted p-3 mb-0">
@@ -230,7 +277,14 @@ const ScoringPage: React.FC = () => {
                   {t('marketing.scoring.empty')}
                 </p>
               )}
-              {profiles?.items?.map(p => (
+              {!isLoading &&
+                !!profiles?.items?.length &&
+                !visibleProfiles.length && (
+                  <p className="text-muted p-3 mb-0">
+                    {t('marketing.scoring.noMatches')}
+                  </p>
+                )}
+              {visibleProfiles.map(p => (
                 <button
                   key={p.uuid}
                   type="button"
@@ -431,6 +485,67 @@ const LeaderboardPreview: React.FC<LeaderboardPreviewProps> = ({
     applicableOnly: true
   });
 
+  const items = data?.items ?? [];
+
+  // The leaderboard is capped at 20 server-side, so sortable headers
+  // are enough — no global search or pagination needed.
+  const columns = useMemo<ColumnDef<LeaderboardEntry>[]>(
+    () => [
+      {
+        id: 'value',
+        accessorKey: 'value',
+        header: t('marketing.scoring.leaderboard.colValue'),
+        cell: ({ getValue }) => (
+          <strong>{(getValue() as number).toFixed(2)}</strong>
+        ),
+        meta: {
+          headerProps: {
+            className: 'text-900',
+            style: { width: 100 }
+          }
+        }
+      },
+      {
+        id: 'person',
+        accessorKey: 'personUuid',
+        header: t('marketing.scoring.leaderboard.colPerson'),
+        enableSorting: false,
+        cell: ({ getValue }) => {
+          const uuid = String(getValue());
+          return (
+            <a href={`/marketing/contacts/${uuid}?tab=scores`}>
+              <code>{uuid.slice(0, 8)}</code>
+            </a>
+          );
+        },
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'activityCount',
+        accessorKey: 'activityCount',
+        header: t('marketing.scoring.leaderboard.colActivities'),
+        cell: ({ getValue }) => (
+          <small className="text-muted">{getValue() as number}</small>
+        ),
+        meta: {
+          headerProps: {
+            className: 'text-900',
+            style: { width: 120 }
+          }
+        }
+      }
+    ],
+    [t]
+  );
+
+  const table = useAdvanceTable<LeaderboardEntry>({
+    data: items,
+    columns,
+    sortable: true,
+    pagination: false,
+    initialState: { sorting: [{ id: 'value', desc: true }] }
+  });
+
   return (
     <Card className="mt-3">
       <Card.Header>
@@ -440,53 +555,41 @@ const LeaderboardPreview: React.FC<LeaderboardPreviewProps> = ({
         </small>
       </Card.Header>
       <Card.Body className="p-0">
-        {isLoading && (
+        {isLoading ? (
           <p className="text-muted p-3 mb-0">
             {t('marketing.scoring.leaderboard.loading')}
           </p>
-        )}
-        {!isLoading && !data?.items?.length && (
+        ) : !items.length ? (
           <p className="text-muted p-3 mb-0">
             {t('marketing.scoring.leaderboard.empty')}
           </p>
-        )}
-        {data?.items && data.items.length > 0 && (
-          <Table size="sm" responsive className="mb-0">
-            <thead>
-              <tr>
-                <th style={{ width: 60 }}>#</th>
-                <th>{t('marketing.scoring.leaderboard.colPerson')}</th>
-                <th style={{ width: 100 }}>
-                  {t('marketing.scoring.leaderboard.colValue')}
-                </th>
-                <th style={{ width: 120 }}>
-                  {t('marketing.scoring.leaderboard.colActivities')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((entry, idx) => (
-                <tr key={entry.uuid}>
-                  <td>
-                    <small className="text-muted">{idx + 1}</small>
-                  </td>
-                  <td>
-                    <a
-                      href={`/marketing/contacts/${entry.personUuid}?tab=scores`}
-                    >
-                      <code>{entry.personUuid.slice(0, 8)}</code>
-                    </a>
-                  </td>
-                  <td>
-                    <strong>{entry.value.toFixed(2)}</strong>
-                  </td>
-                  <td>
-                    <small className="text-muted">{entry.activityCount}</small>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+        ) : (
+          <AdvanceTableProvider {...table}>
+            <div className="d-flex justify-content-end px-x1 py-2 border-bottom border-200">
+              <ExportCsvButton<LeaderboardEntry>
+                filename={`marketing_leaderboard_${profileUuid.slice(0, 8)}`}
+                buildRow={e => ({
+                  PersonUUID: e.personUuid,
+                  Value: e.value.toFixed(2),
+                  Applicable: e.applicable ? 'yes' : 'no',
+                  Stale: e.stale ? 'yes' : 'no',
+                  ActivityCount: e.activityCount,
+                  LastActivityAt: formatDateForCSV(e.lastActivityAt),
+                  AsOf: formatDateForCSV(e.asOf),
+                  ComputedAt: formatDateForCSV(e.computedAt),
+                  ProfileVersion: e.profileVersion
+                })}
+              />
+            </div>
+            <AdvanceTable
+              headerClassName="bg-body-tertiary align-middle"
+              rowClassName="align-middle"
+              tableProps={{
+                size: 'sm',
+                className: 'fs-10 mb-0 overflow-hidden'
+              }}
+            />
+          </AdvanceTableProvider>
         )}
       </Card.Body>
     </Card>

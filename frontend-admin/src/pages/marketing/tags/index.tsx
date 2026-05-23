@@ -9,9 +9,8 @@ import {
   Card,
   Form,
   Modal,
-  Table,
-  Badge,
-  InputGroup
+  InputGroup,
+  Spinner
 } from 'react-bootstrap';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -21,6 +20,7 @@ import {
   useDeleteMarketingTagMutation
 } from 'store/api/marketingApi';
 import type { Tag, TagPayload } from 'types/marketing';
+import TagsTable from './TagsTable';
 
 const empty: TagPayload = {
   name: '',
@@ -85,90 +85,42 @@ const TagsPage: React.FC = () => {
     await deleteTag(tag.uuid);
   };
 
-  const parents = (data?.items ?? []).filter(tag => !tag.parentUuid);
+  const tags = data?.items ?? [];
+  const parents = tags.filter(tag => !tag.parentUuid);
 
   return (
     <>
-      <div className="mb-3 d-flex justify-content-between align-items-center">
-        <div>
-          <h3 className="fw-normal mb-1">{t('marketing.tags.title')}</h3>
-          <p className="fs-10 text-muted mb-0">
-            {t('marketing.tags.subtitle')}
-          </p>
-        </div>
-        <Button variant="primary" onClick={openNew}>
-          {t('marketing.tags.newTag')}
-        </Button>
+      <div className="mb-3">
+        <h3 className="fw-normal mb-1">{t('marketing.tags.title')}</h3>
+        <p className="fs-10 text-muted mb-0">{t('marketing.tags.subtitle')}</p>
       </div>
 
       <Card>
         <Card.Body className="p-0">
           {isLoading ? (
-            <div className="p-3 text-muted">{t('marketing.tags.loading')}</div>
-          ) : !data?.items?.length ? (
-            <div className="p-3 text-muted">
+            <div className="p-4 text-center text-muted">
+              <Spinner animation="border" size="sm" className="me-2" />
+              {t('marketing.tags.loading')}
+            </div>
+          ) : !tags.length ? (
+            <div className="p-4 text-center text-muted">
               <Trans
                 i18nKey="marketing.tags.empty"
                 components={{ code: <code /> }}
               />
+              <div className="mt-3">
+                <Button variant="primary" size="sm" onClick={openNew}>
+                  {t('marketing.tags.newTag')}
+                </Button>
+              </div>
             </div>
           ) : (
-            <Table responsive hover className="mb-0">
-              <thead className="bg-200">
-                <tr>
-                  <th>{t('marketing.tags.colName')}</th>
-                  <th>{t('marketing.tags.colSlug')}</th>
-                  <th>{t('marketing.tags.colPath')}</th>
-                  <th>{t('marketing.tags.colColor')}</th>
-                  <th style={{ width: 140 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map(tag => (
-                  <tr key={tag.uuid}>
-                    <td className="fw-medium">{tag.name}</td>
-                    <td>
-                      <code className="fs-10">{tag.slug}</code>
-                    </td>
-                    <td>
-                      <small className="text-muted">{tag.path}</small>
-                    </td>
-                    <td>
-                      {tag.color ? (
-                        <Badge
-                          pill
-                          style={{
-                            backgroundColor: tag.color,
-                            color: '#fff'
-                          }}
-                        >
-                          {tag.color}
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="text-end">
-                      <Button
-                        size="sm"
-                        variant="link"
-                        onClick={() => openEdit(tag)}
-                      >
-                        {t('marketing.tags.edit')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="link"
-                        className="text-danger"
-                        onClick={() => onDelete(tag)}
-                      >
-                        {t('marketing.tags.delete')}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            <TagsTable
+              tags={tags}
+              onEdit={openEdit}
+              onDelete={onDelete}
+              onCreate={openNew}
+            />
           )}
         </Card.Body>
       </Card>

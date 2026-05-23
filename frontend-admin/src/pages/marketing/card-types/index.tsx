@@ -19,7 +19,16 @@
 // reproducible.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Form } from 'react-bootstrap';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Form,
+  FormControl,
+  InputGroup
+} from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useTranslation } from 'react-i18next';
 import {
   useCreateCardTypeMutation,
@@ -112,6 +121,7 @@ const CardTypesPage: React.FC = () => {
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<FormState>(BLANK_FORM);
+  const [sidebarFilter, setSidebarFilter] = useState('');
 
   const { data: cardTypes, isLoading } = useListCardTypesQuery(undefined);
   const [createCardType, createState] = useCreateCardTypeMutation();
@@ -122,6 +132,18 @@ const CardTypesPage: React.FC = () => {
     () => cardTypes?.items?.find(c => c.uuid === selectedUuid) ?? null,
     [cardTypes, selectedUuid]
   );
+
+  // Local-only filter — substring match across the three operator-facing
+  // fields. Stays in component state so deep links to a specific card type
+  // (when those land) won't have to round-trip through the URL.
+  const visibleCardTypes = useMemo(() => {
+    const all = cardTypes?.items ?? [];
+    const needle = sidebarFilter.trim().toLowerCase();
+    if (!needle) return all;
+    return all.filter(c =>
+      `${c.displayName} ${c.key} ${c.codeFormat}`.toLowerCase().includes(needle)
+    );
+  }, [cardTypes, sidebarFilter]);
 
   useEffect(() => {
     if (creating) setForm(BLANK_FORM);
@@ -208,6 +230,27 @@ const CardTypesPage: React.FC = () => {
                 {t('marketing.cardTypes.new')}
               </Button>
             </Card.Header>
+            <div className="px-3 py-2 border-bottom border-200">
+              <InputGroup className="position-relative">
+                <FormControl
+                  size="sm"
+                  type="search"
+                  value={sidebarFilter}
+                  onChange={e => setSidebarFilter(e.target.value)}
+                  placeholder={t('marketing.cardTypes.searchPlaceholder')}
+                  aria-label={t('marketing.cardTypes.searchPlaceholder')}
+                  className="shadow-none"
+                />
+                <Button
+                  size="sm"
+                  variant="outline-secondary"
+                  className="border-300 hover-border-secondary"
+                  tabIndex={-1}
+                >
+                  <FontAwesomeIcon icon="search" className="fs-10" />
+                </Button>
+              </InputGroup>
+            </div>
             <Card.Body className="p-0">
               {isLoading && (
                 <p className="text-muted p-3 mb-0">
@@ -219,7 +262,14 @@ const CardTypesPage: React.FC = () => {
                   {t('marketing.cardTypes.empty')}
                 </p>
               )}
-              {cardTypes?.items?.map(c => (
+              {!isLoading &&
+                !!cardTypes?.items?.length &&
+                !visibleCardTypes.length && (
+                  <p className="text-muted p-3 mb-0">
+                    {t('marketing.cardTypes.noMatches')}
+                  </p>
+                )}
+              {visibleCardTypes.map(c => (
                 <button
                   key={c.uuid}
                   type="button"

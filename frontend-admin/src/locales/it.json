@@ -1512,6 +1512,7 @@
         "loading": "Caricamento…",
         "emptyPersons": "Nessuna persona. Esegui un'importazione CSV per popolare la contact base.",
         "emptyOrganizations": "Nessuna organizzazione.",
+        "searchPlaceholder": "Cerca contatti…",
         "colName": "Nome",
         "colEmail": "Email",
         "colTags": "Tag",
@@ -1527,6 +1528,7 @@
       "newTag": "Nuovo tag",
       "loading": "Caricamento…",
       "empty": "Nessun tag ancora. Gli operatori costruiscono la propria tassonomia — es. rami radice <code>/Industry</code>, <code>/Region</code>, <code>/Segment</code>.",
+      "searchPlaceholder": "Cerca tag…",
       "colName": "Nome",
       "colSlug": "Slug",
       "colPath": "Percorso",
@@ -1581,6 +1583,7 @@
         "newImport": "Nuova importazione",
         "loading": "Caricamento…",
         "empty": "Nessuna importazione ancora. Clicca <strong>Nuova importazione</strong> per caricare un CSV.",
+        "searchPlaceholder": "Cerca importazioni…",
         "colSource": "Sorgente",
         "colAdapter": "Adapter",
         "colStatus": "Stato",
@@ -1593,7 +1596,15 @@
         "conflictsSuffix": " ({{count}} conflitti)",
         "reviewsBadge": "{{count}} in attesa",
         "orgsLine": "Org: {{created}} · {{merged}}",
-        "personsLine": "Persone: {{created}} · {{merged}}"
+        "personsLine": "Persone: {{created}} · {{merged}}",
+        "statusFilter": {
+          "all": "Tutti gli stati",
+          "queued": "In coda",
+          "running": "In esecuzione",
+          "paused_for_review": "In attesa di review",
+          "done": "Completato",
+          "failed": "Fallito"
+        }
       },
       "adapter": {
         "label": "Adapter di importazione",
@@ -1650,6 +1661,7 @@
       "refresh": "Aggiorna",
       "loading": "Caricamento review…",
       "empty": "Nessuna review corrisponde ai filtri correnti.",
+      "searchPlaceholder": "Cerca review…",
       "filter": {
         "status": "Stato",
         "targetKind": "Tipo target",
@@ -1773,6 +1785,8 @@
       "newProfile": "+ Nuovo",
       "loading": "Caricamento profili…",
       "empty": "Nessun profilo di scoring. Creane uno per iniziare a classificare i contatti.",
+      "noMatches": "Nessun profilo corrisponde al filtro.",
+      "searchPlaceholder": "Filtra profili…",
       "badgeActive": "attivo",
       "badgeInactive": "inattivo",
       "rulesSuffix": "regole",
@@ -1812,6 +1826,8 @@
       "new": "+ Nuovo",
       "loading": "Caricamento tipi di card…",
       "empty": "Nessun tipo di card. Creane uno per iniziare a emettere card.",
+      "noMatches": "Nessun tipo di card corrisponde al filtro.",
+      "searchPlaceholder": "Filtra tipi di card…",
       "badgeActive": "attivo",
       "badgeInactive": "inattivo",
       "allowMultipleShort": "multi-emissione",
@@ -4804,6 +4820,7 @@
     "next": "Successivo",
     "viewAll": "Mostra tutto",
     "viewLess": "Mostra meno",
-    "rowsCount": "{{from}}-{{to}} di {{total}}"
+    "rowsCount": "{{from}}-{{to}} di {{total}}",
+    "exportCsv": "Esporta CSV"
   }
 }

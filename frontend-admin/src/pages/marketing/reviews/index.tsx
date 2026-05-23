@@ -7,10 +7,17 @@
 // is reachable from the sidebar (NavItem "Reviews") and deep-linked
 // from the imports list's badge column.
 
-import { useState } from 'react';
-import { Card, Form, Table, Badge, Button } from 'react-bootstrap';
+import { useMemo, useState } from 'react';
+import { Card, Badge, Button, Spinner } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
+import type { ColumnDef } from '@tanstack/react-table';
+
+import useAdvanceTable from 'hooks/ui/useAdvanceTable';
+import AdvanceTableProvider from 'providers/AdvanceTableProvider';
+import AdvanceTable from 'components/common/advance-table/AdvanceTable';
+import AdvanceTableFooter from 'components/common/advance-table/AdvanceTableFooter';
+
 import {
   useListConflictReviewsQuery,
   useGetConflictReviewQuery
@@ -21,6 +28,7 @@ import type {
   ConflictTargetKind
 } from 'types/marketing';
 import ReviewResolverModal from './ReviewResolverModal';
+import ReviewsTableHeader from './ReviewsTableHeader';
 
 const statusVariant: Record<ConflictReviewStatus, string> = {
   pending: 'warning',
@@ -51,18 +59,13 @@ const ReviewsPage: React.FC = () => {
   );
   const { data: selectedReview } = useGetConflictReviewQuery(
     selectedUuid as string,
-    {
-      skip: !selectedUuid
-    }
+    { skip: !selectedUuid }
   );
 
   const updateParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
-    if (value === null || value === '') {
-      next.delete(key);
-    } else {
-      next.set(key, value);
-    }
+    if (value === null || value === '') next.delete(key);
+    else next.set(key, value);
     setSearchParams(next, { replace: true });
   };
 
@@ -76,6 +79,119 @@ const ReviewsPage: React.FC = () => {
     updateParam('reviewUuid', null);
   };
 
+  const columns = useMemo<ColumnDef<ConflictReview>[]>(
+    () => [
+      {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        header: t('marketing.reviews.col.created'),
+        cell: ({ getValue }) => (
+          <small className="text-muted">
+            {new Date(getValue() as string).toLocaleString()}
+          </small>
+        ),
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'targetKind',
+        accessorFn: row => `${row.targetKind} ${row.existingUuid}`,
+        header: t('marketing.reviews.col.targetKind'),
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <>
+              <Badge bg="light" text="dark">
+                {r.targetKind}
+              </Badge>
+              <div className="text-muted fs-10">
+                <code>{r.existingUuid.slice(0, 8)}</code>
+              </div>
+            </>
+          );
+        },
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'conflicts',
+        accessorFn: row =>
+          `${row.conflicts.length} ${row.conflicts
+            .map(c => c.field)
+            .join(' ')}`,
+        header: t('marketing.reviews.col.conflicts'),
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <>
+              <span className="fw-medium">{r.conflicts.length}</span>{' '}
+              <span className="text-muted fs-10">
+                ({r.conflicts.map(c => c.field).join(', ')})
+              </span>
+            </>
+          );
+        },
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'importJob',
+        accessorKey: 'importJobUuid',
+        header: t('marketing.reviews.col.importJob'),
+        cell: ({ getValue }) => (
+          <code className="fs-10">{String(getValue()).slice(0, 8)}</code>
+        ),
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: t('marketing.reviews.col.status'),
+        cell: ({ getValue }) => {
+          const s = getValue() as ConflictReviewStatus;
+          return <Badge bg={statusVariant[s]}>{s}</Badge>;
+        },
+        meta: { headerProps: { className: 'text-900' } }
+      },
+      {
+        id: 'actions',
+        enableSorting: false,
+        header: () => (
+          <span className="text-end d-block">
+            {t('marketing.reviews.col.actions')}
+          </span>
+        ),
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="text-end">
+              <Button
+                size="sm"
+                variant={
+                  r.status === 'pending' ? 'primary' : 'outline-secondary'
+                }
+                onClick={() => openModal(r)}
+              >
+                {r.status === 'pending'
+                  ? t('marketing.reviews.action.resolve')
+                  : t('marketing.reviews.action.view')}
+              </Button>
+            </div>
+          );
+        },
+        meta: { headerProps: { className: 'text-900 text-end' } }
+      }
+    ],
+    [t] // openModal closes over searchParams; that's fine since we don't
+    // memoise on it (re-creating once per render is cheaper than the diff).
+  );
+
+  const rows = data?.items ?? [];
+  const table = useAdvanceTable<ConflictReview>({
+    data: rows,
+    columns,
+    sortable: true,
+    pagination: true,
+    perPage: 25
+  });
+
   return (
     <>
       <div className="mb-3 d-flex justify-content-between align-items-center">
@@ -85,139 +201,47 @@ const ReviewsPage: React.FC = () => {
             {t('marketing.reviews.subtitle')}
           </p>
         </div>
-        <Button variant="outline-secondary" size="sm" onClick={() => refetch()}>
-          {t('marketing.reviews.refresh')}
-        </Button>
       </div>
-
-      <Card className="mb-3">
-        <Card.Body className="d-flex gap-3 flex-wrap align-items-end">
-          <Form.Group style={{ minWidth: 160 }}>
-            <Form.Label className="fs-10 mb-1">
-              {t('marketing.reviews.filter.status')}
-            </Form.Label>
-            <Form.Select
-              size="sm"
-              value={status}
-              onChange={e => updateParam('status', e.target.value)}
-            >
-              <option value="pending">
-                {t('marketing.reviews.status.pending')}
-              </option>
-              <option value="resolved">
-                {t('marketing.reviews.status.resolved')}
-              </option>
-              <option value="dismissed">
-                {t('marketing.reviews.status.dismissed')}
-              </option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group style={{ minWidth: 160 }}>
-            <Form.Label className="fs-10 mb-1">
-              {t('marketing.reviews.filter.targetKind')}
-            </Form.Label>
-            <Form.Select
-              size="sm"
-              value={targetKind ?? ''}
-              onChange={e => updateParam('targetKind', e.target.value || null)}
-            >
-              <option value="">{t('marketing.reviews.filter.all')}</option>
-              <option value="person">
-                {t('marketing.reviews.target.person')}
-              </option>
-              <option value="organization">
-                {t('marketing.reviews.target.organization')}
-              </option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="flex-grow-1" style={{ minWidth: 240 }}>
-            <Form.Label className="fs-10 mb-1">
-              {t('marketing.reviews.filter.importJob')}
-            </Form.Label>
-            <Form.Control
-              size="sm"
-              type="text"
-              placeholder={t('marketing.reviews.filter.importJobPlaceholder')}
-              value={importJobUuid ?? ''}
-              onChange={e =>
-                updateParam('importJobUuid', e.target.value || null)
-              }
-            />
-          </Form.Group>
-        </Card.Body>
-      </Card>
 
       <Card>
         <Card.Body className="p-0">
           {isLoading ? (
-            <div className="p-3 text-muted">
+            <div className="p-4 text-center text-muted">
+              <Spinner animation="border" size="sm" className="me-2" />
               {t('marketing.reviews.loading')}
             </div>
-          ) : !data?.items?.length ? (
-            <div className="p-3 text-muted">{t('marketing.reviews.empty')}</div>
           ) : (
-            <Table responsive hover className="mb-0">
-              <thead className="bg-200">
-                <tr>
-                  <th>{t('marketing.reviews.col.created')}</th>
-                  <th>{t('marketing.reviews.col.targetKind')}</th>
-                  <th>{t('marketing.reviews.col.conflicts')}</th>
-                  <th>{t('marketing.reviews.col.importJob')}</th>
-                  <th>{t('marketing.reviews.col.status')}</th>
-                  <th className="text-end">
-                    {t('marketing.reviews.col.actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map(r => (
-                  <tr key={r.uuid}>
-                    <td>
-                      <small className="text-muted">
-                        {new Date(r.createdAt).toLocaleString()}
-                      </small>
-                    </td>
-                    <td>
-                      <Badge bg="light" text="dark">
-                        {r.targetKind}
-                      </Badge>
-                      <div className="text-muted fs-10">
-                        <code>{r.existingUuid.slice(0, 8)}</code>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="fw-medium">{r.conflicts.length}</span>{' '}
-                      <span className="text-muted fs-10">
-                        ({r.conflicts.map(c => c.field).join(', ')})
-                      </span>
-                    </td>
-                    <td>
-                      <code className="fs-10">
-                        {r.importJobUuid.slice(0, 8)}
-                      </code>
-                    </td>
-                    <td>
-                      <Badge bg={statusVariant[r.status]}>{r.status}</Badge>
-                    </td>
-                    <td className="text-end">
-                      <Button
-                        size="sm"
-                        variant={
-                          r.status === 'pending'
-                            ? 'primary'
-                            : 'outline-secondary'
-                        }
-                        onClick={() => openModal(r)}
-                      >
-                        {r.status === 'pending'
-                          ? t('marketing.reviews.action.resolve')
-                          : t('marketing.reviews.action.view')}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+            // ReviewsTableHeader uses AdvanceTableSearchBox which requires
+            // the AdvanceTableProvider context — wrap unconditionally so
+            // operators can adjust filters even when the current set returns
+            // an empty list.
+            <AdvanceTableProvider {...table}>
+              <ReviewsTableHeader onRefresh={() => refetch()} />
+              {!rows.length ? (
+                <div className="p-4 text-center text-muted">
+                  {t('marketing.reviews.empty')}
+                </div>
+              ) : (
+                <>
+                  <AdvanceTable
+                    headerClassName="bg-body-tertiary align-middle"
+                    rowClassName="align-middle"
+                    tableProps={{
+                      size: 'sm',
+                      className: 'fs-10 mb-0 overflow-hidden'
+                    }}
+                  />
+                  <div className="px-x1 py-2 border-top border-200">
+                    <AdvanceTableFooter
+                      rowInfo
+                      navButtons
+                      rowsPerPageSelection
+                      rowsPerPageOptions={[10, 25, 50, 100]}
+                    />
+                  </div>
+                </>
+              )}
+            </AdvanceTableProvider>
           )}
         </Card.Body>
       </Card>
