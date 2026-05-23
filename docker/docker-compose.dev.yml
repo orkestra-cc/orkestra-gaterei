@@ -136,9 +136,13 @@ services:
     volumes:
       - ../backend:/app
       - ./keys:/app/keys
-      # Marketing import spool — nested named volume on top of the /app
-      # bind mount so spool files never pollute the source tree.
-      - orkestra-backend-marketing-spool-dev:/app/marketing-spool
+      # Marketing import spool — bind mount instead of named volume so
+      # the host dir's ownership (uid 1000 = tore) carries through.
+      # With userns_mode: "host" the container's uid 1000 IS host uid
+      # 1000, so the worker can mkdir/write without a one-shot chown.
+      # Named volumes get created with root ownership (uid 100000 under
+      # the daemon's userns-remap) and would block the worker.
+      - ./marketing-spool-dev:/app/marketing-spool
       # Bind-mount the host Docker socket so the backend can manage module
       # infrastructure containers (e.g. orkestra-hindsight for the agents
       # module). Hardening for staging/prod: front with tecnativa/docker-socket-proxy.
@@ -234,10 +238,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-
-volumes:
-  orkestra-backend-marketing-spool-dev:
-    driver: local
 
 networks:
   orkestra-network:

@@ -170,7 +170,13 @@ services:
       - ./keys:/app/keys
       - orkestra-backend-logs-staging:/app/logs
       - orkestra-backend-uploads-staging:/app/uploads
-      - orkestra-backend-marketing-spool-staging:/app/marketing-spool
+      # Marketing import spool — bind mount instead of named volume so
+      # the host dir's ownership (uid 1000) carries through. With
+      # userns_mode: "host" the container's uid 1000 IS host uid 1000,
+      # so the worker writes without a one-shot chown. Named volumes
+      # get created with root ownership (uid 100000 under the daemon's
+      # userns-remap) and would block the worker.
+      - ./marketing-spool-staging:/app/marketing-spool
       # Enables the agents module to manage the orkestra-hindsight container
       # lifecycle. For stricter isolation in staging, front the socket with
       # tecnativa/docker-socket-proxy exposing only containers endpoints.
@@ -305,8 +311,6 @@ volumes:
   orkestra-backend-logs-staging:
     driver: local
   orkestra-backend-uploads-staging:
-    driver: local
-  orkestra-backend-marketing-spool-staging:
     driver: local
 
 networks:

@@ -140,12 +140,15 @@ time even if MarkStale fails.
 persists the upload to disk under `MARKETING_IMPORT_SPOOL_DIR`
 (schema default `/var/lib/orkestra/marketing/spool`, but
 **dev/staging compose override it to `/app/marketing-spool`** —
-the non-root container user can't `mkdir /var/lib/orkestra`, and
-the override is backed by a named volume so spool survives
-restarts. The env var only seeds on first boot; for an existing
-install change `importSpoolDir` at `/admin/modules/marketing`),
-records the job in `queued`, and hands it to the in-process worker
-queue. Idempotency:
+the non-root container user can't `mkdir /var/lib/orkestra`. The
+override is bind-mounted from
+`docker/marketing-spool-{dev,staging}/` on the host (gitignored,
+pre-created with uid 1000 ownership); named volumes get created as
+root under the daemon's userns-remap and would re-break the worker
+on every recreate. The env var only seeds on first boot; for an
+existing install change `importSpoolDir` at
+`/admin/modules/marketing`), records the job in `queued`, and
+hands it to the in-process worker queue. Idempotency:
 `sha256(body || canonical_mapping)` — same payload inside 24h
 returns the existing UUID (override via the `Idempotency-Key`
 header).
