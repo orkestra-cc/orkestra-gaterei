@@ -861,13 +861,28 @@ profile_info() {
 # ---------------------------------------------------------------------------
 
 # Map detected ENV to compose file, branch, DB, URLs, env-chip color.
+# DEV_COMPOSE_VARIANT controls which dev compose file gets used:
+#   public     — docker-compose.dev-public.yml (default; public Alpine images)
+#   chainguard — docker-compose.dev.yml         (requires dhi.io subscription)
+# Set in docker/.env or as a shell env var. See README "Full development
+# stack" for the rationale of the public default.
 set_env_config() {
     case "$ENV" in
         development)
             ENV_CHIP_COLOR=$c_success
             ENV_ICON="$ic_dot"
             BRANCH="any"
-            COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml"
+            local variant="${DEV_COMPOSE_VARIANT:-public}"
+            case "$variant" in
+                public)     COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev-public.yml" ;;
+                chainguard) COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml" ;;
+                *)
+                    p_warn "Unknown DEV_COMPOSE_VARIANT '$variant' — falling back to 'public'"
+                    COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev-public.yml"
+                    variant="public"
+                    ;;
+            esac
+            ENV_DEV_VARIANT="$variant"
             DB_NAME="orkestra_dev"
             FRONTEND_URL="http://localhost:8080"
             BACKEND_URL="http://localhost:3000"
@@ -915,9 +930,14 @@ fullstack_init_env() {
 }
 
 show_deploy_summary() {
+    local variant_line=""
+    if [ "$ENV" = "development" ] && [ -n "${ENV_DEV_VARIANT:-}" ]; then
+        variant_line="  Images       ${ENV_DEV_VARIANT} ($(basename "$COMPOSE_FILE"))"
+    fi
     draw_box "Summary" \
         "" \
         "  Environment  ${ENV_CHIP_COLOR}${ic_dot}${c_reset} $(echo "$ENV" | tr '[:lower:]' '[:upper:]')" \
+        ${variant_line:+"$variant_line"} \
         "  Operation    Deploy" \
         "  Branch       ${BRANCH:-any}" \
         "  Scope        ${DEPLOY_SCOPE:-all}" \

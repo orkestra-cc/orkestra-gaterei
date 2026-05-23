@@ -104,16 +104,25 @@ The five published SKUs (`starter` / `billing` / `ai` / `saas` / `enterprise`) a
 
 ## Full development stack
 
-For hot-reload Go development with AIR and the full addon fleet (Gotenberg, Hindsight, etc.), use the dev compose. Note that this stack currently uses Chainguard hardened images (`dhi.io/*`) and requires registry access — a public-image variant is on the roadmap (fork-readiness Phase 3).
+For hot-reload Go development with AIR and the full addon fleet (Gotenberg, Hindsight, etc.), use the dev compose. Two flavors:
+
+| File | Base images | Audience |
+| --- | --- | --- |
+| **`docker-compose.dev-public.yml`** (default) | `golang:1.25.10-alpine`, `node:24-alpine` | Forkers, contributors, anyone without a [Chainguard](https://www.chainguard.dev) subscription |
+| `docker-compose.dev.yml` | `dhi.io/golang:1`, `dhi.io/node:24-dev` | Operators with a `dhi.io` enterprise subscription (smaller attack surface, faster security patches) |
+
+Behavior is identical (same env-vars, ports, volumes, hot-reload, AIR / Vite HMR). See [docs.orkestra.cc/architecture/dev-images](https://docs.orkestra.cc/architecture/dev-images) for the trade-offs.
 
 ```bash
 make init                                       # first time only
-./orkestra.sh                                   # interactive TUI; pick "Full stack"
+./orkestra.sh                                   # interactive TUI; pick "Full stack" (uses public images by default)
 # or manually:
 cd docker
 docker compose -f docker-compose.infra.yml up -d
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev-public.yml up -d
 ```
+
+To opt back into the Chainguard variant (only if you have `dhi.io` access), set `DEV_COMPOSE_VARIANT=chainguard` in `docker/.env` (or as a shell env var) — `orkestra.sh` will switch to `docker-compose.dev.yml` automatically.
 
 ## Managing the stack
 
