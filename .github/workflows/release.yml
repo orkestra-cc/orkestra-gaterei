@@ -73,20 +73,31 @@ jobs:
       - name: Commit refreshed CHANGELOG.md (if changed)
         # Only commits when the generated file differs from what's in main.
         # Tagging from a release branch where CHANGELOG.md is already
-        # current is a no-op.
+        # current (the BDFL bumped it locally before tagging) is a no-op.
         run: |
-          if ! git diff --quiet CHANGELOG.md; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git fetch origin main
-            git checkout main
-            git checkout - -- CHANGELOG.md   # restore the generated one
-            git add CHANGELOG.md
-            git commit -m "chore(release): refresh CHANGELOG.md for ${{ steps.tag.outputs.tag }}"
-            git push origin main
-          else
+          if git diff --quiet CHANGELOG.md; then
             echo "CHANGELOG.md unchanged — nothing to commit."
+            exit 0
           fi
+          # Diff exists — carry the regenerated CHANGELOG over to main.
+          # We're currently on a detached HEAD at the tag commit; cp via
+          # /tmp avoids the "git checkout - -- file" gymnastics.
+          cp CHANGELOG.md /tmp/CHANGELOG.md.refreshed
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          cp /tmp/CHANGELOG.md.refreshed CHANGELOG.md
+          git add CHANGELOG.md
+          # If the file on main matches what cliff just generated (because
+          # the BDFL ran cliff locally before tagging), `git commit` will
+          # complain about "nothing to commit". That's harmless — guard.
+          if git diff --cached --quiet; then
+            echo "CHANGELOG.md on main already current — no commit needed."
+            exit 0
+          fi
+          git commit -m "chore(release): refresh CHANGELOG.md for ${{ steps.tag.outputs.tag }}"
+          git push origin main
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
