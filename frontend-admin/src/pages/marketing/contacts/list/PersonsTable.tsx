@@ -23,6 +23,7 @@ import {
 } from 'store/api/marketingApi';
 import type { Person, Tag } from 'types/marketing';
 
+import ContactAvatar from './ContactAvatar';
 import { fullName, primaryEmail } from './helpers';
 
 const TagBadges = ({
@@ -74,14 +75,18 @@ const PersonsTable = () => {
         // composed full name rather than missing firstName-only matches.
         accessorFn: row => fullName(row) || '—',
         header: t('marketing.contacts.list.colName'),
-        cell: ({ row }) => (
-          <Link
-            to={`/marketing/contacts/${row.original.uuid}`}
-            className="fw-medium"
-          >
-            {fullName(row.original) || '—'}
-          </Link>
-        ),
+        cell: ({ row }) => {
+          const p = row.original;
+          const name = fullName(p);
+          return (
+            <div className="d-flex align-items-center gap-2">
+              <ContactAvatar email={primaryEmail(p)} name={name} />
+              <Link to={`/marketing/contacts/${p.uuid}`} className="fw-medium">
+                {name || '—'}
+              </Link>
+            </div>
+          );
+        },
         meta: { headerProps: { className: 'text-900' } }
       },
       {

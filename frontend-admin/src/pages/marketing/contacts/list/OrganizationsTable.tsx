@@ -18,6 +18,7 @@ import { formatDateForCSV } from 'utils/csvExport';
 import { useListMarketingOrgsQuery } from 'store/api/marketingApi';
 import type { Organization } from 'types/marketing';
 
+import ContactAvatar from './ContactAvatar';
 import { primaryEmail } from './helpers';
 
 const OrganizationsTable = () => {
@@ -36,12 +37,18 @@ const OrganizationsTable = () => {
         cell: ({ row }) => {
           const o = row.original;
           return (
-            <>
-              <span className="fw-medium">{o.legalName}</span>
-              {o.displayName && o.displayName !== o.legalName && (
-                <div className="text-muted fs-10">{o.displayName}</div>
-              )}
-            </>
+            <div className="d-flex align-items-center gap-2">
+              <ContactAvatar
+                email={primaryEmail(o)}
+                name={o.displayName || o.legalName}
+              />
+              <div>
+                <span className="fw-medium">{o.legalName}</span>
+                {o.displayName && o.displayName !== o.legalName && (
+                  <div className="text-muted fs-10">{o.displayName}</div>
+                )}
+              </div>
+            </div>
           );
         },
         meta: { headerProps: { className: 'text-900' } }
