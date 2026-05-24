@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.2] - 2026-05-24
+
+### Features
+
+- **(frontend-client)** Self-service avatar surface ([92f6d2f](https://github.com/orkestra-cc/orkestra/commit/92f6d2f4ef74f21d88ae1d516c401ada3968122a))
+- **(avatar)** Self-service user avatar pipeline (upload / OAuth / initials) ([e800fc0](https://github.com/orkestra-cc/orkestra/commit/e800fc09121a120df8da37ba8ca1305bacf7f5e4))
+
+### CI
+
+- **(release)** Bump softprops/action-gh-release to v3 for Node 24 runtime ([0ec8171](https://github.com/orkestra-cc/orkestra/commit/0ec817174288e8466fca44915606426aa78f373b))
+
 ## [0.1.1] - 2026-05-24
 
 ### Bug fixes
