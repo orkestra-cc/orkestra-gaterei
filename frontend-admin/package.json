@@ -39,7 +39,7 @@
     "dompurify": "^3.2.6",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.2",
-    "emoji-picker-react": "^4.13.2",
+    "emoji-picker-react": "^4.19.1",
     "fuse.js": "^7.1.0",
     "i18next": "^23.16.8",
     "i18next-browser-languagedetector": "^8.2.1",
