@@ -33,6 +33,13 @@ var ErrMFANotEnrolled = errors.New("mfa not enrolled")
 // rejected. Caller should convert to 401 and optionally increment attempts.
 var ErrMFAInvalidCode = errors.New("invalid mfa code")
 
+// ErrMFAMethodDisabled is returned by BeginEnrollment (TOTP) and by
+// the WebAuthn register-begin path when the admin-managed mfaMethods
+// allow-list excludes the requested factor type. Handlers map this to
+// 403 with body code mfa_method_disabled. Phase 3.6 of the
+// auth-policy roadmap.
+var ErrMFAMethodDisabled = errors.New("mfa method not allowed by policy")
+
 // ErrMFAChallengeMismatch is returned when a challenge's purpose doesn't
 // match the caller's flow (e.g. an enroll challenge supplied to /verify).
 var ErrMFAChallengeMismatch = errors.New("mfa challenge purpose mismatch")
@@ -155,6 +162,14 @@ func NewMFAService(
 func (s *mfaService) BeginEnrollment(ctx context.Context, user *userModels.User) (*MFAEnrollmentBegin, error) {
 	if user == nil || user.UUID == "" {
 		return nil, fmt.Errorf("user is required")
+	}
+
+	// Phase 3.6: respect the admin-managed mfaMethods allow-list. An
+	// empty list (the default) means "all methods allowed" so existing
+	// deployments observe no change. ErrMFAMethodDisabled is mapped to
+	// 403 mfa_method_disabled at the handler boundary.
+	if s.policy != nil && !s.policy.MFAMethodAllowed(ctx, string(models.MFAFactorTOTP)) {
+		return nil, ErrMFAMethodDisabled
 	}
 
 	// Calling begin twice before confirm invalidates the prior pending secret

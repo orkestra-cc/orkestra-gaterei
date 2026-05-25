@@ -195,6 +195,8 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 	var webauthnSvc services.WebAuthnService
 	if d.webauthnRP != nil {
 		webauthnSvc = services.NewWebAuthnService(d.webauthnRP, mfaRepo, d.mfaChallengeService, d.logger)
+		// Phase 3.6: mfaMethods allow-list gates passkey enrollment.
+		webauthnSvc.SetPolicy(d.authPolicy)
 		// Mirror the legacy wiring: when WebAuthn is enabled the
 		// password/OAuth login services need to know whether a given
 		// user has any passkeys to surface "use passkey" on the

@@ -248,6 +248,78 @@ func TestPasswordResetTokenTTL(t *testing.T) {
 	}
 }
 
+// Phase 3.6 — mfaMethods allow-list.
+
+func TestMFAMethodsAllowed_EmptyOrUnset_NoRestriction(t *testing.T) {
+	cases := []struct {
+		name string
+		set  map[string]string
+	}{
+		{"unset", nil},
+		{"empty", map[string]string{"mfaMethods": ""}},
+		{"whitespace only", map[string]string{"mfaMethods": "   "}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPolicy(tc.set)
+			if got := p.MFAMethodsAllowed(context.Background()); len(got) != 0 {
+				t.Errorf("got %v, want empty (no restriction)", got)
+			}
+			// MFAMethodAllowed must say "yes" for every known type when
+			// the list is empty.
+			for _, m := range []string{"totp", "webauthn", "backup_codes"} {
+				if !p.MFAMethodAllowed(context.Background(), m) {
+					t.Errorf("MFAMethodAllowed(%q) = false with empty list", m)
+				}
+			}
+		})
+	}
+}
+
+func TestMFAMethodsAllowed_FiltersKnown(t *testing.T) {
+	p := newPolicy(map[string]string{"mfaMethods": "TOTP, webauthn, garbage, ,totp"})
+	allowed := p.MFAMethodsAllowed(context.Background())
+	if len(allowed) != 2 {
+		t.Fatalf("want 2 entries (totp, webauthn), got %v", allowed)
+	}
+	if allowed[0] != "totp" || allowed[1] != "webauthn" {
+		t.Errorf("normalisation broken: %v", allowed)
+	}
+	if !p.MFAMethodAllowed(context.Background(), "totp") {
+		t.Errorf("totp must be allowed")
+	}
+	if !p.MFAMethodAllowed(context.Background(), "WEBAUTHN") {
+		t.Errorf("case-insensitive match broken")
+	}
+	if p.MFAMethodAllowed(context.Background(), "backup_codes") {
+		t.Errorf("backup_codes must be rejected — not in the list")
+	}
+}
+
+func TestMFAMethodsAllowed_OnlyUnknownValuesFallsBackToNoRestriction(t *testing.T) {
+	// All entries are unknown — the policy strips them all and
+	// returns an empty list, which the caller treats as "no
+	// restriction". This is a defensible interpretation (a misedit
+	// can never silently disable every factor) but the test pins it.
+	p := newPolicy(map[string]string{"mfaMethods": "fingerprint, retina"})
+	if got := p.MFAMethodsAllowed(context.Background()); len(got) != 0 {
+		t.Errorf("want empty list after filtering unknowns, got %v", got)
+	}
+	if !p.MFAMethodAllowed(context.Background(), "totp") {
+		t.Errorf("after all-unknowns filter, every known method must still be allowed")
+	}
+}
+
+func TestMFAMethodsAllowed_NilService_NoRestriction(t *testing.T) {
+	var p *AuthPolicyService
+	if got := p.MFAMethodsAllowed(context.Background()); len(got) != 0 {
+		t.Errorf("nil policy = %v, want empty", got)
+	}
+	if !p.MFAMethodAllowed(context.Background(), "totp") {
+		t.Errorf("nil policy must allow every method")
+	}
+}
+
 func TestPasswordResetTokenTTL_NilService_LegacyDefault(t *testing.T) {
 	var p *AuthPolicyService
 	if got := p.PasswordResetTokenTTL(context.Background()); got != 30*time.Minute {

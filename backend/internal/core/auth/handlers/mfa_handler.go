@@ -531,6 +531,11 @@ func mapMFAError(err error) error {
 		return huma.Error400BadRequest("challenge does not match requested action")
 	case errors.Is(err, services.ErrMFANotEnrolled):
 		return huma.Error400BadRequest("mfa is not enrolled for this user")
+	case errors.Is(err, services.ErrMFAMethodDisabled):
+		// Phase 3.6 — admin restricted this factor type via the
+		// mfaMethods allow-list. The frontend should redirect the user
+		// to a still-allowed type instead of retrying.
+		return huma.Error403Forbidden("mfa_method_disabled: this factor type is not allowed by policy")
 	default:
 		return huma.Error400BadRequest("mfa request failed")
 	}

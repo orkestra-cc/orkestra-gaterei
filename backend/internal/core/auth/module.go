@@ -216,6 +216,14 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Description: "Go duration string — how long the link in the reset-password email stays valid. Default 30m.",
 			Type:        module.FieldDuration, Default: "30m",
 		},
+		// Phase 3.6 — restrict the MFA factor types users can enroll.
+		// Empty list = all methods allowed (the legacy default so an
+		// untouched deployment observes no change).
+		{
+			Key: "mfaMethods", Label: "Allowed MFA methods", Group: "MFA",
+			Description: "Comma-separated list of factor types users may enroll. Empty = all allowed. Valid: totp, webauthn, backup_codes.",
+			Type:        module.FieldStringList, Default: "",
+		},
 
 		// Password Policy — site-wide rules enforced by passwordService.
 		// ValidatePolicy on signup / change-password / reset. Defaults
