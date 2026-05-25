@@ -57,6 +57,11 @@ type JWTService interface {
 	// token issuance can embed the user's current memberships in the JWT.
 	// Called by the auth module after the tenant module has initialized.
 	SetTenantProvider(tp iface.TenantProvider)
+
+	// SetPolicy wires the admin-managed AuthPolicyService so the access-
+	// token TTL is read live on every mint. Nil keeps the env-driven
+	// default. Phase 3.1 of the auth-policy roadmap.
+	SetPolicy(p *AuthPolicyService)
 }
 
 type jwtService struct {
@@ -67,6 +72,29 @@ type jwtService struct {
 	issuer        string
 	audience      string
 	tenant        iface.TenantProvider
+	// policy is the optional admin-managed source for accessTokenTTL.
+	// Nil falls back to accessExpiry (env-driven default). Set via
+	// SetPolicy after construction. Phase 3.1 of the auth-policy
+	// roadmap.
+	policy *AuthPolicyService
+}
+
+// SetPolicy wires the admin-managed AuthPolicyService so accessTokenTTL
+// is read live on every GenerateAccessToken. Nil keeps the legacy
+// env-driven TTL (s.accessExpiry).
+func (s *jwtService) SetPolicy(p *AuthPolicyService) { s.policy = p }
+
+// accessTokenLifetime returns the lifetime to apply to a newly minted
+// access token: the admin-policy value when wired, falling back to the
+// env-driven accessExpiry. Centralised so every mint path uses the
+// same resolution.
+func (s *jwtService) accessTokenLifetime(ctx context.Context) time.Duration {
+	if s.policy != nil {
+		if d := s.policy.AccessTokenTTL(ctx); d > 0 {
+			return d
+		}
+	}
+	return s.accessExpiry
 }
 
 // NewJWTService builds a JWT issuer/validator with an environment-stamped
@@ -162,7 +190,7 @@ func (s *jwtService) GenerateEnhancedAccessToken(
 		return "", ErrJWTKeysNotLoaded
 	}
 	now := time.Now()
-	expiresAt := now.Add(s.accessExpiry)
+	expiresAt := now.Add(s.accessTokenLifetime(context.Background()))
 
 	primaryProvider := s.getPrimaryOAuthProvider(user)
 
@@ -306,7 +334,7 @@ func (s *jwtService) GenerateTokenPair(
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    int64(s.accessExpiry.Seconds()),
+		ExpiresIn:    int64(s.accessTokenLifetime(context.Background()).Seconds()),
 		SessionID:    securityCtx.SessionID,
 		DeviceID:     deviceInfo.DeviceID,
 		Scope:        []string{"profile", "email", "api"},

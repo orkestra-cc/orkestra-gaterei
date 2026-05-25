@@ -762,6 +762,7 @@ func (s *PasswordAuthService) ForgotPassword(ctx context.Context, email, ip stri
 	if err != nil {
 		return nil
 	}
+	resetTTL := s.resetTokenTTL(ctx)
 	doc := &authModels.EmailTokenDoc{
 		UUID:      uuid.Must(uuid.NewV7()).String(),
 		UserUUID:  user.UUID,
@@ -769,7 +770,7 @@ func (s *PasswordAuthService) ForgotPassword(ctx context.Context, email, ip stri
 		Purpose:   authModels.EmailTokenPurposeResetPassword,
 		IP:        ip,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+		ExpiresAt: time.Now().Add(resetTTL),
 	}
 	if err := s.emailTokenRepo.Create(ctx, doc); err != nil {
 		return nil
@@ -794,7 +795,7 @@ func (s *PasswordAuthService) ForgotPassword(ctx context.Context, email, ip stri
 		Data: map[string]any{
 			"UserName":     coalesce(user.FullName, user.Email),
 			"ResetURL":     resetURL,
-			"ExpiresIn":    "30 minutes",
+			"ExpiresIn":    humanDuration(resetTTL),
 			"RequestIP":    ip,
 			"AppName":      s.appName,
 			"SupportEmail": s.supportEmail,
@@ -1495,13 +1496,14 @@ func (s *PasswordAuthService) AdminTriggerPasswordReset(ctx context.Context, use
 	if err != nil {
 		return err
 	}
+	resetTTL := s.resetTokenTTL(ctx)
 	doc := &authModels.EmailTokenDoc{
 		UUID:      uuid.Must(uuid.NewV7()).String(),
 		UserUUID:  userUUID,
 		TokenHash: hash,
 		Purpose:   authModels.EmailTokenPurposeResetPassword,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+		ExpiresAt: time.Now().Add(resetTTL),
 	}
 	if err := s.emailTokenRepo.Create(ctx, doc); err != nil {
 		return err
@@ -1525,7 +1527,7 @@ func (s *PasswordAuthService) AdminTriggerPasswordReset(ctx context.Context, use
 		Data: map[string]any{
 			"UserName":     coalesce(user.FullName, user.Email),
 			"ResetURL":     resetURL,
-			"ExpiresIn":    "30 minutes",
+			"ExpiresIn":    humanDuration(resetTTL),
 			"RequestIP":    "(admin-triggered)",
 			"AppName":      s.appName,
 			"SupportEmail": s.supportEmail,
@@ -1533,6 +1535,46 @@ func (s *PasswordAuthService) AdminTriggerPasswordReset(ctx context.Context, use
 		IdempotencyKey: "reset:" + userUUID + ":" + doc.UUID,
 	})
 	return err
+}
+
+// resetTokenTTL returns the admin-managed password-reset token lifetime
+// when the policy reader is wired, falling back to the legacy hardcoded
+// 30-minute value. Centralised so the public ForgotPassword and the
+// AdminTriggerPasswordReset paths share the same resolution.
+func (s *PasswordAuthService) resetTokenTTL(ctx context.Context) time.Duration {
+	if s.policy != nil {
+		if d := s.policy.PasswordResetTokenTTL(ctx); d > 0 {
+			return d
+		}
+	}
+	return 30 * time.Minute
+}
+
+// humanDuration renders a Duration as the human-friendly string the
+// reset-password email template uses ("30 minutes", "2 hours", "1 hour
+// 15 minutes"). Kept simple; the policy TTL is unlikely to need
+// sub-minute precision.
+func humanDuration(d time.Duration) string {
+	if d <= 0 {
+		return "0 minutes"
+	}
+	hours := int(d / time.Hour)
+	mins := int((d % time.Hour) / time.Minute)
+	switch {
+	case hours == 0:
+		return pluralUnit(mins, "minute")
+	case mins == 0:
+		return pluralUnit(hours, "hour")
+	default:
+		return pluralUnit(hours, "hour") + " " + pluralUnit(mins, "minute")
+	}
+}
+
+func pluralUnit(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 // ConsumeInvite redeems an admin_invite token: validates the token,

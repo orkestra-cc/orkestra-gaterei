@@ -33,6 +33,13 @@ var ErrMFANotEnrolled = errors.New("mfa not enrolled")
 // rejected. Caller should convert to 401 and optionally increment attempts.
 var ErrMFAInvalidCode = errors.New("invalid mfa code")
 
+// ErrMFAMethodDisabled is returned by BeginEnrollment (TOTP) and by
+// the WebAuthn register-begin path when the admin-managed mfaMethods
+// allow-list excludes the requested factor type. Handlers map this to
+// 403 with body code mfa_method_disabled. Phase 3.6 of the
+// auth-policy roadmap.
+var ErrMFAMethodDisabled = errors.New("mfa method not allowed by policy")
+
 // ErrMFAChallengeMismatch is returned when a challenge's purpose doesn't
 // match the caller's flow (e.g. an enroll challenge supplied to /verify).
 var ErrMFAChallengeMismatch = errors.New("mfa challenge purpose mismatch")
@@ -84,6 +91,19 @@ type MFAService interface {
 	// of the auth-policy roadmap). Nil falls back to the legacy
 	// hardcoded BackupCodeCount.
 	SetPolicy(p *AuthPolicyService)
+	// SetAuditSink wires the persistent audit sink so backup-code
+	// regenerate emits an auth_security_events row. Nil falls back to
+	// the legacy slog-only audit lane. Phase 2.2 of the
+	// core-completion epic.
+	SetAuditSink(sink SecurityEventSink)
+}
+
+// SecurityEventSink is the narrow interface mfaService uses to emit
+// audit rows. Implemented by *authService via RecordSelfAuthEvent.
+// Kept here rather than in auth_service.go so mfaService doesn't have
+// to import the full AuthService surface.
+type SecurityEventSink interface {
+	RecordSelfAuthEvent(ctx context.Context, eventType, userUUID string, fields map[string]interface{})
 }
 
 type mfaService struct {
@@ -94,6 +114,9 @@ type mfaService struct {
 	issuer      string
 	logger      *slog.Logger
 	policy      *AuthPolicyService // optional — Phase 10 backup-code count
+	// auditSink emits audit rows via authService. Optional; nil keeps
+	// the legacy slog-only behaviour so minimal builds still work.
+	auditSink SecurityEventSink
 }
 
 // SetDeviceTrust wires the optional device-trust service. Called
@@ -105,6 +128,11 @@ func (s *mfaService) SetDeviceTrust(dt DeviceTrustService) { s.deviceTrust = dt 
 // auth-policy roadmap — used today only by backup-code generation
 // (recoveryCodesCount). Safe to call multiple times.
 func (s *mfaService) SetPolicy(p *AuthPolicyService) { s.policy = p }
+
+// SetAuditSink wires the optional persistent audit sink so MFA actions
+// (backup-codes regenerate) land in auth_security_events. Nil keeps
+// the legacy slog-only behaviour.
+func (s *mfaService) SetAuditSink(sink SecurityEventSink) { s.auditSink = sink }
 
 // NewMFAService builds the service. `issuer` ends up as the label prefix in
 // the TOTP provisioning URI — authenticator apps show it above the 6-digit
@@ -134,6 +162,14 @@ func NewMFAService(
 func (s *mfaService) BeginEnrollment(ctx context.Context, user *userModels.User) (*MFAEnrollmentBegin, error) {
 	if user == nil || user.UUID == "" {
 		return nil, fmt.Errorf("user is required")
+	}
+
+	// Phase 3.6: respect the admin-managed mfaMethods allow-list. An
+	// empty list (the default) means "all methods allowed" so existing
+	// deployments observe no change. ErrMFAMethodDisabled is mapped to
+	// 403 mfa_method_disabled at the handler boundary.
+	if s.policy != nil && !s.policy.MFAMethodAllowed(ctx, string(models.MFAFactorTOTP)) {
+		return nil, ErrMFAMethodDisabled
 	}
 
 	// Calling begin twice before confirm invalidates the prior pending secret
@@ -356,11 +392,19 @@ func (s *mfaService) RegenerateBackupCodes(ctx context.Context, userUUID string)
 		}
 		return nil, fmt.Errorf("persist backup codes: %w", err)
 	}
-	s.logger.Info("self_auth_action",
-		"event", "self_backup_codes_regenerated",
-		"userUUID", userUUID,
-		"count", len(plaintext),
-	)
+	if s.auditSink != nil {
+		s.auditSink.RecordSelfAuthEvent(ctx, "self_backup_codes_regenerated", userUUID, map[string]interface{}{
+			"count": len(plaintext),
+		})
+	} else {
+		// Legacy slog-only fallback so minimal builds without the audit
+		// sink wired still leave a log breadcrumb.
+		s.logger.Info("self_auth_action",
+			"event", "self_backup_codes_regenerated",
+			"userUUID", userUUID,
+			"count", len(plaintext),
+		)
+	}
 	return plaintext, nil
 }
 
