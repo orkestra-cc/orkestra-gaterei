@@ -796,72 +796,6 @@ type TokenResponse struct {
 	Body models.TokenResponse
 }
 
-// HandleGoogleCallback handles Google OAuth callback
-// func (h *AuthHandler) HandleGoogleCallback(ctx context.Context, req *OAuthCallbackRequest) (*OAuthCallbackResponse, error) {
-// 	// Validate state
-// 	stateInfo, err := h.oauthStateService.ValidateOAuthState(ctx, req.State)
-// 	if err != nil {
-// 		return nil, huma.Error400BadRequest("Invalid OAuth state", err)
-// 	}
-
-// 	// Create Google OAuth service
-// 	provider, err := h.oauthFactory.CreateProvider(models.OAuthProviderGoogle, nil)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to get OAuth provider", err)
-// 	}
-
-// 	// Exchange code for tokens - must use same redirect URI as initial auth request
-// 	backendBaseURL := "https://erpb.blacklab.cc" // TODO: Make this configurable
-// 	backendCallbackURL := backendBaseURL + "/v1/auth/oauth/google/callback"
-// 	tokenResp, err := provider.ExchangeCodeForToken(ctx, &services.CodeExchangeRequest{
-// 		Code:        req.Code,
-// 		RedirectURI: backendCallbackURL,
-// 	})
-// 	if err != nil {
-// 		return nil, huma.Error400BadRequest("Failed to exchange code", err)
-// 	}
-
-// 	// Get user info from provider
-// 	userInfo, err := provider.GetUserInfo(ctx, tokenResp.AccessToken)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to get user info", err)
-// 	}
-
-// 	// Create or update user
-// 	user := &models.User{
-// 		UUID:          userInfo.ProviderID,
-// 		Email:         userInfo.Email,
-// 		Username:      userInfo.Email,
-// 		FullName:      userInfo.Name,
-// 		Avatar:        userInfo.Picture,
-// 		EmailVerified: userInfo.EmailVerified,
-// 		IsActive:      true,
-// 		Role:          "viewer", // Default role
-// 	}
-
-// 	// Generate tokens
-// 	tokenResponse, err := h.authService.GenerateEnhancedTokenPair(ctx, user, stateInfo.DeviceInfo, stateInfo.SecurityContext)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to generate tokens", err)
-// 	}
-
-// 	// Redirect to frontend with tokens
-// 	frontendURL := h.config.Server.FrontendURL
-// 	redirectURL := fmt.Sprintf("%s/auth/callback?success=true&access_token=%s&token_type=Bearer&expires_in=%d&user_id=%s&email=%s&provider=google",
-// 		frontendURL,
-// 		url.QueryEscape(tokenResponse.AccessToken),
-// 		tokenResponse.ExpiresIn,
-// 		url.QueryEscape(user.UUID),
-// 		url.QueryEscape(user.Email))
-
-// 	resp := &OAuthCallbackResponse{
-// 		Status: 302,
-// 	}
-// 	resp.Headers.Location = redirectURL
-
-// 	return resp, nil
-// }
-
 // HandleGoogleCallbackHTTP handles Google OAuth callback with proper HTTP redirect
 func (h *AuthHandler) HandleGoogleCallbackHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := slog.Default()
@@ -1321,66 +1255,6 @@ func (h *AuthHandler) HandleAppleCallback(ctx context.Context, req *OAuthCallbac
 
 	return resp, nil
 }
-
-// HandleDiscordCallback handles Discord OAuth callback
-// func (h *AuthHandler) HandleDiscordCallback(ctx context.Context, req *OAuthCallbackRequest) (*OAuthCallbackResponse, error) {
-// 	stateInfo, err := h.oauthStateService.ValidateOAuthState(ctx, req.State)
-// 	if err != nil {
-// 		return nil, huma.Error400BadRequest("Invalid OAuth state", err)
-// 	}
-
-// 	provider, err := h.oauthFactory.CreateProvider(models.OAuthProviderDiscord, nil)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to get OAuth provider", err)
-// 	}
-
-// 	// Exchange code for tokens - must use same redirect URI as initial auth request
-// 	backendBaseURL := "https://erpb.blacklab.cc" // TODO: Make this configurable
-// 	backendCallbackURL := backendBaseURL + "/v1/auth/oauth/discord/callback"
-// 	tokenResp, err := provider.ExchangeCodeForToken(ctx, &services.CodeExchangeRequest{
-// 		Code:        req.Code,
-// 		RedirectURI: backendCallbackURL,
-// 	})
-// 	if err != nil {
-// 		return nil, huma.Error400BadRequest("Failed to exchange code", err)
-// 	}
-
-// 	userInfo, err := provider.GetUserInfo(ctx, tokenResp.AccessToken)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to get user info", err)
-// 	}
-
-// 	// Convert userInfo to map for enhanced auth service
-// 	userInfoMap := map[string]interface{}{
-// 		"email":          userInfo.Email,
-// 		"name":           userInfo.Name,
-// 		"picture":        userInfo.Picture,
-// 		"provider_id":    userInfo.ProviderID,
-// 		"email_verified": userInfo.EmailVerified,
-// 	}
-
-// 	// Use enhanced auth service for proper user creation and token management
-// 	tokenResponse, err := h.authService.HandleOAuthCallbackWithLinking(ctx, models.OAuthProviderDiscord, userInfoMap, oauthTokens, stateInfo.SecurityContext, stateInfo.DeviceInfo)
-// 	if err != nil {
-// 		return nil, huma.Error500InternalServerError("Failed to process OAuth callback", err)
-// 	}
-
-// 	// Redirect to frontend with tokens (Note: Huma handlers can't set cookies directly)
-// 	frontendURL := h.config.Server.FrontendURL
-// 	redirectURL := fmt.Sprintf("%s/auth/callback?success=true&access_token=%s&token_type=Bearer&expires_in=%d&user_id=%s&email=%s&provider=discord",
-// 		frontendURL,
-// 		url.QueryEscape(tokenResponse.AccessToken),
-// 		tokenResponse.ExpiresIn,
-// 		url.QueryEscape(tokenResponse.User.ID),
-// 		url.QueryEscape(tokenResponse.User.Email))
-
-// 	resp := &OAuthCallbackResponse{
-// 		Status: 302,
-// 	}
-// 	resp.Headers.Location = redirectURL
-
-// 	return resp, nil
-// }
 
 // HandleGitHubCallback handles GitHub OAuth callback
 func (h *AuthHandler) HandleGitHubCallback(ctx context.Context, req *OAuthCallbackRequest) (*OAuthCallbackResponse, error) {

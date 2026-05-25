@@ -183,17 +183,21 @@ func (m *UserModule) RegisterRoutes(ri *module.RouteInfo) {
 
 	// Self-service avatar surface — mounted on BOTH audiences so a
 	// Tier-2 client can change their own avatar on api.* just like a
-	// Tier-1 operator does on console.*. Gate is RequireGlobal — any
-	// authenticated user manages their own row; the handler enforces
-	// owner-self via the JWT user UUID.
+	// Tier-1 operator does on console.*. Gate is the per-action
+	// permission `user.avatar.self` (matches the .self suffix rule
+	// granted to operator / manager / developer / administrator /
+	// super_admin; guest does NOT carry it because guest is read-only
+	// across the catalog). The handler additionally enforces owner-
+	// self via the JWT user UUID, so a misconfigured role grant still
+	// can't let user A edit user B's avatar.
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
-		r.Use(ri.Operator.AuthMW.RequireGlobal())
+		r.Use(ri.Operator.AuthMW.RequirePermission("user.avatar.self"))
 		api := humachi.New(r, ri.APIConfig)
 		registerAvatarRoutes(api, m.operatorAvatarHandler, "operator-")
 	})
 	if ri.Client != nil && ri.Client.ProtectedRouter != nil && m.clientAvatarHandler != nil {
 		ri.Client.ProtectedRouter.Group(func(r chi.Router) {
-			r.Use(ri.Client.AuthMW.RequireGlobal())
+			r.Use(ri.Client.AuthMW.RequirePermission("user.avatar.self"))
 			api := humachi.New(r, ri.APIConfig)
 			registerAvatarRoutes(api, m.clientAvatarHandler, "client-")
 		})

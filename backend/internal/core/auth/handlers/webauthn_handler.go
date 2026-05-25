@@ -471,6 +471,9 @@ func mapWebAuthnError(err error) error {
 		return huma.Error400BadRequest("no webauthn credentials enrolled for this user")
 	case errors.Is(err, services.ErrWebAuthnAssertion):
 		return huma.Error401Unauthorized("webauthn assertion failed")
+	case errors.Is(err, services.ErrMFAMethodDisabled):
+		// Phase 3.6 — admin restricted passkeys via mfaMethods.
+		return huma.Error403Forbidden("mfa_method_disabled: webauthn is not allowed by policy")
 	default:
 		return huma.Error400BadRequest("webauthn request failed")
 	}

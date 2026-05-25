@@ -3,14 +3,15 @@ package handlers
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
+	"github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/auth/services"
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
@@ -26,14 +27,20 @@ import (
 type AdminUserAuthHandler struct {
 	auth    services.AuthService
 	inviter iface.AdminAuthInviter
+	// eventRepo backs the GET /security-events endpoint. Nil falls
+	// back to "no rows yet" so a build without the audit pipeline
+	// returns an empty page instead of a 500.
+	eventRepo repository.SecurityEventRepository
 }
 
-// NewAdminUserAuthHandler wires the dependencies. Both must be the
-// operator-tier instances — AdminUserAuthHandler operates on Tier-1
-// internal users only. The inviter satisfies iface.AdminAuthInviter
-// via structural typing on *services.PasswordAuthService.
-func NewAdminUserAuthHandler(auth services.AuthService, inviter iface.AdminAuthInviter) *AdminUserAuthHandler {
-	return &AdminUserAuthHandler{auth: auth, inviter: inviter}
+// NewAdminUserAuthHandler wires the dependencies. auth + inviter must
+// be the operator-tier instances — AdminUserAuthHandler operates on
+// Tier-1 internal users only. The inviter satisfies
+// iface.AdminAuthInviter via structural typing on
+// *services.PasswordAuthService. eventRepo is optional; pass the
+// shared (non-tier-split) instance built in module.go.
+func NewAdminUserAuthHandler(auth services.AuthService, inviter iface.AdminAuthInviter, eventRepo repository.SecurityEventRepository) *AdminUserAuthHandler {
+	return &AdminUserAuthHandler{auth: auth, inviter: inviter, eventRepo: eventRepo}
 }
 
 // --- GET auth-methods ---
@@ -89,16 +96,10 @@ func (h *AdminUserAuthHandler) SendPasswordReset(ctx context.Context, req *Admin
 	if err := h.inviter.AdminTriggerPasswordReset(ctx, req.UserID); err != nil {
 		return nil, mapAdminInviterError(err, "failed to send password reset email")
 	}
-	// Audit lane — captures every successful admin-on-user action so
-	// operator log streams have a record. Replace this with
-	// AuthService.RecordSecurityEvent once the persistent audit pipeline
-	// (auth_security_events repo + tier-aware writes) lands; tracked as
-	// a follow-up in the plan file.
-	slog.Info("admin_auth_action",
-		"event", "admin_password_reset_sent",
-		"actorUUID", actorUUID,
-		"targetUUID", req.UserID,
-	)
+	// Audit lane: persistent + slog via AuthService — Phase 2.2 of the
+	// core-completion epic. Both halves are best-effort so a degraded
+	// audit pipeline never blocks the user-facing action.
+	h.auth.RecordAdminAuthEvent(ctx, "admin_password_reset_sent", actorUUID, req.UserID, nil)
 	out := &AdminSimpleResponse{}
 	out.Body.Success = true
 	out.Body.Message = "password reset email sent"
@@ -126,11 +127,7 @@ func (h *AdminUserAuthHandler) ResendVerification(ctx context.Context, req *Admi
 	if err := h.inviter.AdminResendVerification(ctx, req.UserID); err != nil {
 		return nil, mapAdminInviterError(err, "failed to resend verification email")
 	}
-	slog.Info("admin_auth_action",
-		"event", "admin_verification_resent",
-		"actorUUID", actorUUID,
-		"targetUUID", req.UserID,
-	)
+	h.auth.RecordAdminAuthEvent(ctx, "admin_verification_resent", actorUUID, req.UserID, nil)
 	out := &AdminSimpleResponse{}
 	out.Body.Success = true
 	out.Body.Message = "verification email re-sent"
@@ -275,4 +272,82 @@ func (h *AdminUserAuthHandler) RegisterOAuthUnlinkRoute(api huma.API) {
 		Tags:        []string{"Administration", "Authentication"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, h.UnlinkOAuth)
+}
+
+// --- GET security-events ---
+
+// AdminSecurityEventsRequest is the path + query envelope for the
+// per-user audit timeline.
+type AdminSecurityEventsRequest struct {
+	UserID string `path:"userId" doc:"UUID of the user whose audit timeline to fetch"`
+	Limit  int    `query:"limit" doc:"Max rows to return (clamped to 500, default 100)" example:"100"`
+	Offset int    `query:"offset" doc:"Pagination offset (default 0)" example:"0"`
+	// SinceDays restricts to events from the last N days. 0 = no
+	// filter. Useful for "show me last 7 days of activity" without
+	// the client computing a timestamp.
+	SinceDays int `query:"sinceDays" doc:"Restrict to events from the last N days (0 = unbounded)" example:"30"`
+}
+
+// AdminSecurityEventsResponse mirrors the page-of-rows shape every
+// admin list endpoint uses. Total is the total matching the filter,
+// not the page size, so the UI can render "Showing 100 of 1,243".
+type AdminSecurityEventsResponse struct {
+	Body struct {
+		Events []*authModels.SecurityEvent `json:"events"`
+		Total  int64                       `json:"total"`
+		Offset int                         `json:"offset"`
+		Limit  int                         `json:"limit"`
+	}
+}
+
+// GetSecurityEvents returns the audit timeline for one user, newest
+// first. Gated by system.users.admin (incidental to user
+// administration — same gate as the auth-methods aggregator).
+//
+// Reads route directly through SecurityEventRepository.ListByUserPaged
+// rather than the AuthService surface so the response carries `total`
+// for pagination without a second round trip.
+func (h *AdminUserAuthHandler) GetSecurityEvents(ctx context.Context, req *AdminSecurityEventsRequest) (*AdminSecurityEventsResponse, error) {
+	if req.UserID == "" {
+		return nil, huma.Error400BadRequest("userId is required")
+	}
+	if h.eventRepo == nil {
+		// Degraded build with the persistent audit pipeline unwired.
+		// Return an empty page rather than 500 so the SPA renders the
+		// empty-state instead of an error toast.
+		out := &AdminSecurityEventsResponse{}
+		out.Body.Events = []*authModels.SecurityEvent{}
+		out.Body.Limit = req.Limit
+		return out, nil
+	}
+	var since *time.Time
+	if req.SinceDays > 0 {
+		t := time.Now().UTC().Add(-time.Duration(req.SinceDays) * 24 * time.Hour)
+		since = &t
+	}
+	events, total, err := h.eventRepo.ListByUserPaged(ctx, req.UserID, req.Offset, req.Limit, since)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list security events", err)
+	}
+	out := &AdminSecurityEventsResponse{}
+	out.Body.Events = events
+	out.Body.Total = total
+	out.Body.Offset = req.Offset
+	out.Body.Limit = req.Limit
+	return out, nil
+}
+
+// RegisterSecurityEventsRoute mounts the audit-timeline endpoint.
+// Caller wires RequireSystemPermission("system.users.admin") — the
+// same gate the auth-methods aggregator uses (reading audit rows is
+// incidental to user administration).
+func (h *AdminUserAuthHandler) RegisterSecurityEventsRoute(api huma.API) {
+	huma.Register(api, huma.Operation{
+		OperationID: "admin-user-security-events",
+		Method:      http.MethodGet,
+		Path:        "/v1/admin/users/{userId}/security-events",
+		Summary:     "Admin: list the audit timeline for a user",
+		Tags:        []string{"Administration", "Authentication"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, h.GetSecurityEvents)
 }

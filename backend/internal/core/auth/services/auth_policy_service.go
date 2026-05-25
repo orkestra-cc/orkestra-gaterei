@@ -20,6 +20,11 @@ const (
 	defaultPasswordMinLength     = 10
 	defaultPasswordMaxLength     = 128
 	defaultBreachedPasswordCheck = true
+	// Phase 3.1 defaults — match the pre-policy hardcoded behaviour so
+	// a deployment without the policy keys set keeps minting tokens
+	// with the same TTLs that the env-var-driven NewJWTService used.
+	defaultAccessTokenTTL        = 15 * time.Minute
+	defaultPasswordResetTokenTTL = 30 * time.Minute
 )
 
 // PolicyAudience names the surface a policy lookup is being performed for.
@@ -164,6 +169,105 @@ func (s *AuthPolicyService) LockoutThreshold(ctx context.Context) int {
 		return defaultLockoutThreshold
 	}
 	return n
+}
+
+// AccessTokenTTL returns the admin-managed access-token lifetime.
+// Falls back to defaultAccessTokenTTL (15m) when unset, invalid, or
+// the policy service / underlying ConfigService is missing. The JWT
+// service consults this on every GenerateAccessToken so admin edits
+// take effect on the next mint. Phase 3.1 of the auth-policy roadmap.
+func (s *AuthPolicyService) AccessTokenTTL(ctx context.Context) time.Duration {
+	if s == nil || s.cs == nil {
+		return defaultAccessTokenTTL
+	}
+	v := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "accessTokenTTL"))
+	if v == "" {
+		return defaultAccessTokenTTL
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return defaultAccessTokenTTL
+	}
+	return d
+}
+
+// MFAMethodsAllowed returns the set of MFA factor types the admin
+// allows for enrollment. Returns an empty slice when no restriction is
+// configured — the caller treats that as "all methods allowed", which
+// matches the pre-Phase-3.6 behaviour. Values are normalised to
+// lowercase ASCII so a misedit ("TOTP") still matches. Unknown values
+// are filtered out at read time so a misedit can't enable an
+// nonexistent factor. Phase 3.6 of the auth-policy roadmap.
+func (s *AuthPolicyService) MFAMethodsAllowed(ctx context.Context) []string {
+	if s == nil || s.cs == nil {
+		return nil
+	}
+	raw := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "mfaMethods"))
+	if raw == "" {
+		return nil
+	}
+	known := map[string]struct{}{
+		"totp":         {},
+		"webauthn":     {},
+		"backup_codes": {},
+	}
+	seen := make(map[string]struct{}, 3)
+	out := make([]string, 0, 3)
+	for _, p := range strings.Split(raw, ",") {
+		v := strings.ToLower(strings.TrimSpace(p))
+		if v == "" {
+			continue
+		}
+		if _, ok := known[v]; !ok {
+			continue
+		}
+		if _, dup := seen[v]; dup {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// MFAMethodAllowed is the friendlier check the enroll paths use. Returns
+// true when `method` is one of the configured types OR when no
+// restriction is set (the unconfigured default is "all methods allowed").
+// `method` is matched lowercased.
+func (s *AuthPolicyService) MFAMethodAllowed(ctx context.Context, method string) bool {
+	allowed := s.MFAMethodsAllowed(ctx)
+	if len(allowed) == 0 {
+		return true
+	}
+	target := strings.ToLower(strings.TrimSpace(method))
+	for _, a := range allowed {
+		if a == target {
+			return true
+		}
+	}
+	return false
+}
+
+// PasswordResetTokenTTL returns the admin-managed lifetime of the
+// reset-password email token. Falls back to defaultPasswordResetTokenTTL
+// (30m). The PasswordAuthService reads this when minting a new
+// reset_password email-token row. Phase 3.1 of the auth-policy roadmap.
+func (s *AuthPolicyService) PasswordResetTokenTTL(ctx context.Context) time.Duration {
+	if s == nil || s.cs == nil {
+		return defaultPasswordResetTokenTTL
+	}
+	v := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "passwordResetTokenTTL"))
+	if v == "" {
+		return defaultPasswordResetTokenTTL
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return defaultPasswordResetTokenTTL
+	}
+	return d
 }
 
 // LockoutDuration returns how long an IP/email stays locked after

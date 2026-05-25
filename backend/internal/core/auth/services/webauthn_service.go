@@ -49,6 +49,10 @@ type WebAuthnService interface {
 	ListCredentials(ctx context.Context, userUUID string) ([]authModels.WebAuthnCredential, error)
 	RemoveCredential(ctx context.Context, userUUID string, credentialID []byte) (bool, error)
 	HasCredentials(ctx context.Context, userUUID string) (bool, error)
+	// SetPolicy wires the admin-managed policy reader so the
+	// mfaMethods allow-list gates passkey enrollment alongside TOTP.
+	// Phase 3.6 of the auth-policy roadmap.
+	SetPolicy(p *AuthPolicyService)
 }
 
 type webAuthnService struct {
@@ -56,7 +60,15 @@ type webAuthnService struct {
 	factors    repository.MFAFactorRepository
 	challenges MFAChallengeService
 	logger     *slog.Logger
+	// policy is the optional admin-managed source for the mfaMethods
+	// allow-list. Phase 3.6 — nil keeps the pre-policy "all methods
+	// allowed" behaviour so existing tests don't have to wire it.
+	policy *AuthPolicyService
 }
+
+// SetPolicy wires the admin-managed AuthPolicyService so the
+// mfaMethods allow-list gates passkey enrollment in addition to TOTP.
+func (s *webAuthnService) SetPolicy(p *AuthPolicyService) { s.policy = p }
 
 // NewWebAuthnService builds the orchestrator. The supplied *webauthn.WebAuthn
 // must already be configured with the deployment's RP ID + origins; pass nil
@@ -85,6 +97,12 @@ func (s *webAuthnService) BeginRegistration(ctx context.Context, user *userModel
 	}
 	if user == nil || user.UUID == "" {
 		return "", nil, errors.New("user is required")
+	}
+	// Phase 3.6: respect the mfaMethods allow-list. Empty list = no
+	// restriction (legacy default). ErrMFAMethodDisabled is mapped to
+	// 403 mfa_method_disabled at the handler boundary.
+	if s.policy != nil && !s.policy.MFAMethodAllowed(ctx, string(authModels.MFAFactorWebAuthn)) {
+		return "", nil, ErrMFAMethodDisabled
 	}
 
 	creds, _ := s.loadCredentials(ctx, user.UUID)

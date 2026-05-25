@@ -205,6 +205,26 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Description: "Go duration string (e.g. 15m, 1h) — how long an IP/email stays locked after exceeding the threshold. Default 15m.",
 			Type:        module.FieldDuration, Default: "15m",
 		},
+		// Phase 3.1 — admin-managed token TTLs. Both are read live on
+		// every mint so an admin edit takes effect on the next call.
+		{
+			Key: "accessTokenTTL", Label: "Access token lifetime", Group: "Login & Sessions",
+			Description: "Go duration string — how long an issued access token stays valid. Shorter = tighter security but more refresh round-trips. Default 15m.",
+			Type:        module.FieldDuration, Default: "15m",
+		},
+		{
+			Key: "passwordResetTokenTTL", Label: "Password reset link lifetime", Group: "Login & Sessions",
+			Description: "Go duration string — how long the link in the reset-password email stays valid. Default 30m.",
+			Type:        module.FieldDuration, Default: "30m",
+		},
+		// Phase 3.6 — restrict the MFA factor types users can enroll.
+		// Empty list = all methods allowed (the legacy default so an
+		// untouched deployment observes no change).
+		{
+			Key: "mfaMethods", Label: "Allowed MFA methods", Group: "MFA",
+			Description: "Comma-separated list of factor types users may enroll. Empty = all allowed. Valid: totp, webauthn, backup_codes.",
+			Type:        module.FieldStringList, Default: "",
+		},
 
 		// Password Policy — site-wide rules enforced by passwordService.
 		// ValidatePolicy on signup / change-password / reset. Defaults
@@ -416,7 +436,15 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 		// Non-tier-split collections: security events are an audit log
 		// keyed on userUUID alone, device-trust grants follow the user
 		// record and the auth-path split does not need them per-tier.
-		{Name: models.SecurityEventsCollection},
+		{Name: models.SecurityEventsCollection, Indexes: []module.IndexSpec{
+			// Per-user activity timeline: the admin and self pages
+			// both list "recent events for this user", sorted by
+			// timestamp desc — compound (userUuid, timestamp desc).
+			{Keys: map[string]int{"userUuid": 1, "timestamp": -1}},
+			// EventType filter for the future "show only login_failed"
+			// affordance + cross-user analytics queries.
+			{Keys: map[string]int{"eventType": 1, "timestamp": -1}},
+		}},
 		{Name: models.DeviceTrustCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"userUuid": 1, "deviceId": 1}},
@@ -620,6 +648,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// service so length / complexity / HIBP rules can be edited live
 	// at /admin/modules/auth without a restart.
 	passwordSvc.SetPolicy(authPolicy)
+	// Phase 3.1: hand the same policy to the operator JWT service so
+	// accessTokenTTL is read live on every mint. The client JWT
+	// service is constructed later in this function — we wire it
+	// inline at that site.
+	operatorJWT.SetPolicy(authPolicy)
 
 	// Suspicious-login notifier — constructed here (after authPolicy)
 	// so the admin-email half can read notifyAdminOnSuspiciousLogin /
@@ -636,6 +669,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 			Policy:       authPolicy,
 		})
 	}
+
+	// auth_security_events is non-tier-split — one repo instance shared
+	// by both operator + client tier bundles. Phase 2.1 of the
+	// core-completion epic: RecordSecurityEvent now persists.
+	securityEventRepo := repository.NewSecurityEventRepository(deps.DB)
 
 	commonTierDeps := tierBundleDeps{
 		db:                       deps.DB,
@@ -657,6 +695,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		mfaIssuer:                mfaIssuer,
 		webauthnRP:               webauthnRP,
 		authPolicy:               authPolicy,
+		securityEventRepo:        securityEventRepo,
 	}
 
 	// ADR-0003 PR-D D-9: per-audience refresh-cookie domains. Each
@@ -764,7 +803,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// operator password-auth service (which satisfies
 	// iface.AdminAuthInviter via structural typing) for the
 	// send-password-reset / resend-verification routes.
-	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc)
+	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc, securityEventRepo)
 
 	// Self-service security-center handler — operator tier this
 	// iteration. Wired to the operator authService + mfaSvc so reads
@@ -792,6 +831,8 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		return err
 	}
 	clientJWT.SetTenantProvider(tenantProvider)
+	// Phase 3.1: live accessTokenTTL lookup for the client tier too.
+	clientJWT.SetPolicy(authPolicy)
 
 	clDeps := commonTierDeps
 	clDeps.tier = tierClient
@@ -1142,6 +1183,9 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		m.operatorAdminUserAuthHandler.RegisterReadAuthMethodsRoute(api)
+		// Phase 2.3: per-user audit timeline lives behind the same gate
+		// (reading audit rows is incidental to user administration).
+		m.operatorAdminUserAuthHandler.RegisterSecurityEventsRoute(api)
 	})
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.password_reset"))
