@@ -84,6 +84,19 @@ type MFAService interface {
 	// of the auth-policy roadmap). Nil falls back to the legacy
 	// hardcoded BackupCodeCount.
 	SetPolicy(p *AuthPolicyService)
+	// SetAuditSink wires the persistent audit sink so backup-code
+	// regenerate emits an auth_security_events row. Nil falls back to
+	// the legacy slog-only audit lane. Phase 2.2 of the
+	// core-completion epic.
+	SetAuditSink(sink SecurityEventSink)
+}
+
+// SecurityEventSink is the narrow interface mfaService uses to emit
+// audit rows. Implemented by *authService via RecordSelfAuthEvent.
+// Kept here rather than in auth_service.go so mfaService doesn't have
+// to import the full AuthService surface.
+type SecurityEventSink interface {
+	RecordSelfAuthEvent(ctx context.Context, eventType, userUUID string, fields map[string]interface{})
 }
 
 type mfaService struct {
@@ -94,6 +107,9 @@ type mfaService struct {
 	issuer      string
 	logger      *slog.Logger
 	policy      *AuthPolicyService // optional — Phase 10 backup-code count
+	// auditSink emits audit rows via authService. Optional; nil keeps
+	// the legacy slog-only behaviour so minimal builds still work.
+	auditSink SecurityEventSink
 }
 
 // SetDeviceTrust wires the optional device-trust service. Called
@@ -105,6 +121,11 @@ func (s *mfaService) SetDeviceTrust(dt DeviceTrustService) { s.deviceTrust = dt 
 // auth-policy roadmap — used today only by backup-code generation
 // (recoveryCodesCount). Safe to call multiple times.
 func (s *mfaService) SetPolicy(p *AuthPolicyService) { s.policy = p }
+
+// SetAuditSink wires the optional persistent audit sink so MFA actions
+// (backup-codes regenerate) land in auth_security_events. Nil keeps
+// the legacy slog-only behaviour.
+func (s *mfaService) SetAuditSink(sink SecurityEventSink) { s.auditSink = sink }
 
 // NewMFAService builds the service. `issuer` ends up as the label prefix in
 // the TOTP provisioning URI — authenticator apps show it above the 6-digit
@@ -356,11 +377,19 @@ func (s *mfaService) RegenerateBackupCodes(ctx context.Context, userUUID string)
 		}
 		return nil, fmt.Errorf("persist backup codes: %w", err)
 	}
-	s.logger.Info("self_auth_action",
-		"event", "self_backup_codes_regenerated",
-		"userUUID", userUUID,
-		"count", len(plaintext),
-	)
+	if s.auditSink != nil {
+		s.auditSink.RecordSelfAuthEvent(ctx, "self_backup_codes_regenerated", userUUID, map[string]interface{}{
+			"count": len(plaintext),
+		})
+	} else {
+		// Legacy slog-only fallback so minimal builds without the audit
+		// sink wired still leave a log breadcrumb.
+		s.logger.Info("self_auth_action",
+			"event", "self_backup_codes_regenerated",
+			"userUUID", userUUID,
+			"count", len(plaintext),
+		)
+	}
 	return plaintext, nil
 }
 

@@ -415,7 +415,15 @@ func (m *AuthModule) Collections() []module.CollectionSpec {
 		// Non-tier-split collections: security events are an audit log
 		// keyed on userUUID alone, device-trust grants follow the user
 		// record and the auth-path split does not need them per-tier.
-		{Name: models.SecurityEventsCollection},
+		{Name: models.SecurityEventsCollection, Indexes: []module.IndexSpec{
+			// Per-user activity timeline: the admin and self pages
+			// both list "recent events for this user", sorted by
+			// timestamp desc — compound (userUuid, timestamp desc).
+			{Keys: map[string]int{"userUuid": 1, "timestamp": -1}},
+			// EventType filter for the future "show only login_failed"
+			// affordance + cross-user analytics queries.
+			{Keys: map[string]int{"eventType": 1, "timestamp": -1}},
+		}},
 		{Name: models.DeviceTrustCollection, Indexes: []module.IndexSpec{
 			{Keys: map[string]int{"uuid": 1}, Unique: true},
 			{Keys: map[string]int{"userUuid": 1, "deviceId": 1}},
@@ -636,6 +644,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		})
 	}
 
+	// auth_security_events is non-tier-split — one repo instance shared
+	// by both operator + client tier bundles. Phase 2.1 of the
+	// core-completion epic: RecordSecurityEvent now persists.
+	securityEventRepo := repository.NewSecurityEventRepository(deps.DB)
+
 	commonTierDeps := tierBundleDeps{
 		db:                       deps.DB,
 		logger:                   logger,
@@ -656,6 +669,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		mfaIssuer:                mfaIssuer,
 		webauthnRP:               webauthnRP,
 		authPolicy:               authPolicy,
+		securityEventRepo:        securityEventRepo,
 	}
 
 	// ADR-0003 PR-D D-9: per-audience refresh-cookie domains. Each
@@ -752,7 +766,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// operator password-auth service (which satisfies
 	// iface.AdminAuthInviter via structural typing) for the
 	// send-password-reset / resend-verification routes.
-	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc)
+	m.operatorAdminUserAuthHandler = handlers.NewAdminUserAuthHandler(opBundle.authService, opBundle.passwordSvc, securityEventRepo)
 
 	// Self-service security-center handler — operator tier this
 	// iteration. Wired to the operator authService + mfaSvc so reads
@@ -1125,6 +1139,9 @@ func (m *AuthModule) RegisterRoutes(ri *module.RouteInfo) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
 		m.operatorAdminUserAuthHandler.RegisterReadAuthMethodsRoute(api)
+		// Phase 2.3: per-user audit timeline lives behind the same gate
+		// (reading audit rows is incidental to user administration).
+		m.operatorAdminUserAuthHandler.RegisterSecurityEventsRoute(api)
 	})
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.password_reset"))

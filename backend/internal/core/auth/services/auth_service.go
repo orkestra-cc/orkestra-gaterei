@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/core/auth/models"
 	"github.com/orkestra/backend/internal/core/auth/repository"
@@ -165,6 +166,15 @@ type AuthService interface {
 	AssessLoginRisk(ctx context.Context, userUUID string, securityCtx *models.SecurityContext) (*models.RiskAssessment, error)
 	RecordSecurityEvent(ctx context.Context, event *models.SecurityEvent) error
 	GetSecurityEvents(ctx context.Context, userUUID string, limit int) ([]*models.SecurityEvent, error)
+	// RecordAdminAuthEvent is the high-level entry handlers use to log
+	// an admin-on-user action. actorUUID = the admin, targetUUID = the
+	// user the action affects. Both end up in the persisted row (the
+	// actor goes into Metadata["actorUUID"]).
+	RecordAdminAuthEvent(ctx context.Context, eventType, actorUUID, targetUUID string, fields map[string]interface{})
+	// RecordSelfAuthEvent is the same for the case where the actor is
+	// the target — self-service password reconfirm, OAuth link/unlink,
+	// session revoke, etc.
+	RecordSelfAuthEvent(ctx context.Context, eventType, userUUID string, fields map[string]interface{})
 
 	// Migration utilities
 	MigrateUserToUUID(ctx context.Context, userID primitive.ObjectID) (*userModels.User, error)
@@ -216,6 +226,10 @@ type AuthConfig struct {
 	// minimal deploys don't need the full scorer plumbed. Section C item
 	// #1 of the 2026-04-24 auth roadmap.
 	RiskAssessment RiskAssessmentService
+	// SecurityEventRepo persists the auth_security_events audit log.
+	// Nil falls back to the legacy no-op contract — events are logged
+	// via slog but not stored. Phase 2.1 of the core-completion epic.
+	SecurityEventRepo repository.SecurityEventRepository
 }
 
 type authService struct {
@@ -247,6 +261,10 @@ type authService struct {
 	// kill (the persisted state still updates, just no immediate
 	// effect on outstanding bearer tokens).
 	sessionRevocation SessionRevocationService
+	// securityEventRepo persists the auth_security_events audit log.
+	// Nil falls back to the pre-Phase-2.1 no-op: events log via slog
+	// but are not stored. Set via AuthConfig at construction.
+	securityEventRepo repository.SecurityEventRepository
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -287,6 +305,7 @@ func NewAuthService(config *AuthConfig) (AuthService, error) {
 		mfaChallengeService: config.MFAChallengeService,
 		firstAdminClaimer:   config.FirstAdminClaimer,
 		riskAssessment:      config.RiskAssessment,
+		securityEventRepo:   config.SecurityEventRepo,
 	}, nil
 }
 
@@ -467,12 +486,9 @@ func (s *authService) AdminUnlinkOAuth(ctx context.Context, actorUUID, targetUUI
 		return err
 	}
 
-	slog.Info("admin_auth_action",
-		"event", "admin_oauth_unlink",
-		"actorUUID", actorUUID,
-		"targetUUID", targetUUID,
-		"provider", string(provider),
-	)
+	s.RecordAdminAuthEvent(ctx, "admin_oauth_unlink", actorUUID, targetUUID, map[string]interface{}{
+		"provider": string(provider),
+	})
 	return nil
 }
 
@@ -534,11 +550,9 @@ func (s *authService) SelfUnlinkOAuth(ctx context.Context, userUUID string, prov
 	if err := s.userService.RemoveOAuthLinkFromUser(ctx, userUUID, provider, providerID); err != nil {
 		return err
 	}
-	slog.Info("self_auth_action",
-		"event", "self_oauth_unlink",
-		"userUUID", userUUID,
-		"provider", string(provider),
-	)
+	s.RecordSelfAuthEvent(ctx, "self_oauth_unlink", userUUID, map[string]interface{}{
+		"provider": string(provider),
+	})
 	return nil
 }
 
@@ -667,11 +681,9 @@ func (s *authService) SelfLinkOAuthFromCallback(
 		)
 	}
 
-	slog.Info("self_auth_action",
-		"event", "self_oauth_link",
-		"userUUID", userUUID,
-		"provider", string(provider),
-	)
+	s.RecordSelfAuthEvent(ctx, "self_oauth_link", userUUID, map[string]interface{}{
+		"provider": string(provider),
+	})
 	return nil
 }
 
@@ -958,11 +970,9 @@ func (s *authService) RevokeUserSession(ctx context.Context, userUUID, sessionUU
 	if err := s.revokeSessionInternal(ctx, sessionUUID, "user_self_revoke"); err != nil {
 		return err
 	}
-	slog.Info("self_auth_action",
-		"event", "self_session_revoke",
-		"userUUID", userUUID,
-		"sessionUUID", sessionUUID,
-	)
+	s.RecordSelfAuthEvent(ctx, "self_session_revoke", userUUID, map[string]interface{}{
+		"sessionUUID": sessionUUID,
+	})
 	return nil
 }
 
@@ -990,11 +1000,9 @@ func (s *authService) RevokeAllUserSessionsExcept(ctx context.Context, userUUID,
 		}
 		revoked++
 	}
-	slog.Info("self_auth_action",
-		"event", "self_session_revoke_all",
-		"userUUID", userUUID,
-		"revoked", revoked,
-	)
+	s.RecordSelfAuthEvent(ctx, "self_session_revoke_all", userUUID, map[string]interface{}{
+		"revoked": revoked,
+	})
 	return revoked, nil
 }
 
@@ -1400,12 +1408,115 @@ func (s *authService) AssessLoginRisk(ctx context.Context, userUUID string, secu
 	return s.riskAssessment.AssessLoginRisk(ctx, userUUID, securityCtx)
 }
 
+// RecordSecurityEvent appends one row to auth_security_events. When the
+// repository is wired (production path) the call persists. When it is
+// nil (legacy tests, minimal builds) the method behaves as the pre-
+// Phase-2.1 no-op so existing callers keep working.
+//
+// Persistence failures are surfaced to the caller — admin and self
+// handlers log + downgrade so a degraded Mongo doesn't break the
+// user-facing action (the slog line still survives in stdout / Loki).
 func (s *authService) RecordSecurityEvent(ctx context.Context, event *models.SecurityEvent) error {
-	return nil // Placeholder
+	if s.securityEventRepo == nil {
+		return nil
+	}
+	if event == nil {
+		return fmt.Errorf("RecordSecurityEvent: event is nil")
+	}
+	return s.securityEventRepo.Insert(ctx, event)
 }
 
+// GetSecurityEvents returns up to `limit` most-recent events for the
+// user, newest first. limit<=0 falls back to the repository default
+// (100). Returns an empty slice when the user has no events. When the
+// repository is not wired the method returns an empty slice and nil
+// error — matches the pre-Phase-2.1 no-op so callers don't have to
+// special-case the degraded build.
 func (s *authService) GetSecurityEvents(ctx context.Context, userUUID string, limit int) ([]*models.SecurityEvent, error) {
-	return []*models.SecurityEvent{}, nil
+	if s.securityEventRepo == nil {
+		return []*models.SecurityEvent{}, nil
+	}
+	return s.securityEventRepo.ListByUser(ctx, userUUID, limit)
+}
+
+// recordAuthEvent emits the unified audit-log line for an auth-side
+// action and persists a row in auth_security_events when the repo is
+// wired. The slog half always runs so log shipping picks up the signal
+// even when persistence is degraded. Persistence is best-effort:
+// failures log a Warn but never error the caller's operation — losing
+// an audit row must not strand the user.
+//
+// eventType naming convention: `admin_<verb>` for actor-on-target
+// admin actions, `self_<verb>` for the same user acting on themselves.
+// The "userUUID" field on the persisted row is the *target* — the user
+// the action affects; "actor" lives in Metadata for admin paths.
+func (s *authService) recordAuthEvent(ctx context.Context, eventType, targetUUID string, metadata map[string]interface{}) {
+	if targetUUID == "" || eventType == "" {
+		return
+	}
+	ip, _ := ipFromCtx(ctx)
+
+	args := []any{"event", eventType, "targetUUID", targetUUID}
+	if ip != "" {
+		args = append(args, "ip", ip)
+	}
+	for k, v := range metadata {
+		args = append(args, k, v)
+	}
+	slog.InfoContext(ctx, "auth_security_event", args...)
+
+	if s.securityEventRepo == nil {
+		return
+	}
+	// Copy the metadata so the persisted row is independent of any
+	// mutation a downstream caller might do on the source map.
+	md := make(map[string]interface{}, len(metadata)+1)
+	for k, v := range metadata {
+		md[k] = v
+	}
+	event := &models.SecurityEvent{
+		UserUUID:  targetUUID,
+		EventType: eventType,
+		IPAddress: ip,
+		Success:   true,
+		Metadata:  md,
+		Timestamp: time.Now().UTC(),
+	}
+	if err := s.securityEventRepo.Insert(ctx, event); err != nil {
+		slog.WarnContext(ctx, "auth_security_event persist failed",
+			"eventType", eventType,
+			"targetUUID", targetUUID,
+			"error", err.Error(),
+		)
+	}
+}
+
+// RecordAdminAuthEvent is the public entry point handlers use to log a
+// successful admin-on-user auth action. actorUUID is the admin
+// performing the action; targetUUID is the user the action affects.
+// Both land in the persisted row so the audit timeline shows who did
+// what to whom.
+func (s *authService) RecordAdminAuthEvent(ctx context.Context, eventType, actorUUID, targetUUID string, fields map[string]interface{}) {
+	md := make(map[string]interface{}, len(fields)+1)
+	for k, v := range fields {
+		md[k] = v
+	}
+	if actorUUID != "" {
+		md["actorUUID"] = actorUUID
+	}
+	s.recordAuthEvent(ctx, eventType, targetUUID, md)
+}
+
+// RecordSelfAuthEvent logs an action the user performed on their own
+// account. userUUID is both the actor and the target.
+func (s *authService) RecordSelfAuthEvent(ctx context.Context, eventType, userUUID string, fields map[string]interface{}) {
+	s.recordAuthEvent(ctx, eventType, userUUID, fields)
+}
+
+// ipFromCtx is a thin wrapper around ctxauth.GetClientIP that drops the
+// `ok` flag at this call site (the audit record tolerates an empty IP).
+func ipFromCtx(ctx context.Context) (string, bool) {
+	return ctxauth.GetClientIP(ctx)
 }
 
 func (s *authService) MigrateUserToUUID(ctx context.Context, userID primitive.ObjectID) (*userModels.User, error) {

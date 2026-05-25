@@ -1,16 +1,10 @@
 package services
 
-// Safety-net tests pinning the *current* behaviour of two methods that the
-// upcoming refactor will mutate:
-//
-//   - GetOAuthLinks: hardcodes RequiresMFA=false ignoring real MFA state —
-//     Phase 1.3 computes it from MFAFactorRepo.
-//   - RecordSecurityEvent / GetSecurityEvents: no-op + empty list —
-//     Phase 2.1 replaces with real persistence.
-//
-// When those phases land, the failing tests in this file are the signal to
-// delete or update — they exist precisely to make sure the refactor does
-// what we think it does.
+// Phase 1.3 + 2.1 follow-on tests for surfaces the core-completion epic
+// reworked. GetOAuthLinks now computes RequiresMFA from real factor state;
+// RecordSecurityEvent / GetSecurityEvents now persist when a repository is
+// wired (and stay no-op when it isn't, for backward compat with minimal
+// builds that don't wire the repo).
 //
 // The AddOAuthLink stub had its sentinel test removed alongside the stub
 // itself in Phase 1.2 — link creation goes through the OAuth flow exposed
@@ -18,6 +12,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -185,10 +180,11 @@ func TestGetOAuthLinks_PropagatesUserServiceError(t *testing.T) {
 	}
 }
 
-// TestRecordSecurityEvent_CurrentlyNoOpReturnsNil locks the current placeholder.
-// Phase 2.1 implements real persistence; this test gets rewritten to assert
-// the event landed in auth_security_events.
-func TestRecordSecurityEvent_CurrentlyNoOpReturnsNil(t *testing.T) {
+// TestRecordSecurityEvent_NoRepoStillReturnsNil: a service constructed
+// without SecurityEventRepo (minimal build / older test fixtures) must
+// keep behaving as the pre-Phase-2.1 no-op so existing tests in the
+// auth tree don't break. Real persistence is tested separately below.
+func TestRecordSecurityEvent_NoRepoStillReturnsNil(t *testing.T) {
 	t.Parallel()
 	svc := &authService{}
 
@@ -199,21 +195,181 @@ func TestRecordSecurityEvent_CurrentlyNoOpReturnsNil(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 	if err != nil {
-		t.Errorf("placeholder must return nil, got %v", err)
+		t.Errorf("no-repo path must return nil, got %v", err)
 	}
 }
 
-// TestGetSecurityEvents_CurrentlyReturnsEmptySlice — same as above, the
-// reader-side companion that Phase 2.3 replaces with a Mongo query.
-func TestGetSecurityEvents_CurrentlyReturnsEmptySlice(t *testing.T) {
+// TestGetSecurityEvents_NoRepoReturnsEmptySlice: same backward-compat
+// path on the reader side.
+func TestGetSecurityEvents_NoRepoReturnsEmptySlice(t *testing.T) {
 	t.Parallel()
 	svc := &authService{}
 
 	events, err := svc.GetSecurityEvents(context.Background(), "u-1", 100)
 	if err != nil {
-		t.Errorf("placeholder must return nil error, got %v", err)
+		t.Errorf("no-repo path must return nil error, got %v", err)
 	}
 	if len(events) != 0 {
-		t.Errorf("placeholder must return an empty slice, got %d entries", len(events))
+		t.Errorf("no-repo path must return an empty slice, got %d entries", len(events))
+	}
+}
+
+// fakeSecurityEventRepo is an in-memory SecurityEventRepository for the
+// Phase 2.1 persistence tests. Tracks Insert calls so a test can assert
+// the row landed; ListByUser sorts newest-first like the real impl.
+type fakeSecurityEventRepo struct {
+	mu     sync.Mutex
+	rows   []*models.SecurityEvent
+	insErr error
+}
+
+func (f *fakeSecurityEventRepo) Insert(_ context.Context, e *models.SecurityEvent) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.insErr != nil {
+		return f.insErr
+	}
+	clone := *e
+	if clone.ID == "" {
+		clone.ID = "fake-" + clone.EventType
+	}
+	if clone.Timestamp.IsZero() {
+		clone.Timestamp = time.Now().UTC()
+	}
+	f.rows = append(f.rows, &clone)
+	return nil
+}
+
+func (f *fakeSecurityEventRepo) ListByUser(_ context.Context, userUUID string, limit int) ([]*models.SecurityEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	out := make([]*models.SecurityEvent, 0, len(f.rows))
+	for i := len(f.rows) - 1; i >= 0; i-- {
+		if f.rows[i].UserUUID == userUUID {
+			out = append(out, f.rows[i])
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeSecurityEventRepo) ListByUserPaged(_ context.Context, userUUID string, offset, limit int, since *time.Time) ([]*models.SecurityEvent, int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	matches := make([]*models.SecurityEvent, 0, len(f.rows))
+	for i := len(f.rows) - 1; i >= 0; i-- {
+		if f.rows[i].UserUUID != userUUID {
+			continue
+		}
+		if since != nil && !since.IsZero() && f.rows[i].Timestamp.Before(*since) {
+			continue
+		}
+		matches = append(matches, f.rows[i])
+	}
+	total := int64(len(matches))
+	if offset >= len(matches) {
+		return []*models.SecurityEvent{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(matches) {
+		end = len(matches)
+	}
+	return matches[offset:end], total, nil
+}
+
+func (f *fakeSecurityEventRepo) DeleteAllByUser(_ context.Context, userUUID string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	kept := f.rows[:0]
+	var deleted int64
+	for _, r := range f.rows {
+		if r.UserUUID == userUUID {
+			deleted++
+			continue
+		}
+		kept = append(kept, r)
+	}
+	f.rows = kept
+	return deleted, nil
+}
+
+// TestRecordSecurityEvent_PersistsToRepoWhenWired: the production path.
+// The service must hand events to the wired repo without further
+// transformation; the repo is the system of record for the audit log.
+func TestRecordSecurityEvent_PersistsToRepoWhenWired(t *testing.T) {
+	t.Parallel()
+	repo := &fakeSecurityEventRepo{}
+	svc := &authService{securityEventRepo: repo}
+
+	err := svc.RecordSecurityEvent(context.Background(), &models.SecurityEvent{
+		UserUUID:  "u-1",
+		EventType: "admin_oauth_unlink",
+		IPAddress: "10.0.0.1",
+		Success:   true,
+	})
+	if err != nil {
+		t.Fatalf("RecordSecurityEvent: %v", err)
+	}
+	if len(repo.rows) != 1 {
+		t.Fatalf("expected 1 row in repo, got %d", len(repo.rows))
+	}
+	if repo.rows[0].EventType != "admin_oauth_unlink" {
+		t.Errorf("EventType lost in flight: %+v", repo.rows[0])
+	}
+	if repo.rows[0].IPAddress != "10.0.0.1" {
+		t.Errorf("IPAddress lost in flight: %+v", repo.rows[0])
+	}
+}
+
+// TestRecordSecurityEvent_RejectsNilEvent: a nil event is a programmer
+// error — never silently dropped, always surfaced.
+func TestRecordSecurityEvent_RejectsNilEvent(t *testing.T) {
+	t.Parallel()
+	repo := &fakeSecurityEventRepo{}
+	svc := &authService{securityEventRepo: repo}
+
+	if err := svc.RecordSecurityEvent(context.Background(), nil); err == nil {
+		t.Fatal("expected error for nil event")
+	}
+	if len(repo.rows) != 0 {
+		t.Errorf("nil event should not have inserted a row")
+	}
+}
+
+// TestGetSecurityEvents_RoundTripsThroughRepo: writes then reads back,
+// verifies the newest-first ordering and limit.
+func TestGetSecurityEvents_RoundTripsThroughRepo(t *testing.T) {
+	t.Parallel()
+	repo := &fakeSecurityEventRepo{}
+	svc := &authService{securityEventRepo: repo}
+
+	for i, evt := range []string{"login", "password_reconfirm", "admin_oauth_unlink"} {
+		if err := svc.RecordSecurityEvent(context.Background(), &models.SecurityEvent{
+			UserUUID:  "u-1",
+			EventType: evt,
+			Timestamp: time.Date(2026, 5, 1+i, 0, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("seed %s: %v", evt, err)
+		}
+	}
+
+	events, err := svc.GetSecurityEvents(context.Background(), "u-1", 10)
+	if err != nil {
+		t.Fatalf("GetSecurityEvents: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("want 3 events, got %d", len(events))
+	}
+	// Newest first.
+	if events[0].EventType != "admin_oauth_unlink" {
+		t.Errorf("expected newest first, got %q", events[0].EventType)
+	}
+	if events[2].EventType != "login" {
+		t.Errorf("expected oldest last, got %q", events[2].EventType)
 	}
 }

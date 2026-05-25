@@ -88,6 +88,11 @@ type tierBundleDeps struct {
 	// authPolicy is the shared policy reader; both bundles consume the
 	// same instance. Nil = legacy "always-on" semantics.
 	authPolicy *services.AuthPolicyService
+	// securityEventRepo persists the auth_security_events audit log.
+	// Single (non-tier-split) collection — both bundles share the same
+	// repository instance. Nil = the legacy no-op contract (events
+	// silently dropped; only the slog line survives).
+	securityEventRepo repository.SecurityEventRepository
 }
 
 // buildAuthTierBundle constructs the per-tier repos + RiskAssessment +
@@ -132,6 +137,7 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 		MFAChallengeService: d.mfaChallengeService,
 		FirstAdminClaimer:   d.firstAdminClaimer,
 		RiskAssessment:      risk,
+		SecurityEventRepo:   d.securityEventRepo,
 	})
 	if err != nil {
 		return nil, err
@@ -178,6 +184,13 @@ func buildAuthTierBundle(d tierBundleDeps) (*authTierBundle, error) {
 	// Phase 10: hand the policy to the MFA service so backup-code
 	// generation honours the recoveryCodesCount toggle live.
 	mfaSvc.SetPolicy(d.authPolicy)
+	// Phase 2.2: route backup-code regen audit through authService so
+	// the row lands in auth_security_events alongside the rest of the
+	// audit timeline. authSvc satisfies services.SecurityEventSink via
+	// its RecordSelfAuthEvent method.
+	if sink, ok := authSvc.(services.SecurityEventSink); ok {
+		mfaSvc.SetAuditSink(sink)
+	}
 
 	var webauthnSvc services.WebAuthnService
 	if d.webauthnRP != nil {
