@@ -1,10 +1,8 @@
 package services
 
-// Safety-net tests pinning the *current* behaviour of three methods that the
+// Safety-net tests pinning the *current* behaviour of two methods that the
 // upcoming refactor will mutate:
 //
-//   - AddOAuthLink: stub returning a "not implemented" error — Phase 1.2 deletes it
-//     entirely (the live link flow lives in self_user_auth_handler).
 //   - GetOAuthLinks: hardcodes RequiresMFA=false ignoring real MFA state —
 //     Phase 1.3 computes it from MFAFactorRepo.
 //   - RecordSecurityEvent / GetSecurityEvents: no-op + empty list —
@@ -13,10 +11,13 @@ package services
 // When those phases land, the failing tests in this file are the signal to
 // delete or update — they exist precisely to make sure the refactor does
 // what we think it does.
+//
+// The AddOAuthLink stub had its sentinel test removed alongside the stub
+// itself in Phase 1.2 — link creation goes through the OAuth flow exposed
+// by self_user_auth_handler, not a service-level entry point.
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,58 +25,126 @@ import (
 	userModels "github.com/orkestra/backend/internal/core/user/models"
 )
 
-// TestAddOAuthLink_StubReturnsNotImplemented locks the current placeholder
-// behaviour. Phase 1.2 deletes both the method and this test.
-func TestAddOAuthLink_StubReturnsNotImplemented(t *testing.T) {
-	t.Parallel()
-	svc := &authService{userService: newAdminUnlinkUserFake()}
-
-	err := svc.AddOAuthLink(context.Background(), "u1", models.LinkOAuthProviderInput{
-		Provider: models.OAuthProviderGoogle,
-		Code:     "fake-code",
-	})
-	if err == nil {
-		t.Fatal("AddOAuthLink stub must return an error; the live flow is /me/oauth/link/{provider}")
-	}
-	// The error message names the provider — keep the assertion loose so
-	// Phase 1.2's deletion is the only place this contract changes.
-	if !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("error %q does not advertise the placeholder; live wiring may have been added without removing the stub", err)
-	}
-}
-
-// TestGetOAuthLinks_BaselineReturnsLinksWithoutMFAFlag captures the current
-// (buggy) RequiresMFA=false hardcoding. Phase 1.3 replaces it with a real
-// computation, after which this test must be UPDATED, not deleted — we still
-// want coverage that the field reflects reality.
-func TestGetOAuthLinks_BaselineReturnsLinksWithoutMFAFlag(t *testing.T) {
+// TestGetOAuthLinks_RequiresMFAFalseWithoutFactor: a user with no enrolled
+// factor (nor repo wired) reports RequiresMFA=false so the unlink path
+// surfaces the password-reconfirm modal instead of step-up.
+func TestGetOAuthLinks_RequiresMFAFalseWithoutFactor(t *testing.T) {
 	t.Parallel()
 	fake := newAdminUnlinkUserFake()
 	fake.seed(&userModels.User{
 		UUID:         "u-multi",
-		Role:         "administrator", // role that *should* trigger MFA
+		Role:         "administrator",
 		PasswordHash: "x",
 		OAuthLinks: []userModels.OAuthLink{
 			{Provider: "google", ProviderID: "g-1", Email: "u@x.com", IsActive: true, IsPrimary: true},
 			{Provider: "github", ProviderID: "gh-1", Email: "u@x.com", IsActive: true},
 		},
 	})
+	// mfaFactorRepo intentionally nil — emulates the test wiring before
+	// MFA was bolted on. RequiresMFA must stay false in this degraded mode.
 	svc := &authService{userService: fake}
 
 	resp, err := svc.GetOAuthLinks(context.Background(), "u-multi")
 	if err != nil {
 		t.Fatalf("GetOAuthLinks: %v", err)
 	}
-	if len(resp.Links) != 2 {
-		t.Errorf("Links count = %d, want 2", len(resp.Links))
+	if len(resp.Links) != 2 || !resp.CanUnlink {
+		t.Errorf("Links/CanUnlink mismatch: %+v", resp)
 	}
-	if !resp.CanUnlink {
-		t.Errorf("CanUnlink should be true when 2+ links present")
-	}
-	// Baseline bug: RequiresMFA always false. Phase 1.3 changes this to
-	// reflect the user's enrolled factors + role policy.
 	if resp.RequiresMFA {
-		t.Errorf("baseline contract: RequiresMFA should currently be false (the field is unwired) — has Phase 1.3 already landed?")
+		t.Errorf("RequiresMFA must be false when no MFA factor is wired")
+	}
+}
+
+// TestGetOAuthLinks_RequiresMFATrueWithEnrolledTOTP: a user with a TOTP
+// factor surfaces RequiresMFA=true so the SPA routes the unlink through
+// the step-up modal, not the password-reconfirm one.
+func TestGetOAuthLinks_RequiresMFATrueWithEnrolledTOTP(t *testing.T) {
+	t.Parallel()
+	fake := newAdminUnlinkUserFake()
+	fake.seed(&userModels.User{
+		UUID:         "u-totp",
+		Role:         "administrator",
+		PasswordHash: "x",
+		OAuthLinks: []userModels.OAuthLink{
+			{Provider: "google", ProviderID: "g-1", Email: "u@x.com", IsActive: true},
+		},
+	})
+	enrolled := time.Now().Add(-7 * 24 * time.Hour)
+	factors := newFakeFactorRepo()
+	_ = factors.Insert(context.Background(), &models.MFAFactorDoc{
+		UUID:       "fact-1",
+		UserUUID:   "u-totp",
+		Type:       models.MFAFactorTOTP,
+		VerifiedAt: &enrolled,
+	})
+	svc := &authService{userService: fake, mfaFactorRepo: factors}
+
+	resp, err := svc.GetOAuthLinks(context.Background(), "u-totp")
+	if err != nil {
+		t.Fatalf("GetOAuthLinks: %v", err)
+	}
+	if !resp.RequiresMFA {
+		t.Errorf("user with TOTP factor must report RequiresMFA=true")
+	}
+}
+
+// TestGetOAuthLinks_RequiresMFATrueWithWebAuthn: ditto via the embedded
+// webauthnCredentials array on the WebAuthn factor row.
+func TestGetOAuthLinks_RequiresMFATrueWithWebAuthn(t *testing.T) {
+	t.Parallel()
+	fake := newAdminUnlinkUserFake()
+	fake.seed(&userModels.User{
+		UUID:         "u-wa",
+		Role:         "operator",
+		PasswordHash: "x",
+		OAuthLinks: []userModels.OAuthLink{
+			{Provider: "google", ProviderID: "g-1", Email: "u@x.com", IsActive: true},
+		},
+	})
+	factors := newFakeFactorRepo()
+	_ = factors.Insert(context.Background(), &models.MFAFactorDoc{
+		UUID:     "fact-wa",
+		UserUUID: "u-wa",
+		Type:     models.MFAFactorWebAuthn,
+		WebAuthnCredentials: []models.WebAuthnCredential{
+			{CredentialID: []byte{0x01, 0x02}, Name: "Touch ID", CreatedAt: time.Now()},
+		},
+	})
+	svc := &authService{userService: fake, mfaFactorRepo: factors}
+
+	resp, _ := svc.GetOAuthLinks(context.Background(), "u-wa")
+	if !resp.RequiresMFA {
+		t.Errorf("user with WebAuthn credential must report RequiresMFA=true")
+	}
+}
+
+// TestGetOAuthLinks_RequiresMFAFalseWithEmptyWebAuthnArray: a WebAuthn factor
+// row that exists but carries zero credentials must NOT count — the embedded
+// array is the source of truth for "is a passkey enrolled".
+func TestGetOAuthLinks_RequiresMFAFalseWithEmptyWebAuthnArray(t *testing.T) {
+	t.Parallel()
+	fake := newAdminUnlinkUserFake()
+	fake.seed(&userModels.User{
+		UUID:         "u-wa-empty",
+		Role:         "operator",
+		PasswordHash: "x",
+		OAuthLinks: []userModels.OAuthLink{
+			{Provider: "google", ProviderID: "g-1", IsActive: true},
+		},
+	})
+	factors := newFakeFactorRepo()
+	_ = factors.Insert(context.Background(), &models.MFAFactorDoc{
+		UUID:                "fact-wa-empty",
+		UserUUID:            "u-wa-empty",
+		Type:                models.MFAFactorWebAuthn,
+		WebAuthnCredentials: nil,
+	})
+	svc := &authService{userService: fake, mfaFactorRepo: factors}
+
+	resp, _ := svc.GetOAuthLinks(context.Background(), "u-wa-empty")
+	if resp.RequiresMFA {
+		t.Errorf("WebAuthn factor row with 0 credentials must not flip RequiresMFA")
 	}
 }
 

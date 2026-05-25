@@ -95,8 +95,11 @@ type AuthService interface {
 	// the caller has already rejected the unknown values.
 	UpdateLanguageByUUID(ctx context.Context, uuid, language string) error
 
-	// OAuth Link Management
-	AddOAuthLink(ctx context.Context, userUUID string, link models.LinkOAuthProviderInput) error
+	// OAuth Link Management. Adding a new identity goes through the
+	// signed-state OAuth flow (POST /v1/auth/{tier}/me/oauth/link/{provider})
+	// in self_user_auth_handler — there is no service-level AddOAuthLink:
+	// the OAuth round-trip plus identity-binding only makes sense behind
+	// the live HTTP handler.
 	RemoveOAuthLink(ctx context.Context, userUUID string, input models.UnlinkOAuthProviderInput) error
 	SetPrimaryOAuthLink(ctx context.Context, userUUID string, input models.SetPrimaryOAuthProviderInput) error
 	GetOAuthLinks(ctx context.Context, userUUID string) (*models.OAuthLinksResponse, error)
@@ -322,13 +325,6 @@ func (s *authService) DeleteUserByUUID(ctx context.Context, uuid string) error {
 	return s.userService.DeleteUser(ctx, uuid)
 }
 
-func (s *authService) AddOAuthLink(ctx context.Context, userUUID string, linkInput models.LinkOAuthProviderInput) error {
-	// This method handles OAuth flow input to add a new link
-	// TODO: Implement OAuth provider exchange to get provider ID and user info
-	// For now, this is a placeholder that indicates the OAuth flow is not yet fully implemented
-	return fmt.Errorf("OAuth link addition via OAuth flow not yet implemented - provider: %s", linkInput.Provider)
-}
-
 func (s *authService) RemoveOAuthLink(ctx context.Context, userUUID string, input models.UnlinkOAuthProviderInput) error {
 	// Get user's OAuth links to find the one to remove
 	links, err := s.userService.GetUserOAuthLinks(ctx, userUUID)
@@ -399,8 +395,27 @@ func (s *authService) GetOAuthLinks(ctx context.Context, userUUID string) (*mode
 	return &models.OAuthLinksResponse{
 		Links:       authLinks,
 		CanUnlink:   len(authLinks) > 1, // Can only unlink if more than one link exists
-		RequiresMFA: false,              // TODO: Implement MFA logic
+		RequiresMFA: s.userHasEnrolledMFAFactor(ctx, userUUID),
 	}, nil
+}
+
+// userHasEnrolledMFAFactor returns true when the user has any enrolled MFA
+// factor (TOTP or WebAuthn) so the unlink-OAuth flow knows to surface the
+// step-up modal rather than the password-reconfirm one. Mirrors the lookup
+// `RequireStepUp` middleware performs via MFAEnrollmentLookup. Best-effort:
+// repo errors return false so a transient Mongo blip degrades the UX hint
+// without erroring the whole response.
+func (s *authService) userHasEnrolledMFAFactor(ctx context.Context, userUUID string) bool {
+	if s.mfaFactorRepo == nil || userUUID == "" {
+		return false
+	}
+	if totp, err := s.mfaFactorRepo.FindByUserAndType(ctx, userUUID, models.MFAFactorTOTP); err == nil && totp != nil {
+		return true
+	}
+	if wa, err := s.mfaFactorRepo.FindByUserAndType(ctx, userUUID, models.MFAFactorWebAuthn); err == nil && wa != nil && len(wa.WebAuthnCredentials) > 0 {
+		return true
+	}
+	return false
 }
 
 // AdminUnlinkOAuth removes one linked OAuth identity from another
