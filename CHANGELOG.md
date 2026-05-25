@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.4] - 2026-05-25
+
+### Bug fixes
+
+- **(auth)** Skip intermediate OAuth callback page, land on profile ([232844b](https://github.com/orkestra-cc/orkestra/commit/232844bbf5386fe9caa391925bd3cc90643a954c))
+
 ## [0.1.3] - 2026-05-25
 
 ### Bug fixes
