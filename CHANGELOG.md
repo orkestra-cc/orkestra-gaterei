@@ -4,16 +4,51 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.3] - 2026-05-25
+
+### Bug fixes
+
+- **(auth)** SocialLoginForm respects /admin/modules/auth provider toggles ([30cf831](https://github.com/orkestra-cc/orkestra/commit/30cf831148034fe34ae1b2066938b508cff70656))
+- **(user)** Wire user.avatar.self permission to the avatar routes ([3540c59](https://github.com/orkestra-cc/orkestra/commit/3540c59758e1bc2b8141c081ae266e5e2768b790))
+
+### CI
+
+- Re-trigger backend CI after sync merge ([ea36c11](https://github.com/orkestra-cc/orkestra/commit/ea36c11a1760b5784f56c028cca6172ea2b16861))
+
+### Chores
+
+- **(sync)** Merge main into dev (avatar pipeline + release hygiene) ([864a634](https://github.com/orkestra-cc/orkestra/commit/864a634d94aa6f62f275b3dbaf6612f6c3ae804f))
+
 ## [0.1.2] - 2026-05-24
 
 ### Features
 
 - **(frontend-client)** Self-service avatar surface ([92f6d2f](https://github.com/orkestra-cc/orkestra/commit/92f6d2f4ef74f21d88ae1d516c401ada3968122a))
 - **(avatar)** Self-service user avatar pipeline (upload / OAuth / initials) ([e800fc0](https://github.com/orkestra-cc/orkestra/commit/e800fc09121a120df8da37ba8ca1305bacf7f5e4))
+- **(auth)** MfaMethods allow-list gates factor enrollment ([bd10251](https://github.com/orkestra-cc/orkestra/commit/bd102513a87e4d6a2c84eab2eacacf7446f3909e))
+- **(auth)** Live admin reads for accessTokenTTL + passwordResetTokenTTL ([e232595](https://github.com/orkestra-cc/orkestra/commit/e23259507d13318efc46f8d2f9101e89b44a72ff))
+- **(auth)** Persistent audit log for security events ([ff5728a](https://github.com/orkestra-cc/orkestra/commit/ff5728af9887d3296d6241d83c95cbe742baa09c))
+
+### Bug fixes
+
+- **(auth)** Silence tenantscope on auth_security_events repo ([3e8afb2](https://github.com/orkestra-cc/orkestra/commit/3e8afb22730158c09cbb91a3110be0bede43206f))
+
+### Refactor
+
+- **(auth)** Close all open TODOs in core/auth ([50062fe](https://github.com/orkestra-cc/orkestra/commit/50062fe6266dd107352f810f0c2b6074f6f2725c))
+
+### Tests
+
+- **(core)** Expand safety-net coverage on navigation, logging, auth ([4daead4](https://github.com/orkestra-cc/orkestra/commit/4daead4b5075c9bfb397dfbece194a04bf246c2f))
 
 ### CI
 
 - **(release)** Bump softprops/action-gh-release to v3 for Node 24 runtime ([0ec8171](https://github.com/orkestra-cc/orkestra/commit/0ec817174288e8466fca44915606426aa78f373b))
+
+### Chores
+
+- **(openapi)** Regenerate enterprise.json after PR #52 routes ([8d0af99](https://github.com/orkestra-cc/orkestra/commit/8d0af997f6c199887e762005221b695a7f6aebf0))
+- **(sync)** Merge main into dev (Dependabot bumps #39 #48 #49 + badge refresh) ([d0a9a1a](https://github.com/orkestra-cc/orkestra/commit/d0a9a1aa85a4b16e7e707f430e30b83bcd01737b))
 
 ## [0.1.1] - 2026-05-24
 
