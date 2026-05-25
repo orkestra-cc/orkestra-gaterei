@@ -100,6 +100,7 @@ func (r *securityEventRepository) ListByUser(ctx context.Context, userUUID strin
 	opts := options.Find().
 		SetSort(bson.D{{Key: "timestamp", Value: -1}}).
 		SetLimit(int64(limit))
+	//tenantscope:allow auth_security_events is a non-tier-split audit log keyed on userUUID alone — see backend/internal/core/auth/CLAUDE.md ("MongoDB collections" table marks auth_security_events as the single non-tier-split row).
 	cursor, err := r.collection.Find(ctx, bson.M{"userUuid": userUUID}, opts)
 	if err != nil {
 		return nil, err
@@ -139,6 +140,7 @@ func (r *securityEventRepository) ListByUserPaged(ctx context.Context, userUUID 
 		filter["timestamp"] = bson.M{"$gte": *since}
 	}
 
+	//tenantscope:allow auth_security_events is a non-tier-split audit log keyed on userUUID alone — pagination count for the admin per-user timeline.
 	total, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, err
@@ -151,6 +153,7 @@ func (r *securityEventRepository) ListByUserPaged(ctx context.Context, userUUID 
 		SetSort(bson.D{{Key: "timestamp", Value: -1}}).
 		SetSkip(int64(offset)).
 		SetLimit(int64(limit))
+	//tenantscope:allow auth_security_events is a non-tier-split audit log keyed on userUUID alone — see backend/internal/core/auth/CLAUDE.md.
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, total, err
@@ -172,6 +175,7 @@ func (r *securityEventRepository) DeleteAllByUser(ctx context.Context, userUUID 
 	if userUUID == "" {
 		return 0, errors.New("security event: userUUID is required")
 	}
+	//tenantscope:allow auth_security_events is a non-tier-split audit log keyed on userUUID alone — used by the GDPR DSR right-to-erasure pipeline; deletion follows the user record across all tenants they ever held a binding in.
 	res, err := r.collection.DeleteMany(ctx, bson.M{"userUuid": userUUID})
 	if err != nil {
 		return 0, err
