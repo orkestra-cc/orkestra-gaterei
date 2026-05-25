@@ -204,6 +204,18 @@ func (m *AuthModule) ConfigSchema() []module.ConfigField {
 			Description: "Go duration string (e.g. 15m, 1h) — how long an IP/email stays locked after exceeding the threshold. Default 15m.",
 			Type:        module.FieldDuration, Default: "15m",
 		},
+		// Phase 3.1 — admin-managed token TTLs. Both are read live on
+		// every mint so an admin edit takes effect on the next call.
+		{
+			Key: "accessTokenTTL", Label: "Access token lifetime", Group: "Login & Sessions",
+			Description: "Go duration string — how long an issued access token stays valid. Shorter = tighter security but more refresh round-trips. Default 15m.",
+			Type:        module.FieldDuration, Default: "15m",
+		},
+		{
+			Key: "passwordResetTokenTTL", Label: "Password reset link lifetime", Group: "Login & Sessions",
+			Description: "Go duration string — how long the link in the reset-password email stays valid. Default 30m.",
+			Type:        module.FieldDuration, Default: "30m",
+		},
 
 		// Password Policy — site-wide rules enforced by passwordService.
 		// ValidatePolicy on signup / change-password / reset. Defaults
@@ -627,6 +639,11 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	// service so length / complexity / HIBP rules can be edited live
 	// at /admin/modules/auth without a restart.
 	passwordSvc.SetPolicy(authPolicy)
+	// Phase 3.1: hand the same policy to the operator JWT service so
+	// accessTokenTTL is read live on every mint. The client JWT
+	// service is constructed later in this function — we wire it
+	// inline at that site.
+	operatorJWT.SetPolicy(authPolicy)
 
 	// Suspicious-login notifier — constructed here (after authPolicy)
 	// so the admin-email half can read notifyAdminOnSuspiciousLogin /
@@ -794,6 +811,8 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 		return err
 	}
 	clientJWT.SetTenantProvider(tenantProvider)
+	// Phase 3.1: live accessTokenTTL lookup for the client tier too.
+	clientJWT.SetPolicy(authPolicy)
 
 	clDeps := commonTierDeps
 	clDeps.tier = tierClient

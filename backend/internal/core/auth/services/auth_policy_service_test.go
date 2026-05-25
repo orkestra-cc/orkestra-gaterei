@@ -190,6 +190,71 @@ func TestLockoutDuration(t *testing.T) {
 	}
 }
 
+// Phase 3.1 — accessTokenTTL + passwordResetTokenTTL live reads.
+// Mirror the LockoutDuration test shape: legacy default on
+// unset/empty/malformed/zero; honored when a valid value is set.
+
+func TestAccessTokenTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		set  map[string]string
+		want time.Duration
+	}{
+		{"unset falls back", nil, 15 * time.Minute},
+		{"empty falls back", map[string]string{"accessTokenTTL": ""}, 15 * time.Minute},
+		{"valid 5m", map[string]string{"accessTokenTTL": "5m"}, 5 * time.Minute},
+		{"valid 1h", map[string]string{"accessTokenTTL": "1h"}, time.Hour},
+		{"malformed falls back", map[string]string{"accessTokenTTL": "forever"}, 15 * time.Minute},
+		{"zero falls back", map[string]string{"accessTokenTTL": "0s"}, 15 * time.Minute},
+		{"negative falls back", map[string]string{"accessTokenTTL": "-5m"}, 15 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPolicy(tc.set)
+			if got := p.AccessTokenTTL(context.Background()); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAccessTokenTTL_NilService_LegacyDefault(t *testing.T) {
+	var p *AuthPolicyService
+	if got := p.AccessTokenTTL(context.Background()); got != 15*time.Minute {
+		t.Errorf("nil policy = %v, want 15m", got)
+	}
+}
+
+func TestPasswordResetTokenTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		set  map[string]string
+		want time.Duration
+	}{
+		{"unset falls back", nil, 30 * time.Minute},
+		{"empty falls back", map[string]string{"passwordResetTokenTTL": ""}, 30 * time.Minute},
+		{"valid 5m", map[string]string{"passwordResetTokenTTL": "5m"}, 5 * time.Minute},
+		{"valid 24h", map[string]string{"passwordResetTokenTTL": "24h"}, 24 * time.Hour},
+		{"malformed falls back", map[string]string{"passwordResetTokenTTL": "forever"}, 30 * time.Minute},
+		{"zero falls back", map[string]string{"passwordResetTokenTTL": "0s"}, 30 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPolicy(tc.set)
+			if got := p.PasswordResetTokenTTL(context.Background()); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPasswordResetTokenTTL_NilService_LegacyDefault(t *testing.T) {
+	var p *AuthPolicyService
+	if got := p.PasswordResetTokenTTL(context.Background()); got != 30*time.Minute {
+		t.Errorf("nil policy = %v, want 30m", got)
+	}
+}
+
 func TestPasswordPolicy_NilService_LegacyDefaults(t *testing.T) {
 	var p *AuthPolicyService
 	pp := p.PasswordPolicy(context.Background())

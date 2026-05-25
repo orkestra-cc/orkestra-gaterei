@@ -20,6 +20,11 @@ const (
 	defaultPasswordMinLength     = 10
 	defaultPasswordMaxLength     = 128
 	defaultBreachedPasswordCheck = true
+	// Phase 3.1 defaults — match the pre-policy hardcoded behaviour so
+	// a deployment without the policy keys set keeps minting tokens
+	// with the same TTLs that the env-var-driven NewJWTService used.
+	defaultAccessTokenTTL        = 15 * time.Minute
+	defaultPasswordResetTokenTTL = 30 * time.Minute
 )
 
 // PolicyAudience names the surface a policy lookup is being performed for.
@@ -164,6 +169,45 @@ func (s *AuthPolicyService) LockoutThreshold(ctx context.Context) int {
 		return defaultLockoutThreshold
 	}
 	return n
+}
+
+// AccessTokenTTL returns the admin-managed access-token lifetime.
+// Falls back to defaultAccessTokenTTL (15m) when unset, invalid, or
+// the policy service / underlying ConfigService is missing. The JWT
+// service consults this on every GenerateAccessToken so admin edits
+// take effect on the next mint. Phase 3.1 of the auth-policy roadmap.
+func (s *AuthPolicyService) AccessTokenTTL(ctx context.Context) time.Duration {
+	if s == nil || s.cs == nil {
+		return defaultAccessTokenTTL
+	}
+	v := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "accessTokenTTL"))
+	if v == "" {
+		return defaultAccessTokenTTL
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return defaultAccessTokenTTL
+	}
+	return d
+}
+
+// PasswordResetTokenTTL returns the admin-managed lifetime of the
+// reset-password email token. Falls back to defaultPasswordResetTokenTTL
+// (30m). The PasswordAuthService reads this when minting a new
+// reset_password email-token row. Phase 3.1 of the auth-policy roadmap.
+func (s *AuthPolicyService) PasswordResetTokenTTL(ctx context.Context) time.Duration {
+	if s == nil || s.cs == nil {
+		return defaultPasswordResetTokenTTL
+	}
+	v := strings.TrimSpace(s.cs.GetValue(ctx, "auth", "passwordResetTokenTTL"))
+	if v == "" {
+		return defaultPasswordResetTokenTTL
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return defaultPasswordResetTokenTTL
+	}
+	return d
 }
 
 // LockoutDuration returns how long an IP/email stays locked after
