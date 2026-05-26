@@ -18,6 +18,21 @@ package errcode
 // the email already maps to a live user in this audience tier. 409.
 const AuthEmailInUse = "auth.email_in_use"
 
+// --- user ---
+
+// UserSelfDeleteForbidden signals that an admin tried to delete (or
+// soft-delete) their own user row. The /admin/users surface must never
+// let the caller wipe themselves — they'd lock themselves out and the
+// audit trail loses its source. 403.
+const UserSelfDeleteForbidden = "user.self_delete_forbidden"
+
+// UserLastAdminForbidden signals that a delete, deactivate, or
+// role-demote would leave zero live, active users with a
+// platform-administrating system role (super_admin or administrator).
+// The check is best-effort under concurrent edits; a follow-up may
+// promote it to a Mongo transaction. 403.
+const UserLastAdminForbidden = "user.last_admin_forbidden"
+
 // --- marketing ---
 
 // MarketingCardCodeCollision signals that the card-emit path

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/core/user/services"
 	"github.com/orkestra/backend/internal/shared/errcode"
@@ -86,8 +87,16 @@ type UpdateUserResponse struct {
 	Body models.UserManagementResponse `json:"user" doc:"Updated user data"`
 }
 
-// UpdateUser handles PUT /api/users/{id}
+// UpdateUser handles PUT /api/users/{id}. When the patch would
+// deactivate or demote a platform administrator away from the privileged
+// pool, the last-admin guard fires (403 user.last_admin_forbidden) so an
+// operator cannot strand the platform without an active administrator.
 func (h *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UpdateUserResponse, error) {
+	if removesAdminPrivilege(&req.Body) {
+		if err := h.checkLastAdminRemoval(ctx, req.ID); err != nil {
+			return nil, err
+		}
+	}
 	user, err := h.userService.UpdateUser(ctx, req.ID, &req.Body)
 	if err != nil {
 		switch err {
@@ -117,10 +126,20 @@ type DeleteUserResponse struct {
 	}
 }
 
-// DeleteUser handles DELETE /api/users/{id}
+// DeleteUser handles DELETE /api/users/{id}. Soft-deletes via the email-
+// aliasing path so the unique index releases the original address — see
+// services.UserService.SoftDeleteAndAliasEmail. Guards: callers can never
+// delete themselves (403 user.self_delete_forbidden); the request is also
+// refused when it would leave zero live, active platform administrators
+// (403 user.last_admin_forbidden).
 func (h *UserHandler) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*DeleteUserResponse, error) {
-	err := h.userService.DeleteUser(ctx, req.ID)
-	if err != nil {
+	if callerUUID, ok := ctxauth.GetUserUUID(ctx); ok && callerUUID == req.ID {
+		return nil, errcode.Forbidden(errcode.UserSelfDeleteForbidden, "You cannot delete your own account")
+	}
+	if err := h.checkLastAdminRemoval(ctx, req.ID); err != nil {
+		return nil, err
+	}
+	if err := h.userService.SoftDeleteAndAliasEmail(ctx, req.ID); err != nil {
 		switch err {
 		case services.ErrUserNotFound:
 			return nil, huma.Error404NotFound("User not found", err)
@@ -138,6 +157,53 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*
 			Message: "User deleted successfully",
 		},
 	}, nil
+}
+
+// checkLastAdminRemoval refuses the operation when removing the target
+// user from the platform-administrator pool would leave zero active
+// administrators. The check is best-effort under concurrent edits — a
+// follow-up could promote it to a Mongo transaction. Returns nil when the
+// target isn't currently an active administrator (nothing to protect).
+func (h *UserHandler) checkLastAdminRemoval(ctx context.Context, targetID string) error {
+	target, err := h.userService.GetUser(ctx, targetID)
+	if err != nil {
+		// If the lookup fails, defer the error to the calling mutation —
+		// it will surface a clean 404 / 400 / 500 via its own switch.
+		return nil
+	}
+	if !target.IsActive {
+		return nil
+	}
+	if target.Role != "super_admin" && target.Role != "administrator" {
+		return nil
+	}
+	remaining, err := h.userService.CountActiveAdministrators(ctx, targetID)
+	if err != nil {
+		return huma.Error500InternalServerError("Failed to verify administrator quorum", err)
+	}
+	if remaining > 0 {
+		return nil
+	}
+	return errcode.Forbidden(errcode.UserLastAdminForbidden, "Refusing to remove the last active administrator")
+}
+
+// removesAdminPrivilege reports whether the given update would, if
+// applied, take a user out of the platform-administrator pool. Either
+// flipping isActive to false or assigning a non-privileged role
+// qualifies; the check is intentionally over-eager — checkLastAdminRemoval
+// re-reads the row and short-circuits when the target wasn't an active
+// administrator to begin with.
+func removesAdminPrivilege(input *models.UpdateUserInput) bool {
+	if input == nil {
+		return false
+	}
+	if input.IsActive != nil && !*input.IsActive {
+		return true
+	}
+	if input.Role != "" && input.Role != "super_admin" && input.Role != "administrator" {
+		return true
+	}
+	return false
 }
 
 // List Users Request

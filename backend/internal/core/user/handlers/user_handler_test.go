@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
 	"github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/core/user/services"
+	"github.com/orkestra/backend/internal/shared/errcode"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -29,13 +31,16 @@ type fakeUserService struct {
 	softDeleteAndAliasFn     func(ctx context.Context, id string) error
 	createUserWithPasswordFn func(ctx context.Context, input *models.CreateUserInput) (*models.User, error)
 	markEmailVerifiedFn      func(ctx context.Context, userUUID string) error
+	countActiveAdminsFn      func(ctx context.Context, excludeUUID string) (int64, error)
 
 	// last-call snapshots — set by methods that have a function field so
 	// tests can assert pass-through (e.g. ListUsers must forward query
 	// params verbatim).
-	lastListFilters    *models.UserFilters
-	lastListPagination *models.PaginationParams
-	lastCountFilters   *models.UserFilters
+	lastListFilters       *models.UserFilters
+	lastListPagination    *models.PaginationParams
+	lastCountFilters      *models.UserFilters
+	lastSoftDeleteAliasID string
+	lastDeleteID          string
 }
 
 func (f *fakeUserService) CreateUser(ctx context.Context, input *models.CreateUserInput) (*models.UserManagementResponse, error) {
@@ -51,7 +56,17 @@ func (f *fakeUserService) UpdateUser(ctx context.Context, id string, input *mode
 	return f.updateUserFn(ctx, id, input)
 }
 func (f *fakeUserService) DeleteUser(ctx context.Context, id string) error {
-	return f.deleteUserFn(ctx, id)
+	f.lastDeleteID = id
+	if f.deleteUserFn != nil {
+		return f.deleteUserFn(ctx, id)
+	}
+	panic("unused: DeleteUser")
+}
+func (f *fakeUserService) CountActiveAdministrators(ctx context.Context, excludeUUID string) (int64, error) {
+	if f.countActiveAdminsFn != nil {
+		return f.countActiveAdminsFn(ctx, excludeUUID)
+	}
+	panic("unused: CountActiveAdministrators")
 }
 func (f *fakeUserService) ListUsers(ctx context.Context, filters *models.UserFilters, pagination *models.PaginationParams) (*models.UserManagementListResponse, error) {
 	f.lastListFilters = filters
@@ -93,6 +108,7 @@ func (f *fakeUserService) ClearFailedLogins(context.Context, string) error {
 	panic("unused: ClearFailedLogins")
 }
 func (f *fakeUserService) SoftDeleteAndAliasEmail(ctx context.Context, id string) error {
+	f.lastSoftDeleteAliasID = id
 	if f.softDeleteAndAliasFn != nil {
 		return f.softDeleteAndAliasFn(ctx, id)
 	}
@@ -295,10 +311,94 @@ func TestUpdateUserHandler(t *testing.T) {
 			assertStatus(t, err, c.wantStatus)
 		})
 	}
+
+	// boolPtr returns a pointer to b. Helps construct UpdateUserInput
+	// patches that need to distinguish "not provided" (nil) from
+	// "explicitly false".
+	boolPtr := func(b bool) *bool { return &b }
+
+	t.Run("deactivating the last active admin refused", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
+		}
+		h := NewUserHandler(svc)
+		_, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{IsActive: boolPtr(false)},
+		})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserLastAdminForbidden)
+	})
+
+	t.Run("demoting the last active admin refused", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "super_admin", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
+		}
+		h := NewUserHandler(svc)
+		_, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{Role: "operator"},
+		})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserLastAdminForbidden)
+	})
+
+	t.Run("benign profile patch skips the guard", func(t *testing.T) {
+		t.Parallel()
+		// A rename does not flip isActive and does not demote a role, so
+		// the handler must NOT consult the admin counter. The panicking
+		// countActiveAdminsFn fallback proves it.
+		svc := &fakeUserService{
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", FullName: "Renamed"}, nil
+			},
+			// countActiveAdminsFn is nil — would panic if called.
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{FullName: "Renamed"},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	t.Run("promoting to administrator skips the guard", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator"}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{Role: "administrator"},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
 }
 
 func TestDeleteUserHandler(t *testing.T) {
 	t.Parallel()
+
+	// targetOperator is the default "deletable" target — an active
+	// operator who isn't part of the platform-administrator pool, so the
+	// last-admin guard short-circuits and the request reaches the service
+	// layer. Used by all happy-path / pass-through cases.
+	targetOperator := func() *models.UserManagementResponse {
+		return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}
+	}
+
 	cases := []struct {
 		name       string
 		svcErr     error
@@ -314,7 +414,10 @@ func TestDeleteUserHandler(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			svc := &fakeUserService{
-				deleteUserFn: func(context.Context, string) error { return c.svcErr },
+				getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+					return targetOperator(), nil
+				},
+				softDeleteAndAliasFn: func(context.Context, string) error { return c.svcErr },
 			}
 			h := NewUserHandler(svc)
 			resp, err := h.DeleteUser(context.Background(), &DeleteUserRequest{ID: "u1"})
@@ -325,10 +428,108 @@ func TestDeleteUserHandler(t *testing.T) {
 				if resp.Body.Message != "User deleted successfully" {
 					t.Errorf("message = %q", resp.Body.Message)
 				}
+				if svc.lastSoftDeleteAliasID != "u1" {
+					t.Errorf("expected SoftDeleteAndAliasEmail to be called with u1, got %q", svc.lastSoftDeleteAliasID)
+				}
+				if svc.lastDeleteID != "" {
+					t.Errorf("plain DeleteUser must not be called; got id=%q", svc.lastDeleteID)
+				}
 				return
 			}
 			assertStatus(t, err, c.wantStatus)
 		})
+	}
+
+	t.Run("self-delete refused with code", func(t *testing.T) {
+		t.Parallel()
+		// No service stubs — the handler must short-circuit before any
+		// lookup happens. If it reaches the panicking fake we know the
+		// guard fired too late.
+		svc := &fakeUserService{}
+		h := NewUserHandler(svc)
+		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "u1")
+		_, err := h.DeleteUser(ctx, &DeleteUserRequest{ID: "u1"})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserSelfDeleteForbidden)
+		if svc.lastSoftDeleteAliasID != "" || svc.lastDeleteID != "" {
+			t.Errorf("guard fired too late — service was called")
+		}
+	})
+
+	t.Run("last active administrator refused with code", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) {
+				return 0, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		_, err := h.DeleteUser(context.Background(), &DeleteUserRequest{ID: "u1"})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserLastAdminForbidden)
+		if svc.lastSoftDeleteAliasID != "" {
+			t.Errorf("guard should block before SoftDeleteAndAliasEmail")
+		}
+	})
+
+	t.Run("non-last administrator passes guard", func(t *testing.T) {
+		t.Parallel()
+		// Two other active admins remain — quorum holds, delete proceeds.
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) {
+				return 2, nil
+			},
+			softDeleteAndAliasFn: func(context.Context, string) error { return nil },
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.DeleteUser(context.Background(), &DeleteUserRequest{ID: "u1"}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if svc.lastSoftDeleteAliasID != "u1" {
+			t.Errorf("SoftDeleteAndAliasEmail not called")
+		}
+	})
+
+	t.Run("inactive admin row skips quorum check", func(t *testing.T) {
+		t.Parallel()
+		// An already-deactivated admin is not in the active-administrator
+		// pool, so removing them cannot strand the platform — quorum
+		// counter must NOT be consulted.
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: false}, nil
+			},
+			softDeleteAndAliasFn: func(context.Context, string) error { return nil },
+			// countActiveAdminsFn is intentionally nil — the panicking
+			// fallback fires if the handler calls it.
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.DeleteUser(context.Background(), &DeleteUserRequest{ID: "u1"}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}
+
+// assertErrCode unwraps an errcode.Error from err and fails the test if
+// the carried Code doesn't match wantCode. Use alongside assertStatus to
+// pin both the HTTP status AND the stable wire code on guard responses.
+func assertErrCode(t *testing.T, err error, wantCode string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected errcode.Error with code %q, got nil", wantCode)
+	}
+	var ec *errcode.Error
+	if !errors.As(err, &ec) {
+		t.Fatalf("err %v is not an *errcode.Error", err)
+	}
+	if ec.Code != wantCode {
+		t.Errorf("code = %q, want %q", ec.Code, wantCode)
 	}
 }
 

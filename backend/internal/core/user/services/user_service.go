@@ -14,6 +14,7 @@ import (
 	"github.com/orkestra/backend/internal/core/user/repository"
 	"github.com/orkestra/backend/internal/shared/blob"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -62,6 +63,14 @@ type UserService interface {
 	// Utility operations
 	ValidateUserRole(ctx context.Context, userID string, allowedRoles []string) error
 	GetUserCount(ctx context.Context, filters *models.UserFilters) (int64, error)
+	// CountActiveAdministrators returns the number of live (not-deleted)
+	// users with isActive=true whose system role is super_admin or
+	// administrator, excluding excludeUUID when non-empty. Used by the
+	// last-admin guard on delete / deactivate / role-demote so the
+	// platform can never be locked out by removing its only operator.
+	// Best-effort under concurrent edits — see backend/CLAUDE.md
+	// "Error-code contract" `user.last_admin_forbidden`.
+	CountActiveAdministrators(ctx context.Context, excludeUUID string) (int64, error)
 
 	// Methods needed by auth module (raw model returns)
 	GetUserByID(ctx context.Context, id string) (*models.User, error)
@@ -414,6 +423,25 @@ func (s *userService) GetUserCount(ctx context.Context, filters *models.UserFilt
 	count, err := s.userRepo.Count(ctx, filters)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
+	}
+	return count, nil
+}
+
+// CountActiveAdministrators counts live, active super_admin/administrator
+// rows, optionally excluding excludeUUID. The repo's CountWithFilter adds
+// the deletedAt-missing predicate so this call only needs to supply the
+// role + isActive + uuid clauses.
+func (s *userService) CountActiveAdministrators(ctx context.Context, excludeUUID string) (int64, error) {
+	filter := bson.M{
+		"role":     bson.M{"$in": []string{"super_admin", "administrator"}},
+		"isActive": true,
+	}
+	if excludeUUID != "" {
+		filter["uuid"] = bson.M{"$ne": excludeUUID}
+	}
+	count, err := s.userRepo.CountWithFilter(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("count active administrators: %w", err)
 	}
 	return count, nil
 }
