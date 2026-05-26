@@ -4,22 +4,6 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
-## [0.1.6] - 2026-05-26
-
-### Bug fixes
-
-- **(auth)** Make GET /v1/auth/session read-only, end refresh race ([8029d5e](https://github.com/orkestra-cc/orkestra/commit/8029d5ec))
-
-### Chores
-
-- **(skills)** Docker skill auto-detects compose file via container labels ([065866a](https://github.com/orkestra-cc/orkestra/commit/065866a6))
-
-## [0.1.5] - 2026-05-26
-
-### Bug fixes
-
-- **(auth)** Pick valid refresh cookie before mutating, clear stale parent domains ([c181fdd](https://github.com/orkestra-cc/orkestra/commit/c181fdd9ed110e4c6c890b2b60e8ba39ffbf1e01))
-
 ## [0.1.4] - 2026-05-26
 
 ### Features
@@ -32,7 +16,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Bug fixes
 
+- **(auth)** Make GET /v1/auth/session read-only, end refresh race (#55) ([f2c97d9](https://github.com/orkestra-cc/orkestra/commit/f2c97d96463c4676037f4744d34fb86c7a36c99f))
+- **(auth)** Pick valid refresh cookie before mutating, clear stale parent domains (#54) ([5904cfa](https://github.com/orkestra-cc/orkestra/commit/5904cfafb2660e8b07606c7a3a4603c4e8f498c2))
+- **(auth,user)** Trust IdP email_verified claim on OAuth signup ([c346509](https://github.com/orkestra-cc/orkestra/commit/c34650912b351983724cba765be5455cc3951633))
 - **(auth)** Skip intermediate OAuth callback page, land on profile ([232844b](https://github.com/orkestra-cc/orkestra/commit/232844bbf5386fe9caa391925bd3cc90643a954c))
+
+### Documentation
+
+- **(contributing)** Add fork-and-manage-addons guides ([9e192e6](https://github.com/orkestra-cc/orkestra/commit/9e192e6b9775aed713cb3957a727fb2588477864))
 
 ## [0.1.3] - 2026-05-25
 
