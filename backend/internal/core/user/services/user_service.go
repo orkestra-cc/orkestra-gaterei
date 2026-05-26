@@ -694,6 +694,9 @@ func (s *userService) CreateUserFromOAuth(ctx context.Context, input *models.Cre
 	user.FullName = input.FullName
 	user.Avatar = input.Avatar
 	user.Role = input.Role
+	// IdP already vouched for the email — propagate so the new account
+	// isn't asked to verify what Google/Apple/GitHub/Discord just confirmed.
+	user.EmailVerified = input.EmailVerified
 
 	// Add OAuth information if provided
 	if input.OAuthProvider != "" && input.OAuthID != "" {

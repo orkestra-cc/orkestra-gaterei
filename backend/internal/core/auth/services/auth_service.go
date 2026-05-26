@@ -1747,11 +1747,17 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 				}
 			}
 
+			// Trust the IdP's email_verified claim — every provider
+			// (Google, Apple, GitHub, Discord) populates this in the
+			// userInfoMap from its own verified-email signal. Missing
+			// or false falls through to the standard verification flow.
+			emailVerified, _ := userInfo["email_verified"].(bool)
 			createInput := &userModels.CreateUserInput{
-				UUID:     newUUID,
-				Email:    email,
-				FullName: userInfo["name"].(string),
-				Role:     role,
+				UUID:          newUUID,
+				Email:         email,
+				FullName:      userInfo["name"].(string),
+				Role:          role,
+				EmailVerified: emailVerified,
 			}
 			fmt.Printf("[AUTH_DEBUG] Creating new user - Name: %s, Role: %s\n", createInput.FullName, createInput.Role)
 
