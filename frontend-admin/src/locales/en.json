@@ -143,6 +143,10 @@
         "guest": "Guest",
         "unknown": "Unknown"
       }
+    },
+    "user": {
+      "self_delete_forbidden": "You cannot delete your own account.",
+      "last_admin_forbidden": "Refusing to remove the last active administrator."
     }
   },
   "banner": {
@@ -4562,9 +4566,6 @@
       "bulkApply": "Apply",
       "newUser": "New User",
       "export": "Export",
-      "import": "Import",
-      "viewAll": "View All",
-      "deleteAll": "Delete All",
       "csv": {
         "fullName": "Full Name",
         "email": "Email",
@@ -4595,6 +4596,63 @@
         "incorrectCode": "Incorrect code. Please try again.",
         "noFactor": "This user has no MFA factor to reset.",
         "generic": "Could not reset the factor. Please try again."
+      }
+    },
+    "rowActions": {
+      "viewDetails": "View Details",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "resetMfa": "Reset MFA",
+      "resendVerification": "Resend Verification",
+      "sendPasswordReset": "Send Password Reset",
+      "deleteUser": "Delete User",
+      "selfActionTooltip": "You cannot perform this action on your own account",
+      "toastActivated": "{{user}} was activated.",
+      "toastDeactivated": "{{user}} was deactivated.",
+      "toastActivationFailed": "Could not update {{user}}: {{error}}",
+      "toastVerificationSent": "Verification email sent to {{user}}.",
+      "toastVerificationFailed": "Could not send verification email: {{error}}",
+      "toastPasswordResetSent": "Password reset email sent to {{user}}.",
+      "toastPasswordResetFailed": "Could not send password reset: {{error}}",
+      "toastDeleted": "{{user}} was deleted.",
+      "toastDeleteFailed": "Could not delete {{user}}: {{error}}"
+    },
+    "deleteModal": {
+      "title": "Delete user",
+      "intro": "You are about to delete <strong>{{user}}</strong>.",
+      "warning": "This action is irreversible. The user's email <strong>{{email}}</strong> will be permanently reserved and cannot be reused for a new account.",
+      "confirmPrompt": "Type the user's email below to confirm:",
+      "confirmPlaceholder": "Type the email to confirm",
+      "cancel": "Cancel",
+      "submit": "Delete user",
+      "submitting": "Deleting…"
+    },
+    "bulkModal": {
+      "titleActivate": "Activate {{count}} users",
+      "titleDeactivate": "Deactivate {{count}} users",
+      "titleDelete": "Delete {{count}} users",
+      "intro": "This will apply to the {{count}} user(s) selected on this page.",
+      "selfSkipped": "Your own account ({{email}}) is excluded from this operation.",
+      "noEligible": "No selected users are eligible for this action.",
+      "listHeading": "Users to be affected:",
+      "listTruncated": "…and {{count}} more",
+      "warningDelete": "Each user's email will be permanently reserved and cannot be reused. This action is irreversible.",
+      "confirmPrompt": "Type <strong>DELETE</strong> to confirm:",
+      "confirmPlaceholder": "Type DELETE",
+      "progress": "{{done}} / {{total}}",
+      "summarySuccess": "All {{count}} users updated.",
+      "summaryPartial": "{{ok}} succeeded, {{failed}} failed.",
+      "summaryAllFailed": "All {{count}} updates failed.",
+      "cancel": "Cancel",
+      "close": "Close",
+      "runActivate": "Activate",
+      "runDeactivate": "Deactivate",
+      "runDelete": "Delete",
+      "running": "Running…",
+      "actionLabel": {
+        "activate": "activate",
+        "deactivate": "deactivate",
+        "delete": "delete"
       }
     }
   },

@@ -143,6 +143,10 @@
         "guest": "Ospite",
         "unknown": "Sconosciuto"
       }
+    },
+    "user": {
+      "self_delete_forbidden": "Non puoi eliminare il tuo account.",
+      "last_admin_forbidden": "Impossibile rimuovere l'ultimo amministratore attivo."
     }
   },
   "banner": {
@@ -4562,9 +4566,6 @@
       "bulkApply": "Applica",
       "newUser": "Nuovo utente",
       "export": "Esporta",
-      "import": "Importa",
-      "viewAll": "Mostra tutti",
-      "deleteAll": "Elimina tutti",
       "csv": {
         "fullName": "Nome completo",
         "email": "Email",
@@ -4595,6 +4596,63 @@
         "incorrectCode": "Codice errato. Riprova.",
         "noFactor": "Questo utente non ha un fattore MFA da reimpostare.",
         "generic": "Impossibile reimpostare il fattore. Riprova."
+      }
+    },
+    "rowActions": {
+      "viewDetails": "Visualizza dettagli",
+      "activate": "Attiva",
+      "deactivate": "Disattiva",
+      "resetMfa": "Reset MFA",
+      "resendVerification": "Reinvia verifica",
+      "sendPasswordReset": "Invia reset password",
+      "deleteUser": "Elimina utente",
+      "selfActionTooltip": "Non puoi eseguire questa azione sul tuo account",
+      "toastActivated": "{{user}} è stato attivato.",
+      "toastDeactivated": "{{user}} è stato disattivato.",
+      "toastActivationFailed": "Impossibile aggiornare {{user}}: {{error}}",
+      "toastVerificationSent": "Email di verifica inviata a {{user}}.",
+      "toastVerificationFailed": "Impossibile inviare l'email di verifica: {{error}}",
+      "toastPasswordResetSent": "Email di reset password inviata a {{user}}.",
+      "toastPasswordResetFailed": "Impossibile inviare il reset password: {{error}}",
+      "toastDeleted": "{{user}} è stato eliminato.",
+      "toastDeleteFailed": "Impossibile eliminare {{user}}: {{error}}"
+    },
+    "deleteModal": {
+      "title": "Elimina utente",
+      "intro": "Stai per eliminare <strong>{{user}}</strong>.",
+      "warning": "Questa azione è irreversibile. L'email <strong>{{email}}</strong> sarà riservata in modo permanente e non potrà essere riutilizzata per un nuovo account.",
+      "confirmPrompt": "Digita l'email dell'utente qui sotto per confermare:",
+      "confirmPlaceholder": "Digita l'email per confermare",
+      "cancel": "Annulla",
+      "submit": "Elimina utente",
+      "submitting": "Eliminazione…"
+    },
+    "bulkModal": {
+      "titleActivate": "Attiva {{count}} utenti",
+      "titleDeactivate": "Disattiva {{count}} utenti",
+      "titleDelete": "Elimina {{count}} utenti",
+      "intro": "L'azione sarà applicata ai {{count}} utenti selezionati su questa pagina.",
+      "selfSkipped": "Il tuo account ({{email}}) è escluso da questa operazione.",
+      "noEligible": "Nessun utente selezionato è idoneo per questa azione.",
+      "listHeading": "Utenti interessati:",
+      "listTruncated": "…e altri {{count}}",
+      "warningDelete": "L'email di ciascun utente sarà riservata in modo permanente e non potrà essere riutilizzata. Questa azione è irreversibile.",
+      "confirmPrompt": "Digita <strong>DELETE</strong> per confermare:",
+      "confirmPlaceholder": "Digita DELETE",
+      "progress": "{{done}} / {{total}}",
+      "summarySuccess": "Tutti i {{count}} utenti aggiornati.",
+      "summaryPartial": "{{ok}} riusciti, {{failed}} falliti.",
+      "summaryAllFailed": "Tutti i {{count}} aggiornamenti falliti.",
+      "cancel": "Annulla",
+      "close": "Chiudi",
+      "runActivate": "Attiva",
+      "runDeactivate": "Disattiva",
+      "runDelete": "Elimina",
+      "running": "In corso…",
+      "actionLabel": {
+        "activate": "attivazione",
+        "deactivate": "disattivazione",
+        "delete": "eliminazione"
       }
     }
   },

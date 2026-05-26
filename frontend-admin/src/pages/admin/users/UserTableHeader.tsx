@@ -12,7 +12,10 @@ import {
   generateTimestampedFilename
 } from 'utils/csvExport';
 import { User } from 'store/api/userApi';
+import { useAppSelector } from 'store/hooks';
+import { selectUser } from 'store/slices/authSlice';
 import CreateUserModal from './CreateUserModal';
+import BulkConfirmModal, { BulkAction } from './BulkConfirmModal';
 
 const ROLE_FILTER_VALUES = [
   'super_admin',
@@ -25,10 +28,20 @@ const ROLE_FILTER_VALUES = [
 
 const UserTableHeader = () => {
   const { t } = useTranslation();
-  const { getSelectedRowModel, setColumnFilters, getFilteredRowModel } =
-    useAdvanceTableContext();
+  const {
+    getSelectedRowModel,
+    setColumnFilters,
+    getFilteredRowModel,
+    resetRowSelection
+  } = useAdvanceTableContext();
+  const currentUser = useAppSelector(selectUser);
   const [selectedRole, setSelectedRole] = useState<string>('All');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [bulkAction, setBulkAction] = useState<BulkAction | ''>('');
+  const [bulkOpen, setBulkOpen] = useState(false);
+  // Frozen at the moment Apply was clicked so subsequent row-selection
+  // changes (or page navigation) don't mutate the in-flight operation.
+  const [bulkTargets, setBulkTargets] = useState<User[]>([]);
 
   const roleFilters = [
     { label: t('adminUsers.tableHeader.filterAll'), value: 'All' },
@@ -158,8 +171,10 @@ const UserTableHeader = () => {
             <Form.Select
               size="sm"
               aria-label={t('adminUsers.tableHeader.bulkActionsPlaceholder')}
+              value={bulkAction}
+              onChange={e => setBulkAction(e.target.value as BulkAction | '')}
             >
-              <option>
+              <option value="">
                 {t('adminUsers.tableHeader.bulkActionsPlaceholder')}
               </option>
               <option value="activate">
@@ -177,6 +192,17 @@ const UserTableHeader = () => {
               variant="orkestra-default"
               size="sm"
               className="ms-2"
+              disabled={!bulkAction}
+              onClick={() => {
+                if (!bulkAction) return;
+                // Freeze the targets at click-time so a subsequent row-
+                // selection change doesn't alter the in-flight operation.
+                const targets = getSelectedRowModel().rows.map(
+                  (r: { original: User }) => r.original
+                );
+                setBulkTargets(targets);
+                setBulkOpen(true);
+              }}
             >
               {t('adminUsers.tableHeader.bulkApply')}
             </Button>
@@ -200,7 +226,7 @@ const UserTableHeader = () => {
               size="sm"
               icon="external-link-alt"
               transform="shrink-3"
-              className="mx-2"
+              className="ms-2"
               iconAlign="middle"
               onClick={handleExportCSV}
             >
@@ -208,35 +234,33 @@ const UserTableHeader = () => {
                 {t('adminUsers.tableHeader.export')}
               </span>
             </IconButton>
-            <Dropdown align="end" className="btn-reveal-trigger d-inline-block">
-              <Dropdown.Toggle variant="orkestra-default" size="sm">
-                <FontAwesomeIcon icon="ellipsis-h" className="fs-11" />
-              </Dropdown.Toggle>
-
-              <Dropdown.Menu className="border py-0">
-                <div className="py-2">
-                  <Dropdown.Item as="button" type="button">
-                    {t('adminUsers.tableHeader.viewAll')}
-                  </Dropdown.Item>
-                  <Dropdown.Item>
-                    {t('adminUsers.tableHeader.export')}
-                  </Dropdown.Item>
-                  <Dropdown.Item>
-                    {t('adminUsers.tableHeader.import')}
-                  </Dropdown.Item>
-                  <Dropdown.Divider />
-                  <Dropdown.Item className="text-danger">
-                    {t('adminUsers.tableHeader.deleteAll')}
-                  </Dropdown.Item>
-                </div>
-              </Dropdown.Menu>
-            </Dropdown>
           </div>
         )}
       </div>
       <CreateUserModal
         show={showCreateModal}
         onHide={() => setShowCreateModal(false)}
+      />
+      <BulkConfirmModal
+        show={bulkOpen}
+        action={bulkAction || null}
+        selectedUsers={bulkTargets}
+        currentUserId={currentUser?.id}
+        onHide={() => {
+          // Reset action + selection on close so the bulk bar collapses
+          // back to the zero-selection state and a future pick starts
+          // fresh. We deliberately keep `bulkAction` set during the run
+          // — clearing it here would unmount the modal mid-render and
+          // the user would never see the partial-failure summary.
+          setBulkOpen(false);
+          setBulkAction('');
+        }}
+        onCompleted={() => {
+          // Successful or partial runs clear the table selection. The
+          // modal stays open showing the summary until the user closes
+          // it (which then fires onHide above).
+          resetRowSelection?.();
+        }}
       />
     </div>
   );
