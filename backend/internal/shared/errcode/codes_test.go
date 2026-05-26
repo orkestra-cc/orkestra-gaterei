@@ -26,6 +26,7 @@ var goldenCodes = map[string]string{
 	"MarketingCardInvalidTransition": "marketing.card_invalid_transition",
 	"UserSelfDeleteForbidden":        "user.self_delete_forbidden",
 	"UserLastAdminForbidden":         "user.last_admin_forbidden",
+	"UserRoleEscalationForbidden":    "user.role_escalation_forbidden",
 }
 
 // TestCodesMatchGoldenSnapshot asserts every snapshotted code resolves

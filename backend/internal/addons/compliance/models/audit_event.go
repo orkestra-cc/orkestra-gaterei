@@ -65,6 +65,17 @@ const (
 	ActionAuthMFAVerified        = "auth.mfa.verified"
 	ActionAuthMFARemoved         = "auth.mfa.removed"
 	ActionAuthMFAReset           = "auth.mfa.reset"
+	// admin-on-user auth surfaces — pair with the four /v1/admin/users/{id}/*
+	// endpoints owned by the auth module. authService.recordAuthEvent
+	// maps its internal event-types onto these via
+	// authEventComplianceAction.
+	ActionAuthEmailVerifyResend = "auth.email.verify_resend"
+	ActionAuthOAuthUnlinked     = "auth.oauth.unlinked"
+	// self-service auth surfaces — same audit lane, actor==target.
+	ActionAuthOAuthUnlinkedSelf  = "auth.oauth.unlinked.self"
+	ActionAuthOAuthLinkedSelf    = "auth.oauth.linked.self"
+	ActionAuthSessionRevokedSelf = "auth.session.revoked.self"
+	ActionAuthSessionRevokedAll  = "auth.session.revoked_all.self"
 
 	// tenant.*
 	ActionTenantProvisioned = "tenant.lifecycle.provisioned"
@@ -106,4 +117,9 @@ const (
 	ActionUserDeactivated   = "user.deactivated"
 	ActionUserRoleChanged   = "user.role.changed"
 	ActionUserUpdateRefused = "user.update.refused"
+	// user.create.refused covers the role-escalation guard on
+	// POST /v1/users — an admin trying to seed a higher-tier role at
+	// create time. Wire code in metadata is
+	// errcode.UserRoleEscalationForbidden.
+	ActionUserCreateRefused = "user.create.refused"
 )

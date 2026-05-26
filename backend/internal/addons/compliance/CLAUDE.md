@@ -97,6 +97,8 @@ finds them by service-key + interface-typed `GetTyped`.
 | Subscription service | `iface.AuditSinkSetter` | `ServiceSubscriptionService` |
 | Operator user provider | `iface.AuditSinkSetter` | `ServiceOperatorUserProvider` |
 | Client user provider | `iface.AuditSinkSetter` | `ServiceClientUserProvider` |
+| Operator auth service | `iface.AuditSinkSetter` | `ServiceAuthService` |
+| Client auth service | `iface.AuditSinkSetter` | `ServiceClientAuthService` |
 | Auth policy service | `iface.ClientSelfDeletionGate` | `ServiceAuthPolicy` |
 
 Missing services (module disabled, out of init order) are silently

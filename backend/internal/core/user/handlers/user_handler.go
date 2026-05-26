@@ -74,8 +74,31 @@ type CreateUserResponse struct {
 	Body models.UserManagementResponse `json:"user" doc:"Created user data"`
 }
 
-// CreateUser handles POST /api/users
+// CreateUser handles POST /api/users. The role-escalation guard from
+// UpdateUser applies symmetrically here — an administrator can't seed
+// a fresh super_admin via the create path either.
 func (h *UserHandler) CreateUser(ctx context.Context, req *CreateUserRequest) (*CreateUserResponse, error) {
+	actorUUID, actorEmail := actorFromCtx(ctx)
+	callerRole, _ := ctxauth.GetSystemRole(ctx)
+	if req.Body.Role != "" && !canAssignRole(callerRole, req.Body.Role) {
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       "user.create.refused",
+			ResourceType: "user",
+			Outcome:      "denied",
+			Metadata: map[string]any{
+				"code":      errcode.UserRoleEscalationForbidden,
+				"attempted": "role_escalation",
+				"to":        req.Body.Role,
+				"email":     req.Body.Email,
+			},
+		})
+		return nil, errcode.Forbidden(errcode.UserRoleEscalationForbidden,
+			"You cannot create a user with a role higher than your own")
+	}
+
 	user, err := h.userService.CreateUser(ctx, &req.Body)
 	if err != nil {
 		switch err {
@@ -129,19 +152,63 @@ type UpdateUserResponse struct {
 	Body models.UserManagementResponse `json:"user" doc:"Updated user data"`
 }
 
-// UpdateUser handles PUT /api/users/{id}. When the patch would
-// deactivate or demote a platform administrator away from the privileged
-// pool, the last-admin guard fires (403 user.last_admin_forbidden) so an
-// operator cannot strand the platform without an active administrator.
-// Successful patches that flip isActive or change role emit dedicated
-// lifecycle audit events; guard-blocked attempts emit a denied event so
-// the SOC2 trail shows the rejected attempt too.
+// UpdateUser handles PUT /api/users/{id}. Three independent guards
+// protect privileged state from being mutated by an under-privileged
+// caller: (1) **role escalation** — the caller's own system role must
+// be at least as high in the tier ladder as any role they assign
+// (super_admin > administrator > developer > manager > operator >
+// guest); the cascade rule on authz.CreateBinding does not cover the
+// User.Role field directly, so this is the user module's own guard
+// (403 user.role_escalation_forbidden). (2) **last-administrator** —
+// a deactivation or demotion that would leave zero active platform
+// administrators is refused (403 user.last_admin_forbidden). (3)
+// Self-target is allowed for role/active patches *except* role
+// escalation against oneself, which gets the role-escalation gate.
+// Successful patches emit user.activated / user.deactivated /
+// user.role.changed; refused patches emit user.update.refused so the
+// SOC2 trail sees both successes and denials.
 func (h *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UpdateUserResponse, error) {
 	actorUUID, actorEmail := actorFromCtx(ctx)
+	callerRole, _ := ctxauth.GetSystemRole(ctx)
+
 	// Snapshot the pre-change state so we can compute lifecycle deltas
-	// after a successful update. A read failure here is non-fatal —
-	// downstream UpdateUser will surface a clean 404 / 500.
+	// after a successful update AND so the role-escalation guard can
+	// compare the target's existing role against the caller's. A read
+	// failure here is non-fatal — downstream UpdateUser will surface a
+	// clean 404 / 500.
 	previous, _ := h.userService.GetUser(ctx, req.ID)
+
+	// Role-escalation guard. Order matters: this fires *before* the
+	// last-admin check so a denied promotion to super_admin doesn't
+	// also report a misleading quorum failure.
+	if req.Body.Role != "" {
+		// Target's current role for the denied-event metadata. Empty
+		// when previous is nil (lookup failed); the downstream
+		// UpdateUser will then surface 404 cleanly.
+		previousRole := ""
+		if previous != nil {
+			previousRole = previous.Role
+		}
+		if !canAssignRole(callerRole, req.Body.Role) {
+			h.emitAudit(ctx, iface.AuditEvent{
+				ActorUserID:  actorUUID,
+				ActorEmail:   actorEmail,
+				ActorType:    "user",
+				Action:       "user.update.refused",
+				ResourceType: "user",
+				ResourceID:   req.ID,
+				Outcome:      "denied",
+				Metadata: map[string]any{
+					"code":      errcode.UserRoleEscalationForbidden,
+					"attempted": "role_escalation",
+					"from":      previousRole,
+					"to":        req.Body.Role,
+				},
+			})
+			return nil, errcode.Forbidden(errcode.UserRoleEscalationForbidden,
+				"You cannot assign a role higher than your own")
+		}
+	}
 
 	if removesAdminPrivilege(&req.Body) {
 		if err := h.checkLastAdminRemoval(ctx, req.ID); err != nil {
@@ -368,6 +435,51 @@ func (h *UserHandler) checkLastAdminRemoval(ctx context.Context, targetID string
 		return nil
 	}
 	return errcode.Forbidden(errcode.UserLastAdminForbidden, "Refusing to remove the last active administrator")
+}
+
+// systemRoleTier ranks the six platform system roles from highest
+// (super_admin = 5) to lowest (guest = 0). canAssignRole compares the
+// caller's tier to the requested role's tier so an administrator
+// cannot promote anyone (including themselves) to super_admin, a
+// developer cannot promote to administrator, and so on. Unknown role
+// names (custom roles, typos) map to -1, which higher tier zero
+// rejects — caller must be at least operator/0 to assign any
+// recognised role, which already requires `system.users.admin`.
+//
+// This is the User.Role-field counterpart of the authz cascade rule
+// on CreateBinding (services.go:1137). The cascade rule applies only
+// to bindings; this guard plugs the matching invariant on direct
+// User.Role mutation.
+func systemRoleTier(role string) int {
+	switch role {
+	case "super_admin":
+		return 5
+	case "administrator":
+		return 4
+	case "developer":
+		return 3
+	case "manager":
+		return 2
+	case "operator":
+		return 1
+	case "guest":
+		return 0
+	}
+	return -1
+}
+
+// canAssignRole reports whether a caller holding callerRole may assign
+// targetRole. Equal-tier assignments are allowed (an administrator can
+// assign another user to administrator) — the prohibition is only on
+// strict elevation. An unknown caller tier (-1) refuses every
+// assignment so a misconfigured JWT cannot bypass the check.
+func canAssignRole(callerRole, targetRole string) bool {
+	caller := systemRoleTier(callerRole)
+	target := systemRoleTier(targetRole)
+	if caller < 0 || target < 0 {
+		return false
+	}
+	return caller >= target
 }
 
 // removesAdminPrivilege reports whether the given update would, if

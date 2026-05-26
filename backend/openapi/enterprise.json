@@ -19351,7 +19351,7 @@
     },
     "/v1/admin/client-users/{id}": {
       "delete": {
-        "description": "Calls SoftDeleteAndAliasEmail so the original address can be reused for a fresh signup. The original email is preserved on the user document for audit.",
+        "description": "Calls SoftDeleteAndAliasEmail so the original address can be reused for a fresh signup. The original email is preserved on the user document for audit. Requires a fresh MFA proof (RequireStepUp).",
         "operationId": "delete-client-user-admin",
         "parameters": [
           {
@@ -19444,6 +19444,7 @@
         ]
       },
       "patch": {
+        "description": "Patches name/username/email/phone/role/isActive. Requires a fresh MFA proof (RequireStepUp).",
         "operationId": "update-client-user-admin",
         "parameters": [
           {
@@ -39704,7 +39705,7 @@
         ]
       },
       "post": {
-        "description": "Creates a new user with the provided information",
+        "description": "Creates a new user with the provided information. Refuses to seed a role higher in the system tier than the caller's own (403 user.role_escalation_forbidden).",
         "operationId": "create-user",
         "requestBody": {
           "content": {
@@ -39931,7 +39932,7 @@
     },
     "/v1/users/{id}": {
       "delete": {
-        "description": "Soft deletes a user",
+        "description": "Soft-deletes a user (alias-on-delete frees the email). Refuses self-delete (403 user.self_delete_forbidden) and last-administrator removal (403 user.last_admin_forbidden). Requires a fresh MFA proof (RequireStepUp).",
         "operationId": "delete-user",
         "parameters": [
           {
@@ -40026,7 +40027,7 @@
         ]
       },
       "put": {
-        "description": "Updates a user's information",
+        "description": "Updates a user's information. Refuses role escalation (403 user.role_escalation_forbidden) and last-administrator removal (403 user.last_admin_forbidden). Requires a fresh MFA proof (RequireStepUp).",
         "operationId": "update-user",
         "parameters": [
           {

@@ -206,6 +206,17 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		// 403s.
 		module.ServiceOperatorUserProvider,
 		module.ServiceClientUserProvider,
+		// Auth service: recordAuthEvent maps the auth module's
+		// internal admin-on-user event-types
+		// (admin_oauth_unlink / admin_password_reset_sent /
+		// admin_verification_resent / admin_mfa_reset) plus the
+		// self-service equivalents onto the compliance vocabulary so
+		// /admin/audit-events and /admin/compliance/soc2 reflect
+		// auth-side actions alongside user-lifecycle and login events.
+		// Both per-tier keys land on the sink so client-side
+		// self-actions (link, unlink, session revoke) are audited too.
+		module.ServiceAuthService,
+		module.ServiceClientAuthService,
 	}
 	for _, key := range auditSinkKeys {
 		if s, ok := module.GetTyped[iface.AuditSinkSetter](deps.Services, key); ok {

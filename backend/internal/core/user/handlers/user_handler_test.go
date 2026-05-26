@@ -227,6 +227,15 @@ func assertStatus(t *testing.T, err error, want int) {
 	}
 }
 
+// adminCtx stamps a super_admin caller onto the context so the
+// role-escalation guard in CreateUser / UpdateUser doesn't gate test
+// cases that aren't exercising the guard itself. Mirror of what the
+// real AuthMiddleware does on every request.
+func adminCtx() context.Context {
+	ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "test-admin")
+	return context.WithValue(ctx, ctxauth.KeySystemRole, "super_admin")
+}
+
 func TestCreateUserHandler(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +265,7 @@ func TestCreateUserHandler(t *testing.T) {
 				},
 			}
 			h := NewUserHandler(svc)
-			resp, err := h.CreateUser(context.Background(), &CreateUserRequest{
+			resp, err := h.CreateUser(adminCtx(), &CreateUserRequest{
 				Body: models.CreateUserInput{Email: "x@y.z", FullName: "x", Role: "operator"},
 			})
 			if c.wantStatus == 0 {
@@ -334,7 +343,7 @@ func TestUpdateUserHandler(t *testing.T) {
 				},
 			}
 			h := NewUserHandler(svc)
-			resp, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			resp, err := h.UpdateUser(adminCtx(), &UpdateUserRequest{
 				ID:   "u1",
 				Body: models.UpdateUserInput{FullName: "Renamed"},
 			})
@@ -365,7 +374,7 @@ func TestUpdateUserHandler(t *testing.T) {
 			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
 		}
 		h := NewUserHandler(svc)
-		_, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+		_, err := h.UpdateUser(adminCtx(), &UpdateUserRequest{
 			ID:   "u1",
 			Body: models.UpdateUserInput{IsActive: boolPtr(false)},
 		})
@@ -382,7 +391,10 @@ func TestUpdateUserHandler(t *testing.T) {
 			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
 		}
 		h := NewUserHandler(svc)
-		_, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+		// Caller is super_admin so the role-escalation guard accepts the
+		// demote → the last-admin check is the gate under test.
+		ctx := context.WithValue(context.Background(), ctxauth.KeySystemRole, "super_admin")
+		_, err := h.UpdateUser(ctx, &UpdateUserRequest{
 			ID:   "u1",
 			Body: models.UpdateUserInput{Role: "operator"},
 		})
@@ -402,7 +414,7 @@ func TestUpdateUserHandler(t *testing.T) {
 			// countActiveAdminsFn is nil — would panic if called.
 		}
 		h := NewUserHandler(svc)
-		if _, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+		if _, err := h.UpdateUser(adminCtx(), &UpdateUserRequest{
 			ID:   "u1",
 			Body: models.UpdateUserInput{FullName: "Renamed"},
 		}); err != nil {
@@ -418,9 +430,100 @@ func TestUpdateUserHandler(t *testing.T) {
 			},
 		}
 		h := NewUserHandler(svc)
-		if _, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+		// adminCtx() = super_admin caller, so the role-escalation guard
+		// accepts the promote to administrator (5 >= 4) and the
+		// last-admin path isn't triggered (no demotion intent).
+		if _, err := h.UpdateUser(adminCtx(), &UpdateUserRequest{
 			ID:   "u1",
 			Body: models.UpdateUserInput{Role: "administrator"},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	// --- role-escalation guard, the dedicated path ---
+
+	t.Run("administrator cannot promote anyone to super_admin", func(t *testing.T) {
+		t.Parallel()
+		// No updateUserFn — handler must short-circuit BEFORE the
+		// service call. If it reaches the panicking fallback, the
+		// guard fired too late.
+		svc := &fakeUserService{}
+		h := NewUserHandler(svc)
+		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "admin-1")
+		ctx = context.WithValue(ctx, ctxauth.KeySystemRole, "administrator")
+		_, err := h.UpdateUser(ctx, &UpdateUserRequest{
+			ID:   "u2",
+			Body: models.UpdateUserInput{Role: "super_admin"},
+		})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserRoleEscalationForbidden)
+	})
+
+	t.Run("administrator can assign another administrator (equal tier)", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u2", Role: "operator", IsActive: true}, nil
+			},
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u2", Role: "administrator"}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "admin-1")
+		ctx = context.WithValue(ctx, ctxauth.KeySystemRole, "administrator")
+		if _, err := h.UpdateUser(ctx, &UpdateUserRequest{
+			ID:   "u2",
+			Body: models.UpdateUserInput{Role: "administrator"},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	t.Run("manager cannot promote to administrator", func(t *testing.T) {
+		t.Parallel()
+		svc := &fakeUserService{}
+		h := NewUserHandler(svc)
+		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "mgr-1")
+		ctx = context.WithValue(ctx, ctxauth.KeySystemRole, "manager")
+		_, err := h.UpdateUser(ctx, &UpdateUserRequest{
+			ID:   "u2",
+			Body: models.UpdateUserInput{Role: "administrator"},
+		})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserRoleEscalationForbidden)
+	})
+
+	t.Run("missing caller role refuses every role assignment", func(t *testing.T) {
+		t.Parallel()
+		// Defensive fail-closed: a degraded middleware that forgets to
+		// stamp KeySystemRole must NOT let the request through. The
+		// canAssignRole tier ladder treats -1 (unknown) as below every
+		// real tier.
+		svc := &fakeUserService{}
+		h := NewUserHandler(svc)
+		_, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u2",
+			Body: models.UpdateUserInput{Role: "guest"},
+		})
+		assertStatus(t, err, 403)
+		assertErrCode(t, err, errcode.UserRoleEscalationForbidden)
+	})
+
+	t.Run("profile-only patch with no role bypasses the role guard", func(t *testing.T) {
+		t.Parallel()
+		// Empty Role means the guard short-circuits — even a missing
+		// caller role isn't a problem when there's nothing to assign.
+		svc := &fakeUserService{
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u2", FullName: "Renamed"}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(context.Background(), &UpdateUserRequest{
+			ID:   "u2",
+			Body: models.UpdateUserInput{FullName: "Renamed"},
 		}); err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -583,10 +686,14 @@ func TestAdminLifecycleAuditEmits(t *testing.T) {
 
 	boolPtr := func(b bool) *bool { return &b }
 	actorCtx := func() context.Context {
-		// The handler reads ActorUserID + ActorEmail from ctxauth; the
-		// real middleware stamps both before the handler runs.
+		// The handler reads ActorUserID + ActorEmail + system role from
+		// ctxauth; the real middleware stamps all three before the
+		// handler runs. Tests default to super_admin so the role-
+		// escalation guard never short-circuits the path under test —
+		// individual cases override the role when needed.
 		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "admin-1")
-		return context.WithValue(ctx, ctxauth.KeyUserEmail, "admin@example.com")
+		ctx = context.WithValue(ctx, ctxauth.KeyUserEmail, "admin@example.com")
+		return context.WithValue(ctx, ctxauth.KeySystemRole, "super_admin")
 	}
 
 	// assertEvent fails the test unless `events` contains exactly one

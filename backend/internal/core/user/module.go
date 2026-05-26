@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -173,12 +174,36 @@ func registerAvatarRoutes(api huma.API, h *handlers.AvatarHandler, opIDPrefix st
 func (m *UserModule) RegisterRoutes(ri *module.RouteInfo) {
 	// User management is a platform-level concern: users are global, so
 	// routes live on the system permission gate (administrators) rather
-	// than per-org.
+	// than per-org. The surface is split into three router groups by
+	// destructiveness:
+	//
+	//   - **read** — GET endpoints, gated by `system.users.admin` only.
+	//   - **soft mutation** — POST endpoints that create new rows or
+	//     trigger emails; the role-escalation guard inside the handler
+	//     rejects privilege seeding, so no step-up is required here.
+	//   - **hard mutation** — PUT/PATCH/DELETE; gated additionally by
+	//     `RequireStepUp(5m)` so a long-lived admin session can't
+	//     destructively mutate platform state hours after the last
+	//     MFA proof. The SPA's StepUpModal catches the 401 and prompts
+	//     the admin to re-verify.
 	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
 		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
 		api := humachi.New(r, ri.APIConfig)
-		RegisterRoutes(api, m.handler)
-		RegisterAdminClientRoutes(api, m.adminClientHandler)
+		RegisterReadRoutes(api, m.handler)
+		RegisterAdminClientReadRoutes(api, m.adminClientHandler)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
+		api := humachi.New(r, ri.APIConfig)
+		RegisterSoftMutationRoutes(api, m.handler)
+		RegisterAdminClientSoftMutationRoutes(api, m.adminClientHandler)
+	})
+	ri.Operator.ProtectedRouter.Group(func(r chi.Router) {
+		r.Use(ri.Operator.AuthMW.RequireSystemPermission("system.users.admin"))
+		r.Use(ri.Operator.AuthMW.RequireStepUp(5 * time.Minute))
+		api := humachi.New(r, ri.APIConfig)
+		RegisterHardMutationRoutes(api, m.handler)
+		RegisterAdminClientHardMutationRoutes(api, m.adminClientHandler)
 	})
 
 	// Self-service avatar surface — mounted on BOTH audiences so a

@@ -278,6 +278,14 @@ type authService struct {
 	// Nil falls back to the pre-Phase-2.1 no-op: events log via slog
 	// but are not stored. Set via AuthConfig at construction.
 	securityEventRepo repository.SecurityEventRepository
+	// auditSink is the compliance addon's audit sink, wired
+	// post-construction via SetAuditSink. When present, recordAuthEvent
+	// also emits a row to compliance_audit_events so the operator-tier
+	// /admin/audit-events and /admin/compliance/soc2 surfaces reflect
+	// admin-on-user and self-action events alongside the
+	// login/password/MFA events PasswordAuthService already publishes.
+	// Nil falls back to slog + auth_security_events only.
+	auditSink iface.AuditSink
 	// blobStore is consumed every time the service builds a
 	// UserManagementResponse from a raw User — the wire `avatar` field
 	// needs to be the freshly-resolved URL (presigned GET for
@@ -285,6 +293,15 @@ type authService struct {
 	// initials), NOT the stale value the document happens to carry.
 	// Optional — nil falls back to whatever User.Avatar holds.
 	blobStore blob.Store
+}
+
+// SetAuditSink wires the compliance audit sink post-construction.
+// Satisfies iface.AuditSinkSetter so the compliance addon's probe loop
+// pushes its sink onto every authService instance under the
+// ServiceAuthService key. Nil-tolerant — when compliance is disabled
+// the existing slog + auth_security_events lanes still run.
+func (s *authService) SetAuditSink(sink iface.AuditSink) {
+	s.auditSink = sink
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -1536,6 +1553,60 @@ func (s *authService) recordAuthEvent(ctx context.Context, eventType, targetUUID
 			"error", err.Error(),
 		)
 	}
+
+	// Compliance lane — mirror the event into the platform audit log so
+	// /admin/audit-events and the SOC2 evidence query see it. Mapped via
+	// authEventComplianceAction; events without a mapping (e.g. legacy
+	// or addon-private types) skip silently rather than guessing an
+	// action name. ActorUUID lives in metadata for the admin path; the
+	// resource is always the target user.
+	if s.auditSink != nil {
+		if action := authEventComplianceAction(eventType); action != "" {
+			actorUUID, _ := metadata["actorUUID"].(string)
+			if actorUUID == "" {
+				// Self-action paths set actor == target on purpose.
+				actorUUID = targetUUID
+			}
+			s.auditSink.Emit(ctx, iface.AuditEvent{
+				ActorUserID:  actorUUID,
+				ActorType:    "user",
+				Action:       action,
+				ResourceType: "user",
+				ResourceID:   targetUUID,
+				Outcome:      "success",
+				IPAddress:    ip,
+				Metadata:     metadata,
+			})
+		}
+	}
+}
+
+// authEventComplianceAction maps the auth module's internal event-type
+// strings to the dotted compliance action vocabulary
+// (compliance/models/audit_event.go). Only events we deliberately want
+// in the SOC2 audit-events view are mapped — unmapped types still hit
+// slog + auth_security_events but don't get duplicated to compliance,
+// so adding a new event-type here is opt-in.
+func authEventComplianceAction(eventType string) string {
+	switch eventType {
+	case "admin_password_reset_sent":
+		return "auth.password.reset_requested"
+	case "admin_verification_resent":
+		return "auth.email.verify_resend"
+	case "admin_oauth_unlink":
+		return "auth.oauth.unlinked"
+	case "admin_mfa_reset":
+		return "auth.mfa.reset"
+	case "self_oauth_unlink":
+		return "auth.oauth.unlinked.self"
+	case "self_oauth_link":
+		return "auth.oauth.linked.self"
+	case "self_session_revoke":
+		return "auth.session.revoked.self"
+	case "self_session_revoke_all":
+		return "auth.session.revoked_all.self"
+	}
+	return ""
 }
 
 // RecordAdminAuthEvent is the public entry point handlers use to log a

@@ -33,6 +33,15 @@ const UserSelfDeleteForbidden = "user.self_delete_forbidden"
 // promote it to a Mongo transaction. 403.
 const UserLastAdminForbidden = "user.last_admin_forbidden"
 
+// UserRoleEscalationForbidden signals that the requested role change
+// would assign a system role with a tier higher than the caller's own
+// — i.e. an administrator trying to promote another user (or
+// themselves) to super_admin. The cascade rule that protects
+// authz.CreateBinding does NOT apply to the User.Role field because
+// it's not a binding; this guard is the user module's own version of
+// the same invariant. 403.
+const UserRoleEscalationForbidden = "user.role_escalation_forbidden"
+
 // --- marketing ---
 
 // MarketingCardCodeCollision signals that the card-emit path

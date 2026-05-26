@@ -21,6 +21,14 @@ type LoginTokenIssuer interface {
 	IssueLoginTokens(ctx context.Context, user *userModels.User, deviceID, platform, ip string, amr []string, lastOTPAt int64) (*authModels.TokenResponse, error)
 }
 
+// adminAuthRecorder is the narrow slice of AuthService MFAHandler needs
+// to log admin-on-user MFA actions to the audit pipeline. Kept as an
+// interface so tests can substitute a capturing fake without pulling in
+// the full AuthService surface.
+type adminAuthRecorder interface {
+	RecordAdminAuthEvent(ctx context.Context, eventType, actorUUID, targetUUID string, fields map[string]interface{})
+}
+
 // MFAHandler binds the MFA service to its HTTP surface. All endpoints live
 // under /v1/auth/mfa or /v1/auth/me/mfa and require an authenticated user
 // (no org context needed, so RequireGlobal() is the correct gate).
@@ -33,9 +41,18 @@ type MFAHandler struct {
 	webauthn     services.WebAuthnService    // optional — populated when WebAuthn is configured
 	deviceTrust  services.DeviceTrustService // optional — Section C item #3
 	policy       *services.AuthPolicyService // optional — admin-managed mfaEnabled + grace-window source
+	recorder     adminAuthRecorder           // optional — emits admin_mfa_reset to the audit pipeline
 	cookieName   string
 	cookieDomain string
 	cookieSecure bool
+}
+
+// SetAuditRecorder wires the admin-auth event recorder. Mirrors the
+// other optional setters on this handler — nil-tolerant. Called from
+// auth/module.go::Init after both AuthService and MFAHandler are
+// constructed.
+func (h *MFAHandler) SetAuditRecorder(r adminAuthRecorder) {
+	h.recorder = r
 }
 
 // NewMFAHandler wires the dependencies. Cookie config is needed by the
@@ -402,6 +419,12 @@ func (h *MFAHandler) AdminReset(ctx context.Context, req *MFAAdminResetRequest) 
 		// target will be gated by their next privileged login regardless.
 		// We log via the mfa service on the delete path; nothing more here.
 		_ = err
+	}
+	// Audit pipeline: slog + auth_security_events + compliance via the
+	// AuthService recorder. Nil-tolerant — a build without the audit
+	// wiring still succeeds at the user-facing operation.
+	if h.recorder != nil {
+		h.recorder.RecordAdminAuthEvent(ctx, "admin_mfa_reset", actorUUID, req.UserID, nil)
 	}
 	resp := &MFAAdminResetResponse{}
 	resp.Body.Success = true
