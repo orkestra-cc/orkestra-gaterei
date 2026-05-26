@@ -1,10 +1,291 @@
 ---
 title: Adding an Addon
 sidebar_position: 3
+description: End-to-end walkthrough for adding a new addon module to an Orkestra fork — in-tree first, public repo later.
 ---
 
 # Adding an Addon
 
-:::note 🚧 Draft
-Cross-link to [Build your first addon](/sdk/build-your-first-addon), expand with the public-repo split workflow: SDK contract update, replace directives, public mirror CI, semver expectations.
+An **addon** is a Go module that implements the [`Module`](/sdk/module-interface) interface. It plugs into the monorepo's catalog, gets toggled per internal tenant at `/admin/modules`, and ships in one or more SKU profiles.
+
+This page is the full walkthrough. For the architectural shape, see [Module lifecycle](/architecture/module-lifecycle). For the SDK boundary rules (what an addon can and can't import), see [Shared interfaces](/sdk/shared-iface).
+
+## Decide where the addon will live
+
+Two homes, same `Module` contract.
+
+| Home                          | When to pick                                                                                      | Replace directive in `backend/go.mod`?                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **In-tree, monorepo fork only**| Internal-only addon, no plans to share, single team. Fastest iteration — no tag/release cycle.    | Not needed. `import "github.com/your-org/your-fork/backend/internal/addons/yours"`. |
+| **In-tree + public repo**     | Reusable across forks, distributed as a Go module, semver'd.                                       | Yes — one `replace` line; the in-tree path is the source of truth, the public repo mirrors tags. |
+
+Every extracted core addon (`billing`, `documents`, `aimodels`, …) uses the second pattern today. The replace directive lets monorepo devs edit live in-tree source while CI and external consumers resolve a tagged version through the Go module proxy. See [Forking a core addon](/contributing/forking-a-core-addon) for the inverse direction — customizing an addon you don't own.
+
+## Step 1 — Scaffold the addon
+
+Either start from the template repo (when public) or copy a small existing addon as a starting point:
+
+```bash
+cd backend/internal/addons
+cp -r company youraddon
+cd youraddon
+# Rename Go package, swap collection names, gut the handlers — keep the layout.
+```
+
+Layout every addon follows:
+
+```
+internal/addons/youraddon/
+├── go.mod                          # only if you want the public-repo split
+├── module.go                       # implements Module — Init, RegisterRoutes, Start, Stop, HealthCheck, metadata
+├── handlers/                       # Huma v2 route handlers
+├── services/                       # business logic — pure Go, no HTTP
+├── repository/                     # MongoDB access via shared/tenantrepo
+└── models/                         # request/response DTOs + persisted documents
+```
+
+If you're going public-repo, your `go.mod` looks like:
+
+```
+module github.com/your-org/orkestra-addon-youraddon
+
+go 1.25.10
+
+require github.com/orkestra-cc/orkestra-sdk v0.4.0
+```
+
+The monorepo's `backend/go.mod` then adds:
+
+```
+require github.com/your-org/orkestra-addon-youraddon v0.1.0
+
+replace github.com/your-org/orkestra-addon-youraddon => ./internal/addons/youraddon
+```
+
+## Step 2 — Implement the `Module` interface
+
+`module.go` is the only file the registry calls into. The full surface is documented in [Module interface](/sdk/module-interface); the minimum is:
+
+```go
+package youraddon
+
+import (
+    "context"
+
+    "github.com/orkestra-cc/orkestra-sdk/module"
+)
+
+type Module struct {
+    svc *Service
+}
+
+func NewModule() *Module { return &Module{} }
+
+func (m *Module) Name() string        { return "youraddon" }
+func (m *Module) DisplayName() string { return "Your Addon" }
+func (m *Module) Description() string { return "What this addon does in one sentence." }
+func (m *Module) Category() string    { return "business" } // core | business | ai | infra
+
+func (m *Module) Dependencies() module.Dependencies {
+    return module.Dependencies{
+        Required: []string{},          // e.g. []string{"documents"} — registry topo-sorts
+        Optional: []string{},
+    }
+}
+
+func (m *Module) Collections() []module.CollectionSpec { /* see Step 3 */ }
+func (m *Module) NavItems() []module.NavItem           { /* see Step 4 */ }
+func (m *Module) ConfigSchema() module.ConfigSchema    { /* see Step 5 */ }
+
+func (m *Module) ProvidedServices() []module.ServiceKey { return nil }
+func (m *Module) RequiredServices() []module.ServiceKey { return nil }
+func (m *Module) OptionalServices() []module.ServiceKey { return nil }
+
+func (m *Module) Init(ctx context.Context, deps module.Deps) error {
+    m.svc = NewService(deps.Mongo, deps.Logger)
+    return nil
+}
+
+func (m *Module) RegisterRoutes(api module.API, mw module.RoleMiddleware) {
+    // huma.Register(api, ..., m.handler.Foo) — mw.RequireRole(...) for RBAC
+}
+
+func (m *Module) Start(ctx context.Context) error    { return nil }
+func (m *Module) Stop(ctx context.Context) error     { return nil }
+func (m *Module) HealthCheck(ctx context.Context) error { return nil }
+func (m *Module) Enabled() bool { return true } // gated by ModuleConfigService at runtime
+```
+
+Rules the registry enforces:
+
+- **Never import another addon's `services/` or `repository/` package** from `module.go`. Use `shared/iface` interfaces and pull dependencies through `deps.Services.GetTyped[T]`. See [Service registry](/sdk/service-registry).
+- **All Mongo writes go through `shared/tenantrepo`** with an orgId scope. The `tenantscope` static analyzer (`make ci-backend`) fails CI if you bypass it.
+
+## Step 3 — Declare collections
+
+```go
+func (m *Module) Collections() []module.CollectionSpec {
+    return []module.CollectionSpec{
+        {
+            Name: "youraddon_widgets",                  // see mongo-collection-naming
+            Indexes: []module.IndexSpec{
+                {Keys: bson.D{{"orgId", 1}, {"createdAt", -1}}},
+                {Keys: bson.D{{"orgId", 1}, {"slug", 1}}, Unique: true},
+            },
+        },
+    }
+}
+```
+
+The registry auto-creates the collection and indexes at boot. Don't run `createIndex` yourself.
+
+**Naming**: if your addon has 2+ collections, prefix all of them with the addon directory name (singular). `youraddon_widgets`, `youraddon_events`, etc.
+
+## Step 4 — Declare nav items
+
+```go
+func (m *Module) NavItems() []module.NavItem {
+    return []module.NavItem{
+        {
+            Group:   "Business",            // sidebar section
+            Label:   "Your Addon",
+            Path:    "/youraddon",
+            Icon:    "Sparkle",             // Phosphor name
+            MinRole: "operator",            // operator | manager | developer | administrator | super_admin
+        },
+    }
+}
+```
+
+The `navigation` core module aggregates these at runtime — no frontend code needed for the sidebar entry. The actual `/youraddon` page is a separate frontend PR in `frontend-admin/`.
+
+## Step 5 — Declare config schema
+
+```go
+func (m *Module) ConfigSchema() module.ConfigSchema {
+    return module.ConfigSchema{
+        Fields: []module.ConfigField{
+            {
+                Key:         "apiToken",
+                Type:        module.FieldSecret,        // AES-256-GCM at rest
+                EnvVar:      "YOURADDON_API_TOKEN",     // first-boot seed
+                Description: "Bearer token for the upstream API.",
+                Required:    true,
+            },
+            {
+                Key:     "syncIntervalSeconds",
+                Type:    module.FieldInt,
+                Default: 300,
+            },
+        },
+    }
+}
+```
+
+`ConfigService` persists this in the `module_configs` MongoDB collection and caches it in Redis (30s TTL). Admins edit values at `/admin/modules/youraddon`. Secret fields never appear in API responses or logs.
+
+## Step 6 — Register in the catalog
+
+Create `backend/cmd/server/catalog_youraddon.go`:
+
+```go
+//go:build !no_addons || addon_youraddon
+
+package main
+
+import (
+    "github.com/your-org/orkestra-addon-youraddon"   // or in-tree import path
+    "github.com/orkestra-cc/orkestra-sdk/module"
+)
+
+func init() {
+    optionalModules["youraddon"] = func() module.Module { return youraddon.NewModule() }
+}
+```
+
+The build-tag pattern is load-bearing:
+
+- **Default build** (no tags): every `catalog_*.go` file compiles → every addon is installable in the binary.
+- **`-tags "no_addons"`**: only core modules ship. Useful for the `starter` SKU.
+- **`-tags "no_addons addon_youraddon addon_billing"`**: ship a curated subset.
+
+The registry topologically sorts at boot by `Dependencies()`, so picking a tag set that omits a transitive dependency fails loudly at boot, not at request time.
+
+## Step 7 — Hook into a SKU profile (optional)
+
+Edit `backend/Makefile` if you want your addon in one of the curated profiles:
+
+```make
+TAGS_BILLING := no_addons addon_billing addon_documents addon_company addon_dev addon_youraddon
+```
+
+CI builds every profile in `.github/workflows/backend.yml`'s matrix on every PR — a missing tag or broken dependency in `catalog_youraddon.go` gets caught before merge. On push to `dev`/`main`, the same matrix publishes one image per profile to GHCR (`ghcr.io/<repo>/backend:<sku>`).
+
+For a fully custom SKU, the canonical recipe table lives in [`backend/Makefile`](https://github.com/orkestra-cc/orkestra/blob/main/backend/Makefile) (search for `TAGS_`) and [`backend/CLAUDE.md`](https://github.com/orkestra-cc/orkestra/blob/main/backend/CLAUDE.md#module-system).
+
+## Step 8 — Run it locally
+
+```bash
+# From repo root
+make build-enterprise          # or build-<your-sku>
+cd docker
+docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.dev-public.yml --env-file .env up -d
+```
+
+Then enable the addon:
+
+1. Mint an admin token: `ORKESTRA_API_URL=http://localhost:3000 ./scripts/devtoken.sh administrator`
+2. Open `/admin/modules`, find your addon, toggle it on. The registry hot-loads it — no restart.
+3. Configure it at `/admin/modules/youraddon`.
+
+If `Start()` fails, the toggle returns the error inline and the module stays in `error` state — you don't have to scrape logs.
+
+## Step 9 — Publish (only if going public-repo)
+
+Once stable, mirror the in-tree source to a public repo and tag it:
+
+```bash
+# One-time: create github.com/your-org/orkestra-addon-youraddon
+# Each release: from backend/internal/addons/youraddon/
+git subtree push --prefix backend/internal/addons/youraddon \
+    git@github.com:your-org/orkestra-addon-youraddon.git main
+# In the public repo:
+git tag v0.1.0 && git push --tags
+```
+
+Then bump `backend/go.mod`:
+
+```
+require github.com/your-org/orkestra-addon-youraddon v0.1.0
+```
+
+Keep the `replace` directive while the addon is churning — drop it once cross-cutting changes stop requiring round-trips through the public repo.
+
+:::note
+Automated public-mirror CI is on the roadmap (deferred Phase 6) but not in place today — mirroring is manual. Track the issue tag `phase-6-public-mirror`.
 :::
+
+### Semver expectations
+
+| Change                                                  | Bump  |
+| ------------------------------------------------------- | ----- |
+| Backwards-compatible additions (new routes, new fields) | minor |
+| Bug fix, doc-only, internal refactor                    | patch |
+| Removing or renaming a `Module` method, breaking a public type, removing a route | major |
+| Bumping the required `orkestra-sdk` major version       | major |
+
+Pre-1.0 (the entire current addon catalog) treats `0.x.y` like `1.x.y` informally — minor bumps for additions, patches for fixes. Don't break callers without a major.
+
+## Checklist before opening the PR
+
+- [ ] `module.go` implements every method on `Module` — `make ci-backend` will compile-check this
+- [ ] All Mongo writes go through `shared/tenantrepo` — `make tenantscope` passes
+- [ ] Every protected route declares an `MinRole` and uses `mw.RequireRole(...)` — `make policycoverage` passes
+- [ ] Collections declared in `Collections()` follow the [naming rule](/contributing/ci-and-make)
+- [ ] If new routes were added, regenerate the canonical OpenAPI dump: `(cd backend && make openapi-dump)` and commit `backend/openapi/enterprise.json`
+- [ ] If new permissions were added, update `backend/policycoverage.baseline`
+- [ ] If your addon is in one of the named SKUs, the Makefile's `TAGS_<SKU>` includes it
+- [ ] Module README in `internal/addons/youraddon/README.md` exists (auto-synced to `docs.orkestra.cc` if you go public-repo)
+
+See also: [Module lifecycle](/architecture/module-lifecycle) · [Forking a core addon](/contributing/forking-a-core-addon) · [Build your first addon (SDK)](/sdk/build-your-first-addon)
