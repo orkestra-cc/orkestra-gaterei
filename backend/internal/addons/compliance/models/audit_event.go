@@ -90,4 +90,20 @@ const (
 
 	// onboarding.*
 	ActionOnboardingRegistered = "onboarding.register.completed"
+
+	// user.* — operator-tier admin lifecycle actions on the /admin/users
+	// surface (and the symmetric tier-2 admin/clients surface, where the
+	// resource type discriminates operator vs client). All emitted from
+	// the user service; the actor is the admin performing the operation.
+	// `*.refused` variants exist so the backend guards (self-delete,
+	// last-administrator quorum) leave an audit row even when the
+	// destructive call is rejected — SOC2 wants to see "an admin tried
+	// to lock the platform out" as much as it wants to see the
+	// successful changes.
+	ActionUserDeleted       = "user.deleted"
+	ActionUserDeleteRefused = "user.delete.refused"
+	ActionUserActivated     = "user.activated"
+	ActionUserDeactivated   = "user.deactivated"
+	ActionUserRoleChanged   = "user.role.changed"
+	ActionUserUpdateRefused = "user.update.refused"
 )

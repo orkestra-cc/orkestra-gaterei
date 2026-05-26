@@ -5,10 +5,23 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/core/user/services"
 	"github.com/orkestra/backend/internal/shared/errcode"
 )
+
+// auditEmitter is the narrow capability the handler probes on the
+// userService — when wired by the compliance addon's post-Init loop,
+// AuditSink returns a live sink and lifecycle events fire. When the
+// compliance addon is disabled the assertion still succeeds (the
+// concrete service exposes the method) but AuditSink returns nil, so
+// emit is a quiet no-op. Defining the interface here instead of on
+// services.UserService keeps the broader service interface unchanged
+// — test fakes don't have to grow this method.
+type auditEmitter interface {
+	AuditSink() iface.AuditSink
+}
 
 // UserHandler handles user HTTP requests
 type UserHandler struct {
@@ -20,6 +33,35 @@ func NewUserHandler(userService services.UserService) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 	}
+}
+
+// emitAudit forwards an event to the compliance audit sink if one was
+// wired onto the underlying user service. Best-effort: a nil sink, a
+// userService that doesn't satisfy auditEmitter (custom test fakes), or
+// any internal sink error are all silent no-ops — auditing must never
+// break the hot path. Resource type/id and actor identity are
+// populated by callers from ctxauth + request data.
+func (h *UserHandler) emitAudit(ctx context.Context, event iface.AuditEvent) {
+	emitter, ok := h.userService.(auditEmitter)
+	if !ok {
+		return
+	}
+	sink := emitter.AuditSink()
+	if sink == nil {
+		return
+	}
+	sink.Emit(ctx, event)
+}
+
+// actorFromCtx pulls the admin's UUID + email off the request context
+// for stamping into the AuditEvent.ActorUser fields. Defensive: when
+// the gate stripped them (which shouldn't happen on these admin
+// routes), the returned values are empty and the sink infers actorType
+// from the remaining fields.
+func actorFromCtx(ctx context.Context) (string, string) {
+	uuid, _ := ctxauth.GetUserUUID(ctx)
+	email, _ := ctxauth.GetUserEmail(ctx)
+	return uuid, email
 }
 
 // Create User Request
@@ -91,9 +133,30 @@ type UpdateUserResponse struct {
 // deactivate or demote a platform administrator away from the privileged
 // pool, the last-admin guard fires (403 user.last_admin_forbidden) so an
 // operator cannot strand the platform without an active administrator.
+// Successful patches that flip isActive or change role emit dedicated
+// lifecycle audit events; guard-blocked attempts emit a denied event so
+// the SOC2 trail shows the rejected attempt too.
 func (h *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*UpdateUserResponse, error) {
+	actorUUID, actorEmail := actorFromCtx(ctx)
+	// Snapshot the pre-change state so we can compute lifecycle deltas
+	// after a successful update. A read failure here is non-fatal —
+	// downstream UpdateUser will surface a clean 404 / 500.
+	previous, _ := h.userService.GetUser(ctx, req.ID)
+
 	if removesAdminPrivilege(&req.Body) {
 		if err := h.checkLastAdminRemoval(ctx, req.ID); err != nil {
+			if isLastAdminError(err) {
+				h.emitAudit(ctx, iface.AuditEvent{
+					ActorUserID:  actorUUID,
+					ActorEmail:   actorEmail,
+					ActorType:    "user",
+					Action:       "user.update.refused",
+					ResourceType: "user",
+					ResourceID:   req.ID,
+					Outcome:      "denied",
+					Metadata:     updateRefusalMetadata(&req.Body),
+				})
+			}
 			return nil, err
 		}
 	}
@@ -111,7 +174,77 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *UpdateUserRequest) (*
 		}
 	}
 
+	h.emitUpdateLifecycleEvents(ctx, actorUUID, actorEmail, previous, user, &req.Body)
+
 	return &UpdateUserResponse{Body: *user}, nil
+}
+
+// emitUpdateLifecycleEvents compares the pre-update snapshot to the
+// post-update result and emits one audit event per distinct lifecycle
+// delta. isActive flip → user.activated / user.deactivated. Role
+// change to a value other than the prior one → user.role.changed with
+// before/after in metadata. Profile-only patches (name, phone, etc.)
+// don't get a dedicated event today — they roll up under "no audit
+// event" by design; revisit when the operator UI grows a way to view
+// generic profile-edit history.
+func (h *UserHandler) emitUpdateLifecycleEvents(
+	ctx context.Context,
+	actorUUID, actorEmail string,
+	previous *models.UserManagementResponse,
+	current *models.UserManagementResponse,
+	patch *models.UpdateUserInput,
+) {
+	if current == nil {
+		return
+	}
+	if patch.IsActive != nil && (previous == nil || previous.IsActive != *patch.IsActive) {
+		action := "user.activated"
+		if !*patch.IsActive {
+			action = "user.deactivated"
+		}
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       action,
+			ResourceType: "user",
+			ResourceID:   current.ID,
+			Outcome:      "success",
+		})
+	}
+	if patch.Role != "" && previous != nil && previous.Role != patch.Role {
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       "user.role.changed",
+			ResourceType: "user",
+			ResourceID:   current.ID,
+			Outcome:      "success",
+			Metadata: map[string]any{
+				"from": previous.Role,
+				"to":   patch.Role,
+			},
+		})
+	}
+}
+
+// updateRefusalMetadata captures which protected field the rejected
+// update was trying to change, so the SOC2 view can tell a deactivate
+// attempt from a role-demote attempt. Both are denied with the same
+// last_admin_forbidden code but the operator intent differed.
+func updateRefusalMetadata(input *models.UpdateUserInput) map[string]any {
+	meta := map[string]any{"code": errcode.UserLastAdminForbidden}
+	if input == nil {
+		return meta
+	}
+	if input.IsActive != nil && !*input.IsActive {
+		meta["attempted"] = "deactivate"
+	} else if input.Role != "" {
+		meta["attempted"] = "role_change"
+		meta["to"] = input.Role
+	}
+	return meta
 }
 
 // Delete User Request
@@ -133,10 +266,36 @@ type DeleteUserResponse struct {
 // refused when it would leave zero live, active platform administrators
 // (403 user.last_admin_forbidden).
 func (h *UserHandler) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*DeleteUserResponse, error) {
-	if callerUUID, ok := ctxauth.GetUserUUID(ctx); ok && callerUUID == req.ID {
+	actorUUID, actorEmail := actorFromCtx(ctx)
+	if actorUUID != "" && actorUUID == req.ID {
+		// Self-delete refused — emit the denied event so SOC2 sees the
+		// attempt. Metadata carries the wire code so dashboards can
+		// distinguish self-delete from last-admin refusals.
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       "user.delete.refused",
+			ResourceType: "user",
+			ResourceID:   req.ID,
+			Outcome:      "denied",
+			Metadata:     map[string]any{"code": errcode.UserSelfDeleteForbidden},
+		})
 		return nil, errcode.Forbidden(errcode.UserSelfDeleteForbidden, "You cannot delete your own account")
 	}
 	if err := h.checkLastAdminRemoval(ctx, req.ID); err != nil {
+		if isLastAdminError(err) {
+			h.emitAudit(ctx, iface.AuditEvent{
+				ActorUserID:  actorUUID,
+				ActorEmail:   actorEmail,
+				ActorType:    "user",
+				Action:       "user.delete.refused",
+				ResourceType: "user",
+				ResourceID:   req.ID,
+				Outcome:      "denied",
+				Metadata:     map[string]any{"code": errcode.UserLastAdminForbidden},
+			})
+		}
 		return nil, err
 	}
 	if err := h.userService.SoftDeleteAndAliasEmail(ctx, req.ID); err != nil {
@@ -150,6 +309,16 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*
 		}
 	}
 
+	h.emitAudit(ctx, iface.AuditEvent{
+		ActorUserID:  actorUUID,
+		ActorEmail:   actorEmail,
+		ActorType:    "user",
+		Action:       "user.deleted",
+		ResourceType: "user",
+		ResourceID:   req.ID,
+		Outcome:      "success",
+	})
+
 	return &DeleteUserResponse{
 		Body: struct {
 			Message string `json:"message" doc:"Success message"`
@@ -157,6 +326,20 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*
 			Message: "User deleted successfully",
 		},
 	}, nil
+}
+
+// isLastAdminError is true when err is the last-administrator guard's
+// 403. The guard returns either nil, a generic 500, or this specific
+// Forbidden envelope — we discriminate by the wire code so a transient
+// quorum-count failure (500) doesn't masquerade as a denied event.
+func isLastAdminError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if ec, ok := err.(*errcode.Error); ok {
+		return ec.Code == errcode.UserLastAdminForbidden
+	}
+	return false
 }
 
 // checkLastAdminRemoval refuses the operation when removing the target

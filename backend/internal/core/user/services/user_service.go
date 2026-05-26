@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	authRepository "github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/user/models"
@@ -104,6 +105,10 @@ type userService struct {
 	// nil, uploaded avatars fall back to whatever URL is stored on the
 	// user document (likely stale or empty).
 	blobStore blob.Store
+	// auditSink is wired post-construction by the compliance module
+	// during its post-Init wiring loop. nil-tolerant: emitAudit is a
+	// silent no-op when the compliance addon is disabled.
+	auditSink iface.AuditSink
 }
 
 // NewUserService creates a new user service
@@ -120,6 +125,24 @@ func NewUserService(userRepo repository.UserRepository, oauthProviderRepo authRe
 // stored Avatar field.
 func (s *userService) SetBlobStore(store blob.Store) {
 	s.blobStore = store
+}
+
+// SetAuditSink wires the compliance audit sink post-construction so the
+// admin-lifecycle handlers can emit events without importing the
+// compliance addon. Satisfies iface.AuditSinkSetter; called from
+// compliance's post-Init wiring loop. nil-tolerant — when the
+// compliance addon is disabled the handlers' emit helpers no-op.
+func (s *userService) SetAuditSink(sink iface.AuditSink) {
+	s.auditSink = sink
+}
+
+// AuditSink returns the wired compliance audit sink (nil when the
+// compliance addon is disabled). Exposed so handlers, not just the
+// service's own methods, can decide whether and what to emit — the
+// admin lifecycle audit events live on the handlers because that is
+// where the actor identity (from ctxauth) is available.
+func (s *userService) AuditSink() iface.AuditSink {
+	return s.auditSink
 }
 
 // CreateUser creates a new user

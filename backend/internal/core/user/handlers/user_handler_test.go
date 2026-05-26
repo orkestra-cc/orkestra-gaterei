@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/orkestra-cc/orkestra-sdk/ctxauth"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	"github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/core/user/services"
 	"github.com/orkestra/backend/internal/shared/errcode"
@@ -41,12 +42,26 @@ type fakeUserService struct {
 	lastCountFilters      *models.UserFilters
 	lastSoftDeleteAliasID string
 	lastDeleteID          string
+
+	// sink is the optional audit sink returned by AuditSink(). Tests
+	// that exercise the audit-emit path attach a captureSink here.
+	sink iface.AuditSink
 }
 
 func (f *fakeUserService) CreateUser(ctx context.Context, input *models.CreateUserInput) (*models.UserManagementResponse, error) {
 	return f.createUserFn(ctx, input)
 }
 func (f *fakeUserService) GetUser(ctx context.Context, id string) (*models.UserManagementResponse, error) {
+	// Nil-tolerant: handlers now call GetUser for pre-state snapshots
+	// (UpdateUser delta detection, DeleteUser last-admin check). Tests
+	// that don't care about the snapshot can leave getUserFn unset and
+	// get a clean (nil, nil) — the handler treats a missing snapshot
+	// as "no delta to emit / quorum check short-circuits" without
+	// failing the request. Tests that DO care about the snapshot set
+	// getUserFn explicitly.
+	if f.getUserFn == nil {
+		return nil, nil
+	}
 	return f.getUserFn(ctx, id)
 }
 func (f *fakeUserService) GetUserByEmail(ctx context.Context, email string) (*models.UserManagementResponse, error) {
@@ -170,6 +185,30 @@ func (f *fakeUserService) SetAvatarSource(context.Context, string, string, strin
 }
 func (f *fakeUserService) UpdateOAuthLinkData(context.Context, string, models.OAuthProvider, string, map[string]interface{}) error {
 	panic("unused: UpdateOAuthLinkData")
+}
+
+// AuditSink implements the narrow auditEmitter capability the handlers
+// type-assert against. Returning the embedded sink (or nil) opts the
+// fake into audit emission per-test — tests that want to assert the
+// emit pattern construct a captureSink, attach it here, and inspect
+// captureSink.events after the handler call.
+func (f *fakeUserService) AuditSink() iface.AuditSink {
+	if f.sink == nil {
+		return nil
+	}
+	return f.sink
+}
+
+// captureSink is a minimal iface.AuditSink that buffers every emitted
+// event in memory for test assertions. Goroutine-safe enough for the
+// sequential handler tests; if a future test fans out concurrent calls
+// it should wrap Emit in a mutex.
+type captureSink struct {
+	events []iface.AuditEvent
+}
+
+func (c *captureSink) Emit(_ context.Context, event iface.AuditEvent) {
+	c.events = append(c.events, event)
 }
 
 // assertStatus pulls the status code out of a huma.StatusError. Fails
@@ -531,6 +570,211 @@ func assertErrCode(t *testing.T, err error, wantCode string) {
 	if ec.Code != wantCode {
 		t.Errorf("code = %q, want %q", ec.Code, wantCode)
 	}
+}
+
+// TestAdminLifecycleAuditEmits pins the audit emission contract: every
+// admin-lifecycle path on /admin/users either lands a single
+// well-shaped event on the compliance sink, or — if compliance is
+// disabled (no sink wired) — emits nothing without erroring. The sink
+// is exercised through the handler's auditEmitter probe so this also
+// guards the type-assertion plumbing.
+func TestAdminLifecycleAuditEmits(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(b bool) *bool { return &b }
+	actorCtx := func() context.Context {
+		// The handler reads ActorUserID + ActorEmail from ctxauth; the
+		// real middleware stamps both before the handler runs.
+		ctx := context.WithValue(context.Background(), ctxauth.KeyUserUUID, "admin-1")
+		return context.WithValue(ctx, ctxauth.KeyUserEmail, "admin@example.com")
+	}
+
+	// assertEvent fails the test unless `events` contains exactly one
+	// event matching action + outcome. The single-event check is part
+	// of the contract — a stray double-emit would distort SOC2 totals.
+	assertEvent := func(t *testing.T, events []iface.AuditEvent, wantAction, wantOutcome string) iface.AuditEvent {
+		t.Helper()
+		matches := []iface.AuditEvent{}
+		for _, e := range events {
+			if e.Action == wantAction && e.Outcome == wantOutcome {
+				matches = append(matches, e)
+			}
+		}
+		if len(matches) != 1 {
+			t.Fatalf("want exactly 1 %q/%q event, got %d (all events: %+v)", wantAction, wantOutcome, len(matches), events)
+		}
+		return matches[0]
+	}
+
+	t.Run("delete success emits user.deleted", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}, nil
+			},
+			softDeleteAndAliasFn: func(context.Context, string) error { return nil },
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.DeleteUser(actorCtx(), &DeleteUserRequest{ID: "u1"}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		ev := assertEvent(t, sink.events, "user.deleted", "success")
+		if ev.ResourceID != "u1" || ev.ResourceType != "user" {
+			t.Errorf("resource = %s/%s, want user/u1", ev.ResourceType, ev.ResourceID)
+		}
+		if ev.ActorUserID != "admin-1" || ev.ActorEmail != "admin@example.com" {
+			t.Errorf("actor = %s/%s, want admin-1/admin@example.com", ev.ActorUserID, ev.ActorEmail)
+		}
+	})
+
+	t.Run("delete self emits user.delete.refused denied with code", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{sink: sink}
+		h := NewUserHandler(svc)
+		// Actor UUID == target UUID triggers the self-delete guard
+		// before any service call, so we don't even need getUserFn.
+		_, err := h.DeleteUser(actorCtx(), &DeleteUserRequest{ID: "admin-1"})
+		assertStatus(t, err, 403)
+		ev := assertEvent(t, sink.events, "user.delete.refused", "denied")
+		if got, _ := ev.Metadata["code"].(string); got != errcode.UserSelfDeleteForbidden {
+			t.Errorf("metadata.code = %q, want %q", got, errcode.UserSelfDeleteForbidden)
+		}
+	})
+
+	t.Run("delete last-admin emits user.delete.refused denied with code", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
+		}
+		h := NewUserHandler(svc)
+		_, err := h.DeleteUser(actorCtx(), &DeleteUserRequest{ID: "u1"})
+		assertStatus(t, err, 403)
+		ev := assertEvent(t, sink.events, "user.delete.refused", "denied")
+		if got, _ := ev.Metadata["code"].(string); got != errcode.UserLastAdminForbidden {
+			t.Errorf("metadata.code = %q, want %q", got, errcode.UserLastAdminForbidden)
+		}
+	})
+
+	t.Run("update activate emits user.activated", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: false}, nil
+			},
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(actorCtx(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{IsActive: boolPtr(true)},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		assertEvent(t, sink.events, "user.activated", "success")
+	})
+
+	t.Run("update deactivate emits user.deactivated", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 1, nil },
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: false}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(actorCtx(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{IsActive: boolPtr(false)},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		assertEvent(t, sink.events, "user.deactivated", "success")
+	})
+
+	t.Run("update role change emits user.role.changed with from/to", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "administrator", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 1, nil },
+			updateUserFn: func(context.Context, string, *models.UpdateUserInput) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}, nil
+			},
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.UpdateUser(actorCtx(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{Role: "operator"},
+		}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		ev := assertEvent(t, sink.events, "user.role.changed", "success")
+		if got, _ := ev.Metadata["from"].(string); got != "administrator" {
+			t.Errorf("metadata.from = %q, want administrator", got)
+		}
+		if got, _ := ev.Metadata["to"].(string); got != "operator" {
+			t.Errorf("metadata.to = %q, want operator", got)
+		}
+	})
+
+	t.Run("update last-admin demote emits user.update.refused denied", func(t *testing.T) {
+		t.Parallel()
+		sink := &captureSink{}
+		svc := &fakeUserService{
+			sink: sink,
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "super_admin", IsActive: true}, nil
+			},
+			countActiveAdminsFn: func(context.Context, string) (int64, error) { return 0, nil },
+		}
+		h := NewUserHandler(svc)
+		_, err := h.UpdateUser(actorCtx(), &UpdateUserRequest{
+			ID:   "u1",
+			Body: models.UpdateUserInput{Role: "operator"},
+		})
+		assertStatus(t, err, 403)
+		ev := assertEvent(t, sink.events, "user.update.refused", "denied")
+		if got, _ := ev.Metadata["attempted"].(string); got != "role_change" {
+			t.Errorf("metadata.attempted = %q, want role_change", got)
+		}
+	})
+
+	t.Run("no sink wired is a silent no-op", func(t *testing.T) {
+		t.Parallel()
+		// sink is nil — handler's emitAudit must short-circuit. The
+		// happy-path delete still succeeds and the test passes if no
+		// panic and the right HTTP outcome arrives.
+		svc := &fakeUserService{
+			getUserFn: func(context.Context, string) (*models.UserManagementResponse, error) {
+				return &models.UserManagementResponse{ID: "u1", Role: "operator", IsActive: true}, nil
+			},
+			softDeleteAndAliasFn: func(context.Context, string) error { return nil },
+		}
+		h := NewUserHandler(svc)
+		if _, err := h.DeleteUser(actorCtx(), &DeleteUserRequest{ID: "u1"}); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
 }
 
 func TestListUsersHandler(t *testing.T) {

@@ -198,6 +198,14 @@ func (m *Module) Init(deps *module.Dependencies) error {
 		module.ServiceIdentityAdminHandler,
 		module.ServiceIdentityScimAdminHandler,
 		module.ServiceSubscriptionService,
+		// User module: both tier providers expose SetAuditSink so the
+		// admin lifecycle handlers (operator DELETE /v1/users/{id} and
+		// the tier-2 DELETE /v1/admin/client-users/{id}) can emit
+		// user.deleted / user.activated / user.deactivated /
+		// user.role.changed + the *.refused variants on guard-blocked
+		// 403s.
+		module.ServiceOperatorUserProvider,
+		module.ServiceClientUserProvider,
 	}
 	for _, key := range auditSinkKeys {
 		if s, ok := module.GetTyped[iface.AuditSinkSetter](deps.Services, key); ok {
