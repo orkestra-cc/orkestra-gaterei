@@ -96,6 +96,11 @@ type AuthService interface {
 	// UpdateUserInput re-validates via struct tags, but the service trusts
 	// the caller has already rejected the unknown values.
 	UpdateLanguageByUUID(ctx context.Context, uuid, language string) error
+	// UpdateFullNameByUUID writes the user's display name. Self-service
+	// surface — the handler enforces length bounds via Huma struct tags
+	// (1..100) and the underlying UpdateUserInput re-validates, so the
+	// service treats the value as trusted.
+	UpdateFullNameByUUID(ctx context.Context, uuid, fullName string) error
 
 	// OAuth Link Management. Adding a new identity goes through the
 	// signed-state OAuth flow (POST /v1/auth/{tier}/me/oauth/link/{provider})
@@ -161,6 +166,21 @@ type AuthService interface {
 	// Enhanced token management with UUID and risk assessment
 	GenerateEnhancedTokenPair(ctx context.Context, user *userModels.User, deviceInfo *models.DeviceInfo, securityCtx *models.SecurityContext) (*models.TokenResponse, error)
 	RefreshTokensWithRiskAssessment(ctx context.Context, refreshToken string, securityCtx *models.SecurityContext) (*models.TokenResponse, error)
+	// PeekRefreshToken validates a refresh token's JWT structure and
+	// looks up the stored row WITHOUT rotating it or triggering replay
+	// detection. Callers use it to classify cookie candidates before
+	// deciding which one to rotate — a stale parent-domain cookie sent
+	// alongside the current cookie must not nuke the active family.
+	PeekRefreshToken(ctx context.Context, refreshToken string) (*models.RefreshTokenDoc, error)
+	// MintAccessTokenFromRefresh validates the refresh row and mints a
+	// fresh ACCESS token against it — without rotating the refresh
+	// row. Used by session-bootstrap endpoints (e.g. GET /v1/auth/session)
+	// that must not race the refresh-cookie rotation path; an idempotent
+	// /session lets concurrent SPA queries coexist without triggering
+	// replay detection on whichever call lands second. The returned
+	// TokenResponse carries an empty RefreshToken because no rotation
+	// occurred; the caller's existing cookie stays authoritative.
+	MintAccessTokenFromRefresh(ctx context.Context, refreshToken string, securityCtx *models.SecurityContext) (*models.TokenResponse, error)
 	ValidateTokenWithRiskAssessment(ctx context.Context, token string, securityCtx *models.SecurityContext) (*models.TokenValidationResult, error)
 
 	// Risk assessment and security
@@ -273,6 +293,14 @@ type authService struct {
 	// Nil falls back to the pre-Phase-2.1 no-op: events log via slog
 	// but are not stored. Set via AuthConfig at construction.
 	securityEventRepo repository.SecurityEventRepository
+	// auditSink is the compliance addon's audit sink, wired
+	// post-construction via SetAuditSink. When present, recordAuthEvent
+	// also emits a row to compliance_audit_events so the operator-tier
+	// /admin/audit-events and /admin/compliance/soc2 surfaces reflect
+	// admin-on-user and self-action events alongside the
+	// login/password/MFA events PasswordAuthService already publishes.
+	// Nil falls back to slog + auth_security_events only.
+	auditSink iface.AuditSink
 	// blobStore is consumed every time the service builds a
 	// UserManagementResponse from a raw User — the wire `avatar` field
 	// needs to be the freshly-resolved URL (presigned GET for
@@ -280,6 +308,15 @@ type authService struct {
 	// initials), NOT the stale value the document happens to carry.
 	// Optional — nil falls back to whatever User.Avatar holds.
 	blobStore blob.Store
+}
+
+// SetAuditSink wires the compliance audit sink post-construction.
+// Satisfies iface.AuditSinkSetter so the compliance addon's probe loop
+// pushes its sink onto every authService instance under the
+// ServiceAuthService key. Nil-tolerant — when compliance is disabled
+// the existing slog + auth_security_events lanes still run.
+func (s *authService) SetAuditSink(sink iface.AuditSink) {
+	s.auditSink = sink
 }
 
 // SetWebAuthnAvailability wires the optional checker. Mirrors the same
@@ -372,6 +409,11 @@ func (s *authService) UpdateLastLoginByUUID(ctx context.Context, uuid string) er
 
 func (s *authService) UpdateLanguageByUUID(ctx context.Context, uuid, language string) error {
 	_, err := s.userService.UpdateUser(ctx, uuid, &userModels.UpdateUserInput{Language: language})
+	return err
+}
+
+func (s *authService) UpdateFullNameByUUID(ctx context.Context, uuid, fullName string) error {
+	_, err := s.userService.UpdateUser(ctx, uuid, &userModels.UpdateUserInput{FullName: fullName})
 	return err
 }
 
@@ -1366,6 +1408,82 @@ func (s *authService) RefreshTokensWithRiskAssessment(ctx context.Context, refre
 	}, nil
 }
 
+// PeekRefreshToken validates the JWT envelope and looks up the row in
+// the unfiltered repo (so revoked rows are visible). It does not mint
+// new tokens, does not call handleRefreshReplay, and does not touch
+// the family — by design, so the cookie-iteration path can classify
+// every candidate the browser sent before any mutating call.
+func (s *authService) PeekRefreshToken(ctx context.Context, refreshToken string) (*models.RefreshTokenDoc, error) {
+	if _, err := s.jwtService.ValidateRefreshToken(refreshToken); err != nil {
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+	hashedToken := utils.HashRefreshToken(refreshToken)
+	doc, err := s.refreshTokenRepo.GetByTokenAny(ctx, hashedToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up refresh token: %w", err)
+	}
+	if doc == nil {
+		return nil, ErrInvalidRefreshToken
+	}
+	return doc, nil
+}
+
+// MintAccessTokenFromRefresh mints a fresh access token from a valid
+// refresh row WITHOUT rotating it. The refresh row must exist,
+// be non-expired, and non-revoked (any revocation reason is rejected
+// — including "rotated"; that path is reserved for replay detection in
+// RefreshTokensWithRiskAssessment). The returned TokenResponse has an
+// empty RefreshToken on purpose: this call is idempotent and the
+// caller's existing cookie remains authoritative. Used by session
+// endpoints so concurrent SPA queries do not race the rotation path
+// and trigger replay detection on themselves.
+func (s *authService) MintAccessTokenFromRefresh(ctx context.Context, refreshToken string, securityCtx *models.SecurityContext) (*models.TokenResponse, error) {
+	claims, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+	hashedToken := utils.HashRefreshToken(refreshToken)
+	doc, err := s.refreshTokenRepo.GetByTokenAny(ctx, hashedToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up refresh token: %w", err)
+	}
+	if doc == nil {
+		return nil, ErrInvalidRefreshToken
+	}
+	if time.Now().After(doc.ExpiresAt) {
+		return nil, ErrInvalidRefreshToken
+	}
+	if doc.IsRevoked {
+		// Any revocation reason — including "rotated" — disqualifies
+		// the row for read-only mint. Replay detection is the rotation
+		// endpoint's job, not session-bootstrap's.
+		return nil, ErrInvalidRefreshToken
+	}
+
+	userModel, err := s.userService.GetUserByID(ctx, claims.UserUUID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+	user := convertUserModelToAuthModel(userModel)
+
+	access, err := s.jwtService.GenerateAccessTokenWithAMR(user, claims.AMR, claims.LastOTPAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mint access token: %w", err)
+	}
+
+	oauthProviders, _ := s.oauthProviderRepo.GetByUserUUID(ctx, user.UUID)
+	return &models.TokenResponse{
+		AccessToken:    access,
+		RefreshToken:   "", // no rotation — caller's cookie stays authoritative
+		TokenType:      "Bearer",
+		ExpiresIn:      900,
+		SessionID:      doc.SessionUUID,
+		DeviceID:       doc.DeviceID,
+		User:           s.buildUserResponse(ctx, user),
+		OAuthProviders: models.ConvertOAuthProvidersToInfo(oauthProviders),
+	}, nil
+}
+
 // handleRefreshReplay kills the family and logs a structured warning. The
 // FamilyID can be empty on pre-Block-C rows — RevokeFamily short-circuits
 // to a no-op in that case so we don't accidentally revoke unrelated rows.
@@ -1526,6 +1644,60 @@ func (s *authService) recordAuthEvent(ctx context.Context, eventType, targetUUID
 			"error", err.Error(),
 		)
 	}
+
+	// Compliance lane — mirror the event into the platform audit log so
+	// /admin/audit-events and the SOC2 evidence query see it. Mapped via
+	// authEventComplianceAction; events without a mapping (e.g. legacy
+	// or addon-private types) skip silently rather than guessing an
+	// action name. ActorUUID lives in metadata for the admin path; the
+	// resource is always the target user.
+	if s.auditSink != nil {
+		if action := authEventComplianceAction(eventType); action != "" {
+			actorUUID, _ := metadata["actorUUID"].(string)
+			if actorUUID == "" {
+				// Self-action paths set actor == target on purpose.
+				actorUUID = targetUUID
+			}
+			s.auditSink.Emit(ctx, iface.AuditEvent{
+				ActorUserID:  actorUUID,
+				ActorType:    "user",
+				Action:       action,
+				ResourceType: "user",
+				ResourceID:   targetUUID,
+				Outcome:      "success",
+				IPAddress:    ip,
+				Metadata:     metadata,
+			})
+		}
+	}
+}
+
+// authEventComplianceAction maps the auth module's internal event-type
+// strings to the dotted compliance action vocabulary
+// (compliance/models/audit_event.go). Only events we deliberately want
+// in the SOC2 audit-events view are mapped — unmapped types still hit
+// slog + auth_security_events but don't get duplicated to compliance,
+// so adding a new event-type here is opt-in.
+func authEventComplianceAction(eventType string) string {
+	switch eventType {
+	case "admin_password_reset_sent":
+		return "auth.password.reset_requested"
+	case "admin_verification_resent":
+		return "auth.email.verify_resend"
+	case "admin_oauth_unlink":
+		return "auth.oauth.unlinked"
+	case "admin_mfa_reset":
+		return "auth.mfa.reset"
+	case "self_oauth_unlink":
+		return "auth.oauth.unlinked.self"
+	case "self_oauth_link":
+		return "auth.oauth.linked.self"
+	case "self_session_revoke":
+		return "auth.session.revoked.self"
+	case "self_session_revoke_all":
+		return "auth.session.revoked_all.self"
+	}
+	return ""
 }
 
 // RecordAdminAuthEvent is the public entry point handlers use to log a
@@ -1666,11 +1838,17 @@ func (s *authService) HandleOAuthCallbackWithLinking(ctx context.Context, provid
 				}
 			}
 
+			// Trust the IdP's email_verified claim — every provider
+			// (Google, Apple, GitHub, Discord) populates this in the
+			// userInfoMap from its own verified-email signal. Missing
+			// or false falls through to the standard verification flow.
+			emailVerified, _ := userInfo["email_verified"].(bool)
 			createInput := &userModels.CreateUserInput{
-				UUID:     newUUID,
-				Email:    email,
-				FullName: userInfo["name"].(string),
-				Role:     role,
+				UUID:          newUUID,
+				Email:         email,
+				FullName:      userInfo["name"].(string),
+				Role:          role,
+				EmailVerified: emailVerified,
 			}
 			fmt.Printf("[AUTH_DEBUG] Creating new user - Name: %s, Role: %s\n", createInput.FullName, createInput.Role)
 

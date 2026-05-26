@@ -107,14 +107,15 @@ func (f *gateUserFake) createInternal(in *userModels.CreateUserInput) (*userMode
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	u := &userModels.User{
-		UUID:         in.UUID,
-		Email:        in.Email,
-		FullName:     in.FullName,
-		Role:         in.Role,
-		PasswordHash: in.PasswordHash,
-		IsActive:     true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		UUID:          in.UUID,
+		Email:         in.Email,
+		FullName:      in.FullName,
+		Role:          in.Role,
+		PasswordHash:  in.PasswordHash,
+		EmailVerified: in.EmailVerified,
+		IsActive:      true,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 	if u.UUID == "" {
 		u.UUID = uuid.NewString()

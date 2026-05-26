@@ -143,6 +143,10 @@
         "guest": "Ospite",
         "unknown": "Sconosciuto"
       }
+    },
+    "user": {
+      "self_delete_forbidden": "Non puoi eliminare il tuo account.",
+      "last_admin_forbidden": "Impossibile rimuovere l'ultimo amministratore attivo."
     }
   },
   "banner": {
@@ -313,10 +317,6 @@
       "noneAvailable": "Nessun provider di accesso social attualmente abilitato.",
       "loadError": "Impossibile caricare le opzioni di accesso social. Riprova.",
       "callback": {
-        "completing": "Completamento autenticazione...",
-        "waitMessage": "Attendere mentre effettuiamo l'accesso.",
-        "successTitle": "Autenticazione riuscita!",
-        "successDetail": "Reindirizzamento alla dashboard...",
         "failureTitle": "Autenticazione fallita",
         "redirectingToLogin": "Reindirizzamento alla pagina di accesso...",
         "oauthErrorPrefix": "Errore OAuth",
@@ -469,30 +469,22 @@
     }
   },
   "settings": {
-    "account": {
-      "title": "Impostazioni account",
-      "whoSeeProfile": "Chi può vedere il tuo profilo?",
-      "whoSeeProfileTooltip": "Solo il gruppo di persone selezionate può vedere il tuo profilo",
-      "whoCanTag": "Chi può taggarti?",
-      "whoCanTagTooltip": "Solo il gruppo di persone selezionate può taggarti",
-      "everyone": "Tutti",
-      "myFollowers": "I miei follower",
-      "onlyMe": "Solo io",
-      "groupMembers": "Membri del gruppo",
-      "showFollowers": "Consenti agli utenti di vedere i tuoi follower",
-      "showEmail": "Consenti agli utenti di vedere la tua email",
-      "showExperience": "Consenti agli utenti di vedere le tue esperienze",
-      "showPhone": "Rendi visibile il tuo numero di telefono",
-      "allowFollow": "Consenti agli utenti di seguirti"
-    },
-    "billing": {
-      "title": "Impostazioni fatturazione",
-      "plan": "Piano",
-      "developerPlan": "<strong>Developer</strong> - Repository privati illimitati",
-      "updatePlan": "Aggiorna piano",
-      "payment": "Pagamento",
-      "noPayment": "Non hai aggiunto alcun metodo di pagamento.",
-      "addPayment": "Aggiungi pagamento"
+    "profile": {
+      "title": "Profilo",
+      "description": "La tua identità all'interno di Orkestra. Email e ruolo vengono gestiti separatamente: contatta un amministratore se devono cambiare.",
+      "fullNameLabel": "Nome visualizzato",
+      "fullNamePlaceholder": "Come ti chiamiamo?",
+      "fullNameInvalid": "Usa da 1 a 100 caratteri.",
+      "emailLabel": "Email",
+      "emailVerified": "Verificata",
+      "emailUnverified": "Non verificata",
+      "usernameLabel": "Username",
+      "roleLabel": "Ruolo",
+      "memberSinceLabel": "Iscritto dal",
+      "lastLoginLabel": "Ultimo accesso",
+      "submit": "Salva modifiche",
+      "toastSaved": "Profilo aggiornato.",
+      "toastFailed": "Impossibile salvare il profilo. Riprova."
     },
     "danger": {
       "title": "Zona di pericolo",
@@ -503,7 +495,24 @@
     "security": {
       "title": "Sicurezza dell'account",
       "description": "Password, autenticazione a due fattori, sessioni e dispositivi affidabili sono ora nella loro pagina dedicata.",
-      "manage": "Gestisci la sicurezza"
+      "manage": "Gestisci la sicurezza",
+      "summary": {
+        "description": "Riepilogo in tempo reale di come accedi. Usa il centro sicurezza per modificare.",
+        "mfaOn": "Due fattori attivi",
+        "mfaOff": "Due fattori disattivati",
+        "mfaRequired": "Obbligatori",
+        "mfaTotp": "(app di autenticazione)",
+        "mfaPasskey_one": "({{count}} passkey)",
+        "mfaPasskey_other": "({{count}} passkey)",
+        "mfaBoth_one": "(autenticazione + {{count}} passkey)",
+        "mfaBoth_other": "(autenticazione + {{count}} passkey)",
+        "sessions_one": "{{count}} sessione attiva",
+        "sessions_other": "{{count}} sessioni attive",
+        "passwordAgeKnown_one": "Password aggiornata {{count}} giorno fa",
+        "passwordAgeKnown_other": "Password aggiornata {{count}} giorni fa",
+        "passwordAgeUnknown": "Data aggiornamento password non disponibile",
+        "oauthLinked": "Provider di accesso:"
+      }
     },
     "language": {
       "title": "Lingua",
@@ -3973,22 +3982,6 @@
       "pageDescription": "Visualizza e gestisci la tua agenda",
       "comingSoonTitle": "Calendario in arrivo",
       "comingSoonBody": "Il tuo calendario personale con agenda, eventi e promemoria sarà disponibile qui."
-    },
-    "profileSettings": {
-      "cardTitle": "Impostazioni profilo",
-      "labelFirstName": "Nome",
-      "placeholderFirstName": "Nome",
-      "labelLastName": "Cognome",
-      "placeholderLastName": "Cognome",
-      "labelEmail": "Email",
-      "placeholderEmail": "Email",
-      "labelPhone": "Telefono",
-      "placeholderPhone": "Telefono",
-      "labelHeading": "Titolo",
-      "placeholderHeading": "Titolo",
-      "labelIntro": "Introduzione",
-      "placeholderIntro": "Introduzione",
-      "submit": "Aggiorna"
     }
   },
   "userPrivacy": {
@@ -4573,9 +4566,6 @@
       "bulkApply": "Applica",
       "newUser": "Nuovo utente",
       "export": "Esporta",
-      "import": "Importa",
-      "viewAll": "Mostra tutti",
-      "deleteAll": "Elimina tutti",
       "csv": {
         "fullName": "Nome completo",
         "email": "Email",
@@ -4606,6 +4596,63 @@
         "incorrectCode": "Codice errato. Riprova.",
         "noFactor": "Questo utente non ha un fattore MFA da reimpostare.",
         "generic": "Impossibile reimpostare il fattore. Riprova."
+      }
+    },
+    "rowActions": {
+      "viewDetails": "Visualizza dettagli",
+      "activate": "Attiva",
+      "deactivate": "Disattiva",
+      "resetMfa": "Reset MFA",
+      "resendVerification": "Reinvia verifica",
+      "sendPasswordReset": "Invia reset password",
+      "deleteUser": "Elimina utente",
+      "selfActionTooltip": "Non puoi eseguire questa azione sul tuo account",
+      "toastActivated": "{{user}} è stato attivato.",
+      "toastDeactivated": "{{user}} è stato disattivato.",
+      "toastActivationFailed": "Impossibile aggiornare {{user}}: {{error}}",
+      "toastVerificationSent": "Email di verifica inviata a {{user}}.",
+      "toastVerificationFailed": "Impossibile inviare l'email di verifica: {{error}}",
+      "toastPasswordResetSent": "Email di reset password inviata a {{user}}.",
+      "toastPasswordResetFailed": "Impossibile inviare il reset password: {{error}}",
+      "toastDeleted": "{{user}} è stato eliminato.",
+      "toastDeleteFailed": "Impossibile eliminare {{user}}: {{error}}"
+    },
+    "deleteModal": {
+      "title": "Elimina utente",
+      "intro": "Stai per eliminare <strong>{{user}}</strong>.",
+      "warning": "Questa azione è irreversibile. L'email <strong>{{email}}</strong> sarà riservata in modo permanente e non potrà essere riutilizzata per un nuovo account.",
+      "confirmPrompt": "Digita l'email dell'utente qui sotto per confermare:",
+      "confirmPlaceholder": "Digita l'email per confermare",
+      "cancel": "Annulla",
+      "submit": "Elimina utente",
+      "submitting": "Eliminazione…"
+    },
+    "bulkModal": {
+      "titleActivate": "Attiva {{count}} utenti",
+      "titleDeactivate": "Disattiva {{count}} utenti",
+      "titleDelete": "Elimina {{count}} utenti",
+      "intro": "L'azione sarà applicata ai {{count}} utenti selezionati su questa pagina.",
+      "selfSkipped": "Il tuo account ({{email}}) è escluso da questa operazione.",
+      "noEligible": "Nessun utente selezionato è idoneo per questa azione.",
+      "listHeading": "Utenti interessati:",
+      "listTruncated": "…e altri {{count}}",
+      "warningDelete": "L'email di ciascun utente sarà riservata in modo permanente e non potrà essere riutilizzata. Questa azione è irreversibile.",
+      "confirmPrompt": "Digita <strong>DELETE</strong> per confermare:",
+      "confirmPlaceholder": "Digita DELETE",
+      "progress": "{{done}} / {{total}}",
+      "summarySuccess": "Tutti i {{count}} utenti aggiornati.",
+      "summaryPartial": "{{ok}} riusciti, {{failed}} falliti.",
+      "summaryAllFailed": "Tutti i {{count}} aggiornamenti falliti.",
+      "cancel": "Annulla",
+      "close": "Chiudi",
+      "runActivate": "Attiva",
+      "runDeactivate": "Disattiva",
+      "runDelete": "Elimina",
+      "running": "In corso…",
+      "actionLabel": {
+        "activate": "attivazione",
+        "deactivate": "disattivazione",
+        "delete": "eliminazione"
       }
     }
   },

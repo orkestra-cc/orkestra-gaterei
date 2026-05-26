@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.6] - 2026-05-26
+
+### Bug fixes
+
+- **(auth)** Make GET /v1/auth/session read-only, end refresh race ([8029d5e](https://github.com/orkestra-cc/orkestra/commit/8029d5ec))
+
+### Chores
+
+- **(skills)** Docker skill auto-detects compose file via container labels ([065866a](https://github.com/orkestra-cc/orkestra/commit/065866a6))
+
+## [0.1.5] - 2026-05-26
+
+### Bug fixes
+
+- **(auth)** Pick valid refresh cookie before mutating, clear stale parent domains ([c181fdd](https://github.com/orkestra-cc/orkestra/commit/c181fdd9ed110e4c6c890b2b60e8ba39ffbf1e01))
+
+## [0.1.4] - 2026-05-26
+
+### Features
+
+- **(user,auth,compliance)** Security hardening on /admin/users (PR 6) ([2a91160](https://github.com/orkestra-cc/orkestra/commit/2a9116077c6fe7d8dc9078b794ad64e96d9b7a28))
+- **(user,compliance)** Emit lifecycle audit events for admin user actions ([16195fe](https://github.com/orkestra-cc/orkestra/commit/16195fedf0594769ce05c6390ae577993bdfe603))
+- **(frontend-admin/users)** Row + bulk destructive actions on /admin/users ([2fbb60e](https://github.com/orkestra-cc/orkestra/commit/2fbb60e36cadf65c6320c8bfe047d7a30cbac41b))
+- **(user)** Guard destructive operator actions on /admin/users ([60493da](https://github.com/orkestra-cc/orkestra/commit/60493dac6d4757180d51c127045b77ca587594ec))
+- **(user)** Real profile editing on /user/settings ([118f1d9](https://github.com/orkestra-cc/orkestra/commit/118f1d90b687bccd571c6e4e80aa59d05583bb73))
+
+### Bug fixes
+
+- **(auth)** Skip intermediate OAuth callback page, land on profile ([232844b](https://github.com/orkestra-cc/orkestra/commit/232844bbf5386fe9caa391925bd3cc90643a954c))
+
 ## [0.1.3] - 2026-05-25
 
 ### Bug fixes

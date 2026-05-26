@@ -65,6 +65,17 @@ const (
 	ActionAuthMFAVerified        = "auth.mfa.verified"
 	ActionAuthMFARemoved         = "auth.mfa.removed"
 	ActionAuthMFAReset           = "auth.mfa.reset"
+	// admin-on-user auth surfaces — pair with the four /v1/admin/users/{id}/*
+	// endpoints owned by the auth module. authService.recordAuthEvent
+	// maps its internal event-types onto these via
+	// authEventComplianceAction.
+	ActionAuthEmailVerifyResend = "auth.email.verify_resend"
+	ActionAuthOAuthUnlinked     = "auth.oauth.unlinked"
+	// self-service auth surfaces — same audit lane, actor==target.
+	ActionAuthOAuthUnlinkedSelf  = "auth.oauth.unlinked.self"
+	ActionAuthOAuthLinkedSelf    = "auth.oauth.linked.self"
+	ActionAuthSessionRevokedSelf = "auth.session.revoked.self"
+	ActionAuthSessionRevokedAll  = "auth.session.revoked_all.self"
 
 	// tenant.*
 	ActionTenantProvisioned = "tenant.lifecycle.provisioned"
@@ -90,4 +101,25 @@ const (
 
 	// onboarding.*
 	ActionOnboardingRegistered = "onboarding.register.completed"
+
+	// user.* — operator-tier admin lifecycle actions on the /admin/users
+	// surface (and the symmetric tier-2 admin/clients surface, where the
+	// resource type discriminates operator vs client). All emitted from
+	// the user service; the actor is the admin performing the operation.
+	// `*.refused` variants exist so the backend guards (self-delete,
+	// last-administrator quorum) leave an audit row even when the
+	// destructive call is rejected — SOC2 wants to see "an admin tried
+	// to lock the platform out" as much as it wants to see the
+	// successful changes.
+	ActionUserDeleted       = "user.deleted"
+	ActionUserDeleteRefused = "user.delete.refused"
+	ActionUserActivated     = "user.activated"
+	ActionUserDeactivated   = "user.deactivated"
+	ActionUserRoleChanged   = "user.role.changed"
+	ActionUserUpdateRefused = "user.update.refused"
+	// user.create.refused covers the role-escalation guard on
+	// POST /v1/users — an admin trying to seed a higher-tier role at
+	// create time. Wire code in metadata is
+	// errcode.UserRoleEscalationForbidden.
+	ActionUserCreateRefused = "user.create.refused"
 )

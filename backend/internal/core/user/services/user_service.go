@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/orkestra-cc/orkestra-sdk/iface"
 	authModels "github.com/orkestra/backend/internal/core/auth/models"
 	authRepository "github.com/orkestra/backend/internal/core/auth/repository"
 	"github.com/orkestra/backend/internal/core/user/models"
 	"github.com/orkestra/backend/internal/core/user/repository"
 	"github.com/orkestra/backend/internal/shared/blob"
 	"github.com/orkestra/backend/internal/shared/utils"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -62,6 +64,14 @@ type UserService interface {
 	// Utility operations
 	ValidateUserRole(ctx context.Context, userID string, allowedRoles []string) error
 	GetUserCount(ctx context.Context, filters *models.UserFilters) (int64, error)
+	// CountActiveAdministrators returns the number of live (not-deleted)
+	// users with isActive=true whose system role is super_admin or
+	// administrator, excluding excludeUUID when non-empty. Used by the
+	// last-admin guard on delete / deactivate / role-demote so the
+	// platform can never be locked out by removing its only operator.
+	// Best-effort under concurrent edits — see backend/CLAUDE.md
+	// "Error-code contract" `user.last_admin_forbidden`.
+	CountActiveAdministrators(ctx context.Context, excludeUUID string) (int64, error)
 
 	// Methods needed by auth module (raw model returns)
 	GetUserByID(ctx context.Context, id string) (*models.User, error)
@@ -95,6 +105,10 @@ type userService struct {
 	// nil, uploaded avatars fall back to whatever URL is stored on the
 	// user document (likely stale or empty).
 	blobStore blob.Store
+	// auditSink is wired post-construction by the compliance module
+	// during its post-Init wiring loop. nil-tolerant: emitAudit is a
+	// silent no-op when the compliance addon is disabled.
+	auditSink iface.AuditSink
 }
 
 // NewUserService creates a new user service
@@ -111,6 +125,24 @@ func NewUserService(userRepo repository.UserRepository, oauthProviderRepo authRe
 // stored Avatar field.
 func (s *userService) SetBlobStore(store blob.Store) {
 	s.blobStore = store
+}
+
+// SetAuditSink wires the compliance audit sink post-construction so the
+// admin-lifecycle handlers can emit events without importing the
+// compliance addon. Satisfies iface.AuditSinkSetter; called from
+// compliance's post-Init wiring loop. nil-tolerant — when the
+// compliance addon is disabled the handlers' emit helpers no-op.
+func (s *userService) SetAuditSink(sink iface.AuditSink) {
+	s.auditSink = sink
+}
+
+// AuditSink returns the wired compliance audit sink (nil when the
+// compliance addon is disabled). Exposed so handlers, not just the
+// service's own methods, can decide whether and what to emit — the
+// admin lifecycle audit events live on the handlers because that is
+// where the actor identity (from ctxauth) is available.
+func (s *userService) AuditSink() iface.AuditSink {
+	return s.auditSink
 }
 
 // CreateUser creates a new user
@@ -418,6 +450,25 @@ func (s *userService) GetUserCount(ctx context.Context, filters *models.UserFilt
 	return count, nil
 }
 
+// CountActiveAdministrators counts live, active super_admin/administrator
+// rows, optionally excluding excludeUUID. The repo's CountWithFilter adds
+// the deletedAt-missing predicate so this call only needs to supply the
+// role + isActive + uuid clauses.
+func (s *userService) CountActiveAdministrators(ctx context.Context, excludeUUID string) (int64, error) {
+	filter := bson.M{
+		"role":     bson.M{"$in": []string{"super_admin", "administrator"}},
+		"isActive": true,
+	}
+	if excludeUUID != "" {
+		filter["uuid"] = bson.M{"$ne": excludeUUID}
+	}
+	count, err := s.userRepo.CountWithFilter(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("count active administrators: %w", err)
+	}
+	return count, nil
+}
+
 // encryptPIN encrypts a PIN using the crypto utility
 func (s *userService) encryptPIN(pin string) (string, error) {
 	// Use the existing OAuth token encryption utility as it provides AES-GCM encryption
@@ -643,6 +694,9 @@ func (s *userService) CreateUserFromOAuth(ctx context.Context, input *models.Cre
 	user.FullName = input.FullName
 	user.Avatar = input.Avatar
 	user.Role = input.Role
+	// IdP already vouched for the email — propagate so the new account
+	// isn't asked to verify what Google/Apple/GitHub/Discord just confirmed.
+	user.EmailVerified = input.EmailVerified
 
 	// Add OAuth information if provided
 	if input.OAuthProvider != "" && input.OAuthID != "" {

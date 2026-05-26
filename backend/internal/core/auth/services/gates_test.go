@@ -565,6 +565,58 @@ func TestOAuthCallback_ClientDefaultRoleReadsPolicy(t *testing.T) {
 	}
 }
 
+func TestOAuthCallback_PropagatesEmailVerifiedFromIdP(t *testing.T) {
+	// When the IdP (Google here) sets email_verified=true on the user
+	// info map, the new account must land with EmailVerified=true so we
+	// don't re-ask the user to verify what the IdP just confirmed.
+	// Conversely, missing or false must NOT auto-verify — that protects
+	// against IdPs (or providers we haven't audited) that don't actually
+	// own the inbox.
+	cases := []struct {
+		name     string
+		claim    map[string]any
+		expected bool
+	}{
+		{
+			name:     "claim_true",
+			claim:    map[string]any{"id": "g-verified", "email": "verified@example.com", "name": "V", "email_verified": true},
+			expected: true,
+		},
+		{
+			name:     "claim_false",
+			claim:    map[string]any{"id": "g-unverified", "email": "unverified@example.com", "name": "U", "email_verified": false},
+			expected: false,
+		},
+		{
+			name:     "claim_missing",
+			claim:    map[string]any{"id": "g-missing", "email": "missing@example.com", "name": "M"},
+			expected: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newOAuthGatesEnv(t, PolicyAudienceOperator, nil)
+			env.users.seed(activeUser("seed-ev@example.com", "x"))
+			env.claimer.claimed = map[string]bool{"seed": true}
+			env.users.createFromOAuthAbortErr = errors.New("stop here, flag captured")
+
+			_, _ = env.auth.HandleOAuthCallbackWithLinking(
+				context.Background(),
+				authModels.OAuthProviderGoogle,
+				tc.claim,
+				nil, &authModels.SecurityContext{}, &authModels.DeviceInfo{},
+			)
+			created := env.users.byEmail[tc.claim["email"].(string)]
+			if created == nil {
+				t.Fatalf("OAuth signup did not persist the new user before abort")
+			}
+			if created.EmailVerified != tc.expected {
+				t.Fatalf("EmailVerified = %v, want %v", created.EmailVerified, tc.expected)
+			}
+		})
+	}
+}
+
 func TestOAuthCallback_RegistrationDisabled_ReturnsErr(t *testing.T) {
 	// The umbrella "Allow signups on operator console" toggle must also
 	// gate the OAuth new-user branch — not just the password Register()

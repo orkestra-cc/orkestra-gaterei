@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
+import { toast } from 'react-toastify';
+import { useTranslation } from 'react-i18next';
 import paths from 'routes/paths';
 import useAdvanceTable from './useAdvanceTable';
 import Avatar from 'components/common/Avatar';
 import Flex from 'components/common/Flex';
 import SubtleBadge from 'components/common/SubtleBadge';
 import AdminResetMfaModal from 'pages/admin/users/AdminResetMfaModal';
-import { Badge, Dropdown, Modal, Button } from 'react-bootstrap';
+import DeleteUserModal from 'pages/admin/users/DeleteUserModal';
+import {
+  Badge,
+  Dropdown,
+  Modal,
+  Button,
+  OverlayTrigger,
+  Tooltip
+} from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faGoogle,
@@ -16,10 +26,37 @@ import {
 } from '@fortawesome/free-brands-svg-icons';
 import {
   useGetUsersQuery,
+  useResendVerificationUserAdminMutation,
+  useSendPasswordResetUserAdminMutation,
   useUpdateUserMutation,
   User
 } from 'store/api/userApi';
 import OrkestraCloseButton from 'components/common/OrkestraCloseButton';
+import { useAppSelector } from 'store/hooks';
+import { selectUser } from 'store/slices/authSlice';
+
+// extractToastError prefers the typed `code` returned by errcode-bearing
+// handlers (translated via the `errors.<code>` namespace), falling back
+// to the human-readable `detail` and finally a generic label.
+function extractToastError(
+  err: unknown,
+  t: (key: string) => string,
+  fallback: string
+): string {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: { code?: string; detail?: string } }).data;
+    if (data?.code) {
+      const translated = t(`errors.${data.code}`);
+      if (translated && translated !== `errors.${data.code}`) {
+        return translated;
+      }
+    }
+    if (data?.detail) {
+      return data.detail;
+    }
+  }
+  return fallback;
+}
 
 // Confirmation Modal Component
 interface UserActivationModalProps {
@@ -82,10 +119,17 @@ const UserActivationModal: React.FC<UserActivationModalProps> = ({
 };
 
 const useUserTable = (options?: any) => {
+  const { t } = useTranslation();
+  const currentUser = useAppSelector(selectUser);
+
   const [showModal, setShowModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [mfaResetUser, setMfaResetUser] = useState<User | null>(null);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+
   const [updateUser, { isLoading: isUpdating }] = useUpdateUserMutation();
+  const [resendVerification] = useResendVerificationUserAdminMutation();
+  const [sendPasswordReset] = useSendPasswordResetUserAdminMutation();
 
   // Fetch users from backend API
   const {
@@ -100,6 +144,9 @@ const useUserTable = (options?: any) => {
   // Transform the data for the table
   const users = usersResponse?.users || [];
 
+  const displayName = (user: User) => user.fullName || user.email;
+  const genericFailure = t('adminUsers.mfaReset.errors.generic');
+
   // Handle activation/deactivation
   const handleToggleActivation = (user: User) => {
     setSelectedUser(user);
@@ -108,22 +155,69 @@ const useUserTable = (options?: any) => {
 
   const handleConfirmToggle = async () => {
     if (!selectedUser) return;
-
+    const wasActive = selectedUser.isActive;
     try {
       await updateUser({
         id: selectedUser.id,
-        data: { isActive: !selectedUser.isActive }
+        data: { isActive: !wasActive }
       }).unwrap();
+      toast.success(
+        t(
+          wasActive
+            ? 'adminUsers.rowActions.toastDeactivated'
+            : 'adminUsers.rowActions.toastActivated',
+          { user: displayName(selectedUser) }
+        )
+      );
       setShowModal(false);
       setSelectedUser(null);
-    } catch (error) {
-      console.error('Failed to update user:', error);
+    } catch (err) {
+      toast.error(
+        t('adminUsers.rowActions.toastActivationFailed', {
+          user: displayName(selectedUser),
+          error: extractToastError(err, t, genericFailure)
+        })
+      );
     }
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedUser(null);
+  };
+
+  const handleResendVerification = async (user: User) => {
+    try {
+      await resendVerification(user.id).unwrap();
+      toast.success(
+        t('adminUsers.rowActions.toastVerificationSent', {
+          user: displayName(user)
+        })
+      );
+    } catch (err) {
+      toast.error(
+        t('adminUsers.rowActions.toastVerificationFailed', {
+          error: extractToastError(err, t, genericFailure)
+        })
+      );
+    }
+  };
+
+  const handleSendPasswordReset = async (user: User) => {
+    try {
+      await sendPasswordReset(user.id).unwrap();
+      toast.success(
+        t('adminUsers.rowActions.toastPasswordResetSent', {
+          user: displayName(user)
+        })
+      );
+    } catch (err) {
+      toast.error(
+        t('adminUsers.rowActions.toastPasswordResetFailed', {
+          error: extractToastError(err, t, genericFailure)
+        })
+      );
+    }
   };
 
   // OAuth provider icon mapper with colors
@@ -239,7 +333,10 @@ const useUserTable = (options?: any) => {
                   key={index}
                   icon={config.icon}
                   style={{ color: config.color, fontSize: '1.25rem' }}
-                  title={`${provider.provider.charAt(0).toUpperCase() + provider.provider.slice(1)} (${provider.email})`}
+                  title={`${
+                    provider.provider.charAt(0).toUpperCase() +
+                    provider.provider.slice(1)
+                  } (${provider.email})`}
                 />
               ) : null;
             })}
@@ -330,6 +427,31 @@ const useUserTable = (options?: any) => {
         headerProps: { className: 'text-end text-900' }
       },
       cell: ({ row: { original } }: { row: { original: User } }) => {
+        // Self-row gate: deactivate + delete are refused server-side and
+        // we hint that here so the admin doesn't get a surprise toast.
+        // Role demotion is not exposed from this row dropdown today
+        // (it lives on the user profile page), so it doesn't need a
+        // sibling guard here.
+        const isSelf = currentUser?.id === original.id;
+        const selfTooltip = (
+          <Tooltip>{t('adminUsers.rowActions.selfActionTooltip')}</Tooltip>
+        );
+
+        const renderSelfGuarded = (
+          item: React.ReactElement,
+          key: string
+        ): React.ReactElement => {
+          if (!isSelf) return item;
+          // OverlayTrigger needs a non-disabled child to register the
+          // hover, so wrap the disabled item in a span. The Dropdown.Item
+          // already has its onClick removed via the disabled prop.
+          return (
+            <OverlayTrigger key={key} placement="left" overlay={selfTooltip}>
+              <span className="d-block">{item}</span>
+            </OverlayTrigger>
+          );
+        };
+
         return (
           <Dropdown align="end" className="btn-reveal-trigger">
             <Dropdown.Toggle
@@ -346,22 +468,51 @@ const useUserTable = (options?: any) => {
                   as={Link}
                   to={paths.adminUserProfile.replace(':userId', original.id)}
                 >
-                  View Details
+                  {t('adminUsers.rowActions.viewDetails')}
                 </Dropdown.Item>
-                {/* <Dropdown.Item>Edit User</Dropdown.Item> */}
                 <Dropdown.Divider />
-                <Dropdown.Item
-                  className="text-warning"
-                  onClick={() => handleToggleActivation(original)}
-                >
-                  {original.isActive ? 'Deactivate' : 'Activate'}
-                </Dropdown.Item>
+                {renderSelfGuarded(
+                  <Dropdown.Item
+                    className="text-warning"
+                    onClick={() =>
+                      isSelf ? undefined : handleToggleActivation(original)
+                    }
+                    disabled={isSelf}
+                  >
+                    {original.isActive
+                      ? t('adminUsers.rowActions.deactivate')
+                      : t('adminUsers.rowActions.activate')}
+                  </Dropdown.Item>,
+                  'toggle'
+                )}
                 <Dropdown.Item onClick={() => setMfaResetUser(original)}>
-                  Reset MFA
+                  {t('adminUsers.rowActions.resetMfa')}
                 </Dropdown.Item>
-                <Dropdown.Item className="text-danger">
-                  Delete User
+                {!original.emailVerified && (
+                  <Dropdown.Item
+                    onClick={() => handleResendVerification(original)}
+                  >
+                    {t('adminUsers.rowActions.resendVerification')}
+                  </Dropdown.Item>
+                )}
+                <Dropdown.Item
+                  onClick={() => handleSendPasswordReset(original)}
+                >
+                  {t('adminUsers.rowActions.sendPasswordReset')}
                 </Dropdown.Item>
+                <Dropdown.Divider />
+                {renderSelfGuarded(
+                  <Dropdown.Item
+                    className="text-danger"
+                    onClick={() =>
+                      isSelf ? undefined : setDeleteUser(original)
+                    }
+                    disabled={isSelf}
+                  >
+                    {t('adminUsers.rowActions.deleteUser')}
+                  </Dropdown.Item>,
+                  'delete'
+                )}
               </div>
             </Dropdown.Menu>
           </Dropdown>
@@ -393,6 +544,11 @@ const useUserTable = (options?: any) => {
           show={mfaResetUser !== null}
           user={mfaResetUser}
           onHide={() => setMfaResetUser(null)}
+        />
+        <DeleteUserModal
+          show={deleteUser !== null}
+          user={deleteUser}
+          onHide={() => setDeleteUser(null)}
         />
       </>
     )

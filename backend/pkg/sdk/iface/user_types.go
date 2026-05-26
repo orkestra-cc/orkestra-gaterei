@@ -184,6 +184,12 @@ type CreateUserInput struct {
 	OAuthProvider OAuthProvider          `json:"oauthProvider,omitempty" validate:"omitempty,oneof=google apple discord github"`
 	OAuthID       string                 `json:"oauthId,omitempty"`
 	OAuthData     map[string]interface{} `json:"oauthData,omitempty"`
+	// EmailVerified lets OAuth callers pre-mark the email as verified
+	// when the IdP has already vouched for it (Google's email_verified
+	// claim, Discord's verified flag, etc.). Never set from external
+	// JSON input — the field is `json:"-"` so only internal callers
+	// (auth's OAuth callback) can flip it.
+	EmailVerified bool `json:"-"`
 }
 
 // UpdateUserInput represents input for updating a user.

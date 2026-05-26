@@ -37,6 +37,21 @@ func NewAdminClientUserHandler(clientUserService services.UserService, services 
 	}
 }
 
+// emitAudit mirrors UserHandler.emitAudit but probes the client-tier
+// service. Nil sink, missing capability, or compliance addon disabled →
+// silent no-op.
+func (h *AdminClientUserHandler) emitAudit(ctx context.Context, event iface.AuditEvent) {
+	emitter, ok := h.clientUserService.(auditEmitter)
+	if !ok {
+		return
+	}
+	sink := emitter.AuditSink()
+	if sink == nil {
+		return
+	}
+	sink.Emit(ctx, event)
+}
+
 // ListClientUsersAdminRequest mirrors the existing /v1/users filter set.
 type ListClientUsersAdminRequest struct {
 	Role          string `query:"role" doc:"Filter by user role"`
@@ -226,6 +241,11 @@ type UpdateClientUserAdminResponse struct {
 
 // UpdateClientUserAdmin handles PATCH /v1/admin/client-users/{id}.
 func (h *AdminClientUserHandler) UpdateClientUserAdmin(ctx context.Context, req *UpdateClientUserAdminRequest) (*UpdateClientUserAdminResponse, error) {
+	actorUUID, actorEmail := actorFromCtx(ctx)
+	// Pre-change snapshot for lifecycle audit delta computation. Read
+	// failure is non-fatal; the patch flow surfaces its own 404 below.
+	previous, _ := h.clientUserService.GetUser(ctx, req.ID)
+
 	input := &models.UpdateUserInput{
 		FullName: req.Body.FullName,
 		Username: req.Body.Username,
@@ -251,6 +271,41 @@ func (h *AdminClientUserHandler) UpdateClientUserAdmin(ctx context.Context, req 
 	if err != nil {
 		return nil, huma.Error500InternalServerError("Failed to reload client user", err)
 	}
+
+	// Lifecycle audit events on successful patches. Mirror the operator
+	// handler's discrimination — isActive flip → activated/deactivated,
+	// role change → role.changed with before/after metadata.
+	if input.IsActive != nil && (previous == nil || previous.IsActive != *input.IsActive) {
+		action := "user.activated"
+		if !*input.IsActive {
+			action = "user.deactivated"
+		}
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       action,
+			ResourceType: "client_user",
+			ResourceID:   req.ID,
+			Outcome:      "success",
+		})
+	}
+	if input.Role != "" && previous != nil && previous.Role != input.Role {
+		h.emitAudit(ctx, iface.AuditEvent{
+			ActorUserID:  actorUUID,
+			ActorEmail:   actorEmail,
+			ActorType:    "user",
+			Action:       "user.role.changed",
+			ResourceType: "client_user",
+			ResourceID:   req.ID,
+			Outcome:      "success",
+			Metadata: map[string]any{
+				"from": previous.Role,
+				"to":   input.Role,
+			},
+		})
+	}
+
 	return &UpdateClientUserAdminResponse{Body: *item}, nil
 }
 
@@ -271,12 +326,22 @@ type DeleteClientUserAdminResponse struct {
 // signup — Tier-2 client emails are intentionally aliased, unlike
 // operator-tier soft deletes which preserve the email for audit.
 func (h *AdminClientUserHandler) DeleteClientUserAdmin(ctx context.Context, req *DeleteClientUserAdminRequest) (*DeleteClientUserAdminResponse, error) {
+	actorUUID, actorEmail := actorFromCtx(ctx)
 	if err := h.clientUserService.SoftDeleteAndAliasEmail(ctx, req.ID); err != nil {
 		if errors.Is(err, services.ErrInvalidInput) {
 			return nil, huma.Error400BadRequest("Invalid user id", err)
 		}
 		return nil, huma.Error500InternalServerError("Failed to delete client user", err)
 	}
+	h.emitAudit(ctx, iface.AuditEvent{
+		ActorUserID:  actorUUID,
+		ActorEmail:   actorEmail,
+		ActorType:    "user",
+		Action:       "user.deleted",
+		ResourceType: "client_user",
+		ResourceID:   req.ID,
+		Outcome:      "success",
+	})
 	out := &DeleteClientUserAdminResponse{}
 	out.Body.Message = "Client user deleted"
 	return out, nil

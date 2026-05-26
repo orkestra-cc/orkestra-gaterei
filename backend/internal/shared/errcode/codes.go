@@ -18,6 +18,30 @@ package errcode
 // the email already maps to a live user in this audience tier. 409.
 const AuthEmailInUse = "auth.email_in_use"
 
+// --- user ---
+
+// UserSelfDeleteForbidden signals that an admin tried to delete (or
+// soft-delete) their own user row. The /admin/users surface must never
+// let the caller wipe themselves — they'd lock themselves out and the
+// audit trail loses its source. 403.
+const UserSelfDeleteForbidden = "user.self_delete_forbidden"
+
+// UserLastAdminForbidden signals that a delete, deactivate, or
+// role-demote would leave zero live, active users with a
+// platform-administrating system role (super_admin or administrator).
+// The check is best-effort under concurrent edits; a follow-up may
+// promote it to a Mongo transaction. 403.
+const UserLastAdminForbidden = "user.last_admin_forbidden"
+
+// UserRoleEscalationForbidden signals that the requested role change
+// would assign a system role with a tier higher than the caller's own
+// — i.e. an administrator trying to promote another user (or
+// themselves) to super_admin. The cascade rule that protects
+// authz.CreateBinding does NOT apply to the User.Role field because
+// it's not a binding; this guard is the user module's own version of
+// the same invariant. 403.
+const UserRoleEscalationForbidden = "user.role_escalation_forbidden"
+
 // --- marketing ---
 
 // MarketingCardCodeCollision signals that the card-emit path

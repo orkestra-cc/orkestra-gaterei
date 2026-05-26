@@ -110,10 +110,20 @@ func (m *AuthModule) Permissions() []iface.PermissionSpec {
 	return []iface.PermissionSpec{
 		{Key: "auth.self", Module: "auth", Description: "Edit your own password and sessions"},
 		{Key: "auth.mfa.self", Module: "auth", Description: "Enroll, verify, and remove your own MFA factors"},
-		{Key: "system.users.mfa_reset", Module: "auth", Description: "Admin: reset another user's MFA factors"},
-		{Key: "system.users.password_reset", Module: "auth", Description: "Admin: trigger a password-reset email for another user"},
-		{Key: "system.users.email_verify_resend", Module: "auth", Description: "Admin: resend the email-verification mail for another user"},
-		{Key: "system.users.oauth_unlink", Module: "auth", Description: "Admin: unlink an OAuth identity (Google/Apple/GitHub/Discord) from another user"},
+		// System: true on the four admin-user-credential keys so they
+		// land in the authz `systemPermissionSet` and the
+		// `super_admin` / `administrator` / `developer` shortcuts grant
+		// them without requiring an explicit global binding. Without
+		// this flag a freshly created administrator user (no binding
+		// to the seeded administrator role) would 403 on the four
+		// /v1/admin/users/{id}/{mfa-reset,send-password-reset,
+		// resend-verification,oauth} endpoints — the legacy default
+		// hid the bug because the first user is always super_admin
+		// (wildcard).
+		{Key: "system.users.mfa_reset", Module: "auth", Description: "Admin: reset another user's MFA factors", System: true},
+		{Key: "system.users.password_reset", Module: "auth", Description: "Admin: trigger a password-reset email for another user", System: true},
+		{Key: "system.users.email_verify_resend", Module: "auth", Description: "Admin: resend the email-verification mail for another user", System: true},
+		{Key: "system.users.oauth_unlink", Module: "auth", Description: "Admin: unlink an OAuth identity (Google/Apple/GitHub/Discord) from another user", System: true},
 	}
 }
 
@@ -782,6 +792,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	)
 	m.operatorMFAHandler.SetDeviceTrust(deviceTrustSvc)
 	m.operatorMFAHandler.SetPolicy(authPolicy)
+	m.operatorMFAHandler.SetAuditRecorder(opBundle.authService)
 	if opBundle.webauthnSvc != nil {
 		m.operatorMFAHandler.SetWebAuthn(opBundle.webauthnSvc)
 		m.operatorWebAuthnHandler = handlers.NewWebAuthnHandler(
@@ -887,6 +898,7 @@ func (m *AuthModule) Init(deps *module.Dependencies) error {
 	)
 	m.clientMFAHandler.SetDeviceTrust(deviceTrustSvc)
 	m.clientMFAHandler.SetPolicy(authPolicy)
+	m.clientMFAHandler.SetAuditRecorder(clBundle.authService)
 	if clBundle.webauthnSvc != nil {
 		m.clientMFAHandler.SetWebAuthn(clBundle.webauthnSvc)
 		m.clientWebAuthnHandler = handlers.NewWebAuthnHandler(
