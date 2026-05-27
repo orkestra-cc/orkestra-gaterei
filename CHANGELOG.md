@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.5] - 2026-05-27
+
+### Features
+
+- **(navigation,sdk)** Add `ItemKey` to `NavItemSpec` so persisted nav overrides reference items by a stable, slugified, registry-stamped key.
+- **(navigation)** New admin tree endpoint `GET /v1/admin/navigation` returns the full unfiltered tree with per-item metadata (ItemKey, ModuleName, ModuleEnabled, MinRole, Tier, DeclaredOrder, EffectiveOrder, Overridden) so operators can audit visibility and reorder.
+- **(navigation)** Persisted ordering overrides — new `navigation_overrides` Mongo collection + `PATCH/DELETE /v1/admin/navigation/order`. Override layer applies to both the admin tree and the public `/v1/navigation` sidebar. Self-heals stale ItemKeys with a `slog.Warn` and degrades to declared order if Mongo is unavailable.
+- **(navigation)** Realm-level reorder — `__realms__` synthetic parentKey lets operators drag the top-level realm cards (Area personale / Amministrazione / Business / Tools); response carries `realmsParentKey` + `realmsOverridden` so the admin UI shows a "Reset realm order" affordance.
+- **(frontend-admin/navigation)** New page at `/admin/modules/navigation` — two-pane viewer with @dnd-kit drag-to-reorder (within a parent only — no cross-parent moves), per-row role-visibility matrix toggle, module/realm/search filters, and a detail panel surfacing declared-vs-effective metadata.
+
+### Bug fixes
+
+- **(frontend-admin/navigation)** Drop `transformResponse` from `navigationAdminApi` — Huma serializes the handler `Body` flat, so the wire JSON is the type itself with no `{navigation: ...}` wrapper. The misread caused the admin page to render "Impossibile caricare l'albero di navigazione" while every request returned HTTP 200.
+- **(frontend-admin/navigation)** Use the registered `grip-lines` FontAwesome icon for drag handles. The original `grip-vertical` was never registered in `initFA.ts`, so handles silently rendered as empty SVGs.
+
+### Chores
+
+- **(backend)** Bump AIR `delay` from 1000 ms to 2500 ms so rapid back-to-back saves coalesce into a single rebuild. Prevents the linker from being cancelled mid-write and leaving a truncated `tmp/main` that segfaults at startup.
+
 ## [0.1.4] - 2026-05-26
 
 ### Features

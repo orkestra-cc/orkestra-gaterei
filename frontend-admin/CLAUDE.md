@@ -139,6 +139,8 @@ This means:
 
 **Dev-only exception — Developer realm.** When `import.meta.env.DEV` is true (or `VITE_ENABLE_REFERENCE` is set), `NavbarVertical` appends a hardcoded `Developer` realm from `src/reference/navigation/referenceRoutes.ts` (`developerRealm` export) pointing at the dev-only `/reference/*` routes registered by `src/routes/referenceRoutes.tsx`. The gate matches the one on the routes themselves, so nav and routes stay in lockstep. This is the **only** place sidebar entries are hardcoded in the frontend — do not extend the pattern to production features.
 
+**Operator reorder.** `/admin/modules/navigation` (admin-only) renders the full unfiltered tree from `GET /v1/admin/navigation` and lets operators drag-to-reorder items within a parent, sections within a realm, and realm cards themselves. Persisted overrides are PATCHed back per-parent; mutations invalidate both the `NavigationAdmin` and the public `Navigation` RTK Query tags so the live sidebar reflects the new order without a page refresh. See [backend navigation docs](../backend/internal/core/navigation/CLAUDE.md) for the override semantics + self-heal behaviour.
+
 ## How data fetching works
 
 All server state goes through **RTK Query**, not React Query / TanStack Query. Each backend module gets its own slice in `src/store/api/`:
@@ -149,6 +151,7 @@ src/store/api/
 ├── authApi.ts          # core: auth endpoints
 ├── userApi.ts          # core: user endpoints
 ├── navigationApi.ts    # core: /v1/navigation
+├── navigationAdminApi.ts # admin: /v1/admin/navigation tree + ordering overrides
 ├── billingApi.ts       # addon
 ├── companyApi.ts       # addon
 ├── salesApi.ts         # addon
