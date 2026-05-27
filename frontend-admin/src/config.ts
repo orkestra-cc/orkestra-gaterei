@@ -19,11 +19,12 @@ export interface AppSettings {
   navbarStyle: NavbarStyle;
 }
 
-// `typeof` guards against the dev server not having been restarted
-// after a vite.config.js change — touching `__APP_VERSION__` directly
-// would throw ReferenceError and crash the entire SPA at module load.
-export const version: string =
-  typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+// Surfaced in the footer. Vite auto-exposes VITE_*-prefixed env vars on
+// `import.meta.env`, so this stays a plain runtime lookup with no special
+// build-time substitution needed. vite.config.js::resolveAppVersion()
+// computes the value and assigns it to process.env.VITE_APP_VERSION
+// before Vite's loadEnv runs.
+export const version: string = import.meta.env.VITE_APP_VERSION || 'dev';
 export const navbarBreakPoint: string = 'xl'; // Vertical navbar breakpoint
 export const topNavbarBreakpoint: string = 'lg';
 export const themeVariants: readonly ThemeVariant[] = [

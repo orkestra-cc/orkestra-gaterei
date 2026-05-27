@@ -42,12 +42,13 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_APPLE_CLIENT_ID?: string;
   readonly VITE_SENTRY_DSN?: string;
+  // Derived from the git tag (or ORKESTRA_VERSION host override) by
+  // vite.config.js::resolveAppVersion() and stuffed into process.env so
+  // Vite's built-in VITE_*-prefix exposure surfaces it on import.meta.env.
+  // Read by src/config.ts to populate the footer.
+  readonly VITE_APP_VERSION?: string;
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
-
-// Injected by vite.config.js `define`. Derived from the git tag at
-// build time so the footer always matches the released artefact.
-declare const __APP_VERSION__: string;
