@@ -29,7 +29,13 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-ORKESTRA_VERSION="1.0.0"
+# This is the deploy-tooling version (printed in the TUI header), NOT
+# the Orkestra application version. The application version is computed
+# from the git tree near the bottom of the bootstrap block (after
+# SCRIPT_DIR is defined) and exported as `ORKESTRA_VERSION` so
+# docker-compose substitution picks it up — both frontend SPAs read it
+# via Vite's `define`.
+ORKESTRA_TUI_VERSION="1.0.0"
 
 # ---------------------------------------------------------------------------
 # Capability detection
@@ -131,6 +137,20 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
+
+# Application version → exported for docker-compose `${ORKESTRA_VERSION}`
+# substitution. The container has no git, so the host computes this once
+# from `git describe` and passes it through. Caller can pre-set
+# ORKESTRA_VERSION to override (CI does this implicitly via GITHUB_REF_NAME
+# at image-build time, but operators may want a manual override too).
+if [ -z "${ORKESTRA_VERSION:-}" ]; then
+    if command -v git > /dev/null 2>&1 \
+        && git -C "$PROJECT_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
+        ORKESTRA_VERSION=$(git -C "$PROJECT_ROOT" describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+    fi
+    ORKESTRA_VERSION=${ORKESTRA_VERSION:-dev}
+fi
+export ORKESTRA_VERSION
 DOCKER_DIR="$PROJECT_ROOT/docker"
 
 ENV_FILE="$DOCKER_DIR/.env"
@@ -392,7 +412,7 @@ draw_status_line() {
     esac
 
     printf '%s%s Orkestra v%s%s   %s   %s\n' \
-        "$c_header" "$c_bold" "$ORKESTRA_VERSION" "$c_reset" \
+        "$c_header" "$c_bold" "$ORKESTRA_TUI_VERSION" "$c_reset" \
         "$profile_chip" "$docker_state"
 }
 
@@ -1847,7 +1867,7 @@ fullstack_menu_loop() {
 # ---------------------------------------------------------------------------
 
 show_version() {
-    printf '%sOrkestra Stack Manager%s v%s\n' "$c_bold" "$c_reset" "$ORKESTRA_VERSION"
+    printf '%sOrkestra Stack Manager%s v%s\n' "$c_bold" "$c_reset" "$ORKESTRA_TUI_VERSION"
     printf '%scapabilities:%s color=%s unicode=%s gum=%s fzf=%s tty=%s\n' \
         "$c_muted" "$c_reset" "$HAS_COLOR" "$HAS_UNICODE" "$HAS_GUM" "$HAS_FZF" "$HAS_TTY"
 }

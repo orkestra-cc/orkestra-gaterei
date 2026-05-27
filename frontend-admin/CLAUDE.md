@@ -274,6 +274,19 @@ Who writes `public/config.js` at runtime:
 
 Adding a new field: declare it on `RuntimeConfig` in `src/config/environment.ts`, read it via the `config` singleton, and add the env-var fallback in **all three** generators (dev compose, staging compose, nginx entrypoint). Never reach for `import.meta.env.VITE_*` from new code — those bake at build time and defeat the point.
 
+## Application version
+
+The version string rendered in the footer (`src/components/footer/Footer.tsx` reads it from `src/config.ts`) and embedded in the dev-server `/health` response is derived from the git tag, not `package.json#version`. The chain:
+
+1. `vite.config.js` calls `resolveAppVersion()` at config-evaluation time.
+2. It tries `GITHUB_REF_NAME` (set by CI on tag pushes) → `ORKESTRA_VERSION` (host-side override) → `git describe --tags --always --dirty` → `"dev"` fallback.
+3. The resolved value is injected as `__APP_VERSION__` via Vite's `define` — esbuild does a textual identifier substitution at build/dev-serve time.
+4. `src/config.ts` reads `__APP_VERSION__` through a `typeof` guard, so a misconfigured build degrades to `"dev"` in the footer instead of crashing the SPA.
+
+`package.json#version` is kept in lockstep cosmetically by the release workflow but is **not** consulted at runtime — never trust it for what's actually deployed.
+
+**Containerised runs**: dev/staging/prod containers have no git binary and no `.git` mounted, so the host-side `ORKESTRA_VERSION` env var (or `--build-arg` on the production builder) is the only path. `orkestra.sh` auto-exports it from `git describe` on every invocation; CI passes `--build-arg ORKESTRA_VERSION=${{ github.ref_name }}` on tag pushes. See `docker/CLAUDE.md` for the env-var-flow table.
+
 ## Internationalization (i18n)
 
 User-visible strings live in `src/locales/<lng>.json` and are rendered through `react-i18next`'s `t()`, never hard-coded in JSX. The app ships with `en` (default) and `it`; the user's choice is persisted on `user.language` and synced into `i18n` on auth state changes. Translation keys are **dot-separated and namespaced by feature**, mirroring the route tree where possible: `<module-or-area>.<page>.<element>`. Backend error codes translate via a flat `errors.<code>` namespace so handlers can stay UI-agnostic.
