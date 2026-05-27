@@ -74,6 +74,15 @@ const healthCheckPlugin = () => {
 
 export default ({ mode }) => {
   process.env = { ...process.env, ...loadEnv(mode, process.cwd()) };
+  // Expose the resolved app version on import.meta.env.VITE_APP_VERSION.
+  // src/config.ts reads it from there to render the footer. Set AFTER
+  // loadEnv so a stray .env entry can't blank it. Don't use Vite `define`
+  // for this — `define` substitution on .ts source files via the dev
+  // server is unreliable across the Vite-7 / esbuild transform pipeline
+  // (the symbol survives untransformed and the typeof-guard falls back
+  // to "dev"). VITE_*-prefixed env vars are the canonical client-exposure
+  // path and Just Work in both `vite dev` and `vite build`.
+  process.env.VITE_APP_VERSION = APP_VERSION;
 
   return defineConfig({
     plugins: [react(), compileSCSS(), healthCheckPlugin()],
@@ -196,8 +205,7 @@ export default ({ mode }) => {
       }
     },
     define: {
-      global: 'window',
-      __APP_VERSION__: JSON.stringify(APP_VERSION)
+      global: 'window'
     },
     server: {
       // Pre-transform frequently visited pages on dev server start so the
