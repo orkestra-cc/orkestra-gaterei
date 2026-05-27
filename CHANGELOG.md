@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.1.5] - 2026-05-27
+
+### Bug fixes
+
+- **(release)** Reset working tree before checkout main ([0d43645](https://github.com/orkestra-cc/orkestra/commit/0d436459f0e3ccc565b5865ab176f36add535599))
+
+## [0.1.5] - 2026-05-27
+
+### Features
+
+- **(navigation)** Operator reorder UI with persisted overrides ([5e58dee](https://github.com/orkestra-cc/orkestra/commit/5e58deebdd51f15dfd51dc230ba7c3957f113cbf))
+- **(backup)** Add bundled backup.sh + restore.sh with dry-run and TUI ([712ab03](https://github.com/orkestra-cc/orkestra/commit/712ab03584b3e8379209fe9feb3d5b6d356254d8))
+
+### Bug fixes
+
+- **(orkestra-sh)** Reclaim orphan containers before `docker compose up -d` ([a07ac07](https://github.com/orkestra-cc/orkestra/commit/a07ac071d4f210a7d32e4cb892ca4c2a7239edad))
+- **(orkestra-sh)** Align deploy-scope menu labels with case branches ([a514a8c](https://github.com/orkestra-cc/orkestra/commit/a514a8ccfdf3912ecc701bdcfe416c7ca9f11e7f))
+- **(versioning)** Wire ORKESTRA_VERSION through compose + Dockerfiles + CI ([f866252](https://github.com/orkestra-cc/orkestra/commit/f866252b085609ae135414cf42ab51837dbac6e9))
+- **(versioning)** Guard against missing __APP_VERSION__ define ([5cb5db0](https://github.com/orkestra-cc/orkestra/commit/5cb5db05b685d4c07b73c0d1c70f475b0c0e6a69))
+- **(versioning)** Derive version from git tag across backend + frontends ([6c04d7f](https://github.com/orkestra-cc/orkestra/commit/6c04d7f72314750b930aab33ddf7dcd11b0c8994))
+
+### Chores
+
+- **(frontend-admin)** Point footer link at orkestra.cc ([a3c256d](https://github.com/orkestra-cc/orkestra/commit/a3c256d00a1c01d02a0a31d9d4e2cff69fb37ee9))
+- **(orkestra-sh)** TUI header reads ORKESTRA_VERSION, drop hardcoded "1.0.0" ([01065af](https://github.com/orkestra-cc/orkestra/commit/01065afe275822cc87f83a5f4188cf5d94281f2f))
+- **(orkestra-sh)** Drop "ADR-0005 Phase D" from operator-facing text ([3455d69](https://github.com/orkestra-cc/orkestra/commit/3455d691c9213303954a29efd5ece7b84eed881a))
+- **(frontend-admin)** Sync package-lock.json version with package.json ([536770c](https://github.com/orkestra-cc/orkestra/commit/536770cf9053df1cc1d7e3d60c9f636316dc1696))
+
 ## [0.1.4] - 2026-05-26
 
 ### Features
