@@ -567,6 +567,100 @@ ensure_network_exists() {
     fi
 }
 
+# Pre-flight: detect containers whose explicit `container_name:` matches
+# what this compose file declares but whose `com.docker.compose.project`
+# label points at a different project (or is empty entirely). These
+# collide with raw "name already in use" errors on `up -d`, which is
+# the failure operators hit when an earlier deploy used a differently
+# named compose project.
+#
+# Reclaim strategy: stop + force-remove the orphans. Named volumes are
+# never touched — they survive container removal, so data persists
+# across the recreate. The subsequent `up -d` recreates each container
+# under the expected project's labels and reattaches the volumes.
+#
+# Backend-managed containers (`orkestra.managed=true` — graph/agents
+# modules' Memgraph / Hindsight) are deliberately skipped. They are
+# owned by the running backend's container manager, and the right way
+# to stop them is to disable the owning module at /admin/modules, NOT
+# `docker rm`. The infra compose declares the same names under the
+# `manual-only` profile, so `up -d` without `--profile manual-only`
+# won't try to create them and won't collide.
+#
+# Returns 0 if there are no orphans, or all are reclaimed. Calls die()
+# if the operator declines the reclaim — refusing to deploy on top of
+# a known-broken state is safer than silently letting `up -d` fail.
+preflight_reclaim_containers() {
+    local compose_file=$1
+    [ -f "$compose_file" ] || return 0
+
+    # Effective project name: explicit top-level `name:` in the compose
+    # file wins (that's how compose itself resolves it). Fall back to
+    # the directory name, mirroring compose's own default.
+    local expected_project
+    expected_project=$(grep -E '^name:[[:space:]]*' "$compose_file" \
+        | head -1 \
+        | sed -E 's/^name:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//' \
+        | tr -d '[:space:]')
+    if [ -z "$expected_project" ]; then
+        expected_project=$(basename "$(dirname "$compose_file")")
+    fi
+
+    # Container names declared in the compose file. `container_name:`
+    # lives at a stable indentation under each service block — grep
+    # is sufficient (no yq/python dependency needed).
+    local -a wanted=()
+    while IFS= read -r line; do
+        [ -n "$line" ] && wanted+=("$line")
+    done < <(
+        grep -E '^[[:space:]]+container_name:[[:space:]]*' "$compose_file" \
+            | sed -E 's/^[[:space:]]+container_name:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//'
+    )
+
+    [ ${#wanted[@]} -eq 0 ] && return 0
+
+    local -a orphans=()
+    local -a orphan_owners=()
+    local name owner managed
+    for name in "${wanted[@]}"; do
+        docker container inspect "$name" > /dev/null 2>&1 || continue
+        managed=$(docker container inspect "$name" \
+            --format '{{ index .Config.Labels "orkestra.managed" }}' 2>/dev/null)
+        # Backend-managed (graph / agents modules) — disable the module
+        # at /admin/modules to stop these, never `docker rm` here.
+        [ "$managed" = "true" ] && continue
+        owner=$(docker container inspect "$name" \
+            --format '{{ index .Config.Labels "com.docker.compose.project" }}' 2>/dev/null)
+        if [ "$owner" != "$expected_project" ]; then
+            orphans+=("$name")
+            orphan_owners+=("${owner:-<unlabelled>}")
+        fi
+    done
+
+    [ ${#orphans[@]} -eq 0 ] && return 0
+
+    p_warn "Found ${#orphans[@]} container(s) that will collide with project '$expected_project':"
+    local i
+    for i in "${!orphans[@]}"; do
+        p_muted "  ${orphans[$i]}  ← currently owned by: ${orphan_owners[$i]}"
+    done
+    p_muted "Named volumes are not touched — data persists across the recreate."
+
+    # CLI mode (`./orkestra.sh deploy --yes`) and non-interactive
+    # contexts skip the prompt and reclaim automatically. The TUI
+    # asks the operator first.
+    if [ "${SKIP_CONFIRMATION:-no}" = "yes" ] || [ "$HAS_TTY" != true ]; then
+        p_step "Auto-reclaiming (non-interactive mode)"
+    elif ! ask_yes_no "Reclaim by stop+remove (recommended)?" "y"; then
+        die "Refusing to deploy with orphan containers. Resolve manually and retry."
+    fi
+
+    if ! docker rm -f "${orphans[@]}" > /dev/null 2>&1; then
+        die "Failed to remove orphan containers — inspect 'docker ps -a' and retry."
+    fi
+    p_ok "Reclaimed ${#orphans[@]} container(s); compose will recreate them under '$expected_project'"
+}
+
 # List services declared in a compose file.
 get_services() {
     local compose_file=$1
@@ -702,6 +796,13 @@ profile_deploy() {
             die "Image pull failed"
         fi
     fi
+
+    # Reclaim any orphan containers (infra + SKU app) so `up -d` doesn't
+    # crash on a foreign-project name collision. Volumes are preserved.
+    if [ "${PROFILE_LAYER_INFRA[$name]:-no}" = "yes" ]; then
+        preflight_reclaim_containers "$DOCKER_DIR/docker-compose.infra.yml"
+    fi
+    preflight_reclaim_containers "${PROFILE_COMPOSE[$name]}"
 
     local -a up_cmd=(docker compose "${base_args[@]}" up -d)
     if [ "$refresh" = "yes" ] && [ "${PROFILE_REFRESH_MODE[$name]}" = "build" ]; then
@@ -1150,6 +1251,11 @@ fullstack_execute_deploy() {
 
     # --- Deploy services ---
     p_section "Deploying services"
+    # Reclaim any infra/app containers that exist under a foreign
+    # compose project — they would otherwise abort `up -d` with a raw
+    # Docker name-collision error. Volumes are preserved.
+    preflight_reclaim_containers "$DOCKER_DIR/docker-compose.infra.yml"
+    preflight_reclaim_containers "$COMPOSE_FILE"
     with_spinner "Ensuring infrastructure services are running" \
         docker compose -f "$DOCKER_DIR/docker-compose.infra.yml" --env-file "$ENV_FILE" up -d
     sleep 5

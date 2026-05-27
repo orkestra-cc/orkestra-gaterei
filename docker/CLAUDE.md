@@ -324,6 +324,17 @@ Containers declared by a backend module via `Module.InfraContainers()` — `orke
 
 **Health probes**: the container manager supports two readiness modes — HTTP GET (`InfraHealthCheck.HTTPPath`, used by hindsight against `/health`) and raw TCP dial (`InfraHealthCheck.TCPPort`, used by memgraph against Bolt port 7687). Pick TCP for services whose native protocol isn't HTTP.
 
+### Orphan-container reclaim (orkestra.sh)
+
+`docker compose up -d` fails with a raw "container name is already in use" error when an existing container has the right `container_name:` but is labelled with a different `com.docker.compose.project` (typical leftover from switching SKU profiles — e.g. running `enterprise` and then trying to bring up `infra` standalone). To prevent the failure, `orkestra.sh` runs a pre-flight reclaim step before every `up -d`:
+
+- Parses each compose file's `name:` and `container_name:` entries.
+- For each declared container that already exists, compares its `com.docker.compose.project` label to the expected project name.
+- Mismatches → stop + `docker rm -f`. Named volumes are never touched, so data persists.
+- Backend-managed containers (`orkestra.managed=true` — Memgraph, Hindsight) are skipped: stop those by disabling the owning module at `/admin/modules`, never via `docker rm`.
+
+Interactive (TUI) sessions confirm before reclaiming; CLI sessions (`./orkestra.sh deploy --yes`) reclaim automatically. **Operators should not run `docker rm` or `docker compose down` against Orkestra containers by hand** — `orkestra.sh stop` / `reset` / `deploy` are the supported entry points, and the reclaim path is what keeps successive deploys idempotent.
+
 **Migration from older setups**: users who ran hindsight from compose before this change will have an orphaned `orkestra-infra_orkestra-hindsight-data` volume. To salvage that data into the shared volume:
 
 ```bash
