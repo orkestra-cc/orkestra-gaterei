@@ -4,10 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
-## [0.1.5] - 2026-05-27
+## [0.2.0] - 2026-05-27
+
+### Features
+
+- **(build)** Collapse SKU matrix into runtime minimal/full profiles ([f6e2aa9](https://github.com/orkestra-cc/orkestra/commit/f6e2aa90e39b7904e1037fc1d967363c77cf2ae2))
 
 ### Bug fixes
 
+- **(versioning)** Expose APP_VERSION via VITE_APP_VERSION env var ([f37eff5](https://github.com/orkestra-cc/orkestra/commit/f37eff5ebe2943722f51ac293bfe5c1ccad6b574))
 - **(release)** Reset working tree before checkout main ([0d43645](https://github.com/orkestra-cc/orkestra/commit/0d436459f0e3ccc565b5865ab176f36add535599))
 
 ## [0.1.5] - 2026-05-27
