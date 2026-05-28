@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [0.2.0] - 2026-05-27
 
-### Features
+### ⚠️ Breaking Changes
 
 - **(build)** Collapse SKU matrix into runtime minimal/full profiles ([f6e2aa9](https://github.com/orkestra-cc/orkestra/commit/f6e2aa90e39b7904e1037fc1d967363c77cf2ae2))
 
