@@ -23,7 +23,10 @@ name: orkestra-dev
 
 services:
   orkestra-backend:
-    image: golang:1.25.10-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.dev-public-backend
+    image: orkestra/dev-public-backend:latest
     container_name: orkestra-backend-dev
     user: "1000:1000"
     userns_mode: "host"
@@ -141,13 +144,15 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - orkestra-network
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    # Public golang:alpine doesn't ship git/build-base; apk-install them
-    # before `go mod download` reaches a private module or before AIR's
-    # incremental rebuild needs cgo. The dhi.io variant has these baked in.
-    command: ["sh", "-c", "apk add --no-cache git build-base && go mod download && go install github.com/air-verse/air@latest && air"]
+    # No explicit dns: — inherit from the docker daemon so the container
+    # uses the host's resolvers. Hardcoding 8.8.8.8 breaks on networks
+    # that block public UDP/53 (corporate, hotel WiFi, some ISPs), where
+    # `go mod download` then loops with "i/o timeout" on proxy.golang.org.
+    # git, build-base, and AIR are pre-baked into the dev-public-backend
+    # image (see Dockerfile.dev-public-backend) so the container can boot
+    # as uid 1000 without needing root to run apk. First boot still does
+    # `go mod download` to populate the bind-mounted module cache.
+    command: ["sh", "-c", "go mod download && air"]
 
   orkestra-frontend-admin:
     image: node:24-alpine
