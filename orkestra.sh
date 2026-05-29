@@ -562,6 +562,53 @@ ensure_network_exists() {
     fi
 }
 
+# Ensure the RS256 JWT keys exist on the host and are readable by whatever
+# UID the backend container runs as.
+#
+# The keys live at docker/keys/{jwt-private,jwt-public}.pem (host) and are
+# bind-mounted read-only into the backend. The catch: the backend runs under
+# different UIDs across profiles — the dev full-stack compose pins
+# `user: "1000:1000"`, while the prebuilt minimal/full images run as their
+# default `nonroot` user (UID 65532). A private key generated under the dev
+# profile lands as 0600 owned by 1000, which `nonroot` then cannot read —
+# the auth module silently disables itself ("JWT keys not loaded") and every
+# login fails with a confusing 400. Keeping these local-dev keys world-readable
+# (0644) lets every profile read them regardless of container UID.
+#
+# Non-fatal if keys are missing (init/make handles generation); we only warn.
+ensure_jwt_keys_readable() {
+    local keys_dir="$DOCKER_DIR/keys"
+    local priv="$keys_dir/jwt-private.pem"
+    local pub="$keys_dir/jwt-public.pem"
+
+    if [ ! -f "$priv" ] || [ ! -f "$pub" ]; then
+        p_warn "JWT keys not found in $keys_dir — run: make init (or scripts/generate-jwt-keys.sh)"
+        return 0
+    fi
+
+    # Fix any key that is not world-readable. These are throwaway local-dev
+    # keys, so 0644 is intentional (see scripts/generate-jwt-keys.sh). We test
+    # the world-read bit (0004) directly so the container UID is irrelevant.
+    local fixed=no f mode
+    for f in "$priv" "$pub"; do
+        mode=$(stat -c '%a' "$f" 2>/dev/null) || continue
+        if (( 0$mode & 0004 )); then
+            continue
+        fi
+        if chmod a+r "$f" 2>/dev/null; then
+            fixed=yes
+        else
+            p_warn "JWT key $f is not world-readable and could not be chmod'd — login may fail under the nonroot image"
+        fi
+    done
+
+    if [ "$fixed" = yes ]; then
+        p_ok "JWT keys made readable (chmod a+r) so the nonroot backend image can load them"
+    else
+        p_ok "JWT keys present and readable"
+    fi
+}
+
 # Pre-flight: detect containers whose explicit `container_name:` matches
 # what this compose file declares but whose `com.docker.compose.project`
 # label points at a different project (or is empty entirely). These
@@ -736,6 +783,10 @@ profile_check_prereqs() {
     if [ -n "$env_file" ] && [ ! -f "$env_file" ]; then
         p_warn "$env_file not found — required secrets must be exported in the shell"
     fi
+
+    # The minimal/full SKU images run as nonroot (UID 65532), so a 0600
+    # private key owned by the dev UID would be unreadable → auth disabled.
+    ensure_jwt_keys_readable
 
     ensure_network_exists
 }
@@ -1149,6 +1200,7 @@ fullstack_execute_deploy() {
     p_section "Pre-deployment checks"
     check_docker_running
     p_ok "Docker is running"
+    ensure_jwt_keys_readable
     ensure_network_exists
     if [ "$ENV" = "production" ] && [ "$EUID" -eq 0 ]; then
         die "Do not run as root"

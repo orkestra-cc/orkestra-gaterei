@@ -24,9 +24,16 @@ openssl genrsa -out "$PRIVATE_KEY_FILE" $KEY_SIZE
 echo "🔑 Extracting public key..."
 openssl rsa -in "$PRIVATE_KEY_FILE" -pubout -out "$PUBLIC_KEY_FILE"
 
-# Set proper permissions
-echo "🔒 Setting secure permissions..."
-chmod 600 "$PRIVATE_KEY_FILE"  # Read/write for owner only
+# Set permissions
+# NOTE: 0644 (world-readable) is intentional for these LOCAL DEV keys. The
+# backend runs under different UIDs across compose profiles — dev pins
+# user "1000:1000" while the prebuilt minimal/full images run as nonroot
+# (UID 65532). A 0600 private key owned by 1000 is unreadable by nonroot,
+# which silently disables the auth module ("JWT keys not loaded"). Keeping
+# the key world-readable lets every profile read it. For production, use a
+# secure key management service instead of these files.
+echo "🔒 Setting permissions..."
+chmod 644 "$PRIVATE_KEY_FILE"  # Readable by any container user (local dev only)
 chmod 644 "$PUBLIC_KEY_FILE"   # Read for owner, group, others
 
 # Verify keys
