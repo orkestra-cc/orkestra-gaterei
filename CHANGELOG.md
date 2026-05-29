@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.2.2] - 2026-05-29
+
+### Bug fixes
+
+- **(release)** Path-unique temp names so version sync stops clobbering frontend-admin ([5a5fbf0](https://github.com/orkestra-cc/orkestra/commit/5a5fbf0dccbdf938a6b35a4bf97f1893573c46f1))
+- **(frontend-admin)** Restore package.json clobbered by v0.2.1 release ([57db83b](https://github.com/orkestra-cc/orkestra/commit/57db83b48a238082e4f1e3b050e78d7d8bddfbc0))
+
+### CI
+
+- Publish versioned image tags on release-tag pushes ([1a6b897](https://github.com/orkestra-cc/orkestra/commit/1a6b89711e799b05dae124b59118085d0faffd41))
+
 ## [0.2.1] - 2026-05-29
 
 ### ⚠️ Breaking Changes
