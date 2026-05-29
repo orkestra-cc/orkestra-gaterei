@@ -380,7 +380,18 @@ func (s *PasswordAuthService) RegisterInitialAdmin(ctx context.Context, email, p
 	}
 	user.EmailVerified = true
 
-	return s.issueTokens(ctx, user, LoginInput{IP: ip, Platform: "web"}, []string{"pwd"}, 0)
+	// Setup-mode bypass: the wizard immediately needs to PATCH
+	// /v1/admin/modules/notification to configure SMTP, but that route is
+	// gated by RequireMFA() — and a freshly-created admin has no factor
+	// enrolled, creating a chicken-and-egg: MFA enrollment usually needs
+	// working email. Mint the setup token with amr=["pwd","reauth"] +
+	// LastOTPAt=now so RequireMFA and RequireStepUp(5m) both pass for the
+	// duration of the wizard. This is the exact escape hatch
+	// /v1/auth/me/password-confirm uses post-login — same threat model
+	// (the user just typed their password into a trusted form), same
+	// 5-minute window. Once they navigate away and log back in, the next
+	// token carries amr=["pwd"] only and the standard MFA gate engages.
+	return s.issueTokens(ctx, user, LoginInput{IP: ip, Platform: "web"}, []string{"pwd", "reauth"}, time.Now().Unix())
 }
 
 // LoginInput is the payload for email/password login.

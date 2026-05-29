@@ -37,7 +37,7 @@ export default function MfaEnrollmentBanner() {
   return (
     <div
       role="alert"
-      className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom"
+      className="d-flex align-items-center justify-content-between px-3 py-2 border rounded mb-3"
       style={{
         background: expired ? '#f8d7da' : '#fff3cd',
         color: expired ? '#58151c' : '#664d03',
