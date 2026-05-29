@@ -4,6 +4,46 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.2.1] - 2026-05-29
+
+### ⚠️ Breaking Changes
+
+- **(release)** Promote dev to main (v0.2.0 follow-ups — package.json restore + cliff breaking-changes) ([2dccfe0](https://github.com/orkestra-cc/orkestra/commit/2dccfe00f06c9d36523a501049a4305ff148fbaa))
+- **(release)** Add breaking-changes section to cliff.toml + regenerate CHANGELOG ([42ecb24](https://github.com/orkestra-cc/orkestra/commit/42ecb24d7cdcbfe55e7cd66f36d0a39f7e6a8d07))
+
+### Features
+
+- **(build)** Hot-reload runtime profiles in dev, dedupe dev compose ([1c350ba](https://github.com/orkestra-cc/orkestra/commit/1c350ba7118381ae60783b0ffb45d077e5007a18))
+- **(setup)** Drop SMTP step from first-install wizard ([4582c96](https://github.com/orkestra-cc/orkestra/commit/4582c96aa55cbef1d761f4b3bdd2379fc3178f0f))
+
+### Bug fixes
+
+- **(jwt-keys)** Make dev JWT keys readable across container UIDs ([414d592](https://github.com/orkestra-cc/orkestra/commit/414d5926eda3875e8988fc4faadf4314838d52a0))
+- Unblock first-install on a clean fork ([c5f5541](https://github.com/orkestra-cc/orkestra/commit/c5f554150ccfc41a9d3f57f1a70073aec46aa39d))
+- **(release)** Restore frontend-admin/package.json clobbered by v0.2.0 release workflow ([ccfb502](https://github.com/orkestra-cc/orkestra/commit/ccfb50241bad08e547e8f4234c44ab331209043e))
+
+### Style
+
+- **(frontend-admin)** Round MFA banner corners and add bottom margin ([c279664](https://github.com/orkestra-cc/orkestra/commit/c279664dca42e8665cfa880f4e0dcbe8fb86846a))
+
+### Dependencies
+
+- **(deps)** Bump go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp (#62) ([fe7452c](https://github.com/orkestra-cc/orkestra/commit/fe7452c0b85ecccc3d88210114d425b65c9e79f0))
+- **(deps)** Bump go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp (#61) ([457fdb3](https://github.com/orkestra-cc/orkestra/commit/457fdb31e0b5526ec07b47a13d0e67597c85b013))
+- **(deps)** Bump go.opentelemetry.io/otel/sdk/log in /backend (#59) ([dd7f525](https://github.com/orkestra-cc/orkestra/commit/dd7f525f7d2b3b7909c179b83b410c3e3e27d458))
+- **(deps)** Bump docker/setup-buildx-action from 3 to 4 (#57) ([fcf3b66](https://github.com/orkestra-cc/orkestra/commit/fcf3b66fc3b2631f66ad233045c85b38d8387692))
+- **(deps)** Bump docker/build-push-action from 6 to 7 (#58) ([7bf4083](https://github.com/orkestra-cc/orkestra/commit/7bf4083e45e7bb775314e920c1811c3ba37ab131))
+- **(deps)** Bump video.js from 8.23.4 to 8.23.7 in /frontend-admin (#63) ([214d22d](https://github.com/orkestra-cc/orkestra/commit/214d22da34f07a661133c82d201b0dd0717bd71e))
+- **(deps)** Bump bowser from 2.13.1 to 2.14.1 in /frontend-admin (#65) ([2d08228](https://github.com/orkestra-cc/orkestra/commit/2d08228c48da806044661f518bf7df30260250c8))
+- **(deps)** Bump @fullcalendar/daygrid in /frontend-admin (#66) ([fb61e71](https://github.com/orkestra-cc/orkestra/commit/fb61e7162f63dde20124e8e190d1501d1d0df2ea))
+- **(deps)** Bump @hookform/resolvers in /frontend-admin (#69) ([353aab5](https://github.com/orkestra-cc/orkestra/commit/353aab505ebc9ecd567e1904cff50b5267bfc67e))
+
+### Chores
+
+- Normalize trailing newlines (coverage badge, generate-jwt-keys.sh) ([dab559e](https://github.com/orkestra-cc/orkestra/commit/dab559ee546213b2f4ae78bee01873d759692da0))
+- Back-merge origin/main into dev (dependency bumps + CI action upgrades) ([ddacc6e](https://github.com/orkestra-cc/orkestra/commit/ddacc6e938bd86344a9107ab4d6ba524cbb93b82))
+- **(frontend-client)** Sync package-lock.json to v0.2.0 ([d9431f6](https://github.com/orkestra-cc/orkestra/commit/d9431f6d306e146fb7a52a74e2ce7b569826f181))
+
 ## [0.2.0] - 2026-05-27
 
 ### ⚠️ Breaking Changes
