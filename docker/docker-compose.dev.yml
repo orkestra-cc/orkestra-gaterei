@@ -22,6 +22,16 @@ services:
       ENV: development
       PORT: 3000  # Internal port is always 3000, BACKEND_PORT is for host mapping only
 
+      # First-boot addon-enablement seed. Orthogonal to hot reload: it only
+      # decides which addons start enabled on a FRESH module_configs doc.
+      # orkestra.sh exports this when you pick a runtime profile (minimal/full)
+      # under ENV=development — "source-mode" routing — so you get the profile's
+      # addon set AND live-reloaded local source. Same knob the GHCR
+      # minimal/full compose files hardcode; here it rides the bind-mount.
+      # Empty default: the plain dev full-stack path (no profile picked) keeps
+      # each module's own Enabled() default rather than forcing minimal.
+      ORKESTRA_PROFILE: ${ORKESTRA_PROFILE:-}
+
       # MongoDB
       MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@${MONGO_HOST}:27017/${MONGO_DATABASE:-orkestra}?authSource=admin
 
@@ -158,9 +168,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - orkestra-network
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+    # No explicit dns: — inherit the docker daemon's resolvers (matches
+    # staging + the public variant). Hardcoding public resolvers (8.8.8.8)
+    # loops on `go mod download` where UDP/53 to them is blocked (corporate,
+    # hotel WiFi, some ISPs); set the daemon's dns in /etc/docker/daemon.json
+    # instead if you need overrides.
     command: ["sh", "-c", "go mod download && go install github.com/air-verse/air@latest && air"]
 
   orkestra-frontend-admin:

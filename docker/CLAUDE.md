@@ -114,7 +114,7 @@ Keep this split when touching `.env*` or `docker-compose.*.yml`:
 | Encryption keys (`OAUTH_TOKEN_ENCRYPTION_KEY`, `ORKESTRA_KMS_MASTER_KEY`, optional `MFA_SECRET_ENCRYPTION_KEY`) | process — bootstraps ConfigService | ✅ yes |
 | Process-scoped auth tunables (`AUTH_REQUIRE_EMAIL_VERIFICATION`, `AUTH_RISK_STEP_UP_THRESHOLD`, `WEBAUTHN_RP_ID`, `AUTH_GEOIP_DB_PATH`, `TENANT_KIND_ENFORCEMENT`, `CEDAR_ENFORCE_ACTIONS`) | process | ✅ yes |
 | `CONTAINER_CONTROL_ENABLED`, `DOCKER_GID`, `AI_SERVICE_URL`, `AI_SERVICE_PORT` | process | ✅ yes |
-| `ORKESTRA_PROFILE` (minimal / full) — pre-enables addons on first boot only (`minimal` → none, `full` → every non-dev addon); subsequent boots use the `module_configs` document | process — first-boot seeder | ✅ yes |
+| `ORKESTRA_PROFILE` (minimal / full) — pre-enables addons on first boot only (`minimal` → none, `full` → every non-dev addon); subsequent boots use the `module_configs` document. Also exported by `orkestra.sh` source-mode routing so a runtime profile can run the hot-reload dev/staging stack — see [Source-mode routing](#source-mode-routing-hot-reload-under-a-runtime-profile). | process — first-boot seeder | ✅ yes |
 | `SALES_*`, `RAG_CHUNK_*` | process — runtime knobs not yet migrated to ConfigSchema | ✅ yes (transitional) |
 | `MARKETING_IMPORT_SPOOL_DIR` | process — first-boot seed for the marketing module's `importSpoolDir`. Dev/staging compose override it to `/app/marketing-spool`, bind-mounted from `docker/marketing-spool-{dev,staging}/` on the host (gitignored). Schema default `/var/lib/orkestra/marketing/spool` is unwritable by the non-root container user. Bind mount (not named volume) so host uid 1000 ownership carries through under `userns_mode: "host"` — a named volume gets created as root and would re-break the worker on every recreate. For an existing install change the value at `/admin/modules/marketing` — `module_configs` is authoritative once seeded. | ✅ yes |
 | `ORKESTRA_VERSION` | process — application version surfaced in the SPA footer (frontend-admin + frontend-client) and embedded in the dev `/health` JSON. `orkestra.sh` auto-exports this from `git describe --tags --always --dirty`, and docker-compose substitutes it into both frontend `environment:` blocks (dev/staging dev-server) and the `args:` block in `docker-compose.prod.yml` (production image build). CI overrides it with `--build-arg ORKESTRA_VERSION=${{ github.ref_name }}` on tag pushes. The container has no git binary and no `.git`, so this host-side env var is the only path that delivers a real version — without it the SPA falls back to `"dev"`. | ✅ yes |
@@ -155,8 +155,8 @@ Vars **deleted as dead code** during the cleanup (do not re-add): `MODULES`, `BA
 Separate infrastructure from applications. One infra compose, three full-stack composes (dev/staging/prod), two profile-pull composes:
 
 1. **`docker-compose.infra.yml`** - Infrastructure services only (MongoDB, Redis, Gotenberg, Hindsight)
-2. **`docker-compose.dev-public.yml`** - Application services in development mode with hot reload, on public Alpine images (default, fork-friendly)
-3. **`docker-compose.dev.yml`** - Same as dev-public but on Chainguard `dhi.io/*` hardened images (opt-in via `DEV_COMPOSE_VARIANT=chainguard` — requires a Chainguard subscription)
+2. **`docker-compose.dev.yml`** - Canonical development stack (hot reload) on Chainguard `dhi.io/*` hardened images. Holds the full service definitions; the public variant overlays it. Used directly when `DEV_COMPOSE_VARIANT=chainguard` (requires a Chainguard subscription).
+3. **`docker-compose.dev-public.yml`** (default, fork-friendly) - Thin **overlay** of `docker-compose.dev.yml` via `include:` — patches only the keys that differ for public Alpine images (backend builds `Dockerfile.dev-public-backend`, `node:24-alpine` frontend, AIR pre-baked so the command skips the runtime `go install`). Edit shared dev config in `docker-compose.dev.yml`; it flows into both variants. Requires Docker Compose v2.20+ (`include:`); no custom merge tags.
 4. **`docker-compose.staging.yml`** - Application services in staging mode (staging-like env + AIR/Vite hot reload)
 5. **`docker-compose.prod.yml`** - Application services in production mode with optimizations
 6. **`docker-compose.{minimal,full}.yml`** - Runtime profiles pulling the pre-built backend image from GHCR (layer on `docker-compose.infra.yml`). Same image; `ORKESTRA_PROFILE` decides first-boot addon enablement
@@ -169,7 +169,8 @@ Separate infrastructure from applications. One infra compose, three full-stack c
 ├── orkestra.sh                # Unified TUI + CLI for the whole stack (replaces deploy.sh and logs.sh)
 └── docker/
     ├── docker-compose.infra.yml   # Infrastructure: MongoDB, Redis, Gotenberg, Hindsight
-    ├── docker-compose.dev.yml     # Development: Backend, Frontend with hot reload
+    ├── docker-compose.dev.yml     # Development base (Chainguard images): Backend, Frontend with hot reload
+    ├── docker-compose.dev-public.yml # Default dev overlay — include:s dev.yml, swaps to public Alpine images
     ├── docker-compose.staging.yml # Staging: AIR/Vite hot reload + staging-like env
     ├── docker-compose.prod.yml    # Production: Optimized Backend, Frontend
     ├── docker-compose.ai-sidecar.yml # Optional AI sidecar (graph, rag, agents, aimodels)
@@ -278,6 +279,12 @@ docker compose -f docker-compose.minimal.yml --env-file .env up -d  # or full
 ```
 
 All addons are instantiated at boot regardless of enabled state — disabled ones sit idle until you toggle them on at `/admin/modules`. The registry auto-resolves transitive dependencies on enable.
+
+#### Source-mode routing (hot reload under a runtime profile)
+
+`ORKESTRA_PROFILE` is **only** a first-boot addon-enablement seed — it is orthogonal to how code is served. To exploit that, `orkestra.sh` does **source-mode routing**: when a runtime profile (`minimal`/`full`) is chosen while `ENV=development`, it does **not** pull `backend:latest` from GHCR. Instead it brings up the dev hot-reload source stack (`docker-compose.dev-public.yml` / `docker-compose.dev.yml` per `DEV_COMPOSE_VARIANT`) with the local source bind-mounted (AIR + Vite), and exports `ORKESTRA_PROFILE=<name>` so the seeded addon set still matches the profile. You get the profile's addons **and** live-reloaded local edits. **Only `development` gets hot reload** — `ENV=staging` and `ENV=production` (and an unset/invalid `ENV`) keep the published-image pull behavior, so staging mirrors production.
+
+The two dev compose files declare `ORKESTRA_PROFILE: ${ORKESTRA_PROFILE:-}` on the backend so the exported value rides the bind-mount (empty default → the plain dev full-stack path keeps each module's own `Enabled()` default); the GHCR `minimal.yml`/`full.yml` hardcode the literal value, so the export is inert on that path. Because the seed only applies to a **fresh** `module_configs` doc, switching profiles in source mode requires `./orkestra.sh profile <name> reset` (wipes volumes) — or just toggle addons live at `/admin/modules`. Implemented by `apply_profile_source_mode()` in `orkestra.sh`.
 
 ### Infrastructure Services (`docker-compose.infra.yml`)
 

@@ -172,9 +172,17 @@ declare -A PROFILE_COMPOSE
 declare -A PROFILE_ENV
 declare -A PROFILE_BACKEND_URL
 declare -A PROFILE_FRONTEND_URL
-declare -A PROFILE_REFRESH_MODE      # "pull"
+declare -A PROFILE_REFRESH_MODE      # "pull" or "build"
 declare -A PROFILE_LAYER_INFRA       # "yes" or "no"
 declare -A PROFILE_DESCRIPTION
+
+# Source-mode state (Option C). PROFILE_SOURCE_MODE[<name>]="yes" once a
+# profile has been repointed at a hot-reload source stack; PROFILE_SOURCE_ENV
+# names the ENV that triggered it (development|staging). Both are populated by
+# apply_profile_source_mode(), reset to defaults here so a nounset reference is
+# always safe.
+declare -A PROFILE_SOURCE_MODE
+PROFILE_SOURCE_ENV=""
 
 init_profile_configs() {
     local p
@@ -210,6 +218,56 @@ sku_profile_list() {
 
 # Env-detect utility for full-stack ENV resolution
 source "$PROJECT_ROOT/scripts/env-detect.sh"
+
+# ---------------------------------------------------------------------------
+# Profile source-mode routing (Option C)
+# ---------------------------------------------------------------------------
+#
+# minimal/full normally PULL the published image from GHCR — no source build,
+# no hot reload. But ORKESTRA_PROFILE is just a first-boot addon-enablement
+# seed; it has nothing to do with how code is served. So when ENV=development,
+# picking a profile transparently repoints it at the dev source/hot-reload
+# compose stack and exports ORKESTRA_PROFILE to seed the same addon set.
+# Result: the profile's addons AND live-reloaded local source. staging and
+# production (and an unset/invalid ENV) keep the pull-the-published-image
+# behavior — only development gets hot reload.
+#
+# Call this lazily — AFTER env-detect.sh is sourced and right before entering
+# either the TUI profile picker or the CLI `profile` dispatch — never at
+# sourcing time (init_profile_configs runs before env-detect is available).
+apply_profile_source_mode() {
+    PROFILE_SOURCE_MODE=()
+    PROFILE_SOURCE_ENV=""
+
+    # get_environment_silent prints nothing and returns 1 for no/invalid ENV.
+    local detected
+    detected=$(get_environment_silent) || return 0
+
+    # Only development gets the hot-reload source stack. staging behaves like
+    # production: pull the published GHCR image.
+    [ "$detected" = "development" ] || return 0
+
+    local src_compose src_frontend
+    local variant="${DEV_COMPOSE_VARIANT:-public}"
+    case "$variant" in
+        chainguard) src_compose="$DOCKER_DIR/docker-compose.dev.yml" ;;
+        *)          src_compose="$DOCKER_DIR/docker-compose.dev-public.yml" ;;
+    esac
+    src_frontend="http://localhost:8080"
+
+    [ -f "$src_compose" ] || return 0
+
+    local p
+    for p in "${SKU_PROFILES[@]}"; do
+        PROFILE_COMPOSE[$p]="$src_compose"
+        PROFILE_REFRESH_MODE[$p]="build"
+        PROFILE_FRONTEND_URL[$p]="$src_frontend"
+        PROFILE_SOURCE_MODE[$p]="yes"
+        # PROFILE_LAYER_INFRA stays "yes" — mongo/redis come from infra.yml,
+        # reclaimed into this project by the existing preflight step.
+    done
+    PROFILE_SOURCE_ENV="$detected"
+}
 
 # ---------------------------------------------------------------------------
 # Traps — restore terminal state on exit, handle Ctrl-C gracefully
@@ -791,11 +849,34 @@ profile_check_prereqs() {
     ensure_network_exists
 }
 
-# Render the post-deploy access box. SKU profiles are backend-only (no frontend).
+# Render the post-deploy access box. GHCR profiles are backend-only; the
+# source-mode (development/staging) stacks also bring up the Vite frontend.
 _profile_show_access_box() {
     local name=$1
     local backend_url="${PROFILE_BACKEND_URL[$name]:-http://localhost:3000}"
     local frontend_url="${PROFILE_FRONTEND_URL[$name]:-}"
+
+    # Source mode: local code is hot-reloaded; ORKESTRA_PROFILE only seeds a
+    # fresh DB, so spell out how to actually switch profiles.
+    if [ "${PROFILE_SOURCE_MODE[$name]:-no}" = "yes" ]; then
+        local -a rows=("" "${name^} addons · hot-reload source stack (ENV=${PROFILE_SOURCE_ENV})" "")
+        [ -n "$frontend_url" ] && rows+=("  Admin frontend ${c_info}${frontend_url}${c_reset}")
+        rows+=(
+            "  Backend API    ${c_info}${backend_url}${c_reset}"
+            "  API docs       ${c_info}${backend_url}/docs${c_reset}"
+            "  Health         ${c_info}${backend_url}/health${c_reset}"
+            ""
+            "  ${c_muted}Local source is bind-mounted — AIR + Vite hot-reload your edits.${c_reset}"
+            "  ${c_muted}ORKESTRA_PROFILE=${name} seeds addons on a FRESH db only; switch${c_reset}"
+            "  ${c_muted}profiles with 'reset' (wipes volumes), or toggle live at /admin/modules.${c_reset}"
+            ""
+            "  ${c_muted}Generate an admin token for first login:${c_reset}"
+            "  ${c_accent}ORKESTRA_API_URL=${backend_url} ./scripts/devtoken.sh administrator${c_reset}"
+            ""
+        )
+        draw_box "${name^} stack is up" "${rows[@]}"
+        return
+    fi
 
     if [ -n "$frontend_url" ]; then
         draw_box "${name^} stack is up" \
@@ -827,6 +908,9 @@ _profile_show_access_box() {
 profile_deploy() {
     local name=$1 refresh=${2:-no}
     PROFILE="$name"
+    # Seed the addon set. Inert on the GHCR path (minimal/full compose hardcode
+    # ORKESTRA_PROFILE); honored by the source stacks via ${ORKESTRA_PROFILE:-…}.
+    export ORKESTRA_PROFILE="$name"
     local title
     title=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}
     page_header "${title} · Deploy / Update"
@@ -893,6 +977,8 @@ profile_stop() {
 profile_reset() {
     local name=$1 confirm=${2:-ask}
     PROFILE="$name"
+    # Seed the addon set on the fresh DB this reset creates (see profile_deploy).
+    export ORKESTRA_PROFILE="$name"
     local title
     title=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}
     page_header "${title} · Reset (wipe volumes)"
@@ -993,13 +1079,24 @@ profile_info() {
     title=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}
     page_header "${title} · Profile Info"
 
-    draw_box "${title} profile" \
-        "" \
-        "  ${PROFILE_DESCRIPTION[$name]:-}" \
-        "" \
-        "  Image  ${c_info}ghcr.io/orkestra-cc/orkestra/backend:${name}${c_reset}" \
-        "  Layer  ${c_muted}docker-compose.infra.yml + docker-compose.${name}.yml${c_reset}" \
-        ""
+    if [ "${PROFILE_SOURCE_MODE[$name]:-no}" = "yes" ]; then
+        draw_box "${title} profile" \
+            "" \
+            "  ${PROFILE_DESCRIPTION[$name]:-}" \
+            "" \
+            "  ${c_warn}Hot-reload source mode (ENV=${PROFILE_SOURCE_ENV})${c_reset}" \
+            "  Source ${c_muted}$(basename "${PROFILE_COMPOSE[$name]}") — local bind-mount, AIR + Vite${c_reset}" \
+            "  Seed   ${c_muted}ORKESTRA_PROFILE=${name} (fresh module_configs doc only)${c_reset}" \
+            ""
+    else
+        draw_box "${title} profile" \
+            "" \
+            "  ${PROFILE_DESCRIPTION[$name]:-}" \
+            "" \
+            "  Image  ${c_info}ghcr.io/orkestra-cc/orkestra/backend:latest${c_reset}" \
+            "  Layer  ${c_muted}docker-compose.infra.yml + docker-compose.${name}.yml${c_reset}" \
+            ""
+    fi
     echo
 
     local backend_url="${PROFILE_BACKEND_URL[$name]:-http://localhost:3000}"
@@ -1010,8 +1107,14 @@ profile_info() {
     printf '  Health         %s%s/health%s\n' "$c_info" "$backend_url" "$c_reset"
     echo
 
-    p_section "Refresh image from GHCR"
-    printf '  %s./orkestra.sh profile %s deploy --pull%s\n' "$c_accent" "$name" "$c_reset"
+    if [ "${PROFILE_SOURCE_MODE[$name]:-no}" = "yes" ]; then
+        p_section "Rebuild dev image (only after Dockerfile.dev changes)"
+        printf '  %s./orkestra.sh profile %s deploy --pull%s   %s(code edits hot-reload automatically)%s\n' \
+            "$c_accent" "$name" "$c_reset" "$c_muted" "$c_reset"
+    else
+        p_section "Refresh image from GHCR"
+        printf '  %s./orkestra.sh profile %s deploy --pull%s\n' "$c_accent" "$name" "$c_reset"
+    fi
     echo
 
     p_section "Generate a dev token for first login"
@@ -1021,7 +1124,7 @@ profile_info() {
 
     p_section "Toggle addons"
     p_muted "  Visit /admin/modules in the operator console to enable/disable addons."
-    p_muted "  Build tags decide what is installable; runtime config decides what is on."
+    p_muted "  Every addon is compiled in; runtime config decides what is on."
 }
 
 # ---------------------------------------------------------------------------
@@ -1887,6 +1990,11 @@ show_sku_profile_picker() {
         "  ${c_accent}2${c_reset} full      ${c_muted}every non-dev addon pre-enabled${c_reset}" \
         "  ${c_accent}3${c_reset} Back" \
         ""
+    if [ -n "${PROFILE_SOURCE_ENV:-}" ]; then
+        echo
+        p_muted "  ENV=${PROFILE_SOURCE_ENV} detected → the profile runs the hot-reload source"
+        p_muted "  stack (local code, AIR + Vite), not the published GHCR image."
+    fi
 }
 
 show_profile_ops_menu() {
@@ -1894,9 +2002,11 @@ show_profile_ops_menu() {
     local title
     title=$(echo "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}
     page_header "${title} profile"
+    local deploy_hint="(up -d [--pull])"
+    [ "${PROFILE_SOURCE_MODE[$name]:-no}" = "yes" ] && deploy_hint="(hot-reload source · ENV=${PROFILE_SOURCE_ENV})"
     draw_box "Select operation" \
         "" \
-        "  ${c_accent}1${c_reset}  Deploy / Update    ${c_muted}(up -d [--pull])${c_reset}" \
+        "  ${c_accent}1${c_reset}  Deploy / Update    ${c_muted}${deploy_hint}${c_reset}" \
         "  ${c_accent}2${c_reset}  Stop               ${c_muted}(keeps volumes)${c_reset}" \
         "  ${c_accent}3${c_reset}  Reset              ${c_muted}(wipes volumes — destructive)${c_reset}" \
         "  ${c_accent}4${c_reset}  Status             ${c_muted}(ps + /health + stats)${c_reset}" \
@@ -1907,6 +2017,9 @@ show_profile_ops_menu() {
 }
 
 profile_picker_loop() {
+    # Decide once, up front, whether the chosen profile pulls the GHCR image
+    # or runs the hot-reload source stack for the detected ENV (Option C).
+    apply_profile_source_mode
     while true; do
         show_sku_profile_picker
         printf '%s%s Select profile [1-3]: %s' "$c_prompt" "$ic_arrow" "$c_reset"
@@ -1932,7 +2045,11 @@ profile_ops_menu_loop() {
         case "$choice" in
             1)
                 local refresh="no"
-                ask_yes_no "Pull latest image from GHCR?" "n" && refresh="yes"
+                if [ "${PROFILE_SOURCE_MODE[$name]:-no}" = "yes" ]; then
+                    ask_yes_no "Rebuild the dev image? (no = start from cached image; code hot-reloads either way)" "n" && refresh="yes"
+                else
+                    ask_yes_no "Pull latest image from GHCR?" "n" && refresh="yes"
+                fi
                 profile_deploy "$name" "$refresh"
                 pause_for_return
                 ;;
@@ -2044,6 +2161,11 @@ ${c_bold}PROFILE${c_reset} ${c_muted}(pulls published image from GHCR)${c_reset}
   Available <name>: minimal | full
   Requires docker-compose.infra.yml to be running first.
 
+  ${c_muted}Under ENV=development the profile transparently runs the hot-reload${c_reset}
+  ${c_muted}SOURCE stack (local code, AIR + Vite) and exports ORKESTRA_PROFILE${c_reset}
+  ${c_muted}to seed the same addon set — instead of pulling the published image.${c_reset}
+  ${c_muted}staging and production keep the GHCR pull behavior.${c_reset}
+
 ${c_bold}FULL STACK${c_reset} ${c_muted}(uses ENV from docker/.env or ENV=... prefix)${c_reset}
   ${c_accent}deploy${c_reset} [--scope SCOPE] [--rebuild] [--yes]
                                    Deploy. SCOPE: all | backend | frontend-admin |
@@ -2115,6 +2237,9 @@ cli_dispatch() {
                 die "Unknown profile: $name. Valid: $(sku_profile_list)"
             fi
             PROFILE="$name"
+            # Route to the hot-reload source stack when ENV is development/staging
+            # (Option C); otherwise the profile pulls the published GHCR image.
+            apply_profile_source_mode
             local subcmd=${1:-}
             [ -n "$subcmd" ] && shift
             case "$subcmd" in
