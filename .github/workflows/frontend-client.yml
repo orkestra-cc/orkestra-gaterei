@@ -14,6 +14,10 @@ on:
       - '.mise.toml'
   push:
     branches: [dev, main]
+    # Release tags (vX.Y.Z) build versioned images. paths filters do not
+    # apply to tag pushes, so a tag always triggers a full build + publish.
+    tags:
+      - 'v*'
     paths:
       - 'frontend-client/**'
       - '.github/workflows/frontend-client.yml'
@@ -57,13 +61,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/frontend-client
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v7
         with:
           context: ./frontend-client
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/frontend-client:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend-client:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           # Baked into the JS bundle by Vite's `define` — the only thing
           # this image needs at build time. Tag pushes bake the semver
           # (`v0.1.4`); branch pushes bake the commit sha.

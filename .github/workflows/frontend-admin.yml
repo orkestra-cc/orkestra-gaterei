@@ -11,6 +11,10 @@ on:
       - 'scripts/refresh-coverage-badge.sh'
   push:
     branches: [dev, main]
+    # Release tags (vX.Y.Z) build versioned images. paths filters do not
+    # apply to tag pushes, so a tag always triggers a full build + publish.
+    tags:
+      - 'v*'
     paths:
       - 'frontend-admin/**'
       - '.github/workflows/frontend-admin.yml'
@@ -93,13 +97,25 @@ jobs:
       # tag references in deployment manifests. PR 2 will dual-publish to
       # `frontend-admin:*` for a deprecation window, then drop the legacy
       # name. Do not rename here without coordinating that transition.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Image name stays `frontend` (see NOTE above) — not `frontend-admin`.
+          images: ghcr.io/${{ github.repository }}/frontend
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v7
         with:
           context: ./frontend-admin
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           # window.__ORKESTRA_CONFIG__ (apiUrl/wsUrl/env/debug) is populated
           # at *container start* from ORKESTRA_API_URL / ORKESTRA_WS_URL /
           # ORKESTRA_ENV / ORKESTRA_DEBUG by the nginx entrypoint — see

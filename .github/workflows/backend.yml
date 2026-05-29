@@ -11,6 +11,10 @@ on:
       - 'scripts/refresh-coverage-badge.sh'
   push:
     branches: [dev, main]
+    # Release tags (vX.Y.Z) build versioned images. paths filters do not
+    # apply to tag pushes, so a tag always triggers a full build + publish.
+    tags:
+      - 'v*'
     paths:
       - 'backend/**'
       - '.github/workflows/backend.yml'
@@ -113,13 +117,26 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/backend
+          # Control `latest` explicitly below (flavor=auto would drop it on
+          # dev pushes); keep the existing always-latest + full-sha tags.
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v7
         with:
           context: ./backend
           target: production
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/backend:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=docker-backend
           cache-to: type=gha,mode=max,scope=docker-backend
