@@ -264,7 +264,7 @@ Every pull request runs through:
 - **Tests.** `go test -race` with a Mongo + Redis service matrix and a 15 % coverage floor.
 - **Vulnerability check.** `govulncheck` against the latest Go 1.25.x stdlib + module deps, with an allowlist for upstream-unfixed Docker SDK CVEs.
 - **Single binary build.** One build per push validates `cmd/server` compiles cleanly with every addon.
-- **Docker push.** On push to `dev` / `main`, the image is pushed to GHCR as `ghcr.io/orkestra-cc/orkestra/backend:latest` and `:<sha>`.
+- **Docker push.** On push to `dev` / `main`, the image is pushed to GHCR as `ghcr.io/orkestra-cc/orkestra/backend:latest` and `:<sha>`. On a release tag push (`vX.Y.Z`) all images additionally get version tags — `:vX.Y.Z`, `:X.Y.Z`, and the floating `:X.Y` — so a deploy can pin an exact release. Applies to all four images (`backend`, `frontend`, `frontend-client`, `ai-service`).
 
 ### Coverage snapshot
 

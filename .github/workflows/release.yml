@@ -94,7 +94,13 @@ jobs:
           STAGED=()
           for f in CHANGELOG.md frontend-admin/package.json frontend-client/package.json; do
             if ! git diff --quiet -- "$f"; then
-              cp "$f" "/tmp/$(basename "$f").refreshed"
+              # Flatten the path into the temp name. Using basename here would
+              # collapse frontend-admin/package.json and frontend-client/
+              # package.json to the same /tmp/package.json file — the second
+              # clobbers the first, and BOTH get restored from it, overwriting
+              # frontend-admin's manifest with the client's. (Bit v0.2.0 +
+              # v0.2.1; see PR #75.) Keep the path-unique name.
+              cp "$f" "/tmp/refreshed-${f//\//-}"
               STAGED+=("$f")
             fi
           done
@@ -114,7 +120,7 @@ jobs:
           git fetch origin main
           git checkout main
           for f in "${STAGED[@]}"; do
-            cp "/tmp/$(basename "$f").refreshed" "$f"
+            cp "/tmp/refreshed-${f//\//-}" "$f"
             git add "$f"
           done
           # The files on main may already match what we regenerated
